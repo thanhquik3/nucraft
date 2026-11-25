@@ -8,4 +8,4 @@ This repository is a personal, non-commercial hobby open-source project hosted o
 - Keep contributions relevant to the NUCRAFT voxel sandbox game and properly licensed under MIT.
 
 ## Scope & Enforcement
-The project maintainer (`quythanhdz374-spec`) reserves the right to remove spam, abusive comments, or off-topic content that violates these guidelines or GitHub's platform rules.
+The project maintainer (`thanhquik3`) reserves the right to remove spam, abusive comments, or off-topic content that violates these guidelines or GitHub's platform rules.

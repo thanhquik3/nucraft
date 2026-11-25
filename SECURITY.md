@@ -1,7 +1,7 @@
 # Security Policy & Binary Transparency / Chính Sách Bảo Mật & Minh Bạch
 
 ## 1. Personal Open-Source Project Transparency
-NUCRAFT is a non-commercial, personal hobby voxel sandbox project maintained at [`quythanhdz374-spec/nucraft`](https://github.com/quythanhdz374-spec/nucraft). All source code — including the browser game engine (`src/`, `css/`, `shared/`, `scripts/`) and the Windows desktop launcher (`launcher/NucraftLauncher.cs`) — is published in full, human-readable form in this repository.
+NUCRAFT is a non-commercial, personal hobby voxel sandbox project maintained at [`thanhquik3/nucraft`](https://github.com/thanhquik3/nucraft). All source code — including the browser game engine (`src/`, `css/`, `shared/`, `scripts/`) and the Windows desktop launcher (`launcher/NucraftLauncher.cs`) — is published in full, human-readable form in this repository.
 
 ## 2. How `NUCRAFT.exe` Works (Windows PC App)
 For complete transparency for users and automated security scanners:
@@ -14,14 +14,14 @@ For complete transparency for users and automated security scanners:
 `NUCRAFT.exe` được biên dịch công khai trực tiếp từ mã nguồn [`launcher/NucraftLauncher.cs`](launcher/NucraftLauncher.cs) trên máy chủ GitHub Actions (`windows-latest`), chỉ chạy server nội bộ cục bộ `127.0.0.1`, không cần quyền Admin, không thu thập dữ liệu hay gửi thông tin người dùng, lưu thế giới cục bộ trong `%LOCALAPPDATA%\NUCRAFT\AppProfile` và tự tắt khi đóng cửa sổ game.
 
 ## 3. Verifying Releases / Xác Minh Bản Tải
-After downloading `NUCRAFT.exe` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/quythanhdz374-spec/nucraft/releases/latest):
+After downloading `NUCRAFT.exe` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/thanhquik3/nucraft/releases/latest):
 ```powershell
 Get-FileHash .\NUCRAFT.exe -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 You can also verify GitHub Build Provenance Attestation using GitHub CLI:
 ```powershell
-gh attestation verify .\NUCRAFT.exe --owner quythanhdz374-spec
+gh attestation verify .\NUCRAFT.exe --owner thanhquik3
 ```
 Or build `NUCRAFT.exe` locally yourself from source:
 ```powershell
@@ -31,4 +31,4 @@ node scripts/build.js
 ## 4. Reporting a Vulnerability / Báo Lỗi Bảo Mật
 If you discover a security bug or compliance concern in this repository:
 - Do **not** publish exploit details publicly first.
-- Please report it via **GitHub Security Advisories** (`Security` tab → `Report a vulnerability`) or open a non-sensitive issue in [`quythanhdz374-spec/nucraft/issues`](https://github.com/quythanhdz374-spec/nucraft/issues).
+- Please report it via **GitHub Security Advisories** (`Security` tab → `Report a vulnerability`) or open a non-sensitive issue in [`thanhquik3/nucraft/issues`](https://github.com/thanhquik3/nucraft/issues).

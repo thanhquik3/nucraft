@@ -1,13 +1,13 @@
 # NUCRAFT (BUILD v124)
 
-[![CI Policy & Security](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/ci.yml)
-[![Deploy GitHub Pages](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/deploy.yml)
-[![Release Windows PC App](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/release-pc.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/release-pc.yml)
+[![CI Policy & Security](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml)
+[![Deploy GitHub Pages](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml)
+[![Release Windows PC App](https://github.com/thanhquik3/nucraft/actions/workflows/release-pc.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/release-pc.yml)
 
 An open-source, non-commercial **personal hobby 3D voxel sandbox game** playable directly in web browsers (PC & Mobile) or as a standalone Windows desktop app compiled transparently from source via GitHub Actions.
 
 > **Personal Project & Compliance Statement:**  
-> This is an independent, non-commercial personal educational/hobby project by `quythanhdz374-spec`, published in full source-code form under the [MIT License](LICENSE) and adhering to all [GitHub Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service), [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies), and [Community Guidelines](https://docs.github.com/en/site-policy/github-terms/github-community-guidelines).
+> This is an independent, non-commercial personal educational/hobby project by `thanhquik3`, published in full source-code form under the [MIT License](LICENSE) and adhering to all [GitHub Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service), [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies), and [Community Guidelines](https://docs.github.com/en/site-policy/github-terms/github-community-guidelines).
 >
 > **Non-Affiliation Disclaimer:**  
 > NUCRAFT is an independent fanmade project. It is **not** affiliated with, endorsed by, sponsored by, or associated with Mojang AB or Microsoft Corporation.
@@ -15,14 +15,14 @@ An open-source, non-commercial **personal hobby 3D voxel sandbox game** playable
 ---
 
 ## Play Online / Chơi Trực Tiếp Trên Web (PC & Mobile)
-- **Web App (GitHub Pages):** **https://quythanhdz374-spec.github.io/nucraft/**
+- **Web App (GitHub Pages):** **https://thanhquik3.github.io/nucraft/**
 
 ## Windows PC App (`.EXE`) / Tải App PC
-- **Official GitHub Release (Built by GitHub Actions):** [NUCRAFT.exe (Latest)](https://github.com/quythanhdz374-spec/nucraft/releases/latest/download/NUCRAFT.exe)
-- **Checksums (`SHA256SUMS.txt`):** [SHA256SUMS.txt](https://github.com/quythanhdz374-spec/nucraft/releases/latest/download/SHA256SUMS.txt)
+- **Official GitHub Release (Built by GitHub Actions):** [NUCRAFT.exe (Latest)](https://github.com/thanhquik3/nucraft/releases/latest/download/NUCRAFT.exe)
+- **Checksums (`SHA256SUMS.txt`):** [SHA256SUMS.txt](https://github.com/thanhquik3/nucraft/releases/latest/download/SHA256SUMS.txt)
 
 ### Cách sử dụng App PC (Windows)
-1. Tải file `NUCRAFT.exe` (~2.3 MB) từ trang [GitHub Releases](https://github.com/quythanhdz374-spec/nucraft/releases/latest) (tạo trực tiếp từ mã nguồn bởi GitHub Actions kèm chứng thực Build Provenance).
+1. Tải file `NUCRAFT.exe` (~2.3 MB) từ trang [GitHub Releases](https://github.com/thanhquik3/nucraft/releases/latest) (tạo trực tiếp từ mã nguồn bởi GitHub Actions kèm chứng thực Build Provenance).
 2. Nháy đúp chuột vào `NUCRAFT.exe` để mở cửa sổ game — **không cần cài đặt, không cần Node.js hay giải nén file đi kèm**. Thế giới đã lưu được giữ cục bộ trong `%LOCALAPPDATA%\NUCRAFT\AppProfile`.
 3. *Lưu ý SmartScreen:* Vì đây là dự án cá nhân phi thương mại chưa mua chứng chỉ ký số thương mại (Authenticode EV), lần mở đầu tiên Windows SmartScreen có thể hiển thị cảnh báo ứng dụng chưa rõ nhà phát hành — bạn có thể kiểm tra mã SHA-256 đối chiếu với `SHA256SUMS.txt` và chọn **More info → Run anyway** (hoặc tự biên dịch trực tiếp từ mã nguồn bên dưới).
 
