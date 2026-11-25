@@ -1,4 +1,4 @@
-# NUCRAFT (BUILD v124)
+# NUCRAFT (BUILD v125)
 
 [![CI Policy & Security](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml)
 [![Deploy GitHub Pages](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml)
@@ -55,6 +55,7 @@ On your own Windows PC, `node scripts/build.js` builds the local web bundle and 
 - `server.js` & `sw.js` — Optional local static/WebSocket dev server and offline web Service Worker.
 
 ## Governance & Legal
-- [LICENSE](LICENSE) — MIT License & Third-Party Notices
+- [LICENSE](LICENSE) — MIT License
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — Third-Party Attributions & Non-Affiliation Disclaimer
 - [SECURITY.md](SECURITY.md) — Source Transparency & Security Reporting
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Community Code of Conduct

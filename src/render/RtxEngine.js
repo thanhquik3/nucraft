@@ -2977,12 +2977,12 @@
       while (n > 0) { f /= base; r += f * (n % base); n = Math.floor(n / base); }
       return r;
     };
-    const COLS = _isLiteGrass ? 7 : 8;
+    const COLS = _isLiteGrass ? 6 : 7;
     const BLADES = COLS * COLS;
     const cellSpan = 0.97 / COLS;
-    const tiers = [0.0, 0.36, 0.72];
-    const wScale = [1.0, 0.76, 0.40];
-    const leanScale = [0.0, 0.22, 0.60];
+    const tiers = [0.0, 0.50];
+    const wScale = [1.0, 0.62];
+    const leanScale = [0.0, 0.36];
     for (let b = 0; b < BLADES; b++) {
       const gx = b % COLS, gz = Math.floor(b / COLS);
       const ox = Math.max(-0.492, Math.min(0.492, -0.485 + (gx + 0.5) * cellSpan + (halton(b + 1, 2) - 0.5) * cellSpan * 0.68));
@@ -2990,7 +2990,7 @@
       const f1 = halton(b + 4, 5), f2 = halton(b + 7, 7);
       const yaw = f1 * 6.283185;
       const h = 0.40 + f2 * 0.30;
-      const w = 0.044 + (1.0 - f2) * 0.018;
+      const w = 0.050 + (1.0 - f2) * 0.020;
       const lean = 0.14 + halton(b + 3, 11) * 0.18;
       const ca = Math.cos(yaw), sa = Math.sin(yaw);
       const rx = ca, rz = sa, fx = -sa, fz = ca;
@@ -3126,6 +3126,7 @@
   scene.add(eclipseGrassMesh);
 
   let _egLastX = 1e9, _egLastZ = 1e9, _egLastDim = '', _egLastCount = 0;
+  const _egBiomeCache = new Map();
   function getEclipseGrassCount() { return eclipseGrassMesh.visible ? _egLastCount : 0; }
   function getEclipseGrassColorStats() {
     let warmAutumn = 0, dream = 0, green = 0;
@@ -3148,9 +3149,15 @@
     }
     if (force) { _egLastX = 1e9; _egLastZ = 1e9; }
     const moved = Math.hypot(player.x - _egLastX, player.z - _egLastZ);
-    if (!force && !window._eclipseGrassDirty && moved < 2.2 && currentDimension === _egLastDim) return;
+    if (!force && !window._eclipseGrassDirty && moved < 3.0 && currentDimension === _egLastDim) return;
     _egLastX = player.x; _egLastZ = player.z; _egLastDim = currentDimension;
     window._eclipseGrassDirty = false;
+
+    const effMax = (typeof _autoPerfTier !== 'undefined' && _autoPerfTier >= 2)
+      ? Math.floor(ECLIPSE_GRASS_MAX * 0.50)
+      : ((typeof _autoPerfTier !== 'undefined' && _autoPerfTier === 1) ? Math.floor(ECLIPSE_GRASS_MAX * 0.72) : ECLIPSE_GRASS_MAX);
+    _egBiomeCache.clear();
+    const hasBiomeFn = (typeof getBiomeAt === 'function');
 
     const rad = envUniforms.uGrassRadius ? envUniforms.uGrassRadius.value : (_isMobilePerf ? 20 : 36);
     const radI = Math.floor(rad), radSq = rad * rad;
@@ -3172,8 +3179,9 @@
       const maxLy = Math.min(maxCapLy, ch.maxLy, Math.floor(player.y + 14) - MIN_Y);
       if (maxLy < minLy) return;
       const colOff = ((wz & 15) << 4) | (wx & 15);
-      for (let ly = maxLy; ly >= minLy && cnt < ECLIPSE_GRASS_MAX; ly--) {
+      for (let ly = maxLy; ly >= minLy && cnt < effMax; ly--) {
         const id = data[(ly << 8) | colOff];
+        if (id === B.STONE || id === B.DEEPSLATE || id === B.WATER || id === B.SANDSTONE) break;
         if (id !== B.GRASS && id !== B.SIFT_GRASS && id !== B.LULLABY_GRASS && id !== B.SPORE_TURF && id !== B.BLUE_GRASS && id !== B.MOSS_BLOCK && id !== B.AUTUMN_PODZOL) continue;
         if (id === B.SPORE_TURF) {
           if (ly <= 0) continue;
@@ -3194,7 +3202,13 @@
           }
         }
 
-        const bio = ((id === B.GRASS || id === B.AUTUMN_PODZOL) && typeof getBiomeAt === 'function') ? getBiomeAt(wx, wz) : null;
+        let bio = null;
+        if ((id === B.GRASS || id === B.AUTUMN_PODZOL) && hasBiomeFn) {
+          const bqx = wx >> 2, bqz = wz >> 2;
+          const bqk = (bqx + 131072) * 262144 + (bqz + 131072);
+          bio = _egBiomeCache.get(bqk);
+          if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
+        }
         let cr = 0.36, cg = 0.78, cb = 0.13;
         if (id === B.AUTUMN_PODZOL) {
           if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.94; cg = 0.54; cb = 0.10; }
@@ -3226,7 +3240,7 @@
         const gc = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.65));
         const bc = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.3));
 
-        for (let t = 0; t < nearTiles && cnt < ECLIPSE_GRASS_MAX; t++) {
+        for (let t = 0; t < nearTiles && cnt < effMax; t++) {
           const base = cnt * 4;
           _egInstPos[base] = wx + 0.5;
           _egInstPos[base + 1] = wy + 1.0;
@@ -3244,20 +3258,20 @@
 
     // Outward radial square rings from camera center guarantee 360-degree full grass coverage near player!
     emitColumn(px, pz, 0);
-    for (let ring = 1; ring <= radI && cnt < ECLIPSE_GRASS_MAX; ring++) {
+    for (let ring = 1; ring <= radI && cnt < effMax; ring++) {
       const rz2 = ring * ring;
-      for (let dx = -ring; dx <= ring && cnt < ECLIPSE_GRASS_MAX; dx++) {
+      for (let dx = -ring; dx <= ring && cnt < effMax; dx++) {
         const d2 = dx * dx + rz2;
         if (d2 <= radSq) {
           emitColumn(px + dx, pz - ring, d2);
-          if (cnt < ECLIPSE_GRASS_MAX) emitColumn(px + dx, pz + ring, d2);
+          if (cnt < effMax) emitColumn(px + dx, pz + ring, d2);
         }
       }
-      for (let dz = -ring + 1; dz <= ring - 1 && cnt < ECLIPSE_GRASS_MAX; dz++) {
+      for (let dz = -ring + 1; dz <= ring - 1 && cnt < effMax; dz++) {
         const d2 = rz2 + dz * dz;
         if (d2 <= radSq) {
           emitColumn(px - ring, pz + dz, d2);
-          if (cnt < ECLIPSE_GRASS_MAX) emitColumn(px + ring, pz + dz, d2);
+          if (cnt < effMax) emitColumn(px + ring, pz + dz, d2);
         }
       }
     }

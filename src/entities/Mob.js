@@ -254,20 +254,20 @@
     if (_coreGlbsPreloaded || window.BLENDER_MOB_GLBS) return;
     if (!(location.protocol === 'http:' || location.protocol === 'https:')) return;
     _coreGlbsPreloaded = true;
-    const keys = [
-      'ender_dragon', 'baby_dragon', 'fire_dragon', 'ice_dragon',
-      'earth_dragon', 'water_dragon', 'leaf_dragon', 'tree_dragon',
-      'pig', 'cow', 'sheep', 'wolf', 'fox', 'cat', 'rabbit', 'horse',
-      'deer', 'creeper', 'spider', 'enderman', 'iron_golem',
-      'bee', 'butterfly', 'bird_cute', 'parrot', 'fish_cute', 'bear', 'frog', 'turtle'
-    ];
+    const keys = ['pig', 'cow', 'sheep', 'wolf', 'creeper', 'spider', 'enderman', 'iron_golem'];
     let idx = 0;
+    const scheduleIdle = (typeof requestIdleCallback === 'function')
+      ? (cb) => requestIdleCallback(cb, { timeout: 500 })
+      : (cb) => setTimeout(cb, 260);
     const step = () => {
-      let n = 0;
-      while (idx < keys.length && n < 4) { preloadMobGlb(keys[idx++]); n++; }
-      if (idx < keys.length) setTimeout(step, 120);
+      if (typeof isWorldLoading !== 'undefined' && isWorldLoading) {
+        setTimeout(step, 400);
+        return;
+      }
+      if (idx < keys.length) preloadMobGlb(keys[idx++]);
+      if (idx < keys.length) scheduleIdle(step);
     };
-    setTimeout(step, 50);
+    scheduleIdle(step);
   }
   function getBlenderMobTemplate(type) {
     if (blenderMobTemplates.has(type)) return blenderMobTemplates.get(type);

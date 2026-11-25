@@ -19,17 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
--------------------------------------------------------------------------------
-THIRD-PARTY NOTICES
--------------------------------------------------------------------------------
-- Three.js (assets/three.min.js): Copyright (c) 2010-2024 three.js authors,
-  licensed under the MIT License.
-- PeerJS (loaded dynamically at runtime from unpkg/jsDelivr for WebRTC co-op):
-  Copyright (c) Michelle Bu and Eric Zhang, licensed under the MIT License.
-- Open-source voxel sound effects (assets/luanti_sounds/): sourced from
-  open-source Luanti/Minetest community sound packs under permissive/CC-BY-SA
-  open-source licenses.
-- NUCRAFT is an independent, non-commercial personal fanmade hobby project and
-  is not affiliated with, endorsed by, or associated with Mojang AB or Microsoft
-  Corporation.

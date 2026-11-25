@@ -12,6 +12,7 @@ const CHECK_GIT_TRACKED = args.has('--git-tracked');
 
 const REQUIRED_FILES = [
   'LICENSE',
+  'THIRD_PARTY_NOTICES.md',
   'SECURITY.md',
   'CODE_OF_CONDUCT.md',
   'README.md',
@@ -34,6 +35,8 @@ const SECRET_REGEXES = [
   new RegExp('\\b(gh' + 'o_[A-Za-z0-9_]{20,}|gh' + 'p_[A-Za-z0-9_]{20,}|github_' + 'pat_[A-Za-z0-9_]{20,}|AK' + 'IA[0-9A-Z]{16})\\b'),
   new RegExp('-----BEGIN [A-Z ]*PRI' + 'VATE KEY-----')
 ];
+
+const STALE_ACCOUNT_RE = new RegExp('\\b(' + 'nug' + 'mtv|' + 'quythanhdz' + '374-spec)\\b', 'i');
 
 const LAUNCHER_BANNED = [
   ['DllImport', /\bDllImport\b/],
@@ -81,6 +84,19 @@ function main() {
       fail(`Invalid JSON in ${jsonRel}: ${err.message}`);
     }
   }
+  const licenseTxt = fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8');
+  if (!licenseTxt.startsWith('MIT License') || /THIRD-PARTY NOTICES/i.test(licenseTxt)) {
+    fail('LICENSE must be pure MIT License text (keep notices in THIRD_PARTY_NOTICES.md)');
+  }
+
+  const wfDir = path.join(ROOT, '.github', 'workflows');
+  const wfFiles = fs.existsSync(wfDir) ? walkFiles(wfDir).filter((p) => /\.(yml|yaml)$/i.test(p)) : [];
+  for (const wfPath of wfFiles) {
+    const wfRel = path.relative(ROOT, wfPath).replace(/\\/g, '/');
+    const wfTxt = fs.readFileSync(wfPath, 'utf8');
+    if (wfTxt.charCodeAt(0) === 0xFEFF) fail(`UTF-8 BOM prohibited in workflow: ${wfRel}`);
+    if (/NUCRAFT\.exe|release-pc/i.test(wfTxt)) fail(`Prohibited binary/release reference in workflow: ${wfRel}`);
+  }
 
   // 2) Git-tracked binary/artifact policy gate
   if (CHECK_GIT_TRACKED) {
@@ -113,25 +129,38 @@ function main() {
     }
   }
 
-  // 4) Secret/token leak scan across readable text sources
+  // 4) Secret/token leak, direct eval, and stale account scan across readable text sources
+  const evalRe = /\beval\s*\(/;
+  for (const full of jsFiles) {
+    if (path.resolve(full) === path.resolve(__filename)) continue;
+    const jsTxt = fs.readFileSync(full, 'utf8');
+    if (evalRe.test(jsTxt)) fail(`Prohibited direct eval() call in ${path.relative(ROOT, full)}`);
+  }
   const textFiles = [
     ...jsFiles,
+    ...wfFiles,
     path.join(ROOT, 'launcher', 'NucraftLauncher.cs'),
     path.join(ROOT, 'src', 'body.html'),
     path.join(ROOT, 'package.json'),
     path.join(ROOT, 'manifest.json'),
+    path.join(ROOT, 'LICENSE'),
+    path.join(ROOT, 'THIRD_PARTY_NOTICES.md'),
     path.join(ROOT, 'README.md'),
-    path.join(ROOT, 'SECURITY.md')
+    path.join(ROOT, 'SECURITY.md'),
+    path.join(ROOT, 'CODE_OF_CONDUCT.md')
   ];
   let secretsFound = 0;
   for (const full of textFiles) {
-    if (!fs.existsSync(full)) continue;
+    if (!fs.existsSync(full) || path.resolve(full) === path.resolve(__filename)) continue;
     const content = fs.readFileSync(full, 'utf8');
     for (const re of SECRET_REGEXES) {
       if (re.test(content)) {
         secretsFound++;
         fail(`Potential secret/token matched in ${path.relative(ROOT, full)}`);
       }
+    }
+    if (STALE_ACCOUNT_RE.test(content)) {
+      fail(`Stale account identifier matched in ${path.relative(ROOT, full)}`);
     }
   }
   for (const noExeLinkRel of ['src/body.html', 'README.md']) {

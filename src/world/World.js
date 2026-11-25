@@ -1993,9 +1993,11 @@
           if (trueY <= -1001 && trueY >= -1010) id = B.BEDROCK;
           else if (wy < h - 3) {
             const _cRaw = sampleCaveFast(lx, ly, lz);
-            const _cThresh = (wy < -16 && _cRaw > 0.65)
-              ? (() => { const ub = getUndergroundBiomeAt(wx, trueY, wz); return ub === UNDERGROUND_BIOMES.CRYSTAL_CAVERN ? 0.66 : (ub === UNDERGROUND_BIOMES.LUSH_CAVE ? 0.67 : (ub === UNDERGROUND_BIOMES.MAGMA_CAVERN ? 0.68 : (ub === UNDERGROUND_BIOMES.DRIPSTONE_CAVE ? 0.70 : 0.69))); })()
-              : (wy < -16 ? 0.69 : 0.76);
+            let _cThresh = (wy < -16 ? 0.69 : 0.76);
+            if (wy < -16 && _cRaw > 0.65) {
+              const ub = getUndergroundBiomeAt(wx, trueY, wz);
+              _cThresh = ub === UNDERGROUND_BIOMES.CRYSTAL_CAVERN ? 0.66 : (ub === UNDERGROUND_BIOMES.LUSH_CAVE ? 0.67 : (ub === UNDERGROUND_BIOMES.MAGMA_CAVERN ? 0.68 : (ub === UNDERGROUND_BIOMES.DRIPSTONE_CAVE ? 0.70 : 0.69)));
+            }
             if (wy > MIN_Y + 3 && (h > WATER_LEVEL + 2 || wy < Math.min(h - 5, WATER_LEVEL - 8)) && _cRaw > _cThresh) {
               id = (trueY <= -940) ? B.LAVA : B.AIR;
             } else {
@@ -2975,6 +2977,7 @@
   const interactiveVisuals = new Map();// 'wx,wy,wz' -> { kind, id, group, pivot, curAng, targetAng, chKey }
   const interactiveByChunk = new Map(); // chunkKey -> Set<'wx,wy,wz'>
   const endCrystalVisuals = new Map(); // 'wx,wy,wz' -> entry for 60 FPS floating crystal rotation
+  const animatedInteractiveVisuals = new Map(); // 'wx,wy,wz' -> dragon_head / windmill_hub entries
   let _hingesAnimating = false;
   function _delInteractiveVisual(k) {
     const old = interactiveVisuals.get(k);
@@ -2982,12 +2985,14 @@
     scene.remove(old.group);
     interactiveVisuals.delete(k);
     endCrystalVisuals.delete(k);
+    animatedInteractiveVisuals.delete(k);
     const set = interactiveByChunk.get(old.chKey);
     if (set) { set.delete(k); if (set.size === 0) interactiveByChunk.delete(old.chKey); }
   }
   function _setInteractiveVisual(k, entry) {
     interactiveVisuals.set(k, entry);
     if (entry.kind === 'end_crystal') endCrystalVisuals.set(k, entry);
+    else if (entry.kind === 'dragon_head' || entry.kind === 'windmill_hub') animatedInteractiveVisuals.set(k, entry);
     let set = interactiveByChunk.get(entry.chKey);
     if (!set) { set = new Set(); interactiveByChunk.set(entry.chKey, set); }
     set.add(k);
@@ -3532,7 +3537,7 @@
     if (!set) return;
     for (const k of set) {
       const v = interactiveVisuals.get(k);
-      if (v) { scene.remove(v.group); interactiveVisuals.delete(k); endCrystalVisuals.delete(k); }
+      if (v) { scene.remove(v.group); interactiveVisuals.delete(k); endCrystalVisuals.delete(k); animatedInteractiveVisuals.delete(k); }
     }
     interactiveByChunk.delete(chKey);
   }
@@ -3650,8 +3655,8 @@
         v.core.rotation.y += dt * 1.95;
       }
     }
-    if (interactiveVisuals.size > 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.animations !== false)) {
-      for (const v of interactiveVisuals.values()) {
+    if (animatedInteractiveVisuals.size > 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.animations !== false)) {
+      for (const v of animatedInteractiveVisuals.values()) {
         if (v && v.kind === 'dragon_head' && v.pivot && v.group && v.group.visible) {
           v.pivot.rotation.x = Math.max(0, Math.sin(elapsed * 2.4 + (v.phase || 0)) * 0.24);
         } else if (v && v.kind === 'windmill_hub' && v.pivot && v.group && v.group.visible) {
@@ -6456,7 +6461,7 @@
     clearWorldModsAll(); clearFluidState(); activeFires.clear();
     exploredChunks.clear(); doorOpenState.clear(); torchAttachDir.clear(); dragonHeadYaw.clear(); windmillHubState.clear(); chestStorageMap.clear(); chestPairMap.clear(); furnaceStateMap.clear(); manualCraftGrid.fill(0);
     for (const v of interactiveVisuals.values()) scene.remove(v.group);
-    interactiveVisuals.clear(); interactiveByChunk.clear(); endCrystalVisuals.clear(); _hingesAnimating = false;
+    interactiveVisuals.clear(); interactiveByChunk.clear(); endCrystalVisuals.clear(); animatedInteractiveVisuals.clear(); _hingesAnimating = false;
     activeChestKey = null; activeChestPartnerKey = null; activeFurnaceKey = null;
     incubatingEggs.clear(); spawnedDragonNests.clear();
     if (player.ridingDragon) { player.ridingDragon = null; player.sitting = false; }

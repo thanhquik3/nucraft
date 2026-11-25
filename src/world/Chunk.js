@@ -999,9 +999,11 @@
   }
 
 
+  const _CHUNK_MESH_KEYS = ['mesh', 'leavesMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh', 'towerMesh'];
   function disposeChunkMeshes(ch, keepInteractive = false) {
     if (!keepInteractive) clearChunkInteractiveVisuals(chunkKey(ch.cx, ch.cz));
-    for (const key of ['mesh', 'leavesMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh', 'towerMesh']) {
+    for (let i = 0; i < _CHUNK_MESH_KEYS.length; i++) {
+      const key = _CHUNK_MESH_KEYS[i];
       if (ch[key]) { scene.remove(ch[key]); ch[key].geometry.dispose(); ch[key] = null; }
     }
     ch.meshed = false;
@@ -1100,6 +1102,7 @@
   }
   const _wBuf = _makeFluidBuf(4096), _lvBuf = _makeFluidBuf(4096);
   const _pPos = [], _pNorm = [], _pUvs = [], _pSway = [], _pSkyShade = [], _pBLights = [], _pIndices = [];
+  const _meshSt = { vCount: 0, iCount: 0, lCount: 0, liCount: 0, eCount: 0, ptCount: 0, wCount: 0, wiCount: 0, lvCount: 0, lviCount: 0, pCount: 0 };
 
   // Sodium: O(1) tight analytical bounding sphere assignment (eliminates Three.js 40k-vertex scan on first draw!)
   function _assignChunkBounds(geo, wx0, wz0, maxLy) {
@@ -1336,33 +1339,71 @@
     }
     return wSum > 0 ? (sum / wSum) : 0.86;
   }
+  const _fluidFaceCfg = { upNb: 0, fl: 0, isFalling: false, h00: 0.86, h10: 0.86, h11: 0.86, h01: 0.86 };
+  const _wDepthCache = new Float32Array(324);
+  const _wDepthStamp = new Uint32Array(324);
+  let _wDepthGen = 1;
+
   function _getFluidFaceConfig(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, fluidId, hasFluidLevels, lvStep) {
     const upNb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);
     const fl = hasFluidLevels ? (fluidLevel.get(modKey(wx, wy, wz)) || 0) : 0;
     const isFalling = _isFluidMatch(upNb, fluidId) || fl === 8;
-    const h00 = isFalling ? 1.0 : _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 0, fluidId, hasFluidLevels, lvStep);
-    const h10 = isFalling ? 1.0 : _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 0, fluidId, hasFluidLevels, lvStep);
-    const h11 = isFalling ? 1.0 : _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 1, fluidId, hasFluidLevels, lvStep);
-    const h01 = isFalling ? 1.0 : _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 1, fluidId, hasFluidLevels, lvStep);
-    return { upNb, fl, isFalling, h00, h10, h11, h01 };
+    const cfg = _fluidFaceCfg;
+    cfg.upNb = upNb; cfg.fl = fl; cfg.isFalling = isFalling;
+    if (isFalling) {
+      cfg.h00 = 1.0; cfg.h10 = 1.0; cfg.h11 = 1.0; cfg.h01 = 1.0;
+      return cfg;
+    }
+    if (!hasFluidLevels && fluidId === B.WATER && lx > 0 && lx < 15 && lz > 0 && lz < 15) {
+      const r0 = (ly << 8) | (lz << 4) | lx;
+      const b0 = data[r0 - 17], b1 = data[r0 - 16], b2 = data[r0 - 15], b3 = data[r0 - 1], b4 = data[r0 + 1], b5 = data[r0 + 15], b6 = data[r0 + 16], b7 = data[r0 + 17];
+      const ok = (b, off) => {
+        if (b === B.WATER || b === B.SEAGRASS) {
+          if (ly + 1 >= WORLD_H) return true;
+          const bu = data[off + 256];
+          return bu !== B.WATER && bu !== B.SEAGRASS;
+        }
+        return IS_OPAQUE[b] === 1;
+      };
+      if (ok(b0, r0 - 17) && ok(b1, r0 - 16) && ok(b2, r0 - 15) && ok(b3, r0 - 1) && ok(b4, r0 + 1) && ok(b5, r0 + 15) && ok(b6, r0 + 16) && ok(b7, r0 + 17)) {
+        cfg.h00 = 0.86; cfg.h10 = 0.86; cfg.h11 = 0.86; cfg.h01 = 0.86;
+        return cfg;
+      }
+    }
+    cfg.h00 = _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 0, fluidId, hasFluidLevels, lvStep);
+    cfg.h10 = _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 0, fluidId, hasFluidLevels, lvStep);
+    cfg.h11 = _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 1, fluidId, hasFluidLevels, lvStep);
+    cfg.h01 = _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 1, fluidId, hasFluidLevels, lvStep);
+    return cfg;
   }
 
   function _getFluidCornerDepth(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, cxOff, czOff) {
     let sum = 0, wSum = 0;
     for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
       const sx = lx + cxOff + dx, sz = lz + czOff + dz;
-      const b = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly, sz);
-      if (b === B.WATER || b === B.SEAGRASS) {
-        let d = 1;
-        const minY = Math.max(0, ly - 12);
-        for (let yy = ly - 1; yy >= minY; yy--) {
-          const sub = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, yy, sz);
-          if (sub === B.WATER || sub === B.SEAGRASS) d++;
-          else break;
+      let colD = -1.0;
+      const inCache = (sx >= -1 && sx <= 16 && sz >= -1 && sz <= 16);
+      const slot = inCache ? ((sz + 1) * 18 + (sx + 1)) : 0;
+      if (inCache && _wDepthStamp[slot] === _wDepthGen) {
+        colD = _wDepthCache[slot];
+      } else {
+        const b = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly, sz);
+        if (b === B.WATER || b === B.SEAGRASS) {
+          let d = 1;
+          const minY = Math.max(0, ly - 12);
+          for (let yy = ly - 1; yy >= minY; yy--) {
+            const sub = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, yy, sz);
+            if (sub === B.WATER || sub === B.SEAGRASS) d++;
+            else break;
+          }
+          colD = Math.min(1.0, (d - 1) / 10.0);
         }
-        sum += Math.min(1.0, (d - 1) / 10.0);
-        wSum++;
+        if (inCache) {
+          _wDepthStamp[slot] = _wDepthGen;
+          _wDepthCache[slot] = colD;
+        }
       }
+      if (colD >= 0.0) { sum += colD; wSum++; }
     }
     return wSum > 0 ? (sum / wSum) : 0.0;
   }
@@ -1932,27 +1973,22 @@
       const rXZ = 0.64, rY = 0.62;
       const c0 = Math.cos(ang + 0.7854) * rXZ, s0 = Math.sin(ang + 0.7854) * rXZ;
       const c1 = Math.cos(ang - 0.7854) * rXZ, s1 = Math.sin(ang - 0.7854) * rXZ;
-      const qPairs = [
-        [[cx - c0, cy - rY, cz - s0], [cx + c0, cy - rY, cz + s0], [cx + c0, cy + rY, cz + s0], [cx - c0, cy + rY, cz - s0]],
-        [[cx - c1, cy - rY, cz - s1], [cx + c1, cy - rY, cz + s1], [cx + c1, cy + rY, cz + s1], [cx - c1, cy + rY, cz - s1]]
-      ];
+      const cyB = cy - rY, cyT = cy + rY;
+      const ctB = Math.min(1.12, lastCrTint * 0.86), ctT = Math.min(1.12, lastCrTint * 1.04);
+      const colMulR = isSakura ? 1.10 : (isBlue ? 0.94 : 1.0);
+      const colMulG = isSakura ? 0.99 : (isBlue ? 1.00 : 1.03);
+      const colMulB = isSakura ? 1.06 : (isBlue ? 1.09 : 0.95);
+      const colCapR = isSakura ? 1.18 : 9.0, colCapG = isSakura ? 9.0 : (isBlue ? 9.0 : 1.15), colCapB = (isSakura || isBlue) ? 1.16 : 9.0;
+      const rB = Math.min(colCapR, ctB * colMulR), gB = Math.min(colCapG, ctB * colMulG), bB = Math.min(colCapB, ctB * colMulB);
+      const rT = Math.min(colCapR, ctT * colMulR), gT = Math.min(colCapG, ctT * colMulG), bT = Math.min(colCapB, ctT * colMulB);
       for (let q = 0; q < 2; q++) {
-        const qp = qPairs[q];
+        const dxq = q === 0 ? c0 : c1, dzq = q === 0 ? s0 : s1;
+        const xA = cx - dxq, zA = cz - dzq, xB = cx + dxq, zB = cz + dzq;
         let vp = st.lCount * 3, up = st.lCount * 2;
-        for (let c = 0; c < 4; c++) {
-          _lPos[vp] = qp[c][0]; _lPos[vp + 1] = qp[c][1]; _lPos[vp + 2] = qp[c][2];
-          _lNorm[vp] = 0; _lNorm[vp + 1] = 1; _lNorm[vp + 2] = 0;
-          const ct = Math.min(1.12, lastCrTint * (c < 2 ? 0.86 : 1.04));
-          if (isSakura) {
-            _lCols[vp] = Math.min(1.18, ct * 1.10); _lCols[vp + 1] = ct * 0.99; _lCols[vp + 2] = Math.min(1.16, ct * 1.06);
-          } else if (isBlue) {
-            _lCols[vp] = ct * 0.94; _lCols[vp + 1] = ct * 1.00; _lCols[vp + 2] = Math.min(1.14, ct * 1.09);
-          } else {
-            _lCols[vp] = ct; _lCols[vp + 1] = Math.min(1.15, ct * 1.03); _lCols[vp + 2] = ct * 0.95;
-          }
-          _lBL[vp] = lastLr; _lBL[vp + 1] = lastLg; _lBL[vp + 2] = lastLb;
-          vp += 3;
-        }
+        _lPos[vp] = xA; _lPos[vp+1] = cyB; _lPos[vp+2] = zA; _lNorm[vp] = 0; _lNorm[vp+1] = 1; _lNorm[vp+2] = 0; _lCols[vp] = rB; _lCols[vp+1] = gB; _lCols[vp+2] = bB; _lBL[vp] = lastLr; _lBL[vp+1] = lastLg; _lBL[vp+2] = lastLb;
+        _lPos[vp+3] = xB; _lPos[vp+4] = cyB; _lPos[vp+5] = zB; _lNorm[vp+3] = 0; _lNorm[vp+4] = 1; _lNorm[vp+5] = 0; _lCols[vp+3] = rB; _lCols[vp+4] = gB; _lCols[vp+5] = bB; _lBL[vp+3] = lastLr; _lBL[vp+4] = lastLg; _lBL[vp+5] = lastLb;
+        _lPos[vp+6] = xB; _lPos[vp+7] = cyT; _lPos[vp+8] = zB; _lNorm[vp+6] = 0; _lNorm[vp+7] = 1; _lNorm[vp+8] = 0; _lCols[vp+6] = rT; _lCols[vp+7] = gT; _lCols[vp+8] = bT; _lBL[vp+6] = lastLr; _lBL[vp+7] = lastLg; _lBL[vp+8] = lastLb;
+        _lPos[vp+9] = xA; _lPos[vp+10] = cyT; _lPos[vp+11] = zA; _lNorm[vp+9] = 0; _lNorm[vp+10] = 1; _lNorm[vp+11] = 0; _lCols[vp+9] = rT; _lCols[vp+10] = gT; _lCols[vp+11] = bT; _lBL[vp+9] = lastLr; _lBL[vp+10] = lastLg; _lBL[vp+11] = lastLb;
         _lUvs[up] = u0; _lUvs[up + 1] = v1; _lUvs[up + 2] = u1; _lUvs[up + 3] = v1;
         _lUvs[up + 4] = u1; _lUvs[up + 5] = v0; _lUvs[up + 6] = u0; _lUvs[up + 7] = v0;
         const ip = st.liCount, lc = st.lCount;
@@ -2161,13 +2197,16 @@
     ePos.length = 0; eUvs.length = 0; eType.length = 0; eIndices.length = 0;
     ptPos.length = 0; ptUvs.length = 0; ptKind.length = 0; ptIndices.length = 0;
     pPos.length = 0; pNorm.length = 0; pUvs.length = 0; pSway.length = 0; pSkyShade.length = 0; pBLights.length = 0; pIndices.length = 0;
-    const st = { vCount: 0, iCount: 0, lCount: 0, liCount: 0, eCount: 0, ptCount: 0, wCount: 0, wiCount: 0, lvCount: 0, lviCount: 0, pCount: 0 };
+    const st = _meshSt;
+    st.vCount = 0; st.iCount = 0; st.lCount = 0; st.liCount = 0; st.eCount = 0; st.ptCount = 0; st.wCount = 0; st.wiCount = 0; st.lvCount = 0; st.lviCount = 0; st.pCount = 0;
     const cullBottomBedrock = (sodiumOpts.moreCulling && currentDimension !== 'end');
     const _cXP = chunks.get(chunkKey(cx + 1, cz)), _cXM = chunks.get(chunkKey(cx - 1, cz));
     const _cZP = chunks.get(chunkKey(cx, cz + 1)), _cZM = chunks.get(chunkKey(cx, cz - 1));
     const _allOceanNbr = !!(ch.isOceanChunk && _cXP && _cXP.isOceanChunk && _cXM && _cXM.isOceanChunk && _cZP && _cZP.isOceanChunk && _cZM && _cZM.isOceanChunk);
 
     for (let ly = 0; ly <= maxLy; ly++) {
+      _wDepthGen = (_wDepthGen + 1) >>> 0;
+      if (_wDepthGen === 0) { _wDepthStamp.fill(0); _wDepthGen = 1; }
       const wy = MIN_Y + ly, yOff = ly << 8;
       // Sodium: uniform air or interior ocean-water Y-layer skip
       const _uniId = data[yOff];

@@ -4897,7 +4897,7 @@
         _shiftCoordMap(windmillHubState);
         if (interactiveVisuals.size > 0) {
           const ivEntries = Array.from(interactiveVisuals.entries());
-          interactiveVisuals.clear(); interactiveByChunk.clear(); endCrystalVisuals.clear();
+          interactiveVisuals.clear(); interactiveByChunk.clear(); endCrystalVisuals.clear(); animatedInteractiveVisuals.clear();
           for (let i = 0; i < ivEntries.length; i++) {
             const [ik, v] = ivEntries[i];
             const p = String(ik).split(',');

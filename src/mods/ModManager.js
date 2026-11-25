@@ -470,6 +470,10 @@
     renderModManagerList();
   }
 
+  function _escMod(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   function renderModManagerList() {
     const _t = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
     const cntEl = document.getElementById('lobbyModCount');
@@ -488,12 +492,12 @@
       card.innerHTML = `
         <div class="mod-card-info">
           <div class="mod-card-title">
-            <span class="mod-badge">${pack.format.toUpperCase()}</span>
-            <span>${pack.name || pack.fileName}</span>
-            <small style="color:#e2e8f0;font-weight:600;font-size:12px;">v${pack.version || '1.0'} • ${kb}KB</small>
+            <span class="mod-badge">${_escMod(String(pack.format || '').toUpperCase())}</span>
+            <span>${_escMod(pack.name || pack.fileName)}</span>
+            <small style="color:#e2e8f0;font-weight:600;font-size:12px;">v${_escMod(pack.version || '1.0')} • ${kb}KB</small>
           </div>
-          <div class="mod-card-desc">${pack.description || _t('Gói mở rộng Minecraft / NUCRAFT', 'Minecraft / NUCRAFT Add-on Pack')}</div>
-          <div class="mod-card-meta">${pack.runtimeNote || _t('Sẵn sàng áp dụng', 'Ready to apply')}${(pack.warnings && pack.warnings.length) ? ' • ⚠️ ' + pack.warnings[0] : ''}</div>
+          <div class="mod-card-desc">${_escMod(pack.description || _t('Gói mở rộng NUCRAFT / Voxel Add-on', 'NUCRAFT / Voxel Add-on Pack'))}</div>
+          <div class="mod-card-meta">${_escMod(pack.runtimeNote || _t('Sẵn sàng áp dụng', 'Ready to apply'))}${(pack.warnings && pack.warnings.length) ? ' • ⚠️ ' + _escMod(pack.warnings[0]) : ''}</div>
         </div>
       `;
       const acts = document.createElement('div');
@@ -542,8 +546,14 @@
       if (parsed.version) version = String(parsed.version);
       stored = txt;
     } else if (format === 'nucraft-js') {
+      const okMsg = (typeof tr === 'function')
+        ? tr(
+            `⚠️ Mod "${name}.js" chứa mã JavaScript chạy trực tiếp trong trình duyệt.\nChỉ cài đặt script từ nguồn bạn tin tưởng!\n\nTiếp tục cài "${name}.js"?`,
+            `⚠️ Mod "${name}.js" contains JavaScript code that runs in your browser.\nOnly install scripts you trust!\n\nContinue installing "${name}.js"?`
+          )
+        : `Install local JS mod "${name}.js"? Only install scripts you trust.`;
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(okMsg)) return;
       const txt = typeof bytesOrText === 'string' ? bytesOrText : new TextDecoder().decode(bytesOrText);
-      new Function('API', '/* syntax check */');
       stored = txt;
     } else {
       const u8 = bytesOrText instanceof Uint8Array ? bytesOrText : new Uint8Array(bytesOrText);

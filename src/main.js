@@ -71,7 +71,7 @@
     }
     renderer.shadowMap.type = (isUltra && !_initMobile) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
-    _lastShadowChunkKey = '';
+    _lastShCx = 999999; _lastShCz = 999999;
     _postFxDirty = true;
     renderer.localClippingEnabled = !isLow;
     if (isLow) {
@@ -487,6 +487,20 @@
     }
   }
 
+  let _dynLightFound = 0;
+  function _offerDynLight(need, x, y, z, col, int, d2, prio) {
+    const score = d2 - (prio ? 64 : 0);
+    if (_dynLightFound === need && score >= _topLights[need - 1].score) return;
+    let idx = _dynLightFound < need ? _dynLightFound++ : need - 1;
+    while (idx > 0 && score < _topLights[idx - 1].score) {
+      const prev = _topLights[idx - 1], cur = _topLights[idx];
+      cur.x = prev.x; cur.y = prev.y; cur.z = prev.z; cur.col = prev.col; cur.int = prev.int; cur.d2 = prev.d2; cur.score = prev.score;
+      idx--;
+    }
+    const slot = _topLights[idx];
+    slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.d2 = d2; slot.score = score;
+  }
+
   function updateWeatherAndLights(dt) {
     const inOverworld = (currentDimension === 'overworld');
     const biome = getPlayerBiome();
@@ -617,29 +631,17 @@
       _lightAcc = 0;
       const maxLights = shaderQuality === 'low' ? Math.min(5, dynamicLightPool.length) : dynamicLightPool.length;
       const need = Math.min(_topLights.length, Math.max(0, maxLights - 1));
-      let found = 0;
-      const offerLight = (x, y, z, col, int, d2, prio) => {
-        const score = d2 - (prio ? 64 : 0);
-        if (found === need && score >= _topLights[need - 1].score) return;
-        let idx = found < need ? found++ : need - 1;
-        while (idx > 0 && score < _topLights[idx - 1].score) {
-          const prev = _topLights[idx - 1], cur = _topLights[idx];
-          cur.x = prev.x; cur.y = prev.y; cur.z = prev.z; cur.col = prev.col; cur.int = prev.int; cur.d2 = prev.d2; cur.score = prev.score;
-          idx--;
-        }
-        const slot = _topLights[idx];
-        slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.d2 = d2; slot.score = score;
-      };
+      _dynLightFound = 0;
       if (need > 0) {
         for (let i = 0; i < mobs.length; i++) {
           const m = mobs[i];
           if (m.isBoss || m.fusing || m.burning || m.type === 'blaze') {
             const dx = m.x - player.x, dz = m.z - player.z, d2 = dx * dx + dz * dz;
-            if (d2 <= 576) offerLight(m.x, m.y + 1.4, m.z, m.fusing ? 0xd9f99d : 0xff7b28, 1.45, d2, 1);
+            if (d2 <= 576) _offerDynLight(need, m.x, m.y + 1.4, m.z, m.fusing ? 0xd9f99d : 0xff7b28, 1.45, d2, 1);
           }
         }
         for (let i = 0; i < primedTnts.length; i++) {
-          offerLight(primedTnts[i].x, primedTnts[i].y + 0.8, primedTnts[i].z, 0xffaa44, 1.6, 1, 1);
+          _offerDynLight(need, primedTnts[i].x, primedTnts[i].y + 0.8, primedTnts[i].z, 0xffaa44, 1.6, 1, 1);
         }
         const px = Math.floor(player.x) >> 4, pz = Math.floor(player.z) >> 4;
         for (let cz = pz - 2; cz <= pz + 2; cz++) for (let cx = px - 2; cx <= px + 2; cx++) {
@@ -649,12 +651,12 @@
             const ln = ch.lightNodes[li];
             const dx = ln.x - player.x, dy = ln.y - player.y, dz = ln.z - player.z;
             const d2 = dx * dx + dy * dy + dz * dz;
-            if (d2 <= 2304) offerLight(ln.x, ln.y, ln.z, ln.col, ln.int, d2, ln.prio || 0);
+            if (d2 <= 2304) _offerDynLight(need, ln.x, ln.y, ln.z, ln.col, ln.int, d2, ln.prio || 0);
           }
         }
       }
       for (let s = 1; s < dynamicLightPool.length; s++) {
-        const pl = dynamicLightPool[s], c = (s <= found) ? _topLights[s - 1] : null;
+        const pl = dynamicLightPool[s], c = (s <= _dynLightFound) ? _topLights[s - 1] : null;
         if (c) {
           const fade = Math.max(0.55, 1.0 - Math.sqrt(c.d2) / 56.0);
           pl.position.set(c.x, c.y, c.z); pl.color.setHex(c.col); pl.intensity = c.int * fade;
@@ -1056,26 +1058,27 @@
   }
 
 
-  let _lastShadowChunkKey = '';
-  function updateSunShadowFrustum() {
+  let _lastShCx = 999999, _lastShCz = 999999, _lastShQual = '';
+  function updateSunShadowFrustum(updateLightMatrices = true) {
     if (!renderer.shadowMap.enabled) return;
-    const px = player.x;
-    const py = player.y, pz = player.z;
-    const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
-    const snapX = Math.round(px / shTexel) * shTexel;
-    const snapY = Math.round(py / shTexel) * shTexel;
-    const snapZ = Math.round(pz / shTexel) * shTexel;
-    const isNightShadow = (currentDimension === 'overworld' && envUniforms.uSunDir.value.y < -0.04);
-    const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
-    const reach = (currentDimension === 'nether') ? 34 : 46;
-    sunLight.target.position.set(snapX, snapY, snapZ);
-    sunLight.position.set(snapX + lDir.x * reach, snapY + Math.max(10, lDir.y * reach), snapZ + lDir.z * reach);
-    sunLight.target.updateMatrixWorld();
-    sunLight.updateMatrixWorld();
+    const px = player.x, pz = player.z;
+    if (updateLightMatrices) {
+      const py = player.y;
+      const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
+      const snapX = Math.round(px / shTexel) * shTexel;
+      const snapY = Math.round(py / shTexel) * shTexel;
+      const snapZ = Math.round(pz / shTexel) * shTexel;
+      const isNightShadow = (currentDimension === 'overworld' && envUniforms.uSunDir.value.y < -0.04);
+      const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
+      const reach = (currentDimension === 'nether') ? 34 : 46;
+      sunLight.target.position.set(snapX, snapY, snapZ);
+      sunLight.position.set(snapX + lDir.x * reach, snapY + Math.max(10, lDir.y * reach), snapZ + lDir.z * reach);
+      sunLight.target.updateMatrixWorld();
+      sunLight.updateMatrixWorld();
+    }
     const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4;
-    const shKey = `${pcx},${pcz},${shaderQuality}`;
-    if (shKey !== _lastShadowChunkKey && chunks.size > 0) {
-      _lastShadowChunkKey = shKey;
+    if ((pcx !== _lastShCx || pcz !== _lastShCz || shaderQuality !== _lastShQual) && chunks.size > 0) {
+      _lastShCx = pcx; _lastShCz = pcz; _lastShQual = shaderQuality;
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
       const maxChDist = preset.shadowChunkRange > 0 ? Math.max(1, Math.ceil(preset.shadowChunkRange / CHUNK_W)) : -1;
       const allowLeafSh = (shaderQuality === 'ultra');
@@ -1092,6 +1095,7 @@
 
   let _reflDoneOnce = false, _lastReflX = 9e9, _lastReflY = 9e9, _lastReflZ = 9e9, _lastReflYaw = 9e9, _lastReflPitch = 9e9;
   const _reflHiddenChunks = [], _reflHiddenMobs = [];
+  const _REFL_CLIP_ARR = [reflClipPlane], _EMPTY_CLIP_ARR = [];
   function renderWaterReflectionPass(inLobby = false, rawDt = 0.016) {
     if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || currentDimension !== 'overworld' || depthOffset > 0 || player.eyesInWater || player.y < -4 || camera.rotation.x > 0.35) {
       envUniforms.uUsePlanarRefl.value = 0.0;
@@ -1142,25 +1146,26 @@
     _reflHiddenChunks.length = 0;
     for (const ch of chunks.values()) {
       if (ch.waterMesh && ch.waterMesh.visible) { ch.waterMesh.visible = false; _reflHiddenChunks.push(ch.waterMesh); }
-      if (ch.plantMesh && ch.plantMesh.visible && Math.abs(ch.cx - pcx) <= 2 && Math.abs(ch.cz - pcz) <= 2) {
-        ch.plantMesh.visible = false; _reflHiddenChunks.push(ch.plantMesh);
-      }
+      if (ch.plantMesh && ch.plantMesh.visible) { ch.plantMesh.visible = false; _reflHiddenChunks.push(ch.plantMesh); }
     }
     _reflHiddenMobs.length = 0;
     for (let mi = 0; mi < mobs.length; mi++) {
       const m = mobs[mi];
-      if (m && m.group && m.group.visible && Math.hypot(m.x - player.x, m.z - player.z) > 42) {
-        m.group.visible = false;
-        _reflHiddenMobs.push(m.group);
+      if (m && m.group && m.group.visible) {
+        const dx = m.x - player.x, dz = m.z - player.z;
+        if (dx * dx + dz * dz > 1764) {
+          m.group.visible = false;
+          _reflHiddenMobs.push(m.group);
+        }
       }
     }
-    renderer.clippingPlanes = [reflClipPlane];
+    renderer.clippingPlanes = _REFL_CLIP_ARR;
     renderer.setRenderTarget(reflRT);
     renderer.setClearColor(envUniforms.uFogColor.value, 1);
     renderer.clear(true, true, true);
     renderer.render(scene, reflCam);
     renderer.setRenderTarget(null);
-    renderer.clippingPlanes = [];
+    renderer.clippingPlanes = _EMPTY_CLIP_ARR;
     renderer.shadowMap.enabled = prevShadowEnabled;
     for (let i = 0; i < _reflHiddenChunks.length; i++) _reflHiddenChunks[i].visible = true;
     for (let i = 0; i < _reflHiddenMobs.length; i++) _reflHiddenMobs[i].visible = true;
@@ -1264,6 +1269,7 @@
 
   function animate(now) {
     requestAnimationFrame(animate);
+    if (document.hidden) { lastFrame = now; return; }
     const _tFrameStart = performance.now();
     try {
     frameCounter++;
@@ -1463,7 +1469,6 @@
     }
 
     if (!worldPaused) {
-      updateSunShadowFrustum();
       if (renderer.shadowMap.enabled) {
         _shadowAcc += rawDt;
         const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
@@ -1475,6 +1480,7 @@
           _lastShX = player.x; _lastShZ = player.z; _lastShTime = dayTime;
         }
       }
+      updateSunShadowFrustum(!!renderer.shadowMap.needsUpdate);
       renderWaterReflectionPass(inLobby, rawDt);
       renderMainScene(rawDt);
     } else if ((frameCounter & 15) === 0) {

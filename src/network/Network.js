@@ -285,7 +285,7 @@
     const badge = document.getElementById('roomBadge');
     const menuSt = document.getElementById('menuCoopStatus');
     if (menuSt) {
-      if (activeRoomId) menuSt.innerHTML = `Đang mở phòng Internet: <b style="color:#4ade80;">${activeRoomId}</b> (${1 + remotePlayers.size} người chơi) — Gửi mã này cho bạn bè ở bất kỳ mạng Wi-Fi / 4G nào!`;
+      if (activeRoomId) menuSt.innerHTML = `Đang mở phòng Internet: <b style="color:#4ade80;">${escHtml(activeRoomId)}</b> (${1 + remotePlayers.size} người chơi) — Gửi mã này cho bạn bè ở bất kỳ mạng Wi-Fi / 4G nào!`;
       else menuSt.textContent = 'Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè ở bất kỳ đâu!';
     }
     if (!badge) return;

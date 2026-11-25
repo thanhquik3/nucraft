@@ -1,4 +1,4 @@
-﻿name: CI Policy & Security
+name: CI Policy & Security
 
 on:
   push:

@@ -230,7 +230,7 @@
       mangrove:    { biome: BIOMES.MANGROVE_SWAMP,   needWater: false, time: 0.33,  preset: 'bliss',   pitch: -0.02,msg: '🐊 Đầm Lầy Rừng Ngập Mặn' },
       alpine:      { biome: BIOMES.ALPINE_PEAKS,     needWater: false, time: 0.36,  preset: 'bsl',     pitch: 0.04, msg: '🏔️ Dãy Núi Tuyết Cao & Băng Nén' },
       plateau:     { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.0,  msg: '🦅 Cao Nguyên Hùng Vĩ' },
-      sakura:      { biome: BIOMES.SAKURA,           needWater: true,  time: 0.31,  preset: 'bsl',     pitch: 0.0,  msg: '🌸 Hồ Anh Đào Chuẩn Minecraft' },
+      sakura:      { biome: BIOMES.SAKURA,           needWater: true,  time: 0.31,  preset: 'bsl',     pitch: 0.0,  msg: '🌸 Hồ Anh Đào NUCRAFT' },
       village:     { biome: BIOMES.PLAINS,           needWater: false, time: 0.36,  preset: 'bsl',     pitch: -0.02,msg: '🏘️ Làng Builder Cổ Đại & Golem Sắt' },
       lush_cave:   { biome: BIOMES.LUSH_GROVE,       needWater: false, time: 0.34,  preset: 'bliss',   pitch: -0.04,msg: '💎 Hang Động Tươi Tốt & Warden' },
       autumn:      { biome: BIOMES.AUTUMN,           needWater: false, time: 0.33,  preset: 'bsl',     pitch: 0.0,  msg: '🍁 Rừng Mùa Thu Lá Đỏ' },
@@ -990,8 +990,8 @@
     'Tạo Phòng Mới & Lấy Mã': 'Create Room & Get Code',
     'Làm Mới Danh Sách': 'Refresh List',
     'Bạn bè & Lời mời (': 'Friends & Invites (',
-    '🧩 Quản Lý Mod & Minecraft Add-on': '🧩 Mod & Minecraft Add-on Manager',
-    'Cài trực tiếp gói Minecraft (': 'Install Minecraft packs directly (',
+    '🧩 Quản Lý Mod & Voxel Add-on': '🧩 Mod & Voxel Add-on Manager',
+    'Hỗ trợ nạp gói tài nguyên định dạng mở (': 'Load open-format resource/add-on packs (',
     '— texture, âm thanh, công thức crafting, chỉ số mob) hoặc Mod NUCRAFT (': '— textures, sounds, crafting recipes, mob stats) or NUCRAFT Mods (',
     '). File': '). Files like',
     'xương phức tạp được bỏ qua an toàn không gây lỗi game.': 'with complex skeletal rigs are skipped safely without crashing.',
@@ -1039,7 +1039,7 @@
     'Quyền Quản Trị (Admin • Mở Khóa Tab Vùng Đất)': 'Admin Access (Unlock Realms Tab)',
     '👑 Mở Khóa Admin': '👑 Unlock Admin',
     '🌐 Ngôn Ngữ / Language': '🌐 Language / Ngôn Ngữ',
-    '🎵 Âm Thanh Luanti & Nhạc Nền Minecraft Chill': '🎵 Sound Effects & Chill Background Music',
+    '🎵 Âm Thanh & Nhạc Nền Voxel Chill': '🎵 Sound Effects & Chill Background Music',
     '🔊 Tổng:': '🔊 Master:',
     '🎹 Nhạc nền:': '🎹 Music:',
     '⛏️ Hiệu ứng:': '⛏️ Effects:',
@@ -2348,7 +2348,7 @@ const SUB_TITLES = {
   worlds:   'CHỌN THẾ GIỚI',
   biomes:   'KHÁM PHÁ QUẦN XÃ & THE SIFT',
   coop:     'CHƠI CHUNG (CO-OP)',
-  mods:     'MOD & MINECRAFT ADD-ON',
+  mods:     'MOD & VOXEL ADD-ON',
   skin:     'TỦ ĐỒ — CHỌN SKIN 3D'
 };
 const SUB_TITLES_EN = {
@@ -2357,7 +2357,7 @@ const SUB_TITLES_EN = {
   worlds:   'SELECT SAVED WORLD',
   biomes:   'EXPLORE BIOMES & THE SIFT',
   coop:     'MULTIPLAYER (CO-OP)',
-  mods:     'MODS & MINECRAFT ADD-ONS',
+  mods:     'MODS & VOXEL ADD-ONS',
   skin:     'DRESSING ROOM — 3D SKINS'
 };
 function getSubTitle(tabKey) {
