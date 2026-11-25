@@ -20,6 +20,7 @@
     swordCombo: 0, swordAtkHit: 0, swordAtkSeq: 0, swordAtkT: 0, swordAtkDur: 0, swordAtkActive: false
   };
   function startHandSwing(dur = 0.26, act = 'attack') {
+    if (player.swingT > 0.025 && (act || 'attack') === player.swingAct) return;
     player.swingT = dur;
     player.swingDur = dur;
     player.swingAct = act || 'attack';
@@ -526,12 +527,17 @@
     const slot = inventory[invIdx];
     if (!slot || slot.count <= 0) return false;
     const prevId = player.equip[eqKey] || 0;
-    const prevMeta = (player.equipMeta && player.equipMeta[eqKey]) ? { ench: !!player.equipMeta[eqKey].ench, trim: player.equipMeta[eqKey].trim ? { ...player.equipMeta[eqKey].trim } : null } : null;
-    const prevOffDur = player.offhandDur || 336;
+    const prevEm = player.equipMeta && player.equipMeta[eqKey];
+    const prevDef = prevId ? BLOCK_DEF[prevId] : null;
+    const prevMaxDur = (prevId === B.SHIELD) ? (player.offhandMaxDur || 336) : ((prevEm && prevEm.maxDur) || (prevDef && prevDef.maxDur) || 0);
+    const prevDur = (prevId === B.SHIELD) ? (player.offhandDur || 336) : ((prevEm && typeof prevEm.dur === 'number' && prevEm.dur > 0) ? prevEm.dur : prevMaxDur);
+    const prevMeta = (prevEm || prevMaxDur > 0) ? { dur: prevDur, maxDur: prevMaxDur, ench: !!(prevEm && prevEm.ench), trim: (prevEm && prevEm.trim) ? { ...prevEm.trim } : null } : null;
+    const prevOffDur = prevDur;
     const newId = slot.id;
-    const newMeta = (slot.ench || slot.trim) ? { ench: !!slot.ench, trim: slot.trim ? { ...slot.trim } : null } : null;
-    const newDur = (newId === B.SHIELD) ? (slot.dur || 336) : 0;
-    const newMaxDur = (newId === B.SHIELD) ? (slot.maxDur || 336) : 0;
+    const newDef = BLOCK_DEF[newId];
+    const newMaxDur = (newId === B.SHIELD) ? (slot.maxDur || 336) : (slot.maxDur || (newDef && newDef.maxDur) || 0);
+    const newDur = (newId === B.SHIELD) ? (slot.dur || 336) : ((typeof slot.dur === 'number' && slot.dur > 0) ? slot.dur : newMaxDur);
+    const newMeta = (slot.ench || slot.trim || newMaxDur > 0) ? { dur: newDur, maxDur: newMaxDur, ench: !!slot.ench, trim: slot.trim ? { ...slot.trim } : null } : null;
     slot.count--;
     if (slot.count <= 0) { slot.id = 0; slot.dur = 0; slot.maxDur = 0; slot.ench = false; slot.trim = null; }
     player.equip[eqKey] = newId;
@@ -558,18 +564,17 @@
   function unequipArmorSlot(eqKey) {
     const prevId = player.equip[eqKey] || 0;
     if (!prevId) return;
-    const prevMeta = (player.equipMeta && player.equipMeta[eqKey]) ? { ench: !!player.equipMeta[eqKey].ench, trim: player.equipMeta[eqKey].trim ? { ...player.equipMeta[eqKey].trim } : null } : null;
+    const em = player.equipMeta && player.equipMeta[eqKey];
+    const prevDef = BLOCK_DEF[prevId];
+    const pMax = (eqKey === 'offhand' && prevId === B.SHIELD) ? (player.offhandMaxDur || 336) : ((em && em.maxDur) || (prevDef && prevDef.maxDur) || 0);
+    const pDur = (eqKey === 'offhand' && prevId === B.SHIELD) ? Math.max(1, player.offhandDur || 336) : ((em && typeof em.dur === 'number' && em.dur > 0) ? em.dur : pMax);
+    const prevMeta = (em || pMax > 0) ? { dur: pDur, maxDur: pMax, ench: !!(em && em.ench), trim: (em && em.trim) ? { ...em.trim } : null } : null;
     if (!addItemToInventory(prevId, 1, prevMeta)) {
       showToast('🎒 Balo đã đầy! Hãy dọn 1 ô trống trước khi tháo trang bị!');
       return;
     }
     if (eqKey === 'offhand' && prevId === B.SHIELD) {
-      for (let i = 35; i >= 0; i--) {
-        if (inventory[i].id === B.SHIELD && inventory[i].count > 0) {
-          inventory[i].dur = Math.max(1, player.offhandDur || 336);
-          break;
-        }
-      }
+      player.offhandDur = 336; player.offhandMaxDur = 336;
     }
     player.equip[eqKey] = 0;
     if (player.equipMeta) player.equipMeta[eqKey] = null;
@@ -1398,18 +1403,17 @@
       }
     } else if ((st.swingActive || swing > 0.01 || rig.actionBlend > 0.02) && hasR6) {
       const actType = st.actionType || rig.lastActionType || (isSword ? 'attack' : (toolKind === 'axe' ? 'chop' : 'mine'));
-      const actClip = actType === 'chop' ? 'custom_chop' : (actType === 'attack' ? 'custom_attack' : 'custom_mine');
-      const clipObj = ROBLOX_R6_ANIMS[actClip] || ROBLOX_R6_ANIMS.custom_attack;
-      const clipDur = (clipObj && clipObj.dur) ? clipObj.dur : 0.75;
-      if (st.swingActive) rig._lastActTime = Math.max(0, Math.min(clipDur - 0.001, (st.swingU || 0) * clipDur));
-      const actTime = (rig._lastActTime !== undefined) ? rig._lastActTime : 0;
-      if (clipObj && sampleR6Clip(actClip, actTime, _r6ActBuf)) {
-        const ab = rig.actionBlend;
-        for (let ai = 0; ai < 4; ai++) {
-          const jk = R6_JOINTS[ai]; // upper body ONLY: torso, head, armL, armR — legs keep walking/running!
-          if ((jk === 'armL' && bT > 0.35 && shHand === 'offhand') || (jk === 'armR' && bT > 0.35 && shHand === 'mainhand')) continue;
-          const d = _r6TargetBuf[jk], s = _r6ActBuf[jk];
-          slerpQ4(d.q, s.q, jk === 'torso' ? ab * 0.75 : (jk === 'head' ? ab * 0.45 : (jk === 'armL' ? ab * 0.65 : ab)), d.q);
+      if (st.swingActive) rig._lastSwingU = Math.max(0, Math.min(1, st.swingU || 0));
+      else if (rig.actionBlend <= 0.05) rig._lastSwingU = 0;
+      const u = (rig._lastSwingU !== undefined) ? rig._lastSwingU : 0;
+      const arc = Math.sin(Math.pow(u, 0.68) * Math.PI) * rig.actionBlend;
+      if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
+        if (actType === 'chop') {
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.38, -arc * 0.34, -arc * 0.24);
+        } else if (actType === 'attack') {
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.34, arc * 0.32, arc * 0.16);
+        } else {
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.48, -arc * 0.14, arc * 0.08);
         }
       }
     }
@@ -1493,26 +1497,10 @@
     if (typeof smithState !== 'undefined') { smithState.tpl = null; smithState.base = null; smithState.mat = null; }
     player.offhandDur = 336; player.offhandMaxDur = 336; player.shieldDisableT = 0; player.shieldRaiseT = 0; player.shieldImpactT = 0;
     recalcPlayerArmor();
-    if (gameMode === 'creative') {
-      player.equip = { helmet: B.DIAMOND_HELMET, chest: B.DIAMOND_ARMOR, legs: B.DIAMOND_LEGS, boots: B.DIAMOND_BOOTS, offhand: B.SHIELD };
-      recalcPlayerArmor();
-      const creativeBar = [
-        [B.DIAMOND_PICK,1], [B.DIAMOND_AXE,1], [B.DIAMOND_SWORD,1], [B.BOW,1],
-        [B.OAK_DOOR,16], [B.OAK_TRAPDOOR,16], [B.CHEST,8], [B.FURNACE,4], [B.WHEAT_SEEDS,32]
-      ];
-      for (let i = 0; i < creativeBar.length; i++) setSlotItem(i, creativeBar[i][0], creativeBar[i][1]);
-      const creativeBag = [
-        [B.BLAST_FURNACE,2],[B.SMOKER,2],[B.IRON_CHEST,2],[B.GOLD_CHEST,2],[B.DIAMOND_CHEST,2],[B.NETHERITE_CHEST,2],
-        [B.SPRUCE_DOOR,8],[B.BIRCH_DOOR,8],[B.BAMBOO_DOOR,8],[B.IRON_DOOR,8],[B.SAKURA_TRAPDOOR,8],[B.IRON_TRAPDOOR,8],
-        [B.MELON_BLOCK,16],[B.WHEAT,32],[B.COAL_ORE,99],[B.IRON_ORE,32],[B.GOLD_ORE,32],[B.RAW_BEEF,16],
-        [B.CRAFT_TABLE,4],[B.TORCH_BLOCK,99],[B.PLANKS,99],[B.STONE,99],[B.WATER_BUCKET,1],[B.LAVA_BUCKET,1],[B.BED,1],[B.ARROW,99]
-      ];
-      for (let i = 0; i < creativeBag.length; i++) setSlotItem(9 + i, creativeBag[i][0], creativeBag[i][1]);
-    }
   }
   function addItemToInventory(blockId, qty = 1, meta = null) {
     const def = BLOCK_DEF[blockId];
-    const noStack = !!(def && (def.tool || def.armorSlot)) || !!(meta && (meta.ench || meta.trim));
+    const noStack = !!(def && (def.tool || def.armorSlot)) || !!(meta && (meta.ench || meta.trim || (meta.maxDur > 0 && typeof meta.dur === 'number' && meta.dur < meta.maxDur)));
     const maxStack = noStack ? 1 : 99;
     if (maxStack > 1) {
       for (let i = 0; i < 36; i++) {
@@ -1522,10 +1510,11 @@
         }
       }
     }
+    const itemDur = (meta && typeof meta.dur === 'number' && meta.dur > 0) ? meta.dur : null;
     for (let i = 0; i < 36; i++) {
       if (inventory[i].count === 0) {
         const give = Math.min(maxStack, qty);
-        setSlotItem(i, blockId, give, null, meta);
+        setSlotItem(i, blockId, give, itemDur, meta);
         qty -= give;
         if (qty <= 0) { renderHotbar(); return true; }
       }
@@ -1766,6 +1755,9 @@
   }
   function spawnDroppedItem(wx, wy, wz, blockId, opts = null) {
     if (!blockId || !BLOCK_DEF[blockId]) return;
+    const def = BLOCK_DEF[blockId];
+    const dropId = (opts && opts.dropId) || ('d_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
+    if (opts && opts._remote && droppedItems.some(d => d.dropId === dropId)) return;
     const mesh = getDropVisual(blockId);
     const shadow = new THREE.Mesh(dropShadowGeo, dropShadowMat);
     const phase = Math.random() * Math.PI * 2;
@@ -1776,24 +1768,43 @@
     mesh.position.set(sx, sy + 0.28, sz);
     shadow.position.set(sx, sy + 0.03, sz);
     scene.add(mesh, shadow);
-    droppedItems.push({
+    const cnt = (opts && opts.count > 1) ? opts.count : 1;
+    const dur = (opts && typeof opts.dur === 'number') ? opts.dur : (def.maxDur || 0);
+    const maxDur = (opts && opts.maxDur) || (def.maxDur || 0);
+    const ench = !!(opts && opts.ench);
+    const trim = (opts && opts.trim) ? { ...opts.trim } : null;
+    const vx = (opts && opts.vx !== undefined) ? opts.vx : (Math.random() - 0.5) * 2.1;
+    const vy = (opts && opts.vy !== undefined) ? opts.vy : 3.2;
+    const vz = (opts && opts.vz !== undefined) ? opts.vz : (Math.random() - 0.5) * 2.1;
+    const dim = (opts && opts.dim) || currentDimension || 'overworld';
+    const fromDeath = !!(opts && opts.fromDeath);
+    const entry = {
+      dropId, dim,
       id: blockId,
-      count: (opts && opts.count > 1) ? opts.count : 1,
+      count: cnt,
+      dur, maxDur, ench, trim,
       x: sx, y: sy, z: sz,
       rx: sx, ry: sy, rz: sz,
-      vx: (opts && opts.vx !== undefined) ? opts.vx : (Math.random() - 0.5) * 2.1,
-      vy: (opts && opts.vy !== undefined) ? opts.vy : 3.2,
-      vz: (opts && opts.vz !== undefined) ? opts.vz : (Math.random() - 0.5) * 2.1,
+      vx, vy, vz,
       tumbleX: (opts && opts.thrown) ? 0.65 : 0.22,
       spinRate: (opts && opts.thrown) ? 8.5 : 3.6,
       age: 0,
       pickupDelay: (opts && opts.pickupDelay !== undefined) ? opts.pickupDelay : 0.35,
-      fromDeath: !!(opts && opts.fromDeath),
+      fromDeath,
       phase,
       onGround: false,
       mesh,
       shadow
-    });
+    };
+    droppedItems.push(entry);
+    if (activeRoomId && !(opts && opts._remote) && !isApplyingRemoteBlock && typeof queueNetworkDropSpawn === 'function') {
+      queueNetworkDropSpawn({
+        dropId, dim, id: blockId, count: cnt, dur, maxDur, ench, trim,
+        x: +sx.toFixed(3), y: +sy.toFixed(3), trueY: +(sy - (depthOffset || 0)).toFixed(3), z: +sz.toFixed(3),
+        vx: +vx.toFixed(3), vy: +vy.toFixed(3), vz: +vz.toFixed(3), fromDeath
+      });
+    }
+    return entry;
   }
 
   function throwInventorySlot(idx, wholeStack = false) {
@@ -1802,7 +1813,8 @@
     if (!slot || slot.count <= 0 || !slot.id) return false;
     const def = BLOCK_DEF[slot.id];
     const dropId = slot.id;
-    const qty = (wholeStack || (def && def.tool)) ? slot.count : 1;
+    const qty = (wholeStack || (def && (def.tool || def.armorSlot)) || slot.ench || slot.trim || (slot.maxDur > 0 && slot.dur < slot.maxDur)) ? slot.count : 1;
+    const itemMeta = { dur: slot.dur || 0, maxDur: slot.maxDur || 0, ench: !!slot.ench, trim: slot.trim ? { ...slot.trim } : null };
     slot.count -= qty;
     if (slot.count <= 0) { slot.id = 0; slot.count = 0; slot.dur = 0; slot.maxDur = 0; slot.ench = false; slot.trim = null; }
     _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ');
@@ -1817,6 +1829,7 @@
       exactPos: true,
       thrown: true,
       count: qty,
+      dur: itemMeta.dur, maxDur: itemMeta.maxDur, ench: itemMeta.ench, trim: itemMeta.trim,
       vx: _rayDir.x * 8.4 + pVx * 0.42 + (Math.random() - 0.5) * 0.24,
       vy: Math.max(1.45, _rayDir.y * 7.2 + 2.55),
       vz: _rayDir.z * 8.4 + pVz * 0.42 + (Math.random() - 0.5) * 0.24,
@@ -1826,6 +1839,7 @@
     playSfx('place');
     renderHotbar();
     if (!document.getElementById('invModal').classList.contains('hidden')) renderInventoryModal();
+    if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
     showToast(`🗑️ Đã vứt ${qty}× ${def ? def.name : 'vật phẩm'}`);
     return true;
   }
@@ -1848,6 +1862,43 @@
     return false;
   }
 
+  function removeDroppedItemById(dropId) {
+    if (!dropId) return false;
+    const did = String(dropId);
+    for (let i = droppedItems.length - 1; i >= 0; i--) {
+      const it = droppedItems[i];
+      if (it && String(it.dropId) === did) {
+        scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
+        droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
+        return true;
+      }
+    }
+    return false;
+  }
+  function _completeNetworkDropPickup(dropId, srvDrop = null) {
+    const did = String(dropId || '');
+    let idx = -1;
+    for (let i = droppedItems.length - 1; i >= 0; i--) {
+      if (droppedItems[i] && String(droppedItems[i].dropId) === did) { idx = i; break; }
+    }
+    const localIt = idx >= 0 ? droppedItems[idx] : null;
+    const src = srvDrop || localIt;
+    if (src && src.id) {
+      addItemToInventory(src.id, src.count || 1, {
+        dur: src.dur || 0,
+        maxDur: src.maxDur || 0,
+        ench: !!src.ench,
+        trim: src.trim ? { ...src.trim } : null
+      });
+      playSfx('pickup');
+      if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
+    }
+    if (idx >= 0) {
+      const it = droppedItems[idx];
+      scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
+      droppedItems[idx] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
+    }
+  }
   function updateDroppedItems(dt) {
     const useFastDrops = !!(sodiumOpts.entityCulling || sodiumOpts.immFast);
     const lookX = -Math.sin(player.yaw) * Math.cos(player.pitch);
@@ -1859,6 +1910,10 @@
     const interpK = 1 - Math.exp(-26.0 * dt);
     for (let i = droppedItems.length - 1; i >= 0; i--) {
       const it = droppedItems[i];
+      if ((it.dim || 'overworld') !== (currentDimension || 'overworld')) {
+        it.mesh.visible = false; if (it.shadow) it.shadow.visible = false;
+        continue;
+      }
       const loaded = chunks.has(chunkKey(Math.floor(it.x) >> 4, Math.floor(it.z) >> 4));
       if (!loaded) {
         it.mesh.visible = false; if (it.shadow) it.shadow.visible = false;
@@ -1867,6 +1922,7 @@
       // Authentic Minecraft: Timer only counts while chunk is loaded; death-dropped items stay preserved until picked up!
       it.age += dt;
       if (!it.fromDeath && it.age >= ITEM_DESPAWN_SEC) {
+        if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && typeof broadcastDropRemove === 'function') broadcastDropRemove(it.dropId);
         scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
         droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
         continue;
@@ -1930,13 +1986,14 @@
         // Lava burns items UNLESS fireImmune (Netherite / Ancient Debris float undamaged in lava/fire!)
         const blkHere = getBlockWorld(bx, Math.floor(it.y + 0.14), bz);
         const blkBelow = getBlockWorld(bx, Math.floor(it.y - 0.06), bz);
-        if (blkHere === B.LAVA || blkBelow === B.LAVA || blkHere === B.FIRE) {
+        if (blkHere === B.LAVA || blkBelow === B.LAVA || blkHere === B.FIRE || blkHere === B.SOUL_FIRE) {
           if (BLOCK_DEF[it.id]?.fireImmune) {
             if (blkHere === B.LAVA) { it.vy = Math.max(it.vy, 1.2); it.onGround = false; }
           } else {
             spawnParticles(it.x, it.y + 0.35, it.z, 0xff6b00, 10, true);
             spawnParticles(it.x, it.y + 0.45, it.z, 0xfef08a, 6, true);
             playSfx('hiss');
+            if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && typeof broadcastDropRemove === 'function') broadcastDropRemove(it.dropId);
             scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
             droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
             continue;
@@ -1945,15 +2002,17 @@
         if ((!isSettled || ((frameCounter + i) & 7) === 0) && itemTouchesCactus(it.x, it.y, it.z)) {
           spawnParticles(it.x, it.y + 0.35, it.z, 0x4ade80, 9, false);
           playSfx('break');
+          if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && typeof broadcastDropRemove === 'function') broadcastDropRemove(it.dropId);
           scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
           droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
           continue;
         }
-        // Minecraft Ground Item Stack Merging: nearby identical dropped items merge smoothly into one stack!
-        if (it.onGround && it.count < 99 && ((frameCounter + i) & 7) === 0 && !(BLOCK_DEF[it.id] && (BLOCK_DEF[it.id].tool || BLOCK_DEF[it.id].armorSlot))) {
+        // Solo-only ground stack merge for non-custom-metadata items
+        const itCustom = !!(it.ench || it.trim || (it.maxDur > 0 && it.dur < it.maxDur));
+        if (!activeRoomId && !itCustom && it.onGround && it.count < 99 && ((frameCounter + i) & 7) === 0 && !(BLOCK_DEF[it.id] && (BLOCK_DEF[it.id].tool || BLOCK_DEF[it.id].armorSlot))) {
           for (let j = i - 1; j >= 0; j--) {
             const ot = droppedItems[j];
-            if (!ot || ot.id !== it.id || !ot.onGround || ot.count >= 99) continue;
+            if (!ot || ot.id !== it.id || !ot.onGround || ot.count >= 99 || ot.ench || ot.trim || (ot.maxDur > 0 && ot.dur < ot.maxDur)) continue;
             const mdx = ot.x - it.x, mdy = ot.y - it.y, mdz = ot.z - it.z;
             if (mdx * mdx + mdy * mdy + mdz * mdz < 0.75) {
               const mv = Math.min(99 - ot.count, it.count);
@@ -1983,10 +2042,14 @@
           it.x += dx * pullSpd; it.y += dy * pullSpd; it.z += dz * pullSpd;
           it.rx = it.x; it.ry = it.y; it.rz = it.z;
           if (dist < 0.82) {
-            addItemToInventory(it.id, it.count || 1); playSfx('pickup');
-            scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
-            droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
-            continue;
+            if (activeRoomId && typeof requestNetworkDropPickup === 'function') {
+              requestNetworkDropPickup(it);
+            } else {
+              addItemToInventory(it.id, it.count || 1, it); playSfx('pickup');
+              scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
+              droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
+              continue;
+            }
           }
         }
       }
@@ -2945,13 +3008,20 @@
     if (gameMode === 'creative') return 0;
     let droppedCount = 0;
     const dx = player.x, dy = player.y + 0.45, dz = player.z;
-    const scatterItem = (id, count) => {
+    const scatterItem = (id, count, meta = null) => {
       if (!id || count <= 0 || !BLOCK_DEF[id]) return;
       const ang = Math.random() * Math.PI * 2;
       const spd = 1.4 + Math.random() * 2.2;
+      const def = BLOCK_DEF[id];
+      const maxDur = (meta && meta.maxDur) || (def && def.maxDur) || 0;
+      const dur = (meta && typeof meta.dur === 'number' && meta.dur > 0) ? meta.dur : maxDur;
       spawnDroppedItem(dx, dy, dz, id, {
         exactPos: true,
         count,
+        dur,
+        maxDur,
+        ench: !!(meta && meta.ench),
+        trim: (meta && meta.trim) ? { ...meta.trim } : null,
         vx: Math.cos(ang) * spd,
         vy: 2.5 + Math.random() * 1.8,
         vz: Math.sin(ang) * spd,
@@ -2963,18 +3033,25 @@
     for (let i = 0; i < inventory.length; i++) {
       const s = inventory[i];
       if (s && s.count > 0 && s.id) {
-        scatterItem(s.id, s.count);
+        scatterItem(s.id, s.count, { dur: s.dur || 0, maxDur: s.maxDur || 0, ench: !!s.ench, trim: s.trim ? { ...s.trim } : null });
         s.id = 0; s.count = 0; s.dur = 0; s.maxDur = 0; s.ench = false; s.trim = null;
       }
     }
     for (const eqKey of ['helmet', 'chest', 'legs', 'boots', 'offhand']) {
       const eqId = player.equip[eqKey];
       if (eqId) {
-        scatterItem(eqId, 1);
+        const em = player.equipMeta && player.equipMeta[eqKey];
+        const meta = (eqKey === 'offhand' && eqId === B.SHIELD)
+          ? { dur: player.offhandDur || 336, maxDur: player.offhandMaxDur || 336, ench: !!(em && em.ench), trim: (em && em.trim) ? { ...em.trim } : null }
+          : (em ? { dur: em.dur || 0, maxDur: em.maxDur || 0, ench: !!em.ench, trim: em.trim ? { ...em.trim } : null } : null);
+        scatterItem(eqId, 1, meta);
         player.equip[eqKey] = 0;
         if (player.equipMeta) player.equipMeta[eqKey] = null;
       }
     }
+    player.offhandDur = 336; player.offhandMaxDur = 336;
+    if (typeof flushNetworkDropBatch === 'function') flushNetworkDropBatch();
+    if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
     recalcPlayerArmor();
     renderHotbar();
     renderEquipmentUI();
@@ -3027,6 +3104,23 @@
     const effArmor = Math.max(player.armor * 0.28, player.armor - (4 * amount) / (2 + (player.armorToughness || 0) * 0.25));
     const armorRed = Math.min(0.76, effArmor <= 20 ? effArmor * 0.032 : (0.64 + (effArmor - 20) * 0.0085));
     const reduced = bypassAll ? amount : Math.max(0.5, Math.round(amount * shieldMul * (1.0 - armorRed) * 2) / 2);
+    if (!bypassAll && reduced > 0 && player.armor > 0) {
+      const armorDmg = Math.max(1, Math.floor(amount * 0.25));
+      let eqBroken = false;
+      for (const ek of ['helmet', 'chest', 'legs', 'boots']) {
+        const aid = player.equip[ek];
+        const aDef = aid ? BLOCK_DEF[aid] : null;
+        if (!aid || !aDef || !aDef.maxDur) continue;
+        if (!player.equipMeta) player.equipMeta = { helmet: null, chest: null, legs: null, boots: null, offhand: null };
+        if (!player.equipMeta[ek]) player.equipMeta[ek] = { dur: aDef.maxDur, maxDur: aDef.maxDur, ench: false, trim: null };
+        const em = player.equipMeta[ek];
+        if (!em.maxDur) em.maxDur = aDef.maxDur;
+        if (typeof em.dur !== 'number' || em.dur <= 0) em.dur = em.maxDur;
+        em.dur = Math.max(0, em.dur - armorDmg);
+        if (em.dur <= 0) { player.equip[ek] = 0; player.equipMeta[ek] = null; eqBroken = true; playSfx('break'); }
+      }
+      if (eqBroken) { recalcPlayerArmor(); renderEquipmentUI(); }
+    }
     player.hp = Math.max(0, player.hp - reduced); player.invuln = bypassAll ? 0.25 : 0.55; player.hurtAnimT = 0.42; cameraShake = Math.max(cameraShake, 0.22); playSfx('hurt');
     // Văng người RA SAU theo hướng đang nhìn (Netherite +10%/món chống đẩy lùi = tối đa 40%!)
     if (knockBack && !player.flying) {
@@ -3423,8 +3517,9 @@
       }
       if (iy > MIN_Y && iy <= MAX_Y) {
         const exId = getBlockWorld(ix, iy, iz), exDef = BLOCK_DEF[exId];
-        if (exId === B.AIR || (exDef && exDef.cross && exId !== B.FIRE)) {
-          setBlockWorld(ix, iy, iz, B.FIRE, true);
+        if (exId === B.AIR || (exDef && exDef.cross && exId !== B.FIRE && exId !== B.SOUL_FIRE)) {
+          const fireBlockId = (getBlockWorld(ix, iy - 1, iz) === B.SOUL_SAND) ? B.SOUL_FIRE : B.FIRE;
+          setBlockWorld(ix, iy, iz, fireBlockId, true);
           igniteAdjacentTnt(ix, iy, iz);
           flushUrgentChunks(32);
           playSfx('burn');
@@ -3544,7 +3639,8 @@
           triggerExplosion(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 4.5, 18, 'Bạn bị nổ khi nằm ngủ ở Nether/End!');
           return;
         }
-        player.bedSpawn = { x: hit.x + 0.5, y: hit.y + 1.2, z: hit.z + 0.5 };
+        player.bedSpawn = { dim: currentDimension || 'overworld', depthOffset: depthOffset || 0, bx: hit.x, by: hit.y, bz: hit.z, trueY: hit.y - (depthOffset || 0), x: hit.x + 0.5, y: hit.y + 1.2, z: hit.z + 0.5 };
+        if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
         player.hp = player.maxHp;
         if (envUniforms.uSunDir.value.y < 0.12) { dayTime = 0.28; showToast('🛏️ Bạn đã ngủ qua đêm tới Bình Minh & hồi đầy máu!'); }
         else showToast('🛏️ Đã đặt điểm hồi sinh tại Giường & hồi đầy máu!');
@@ -3924,6 +4020,11 @@
     }
 
     if (py <= MIN_Y || py > MAX_Y) return;
+    if (!player.onGround && player.vy > 0 && py === Math.floor(player.y) && (player.y - py) >= -0.05 && (player.y - py) < 0.44 && !playerCollides(player.x, py + 1.005, player.z)) {
+      player._stepCamOff = Math.max(-0.45, (player._stepCamOff || 0) + (player.y - (py + 1.005)));
+      player.y = py + 1.005;
+      player.fallStartY = Math.max(player.fallStartY, player.y);
+    }
     const inP = (px >= Math.floor(player.x - PLAYER_RADIUS) && px <= Math.floor(player.x + PLAYER_RADIUS) && pz >= Math.floor(player.z - PLAYER_RADIUS) && pz <= Math.floor(player.z + PLAYER_RADIUS) && py >= Math.floor(player.y) && py <= Math.floor(player.y + PLAYER_HEIGHT));
     if (inP) return;
 
@@ -4320,19 +4421,23 @@
     } else lavaTick = 0;
 
     if (gameMode === 'creative' || player.inWater) {
-      player.burnTime = 0; fireTick = 0;
+      player.burnTime = 0; player._burnSoul = false; fireTick = 0;
     } else {
-      if (feetBlock === B.FIRE) player.burnTime = Math.max(player.burnTime || 0, 4.5);
+      const feetSoul = (feetBlock === B.SOUL_FIRE);
+      if (feetBlock === B.FIRE || feetSoul) {
+        player.burnTime = Math.max(player.burnTime || 0, 4.5);
+        player._burnSoul = feetSoul;
+      }
       if ((player.burnTime || 0) > 0) {
         player.burnTime = Math.max(0, player.burnTime - dt);
         fireTick += dt;
         if (fireTick >= 0.75) {
           fireTick = 0;
-          hurtPlayer(2, '🔥 Bạn đang bị cháy!');
-          spawnParticles(player.x, player.y + 0.9, player.z, 0xf97316, 4, true);
+          hurtPlayer(player._burnSoul ? 3 : 2, player._burnSoul ? '🩵 Bạn đang cháy trong Lửa Linh Hồn!' : '🔥 Bạn đang bị cháy!');
+          spawnParticles(player.x, player.y + 0.9, player.z, player._burnSoul ? 0x22d3ee : 0xf97316, 4, true);
           playSfx('burn');
         }
-      } else fireTick = 0;
+      } else { player._burnSoul = false; fireTick = 0; }
     }
     const fireHudOn = (player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead;
     if (_elFireHud && fireHudOn !== _lastFireHudOn) {
@@ -4658,6 +4763,22 @@
     }
     else { if (wantJump && player.onGround) { player.vy = JUMP_VEL; player.onGround = false; player.jumpFlip = -(player.jumpFlip || 1); player.jumpPopT = 1.0; playSfx('jump'); } player.vy = Math.max(-36, player.vy - GRAVITY * dt); }
 
+    let resolvedUpY = false;
+    if (!player.flying && !player.inBoat && player.vy > 0) {
+      const nyUp = Math.min(540, player.y + player.vy * dt);
+      if (!playerCollides(player.x, nyUp, player.z)) {
+        player.y = nyUp; player.onGround = false; player.fallStartY = player.y;
+      } else {
+        let lo = player.y, hi = nyUp;
+        for (let b = 0; b < 5; b++) {
+          const mid = (lo + hi) * 0.5;
+          if (playerCollides(player.x, mid, player.z)) hi = mid; else lo = mid;
+        }
+        player.y = lo; player.vy = 0;
+      }
+      resolvedUpY = true;
+    }
+
     // Sub-Stepped Solid Player Collision (prevents clipping/snagging when sprinting, flying, or knocked back!)
     const dispX = (moveX + player.vx) * dt, dispZ = (moveZ + player.vz) * dt;
     const subSteps = Math.max(1, Math.min(4, Math.ceil(Math.hypot(dispX, dispZ) / 0.16)));
@@ -4683,27 +4804,38 @@
       if (!player.onGround || player.inWater || player.flying || player.sitting || player.inBoat) player.landAnimT = 0;
       else { player.landAnimT += dt; if (player.landAnimT >= 0.483) player.landAnimT = 0; }
     }
-    const ny = Math.min(540, player.y + player.vy * dt);
-    const roofY = getSkyscraperRoofY(player.x, player.z);
-    if (roofY > 0 && player.vy <= 0 && player.y >= roofY - 0.6 && ny <= roofY + 0.12) {
-      const fallDist = player.fallStartY - roofY;
-      if (fallDist > 4.6 && !player.flying) hurtPlayer(Math.floor((fallDist - 3.6) * 2), 'Bạn rơi xuống sân thượng cao ốc!');
-      if (!player.onGround && player.vy < -3.0) {
-        playFootstep(B.CONCRETE, true);
-        if (!player.inWater && !player.flying && !(player.sitting || player.inBoat) && fallDist >= 7.95) {
-          player.landSquash = Math.min(1.0, Math.abs(player.vy) / 14.0);
-          player.landAnimT = 0.001;
+    if (!resolvedUpY) {
+      const ny = Math.min(540, player.y + player.vy * dt);
+      const roofY = getSkyscraperRoofY(player.x, player.z);
+      if (roofY > 0 && player.vy <= 0 && player.y >= roofY - 0.6 && ny <= roofY + 0.12) {
+        const fallDist = player.fallStartY - roofY;
+        if (fallDist > 4.6 && !player.flying) hurtPlayer(Math.floor((fallDist - 3.6) * 2), 'Bạn rơi xuống sân thượng cao ốc!');
+        if (!player.onGround && player.vy < -3.0) {
+          playFootstep(B.CONCRETE, true);
+          if (!player.inWater && !player.flying && !(player.sitting || player.inBoat) && fallDist >= 7.95) {
+            player.landSquash = Math.min(1.0, Math.abs(player.vy) / 14.0);
+            player.landAnimT = 0.001;
+          }
         }
-      }
-      player.y = roofY + 0.02; player.onGround = true; player.fallStartY = player.y; player.vy = 0;
-    } else if (!playerCollides(player.x, ny, player.z)) { player.y = ny; player.onGround = false; if (player.vy > 0) player.fallStartY = player.y; }
-    else {
-      if (player.vy < 0) {
+        player.y = roofY + 0.02; player.onGround = true; player.fallStartY = player.y; player.vy = 0;
+      } else if (!playerCollides(player.x, ny, player.z)) {
+        player.y = ny; player.onGround = false; if (player.vy > 0) player.fallStartY = player.y;
+      } else if (player.vy <= 0) {
         const landBlock = getBlockWorld(Math.floor(player.x), Math.floor(ny - 0.1), Math.floor(player.z));
         const wasOnGround = player.onGround;
-        while (player.y - 0.5 >= ny && !playerCollides(player.x, player.y - 0.5, player.z)) player.y -= 0.5;
-        let landedY = Math.ceil(ny * 2 - 1e-4) * 0.5, stepUp = 0;
-        while (playerCollides(player.x, landedY, player.z) && stepUp < 1.05) { landedY += 0.02; stepUp += 0.02; }
+        let lo = ny, hi = Math.max(ny, player.y);
+        if (playerCollides(player.x, hi, player.z)) {
+          let landedY = hi, stepUp = 0;
+          while (playerCollides(player.x, landedY, player.z) && stepUp < 1.05) { landedY += 0.02; stepUp += 0.02; }
+          hi = landedY; lo = landedY;
+        } else {
+          for (let b = 0; b < 6; b++) {
+            const mid = (lo + hi) * 0.5;
+            if (playerCollides(player.x, mid, player.z)) lo = mid; else hi = mid;
+          }
+        }
+        const snapH = Math.round(hi * 2) * 0.5;
+        let landedY = (Math.abs(hi - snapH) < 0.045 && !playerCollides(player.x, snapH, player.z)) ? snapH : hi;
         const fallDist = player.fallStartY - landedY;
         if (landBlock === B.SLIME_BLOCK && !player.sneaking) {
           player.y = Math.floor(landedY);
@@ -4726,6 +4858,7 @@
               player.landAnimT = 0.001;
             }
           }
+          if (landedY > player.y + 0.04) player._stepCamOff = Math.max(-0.5, (player._stepCamOff || 0) + (player.y - landedY));
           player.y = landedY;
           player.onGround = true; player.fallStartY = player.y;
           player.vy = 0;
@@ -5006,7 +5139,9 @@
       player._stepCamOff *= Math.exp(-16.0 * dt);
       if (Math.abs(player._stepCamOff) < 0.002) player._stepCamOff = 0;
     }
-    const bobY = (player.onGround && !player.ridingDragon && len > 0.1) ? Math.sin(player.walkBob) * (player.sneaking ? 0.02 : 0.045) : 0;
+    const _wantBob = (player.onGround && !player.ridingDragon && len > 0.1) ? 1 : 0;
+    player._groundBobW = (player._groundBobW || 0) + (_wantBob - (player._groundBobW || 0)) * Math.min(1, dt * 18.0);
+    const bobY = Math.sin(player.walkBob) * (player.sneaking ? 0.02 : 0.045) * player._groundBobW;
     const eyeY = player.y + EYE_HEIGHT + (player.sneakEyeOff || 0) + (player.sitEyeOff || 0) + (player.swimEyeOff || 0) + bobY + (player._stepCamOff || 0);
     if (!player.spyglassZoom) {
       const targetFov = player.lowSprintSwim ? 84 : (player.sprintSwimming ? 80 : 74);
@@ -5139,7 +5274,7 @@
         camera.rotation.x = -player.pitch * 0.35;
       }
       if (!player.ridingDragon || playerAvatar.g.parent === scene) {
-        playerAvatar.g.position.set(player.x, player.y, player.z);
+        playerAvatar.g.position.set(player.x, player.y + (player.ridingDragon ? 0 : (player._stepCamOff || 0)), player.z);
         playerAvatar.g.rotation.y = player.yaw + Math.PI;
       }
       const rightIn = canCtrl ? ((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + touchState.joyX) : 0;
@@ -5320,7 +5455,7 @@
     const spRy = fpSp * 0.34;
     const spRz = fpSp * 0.24 + (player.sneaking ? 0.16 : 0);
 
-    const cdDip = (player.atkCd > 0.01 && swing < 0.12) ? -Math.min(1, player.atkCd / Math.max(0.1, player.atkCdMax || 0.625)) * 0.13 : 0;
+    const cdDip = 0;
 
     updateEatingState(dt);
     const eatChomp = eatState.active ? Math.sin(eatState.timer * 28.0) * 0.032 : 0;

@@ -27,11 +27,6 @@
     document.getElementById('smithingModal')?.classList.add('hidden');
     document.getElementById('worldMapModal')?.classList.add('hidden');
     activeChestKey = null; activeChestPartnerKey = null; activeFurnaceKey = null;
-    incubatingEggs.clear(); spawnedDragonNests.clear();
-    if (player.ridingDragon) {
-      if (typeof detachRiderFromDragon === 'function') detachRiderFromDragon();
-      player.ridingDragon = null; player.sitting = false;
-    }
     _playerCombatTarget = null; _playerCombatTargetT = 0; _dragonGrowthUiTimer = 0; _activeGrowthDragon = null;
     document.getElementById('dragonGrowthWrap')?.classList.remove('visible');
     document.getElementById('btnDragonMount')?.classList.remove('visible');
@@ -669,8 +664,8 @@
   const _colBlissHor = new THREE.Color(0xf6bfd9), _colBlissTop = new THREE.Color(0x4a76cf), _colSunsetSun = new THREE.Color(0xff923c);
   const _colMoonTop = new THREE.Color(0x050e20), _colMoonHor = new THREE.Color(0x152847);
   const _colMoonDayTop = new THREE.Color(0x2466cc), _colMoonDayHor = new THREE.Color(0xa6d2f8);
-  const _colChillTop = new THREE.Color(0x0d173a), _colChillHor = new THREE.Color(0xdf7649), _colChillSun = new THREE.Color(0xffbe5c);
-  const _colChillHemiSky = new THREE.Color(0x5264a8);
+  const _colChillTop = new THREE.Color(0x254078), _colChillHor = new THREE.Color(0xf3a368), _colChillSun = new THREE.Color(0xffd27a);
+  const _colChillHemiSky = new THREE.Color(0x768bc8);
   const _colFreshTop = new THREE.Color(0x1a72e6), _colFreshHor = new THREE.Color(0x88d2ff), _colFreshSun = new THREE.Color(0xfff4da);
   const _colUwShallow = new THREE.Color(0x0b6578), _colUwMid = new THREE.Color(0x04304d), _colUwAbyss = new THREE.Color(0x010612), _colUwNight = new THREE.Color(0x020f24);
   const _colUwSunShallow = new THREE.Color(0x9ee8ff), _colUwSunAbyss = new THREE.Color(0x091c38);
@@ -1033,7 +1028,7 @@
     return { inWater: true, depth: topY - botY + 1, topY, botY, surfaceY: topY + 0.88 };
   }
   function _tryStepPlayerStair(tx, tz) {
-    if ((!player.onGround && Math.abs(player.vy) > 1.2) || player.flying || player.sneaking) return -1;
+    if (!player.onGround || Math.abs(player.vy) > 0.25 || player.flying || player.sneaking) return -1;
     let foundStair = false, foundSlab = false;
     const onHalf = Math.abs((player.y - Math.floor(player.y)) - 0.5) < 0.10;
     const by0 = Math.floor(player.y), by1 = Math.floor(player.y + 0.55);
@@ -1058,7 +1053,7 @@
     player._stepCamOff = Math.max(-1.05, (player._stepCamOff || 0) + (player.y - stepY));
     player.y = stepY;
     player.onGround = true;
-    player.vy = Math.max(0, player.vy);
+    player.vy = 0;
     player.fallStartY = Math.max(player.fallStartY, stepY);
   }
 
@@ -1109,15 +1104,16 @@
     }
     _reflAcc += (rawDt || 0.016);
     const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
-    const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.45 : 1.0;
-    const reflInterval = inLobby ? 0.05 : ((_rPreset.reflIntervalMs || 55) / 1000) * (_fpsSlow ? 1.35 : 1.0) * tierMult;
-    const camStatic = _reflDoneOnce &&
+    const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.35 : 1.0;
+    const reflInterval = inLobby ? 0.04 : ((_rPreset.reflIntervalMs || 55) / 1000) * (_fpsSlow ? 1.25 : 1.0) * tierMult;
+    const camTurned = !_reflDoneOnce ||
+      Math.abs(camera.rotation.y - _lastReflYaw) > 0.0025 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.0025;
+    const camStatic = _reflDoneOnce && !camTurned &&
       Math.abs(camera.position.x - _lastReflX) < 0.04 &&
       Math.abs(camera.position.y - _lastReflY) < 0.04 &&
-      Math.abs(camera.position.z - _lastReflZ) < 0.04 &&
-      Math.abs(camera.rotation.y - _lastReflYaw) < 0.01 &&
-      Math.abs(camera.rotation.x - _lastReflPitch) < 0.01;
-    if (_reflDoneOnce && _reflAcc < (camStatic ? Math.max(reflInterval, 0.14) : reflInterval)) return;
+      Math.abs(camera.position.z - _lastReflZ) < 0.04;
+    if (_reflDoneOnce && !camTurned && _reflAcc < (camStatic ? Math.max(reflInterval, 0.14) : reflInterval)) return;
     _reflAcc = 0;
     _reflDoneOnce = true;
     _lastReflX = camera.position.x; _lastReflY = camera.position.y; _lastReflZ = camera.position.z;
@@ -1132,7 +1128,7 @@
     envUniforms.uUsePlanarRefl.value = 1.0;
 
     const waterY = WATER_LEVEL + 0.86;
-    const reflFar = Math.min(camera.far, Math.max(148, renderDistance * 32 + 52));
+    const reflFar = Math.min(camera.far, Math.max(128, renderDistance * 28 + 44));
     if (reflCam.aspect !== camera.aspect || reflCam.fov !== camera.fov || reflCam.far !== reflFar) {
       reflCam.aspect = camera.aspect; reflCam.fov = camera.fov; reflCam.far = reflFar; reflCam.updateProjectionMatrix();
     }
@@ -1141,6 +1137,10 @@
     reflCam.rotation.y = camera.rotation.y;
     reflCam.rotation.x = -camera.rotation.x;
     reflCam.rotation.z = 0;
+    reflCam.updateMatrixWorld(true);
+    if (envUniforms.uReflMatrix) {
+      envUniforms.uReflMatrix.value.multiplyMatrices(reflCam.projectionMatrix, reflCam.matrixWorldInverse);
+    }
 
     const wasHeldVis = heldPivot.visible, wasWeatherVis = weatherLines.visible, wasMoteVis = _motePoints.visible;
     const wasEclipseGrassVis = (typeof eclipseGrassMesh !== 'undefined') ? eclipseGrassMesh.visible : false;
@@ -1149,9 +1149,15 @@
     if (typeof eclipseGrassMesh !== 'undefined') eclipseGrassMesh.visible = false;
     renderer.shadowMap.enabled = false;
     _reflHiddenChunks.length = 0;
+    const reflMaxChunkDistSq = Math.max(25, (renderDistance + 2) * (renderDistance + 2));
     for (const ch of chunks.values()) {
       if (ch.waterMesh && ch.waterMesh.visible) { ch.waterMesh.visible = false; _reflHiddenChunks.push(ch.waterMesh); }
       if (ch.plantMesh && ch.plantMesh.visible) { ch.plantMesh.visible = false; _reflHiddenChunks.push(ch.plantMesh); }
+      const dcx = ch.cx - pcx, dcz = ch.cz - pcz;
+      if (dcx * dcx + dcz * dcz > reflMaxChunkDistSq) {
+        if (ch.mesh && ch.mesh.visible) { ch.mesh.visible = false; _reflHiddenChunks.push(ch.mesh); }
+        if (ch.leavesMesh && ch.leavesMesh.visible) { ch.leavesMesh.visible = false; _reflHiddenChunks.push(ch.leavesMesh); }
+      }
     }
     _reflHiddenMobs.length = 0;
     for (let mi = 0; mi < mobs.length; mi++) {
@@ -1190,10 +1196,13 @@
       _postFxAcc += (rawDt || 0.016);
       const _fxP = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { fxIntervalMs: 45 };
       const fxInterval = ((_fxP.fxIntervalMs || 45) / 1000) * (_fpsSlow ? 1.35 : 1.0);
-      const runPostFx = _postFxDirty || (_postFxAcc >= fxInterval);
+      const camFxTurned = (Math.abs(camera.rotation.y - (renderMainScene._ly || 0)) > 0.002 || Math.abs(camera.rotation.x - (renderMainScene._lp || 0)) > 0.002);
+      const runPostFx = _postFxDirty || camFxTurned || (_postFxAcc >= fxInterval);
       if (runPostFx) {
         _postFxAcc = 0;
         _postFxDirty = false;
+        renderMainScene._ly = camera.rotation.y;
+        renderMainScene._lp = camera.rotation.x;
       }
 
       // Pass 1: Occlusion-Aware Volumetric Crepuscular God-Rays — skip all 3 GPU passes when shaft is off or between high-Hz intervals!

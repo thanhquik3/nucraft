@@ -277,6 +277,16 @@
   B.ELYTRA              = _dynBlockId++;
   B.ENDER_DRAGON_EGG    = _dynBlockId++;
   B.WINDMILL_HUB        = _dynBlockId++;
+  B.RED_SAND            = _dynBlockId++;
+  B.TERRACOTTA_WHITE    = _dynBlockId++;
+  B.TERRACOTTA_ORANGE   = _dynBlockId++;
+  B.TERRACOTTA_YELLOW   = _dynBlockId++;
+  B.TERRACOTTA_BROWN    = _dynBlockId++;
+  B.TERRACOTTA_RED      = _dynBlockId++;
+  B.DEAD_BUSH           = _dynBlockId++;
+  B.GOLDEN_MAPLE_LEAVES = _dynBlockId++;
+  B.ORANGE_MAPLE_LEAVES = _dynBlockId++;
+  B.MANGROVE_PROPAGULE  = _dynBlockId++;
 
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,

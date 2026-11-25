@@ -590,7 +590,27 @@
   document.getElementById('btnRespawn').addEventListener('click', () => {
     // Authentic Minecraft Respawn: NEVER wipe mobs or death-dropped items in Overworld!
     const finishRespawn = () => {
-      const targetSp = player.bedSpawn || window._worldSpawnPos || findSafeSpawnPoint(8, 8, true);
+      let validBed = null;
+      if (player.bedSpawn && Number.isFinite(player.bedSpawn.x) && Number.isFinite(player.bedSpawn.z)) {
+        const bs = player.bedSpawn;
+        const bDim = bs.dim || 'overworld';
+        if (bDim === currentDimension) {
+          const bx = bs.bx !== undefined ? bs.bx : Math.floor(bs.x);
+          const bz = bs.bz !== undefined ? bs.bz : Math.floor(bs.z);
+          const bTrueY = typeof bs.trueY === 'number' ? bs.trueY : (Math.floor(bs.y - 1.2) - (bs.depthOffset || 0));
+          const checkLy = bTrueY + (depthOffset || 0);
+          const bcx = bx >> 4, bcz = bz >> 4;
+          if (!chunks.has(chunkKey(bcx, bcz))) generateChunk(bcx, bcz);
+          const blkAt = (checkLy > MIN_Y && checkLy <= MAX_Y) ? getBlockWorld(bx, checkLy, bz) : 0;
+          if (blkAt === B.BED || blkAt === B.BED_FOOT) {
+            validBed = { x: bs.x, y: checkLy + 1.2, z: bs.z, yaw: bs.yaw };
+          } else {
+            player.bedSpawn = null;
+            showToast('🛏️ Giường của bạn đã bị phá hoặc không còn tồn tại! Hồi sinh về điểm gốc.');
+          }
+        }
+      }
+      const targetSp = validBed || window._worldSpawnPos || findSafeSpawnPoint(8, 8, true);
       player.x = targetSp.x; player.y = targetSp.y; player.z = targetSp.z;
       if (targetSp.yaw !== undefined) player.yaw = targetSp.yaw;
       player.pitch = 0.0;
@@ -746,9 +766,18 @@
       weatherMode = btn.dataset.weather;
       if (typeof updateWeatherAndLights === 'function') updateWeatherAndLights(0.016);
       if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
+      if (typeof broadcastWeatherSync === 'function') broadcastWeatherSync(weatherMode, typeof autoWeatherTarget !== 'undefined' ? (autoWeatherTarget > 0.5 ? 'rain' : 'clear') : '');
       showToast(tr(`🌦️ Thời tiết: ${btn.textContent}`, `🌦️ Weather: ${btn.textContent}`));
     });
   });
+  function applyRemoteWeatherSync(w) {
+    if (!w) return;
+    if (typeof w.weatherMode === 'string') weatherMode = w.weatherMode;
+    if (w.activeWeatherKind === 'rain') { if (typeof autoWeatherTarget !== 'undefined') autoWeatherTarget = 1; }
+    else if (w.activeWeatherKind === 'clear') { if (typeof autoWeatherTarget !== 'undefined') autoWeatherTarget = 0; }
+    if (typeof updateWeatherAndLights === 'function') updateWeatherAndLights(0.016);
+    if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
+  }
   document.querySelectorAll('#sodiumExtraSeg .seg-btn').forEach(btn => {
     const key = btn.dataset.sopt;
     if (key && sodiumOpts[key] !== undefined) btn.classList.toggle('active', !!sodiumOpts[key]);
@@ -1581,7 +1610,7 @@ function syncTitleAvatarFace() {
       list.unshift({
         ...currentWorldMeta,
         updatedAt: Date.now(),
-        player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0 },
+        player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, depthOffset, currentDimension, mods: modsArr.slice(-4000),
         ...serializeChestData()
       });
@@ -1672,7 +1701,8 @@ function renderSavedWorldsList() {
     }
     recalcPlayerArmor();
     if (typeof w.dayTime === 'number') dayTime = w.dayTime;
-    _clearWorldInteractiveCaches(false);
+    _clearWorldInteractiveCaches(false, false);
+    if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
     if (Array.isArray(w.mods)) for (const [k, v] of w.mods) { worldMods.set(k, v); indexWorldModKey(k, v); }
     restoreChestData(w);
     lastPlayerCx = 99999; lastPlayerCz = 99999;
@@ -1680,7 +1710,7 @@ function renderSavedWorldsList() {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(pcx + dx, pcz + dz);
     if (!isWorldLoading) { for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch); }
     applyShaderPreset(shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse'));
-    renderHotbar(); renderStatusBars(); renderXpBar();
+    renderHotbar(); renderStatusBars(); renderXpBar(); renderEquipmentUI();
       document.getElementById('lobbyScreen').classList.add('hidden');
       if (!isWorldLoading) startPlaying();
       if (currentWorldMeta.shareWithFriends) {
@@ -1738,14 +1768,6 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       shareWithFriends: shareFriends
     };
     resetWorld(seedNum, { deferSpawnChunks: true });
-    if (gameMode === 'creative') {
-      setSlotItem(0, B.DIAMOND_PICK, 1); setSlotItem(1, B.DIAMOND_AXE, 1); setSlotItem(2, B.FIRE_SWORD, 1);
-      setSlotItem(3, B.BOW, 1); setSlotItem(4, B.STONE_BRICK, 99); setSlotItem(5, B.PLANKS, 99);
-      setSlotItem(6, B.GLASS, 99); setSlotItem(7, B.TORCH_BLOCK, 99); setSlotItem(8, B.TNT, 99);
-      setSlotItem(9, B.OAK_LOG, 99); setSlotItem(10, B.SANDSTONE, 99); setSlotItem(11, B.TERRACOTTA, 99);
-      setSlotItem(12, B.GLOW_CRYSTAL, 99); setSlotItem(13, B.ARROW, 99); setSlotItem(14, B.VOID_PEARL, 32);
-      player.armor = 20; renderHotbar(); renderStatusBars();
-    }
     document.getElementById('lobbyScreen').classList.add('hidden');
     document.body.classList.remove('in-lobby');
     applyShaderPreset(shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse'));
@@ -3814,9 +3836,8 @@ function renderReal3DWorldThumb(biomeKey) {
   let diorama = null;
   try {
     diorama = _buildBiomeDioramaScene(key);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.autoUpdate = true;
-    renderer.shadowMap.needsUpdate = true;
+    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.autoUpdate = false;
     renderer.localClippingEnabled = false;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;

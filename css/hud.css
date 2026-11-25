@@ -267,7 +267,7 @@
   /* Full-Screen Minecraft Fog-of-War World Map Modal */
   #worldMapPanel {
     width: min(760px, 95vw); max-height: 92dvh; position: relative;
-    background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b; border-radius: 3px;
+    background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b; border-radius: 0;
     box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 20px 52px rgba(0,0,0,0.82);
     padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px;
   }
@@ -602,21 +602,21 @@
   }
   #mcTouchRing.active { display: block; transform: scale(1.0); }
   #eatProgressWrap {
-    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%);
-    width: 148px; height: 10px; background: rgba(15, 23, 42, 0.86);
-    border: 2px solid #000; border-radius: 3px; overflow: hidden;
+    position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%);
+    width: 148px; height: 10px; background: #1e1e1e;
+    border: 2px solid #000; border-radius: 0; overflow: hidden;
     display: none; pointer-events: none; z-index: 45;
   }
   #eatProgressWrap.active { display: block; }
   #eatProgressFill {
     height: 100%; width: 0%;
-    background: linear-gradient(90deg, #f59e0b, #fbbf24, #4ade80);
+    background: #fbbf24;
     transition: width 0.05s linear;
   }
   .join-feedback-box {
-    margin-top: 6px; padding: 7px 10px; border-radius: 4px;
+    margin-top: 6px; padding: 7px 10px; border-radius: 0;
     font-family: var(--font-mono); font-size: 12px; line-height: 1.35;
-    background: rgba(15, 23, 42, 0.75); border: 1px solid #475569; color: #e2e8f0;
+    background: #141820; border: 2px solid #3f4654; color: #e2e8f0;
     display: none;
   }
   .join-feedback-box.visible { display: block; }
@@ -717,9 +717,9 @@
 
   .mc-panel {
     width: min(620px, 96%); max-height: 94%; overflow-y: auto; scrollbar-gutter: stable;
-    background: linear-gradient(180deg, #273040 0%, #1d2430 100%); color: #e2e8f0; border: 3px solid #0b0f17;
-    box-shadow: inset 2px 2px 0 rgba(255,255,255,0.14), inset -2px -2px 0 rgba(0,0,0,0.45), 0 18px 50px rgba(0, 0, 0, 0.78);
-    padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; border-radius: 4px;
+    background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b;
+    box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 18px 50px rgba(0, 0, 0, 0.78);
+    padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; border-radius: 0;
   }
   .mc-title { margin: 0; font-family: var(--font-pixel); font-size: 16px; letter-spacing: 0.3px; color: #f8fafc; text-shadow: 2px 2px 0 #090d14; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .mc-sub { margin: -2px 0 0; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: #eef2f7; }
@@ -728,7 +728,7 @@
     width: 390px; box-sizing: border-box; position: relative;
     background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b;
     box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 18px 48px rgba(0,0,0,0.78);
-    padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 0; border-radius: 3px;
+    padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 0; border-radius: 0;
   }
   #mainInvPanel { align-self: flex-start; }
   .mc-gui-label {
@@ -758,7 +758,7 @@
   }
   .equip-slot .eq-ghost { font-size: 14px; opacity: 0.88; pointer-events: none; }
   .equip-slot canvas { position: absolute; width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; z-index: 1; }
-  .equip-slot .slot-dur { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: #111; border-radius: 1px; overflow: hidden; pointer-events: none; z-index: 4; }
+  .equip-slot .slot-dur { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: #111; border-radius: 0; overflow: hidden; pointer-events: none; z-index: 4; }
   .equip-slot .slot-dur-fill { height: 100%; background: #22c55e; }
   .equip-slot.shield-disabled::after { content: ''; position: absolute; inset: 0; background: rgba(239, 68, 68, 0.38); pointer-events: none; z-index: 5; }
   #charPreviewBox {

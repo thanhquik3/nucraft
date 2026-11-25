@@ -415,7 +415,8 @@
     BLUE_FOREST:      { id: 50, name: 'Rừng Xanh Lam Huyền Ảo' },
     WHEAT_VALLEY:     { id: 51, name: 'Cánh Đồng Lúa' },
     PINE_VALLEY:      { id: 52, name: 'Thung Lũng Thông & Nhà Thợ Rèn' },
-    GIANT_JUNGLE:     { id: 53, name: 'Rừng Nhiệt Đới Đại Thụ' }
+    GIANT_JUNGLE:     { id: 53, name: 'Rừng Nhiệt Đới Đại Thụ' },
+    CLOUD_PEAKS:      { id: 54, name: 'Đỉnh Núi Vượt Mây' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -1262,17 +1263,19 @@
     ];
     const drawFancyLeaf = (idx, pal, mask = BOTANICAL_LEAF_MASK) => {
       const tx = (idx % ATLAS_COLS) * TILE_PX, ty = Math.floor(idx / ATLAS_COLS) * TILE_PX;
+      const tierTone = { H: 8, M: 0, S: -10, D: -20 };
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const ch = mask[y][x];
         if (ch === '.') continue;
         const h = ((x * 374761393 + y * 668265263 + idx * 1442695041) ^ (x * 1274126177)) >>> 0;
-        const jitter = ((h % 1000) / 1000 - 0.5) * 14;
+        const rimDark = (x === 0 || x === 15 || y === 15) ? -6 : (y === 0 ? 4 : 0);
+        const jitter = ((h % 1000) / 1000 - 0.5) * 16 + (tierTone[ch] || 0) + rimDark;
         ctx.fillStyle = shade(pal[ch] || pal.M, jitter);
         ctx.fillRect(tx + x, ty + y, 1, 1);
       }
     };
     // Cây Táo / Sồi (Oak Leaves): kết cấu lá hữu cơ từng chùm đậm nhạt + khe sáng tự nhiên!
-    drawFancyLeaf(6,  { H: '#6eeb3e', M: '#42bf24', S: '#268a14', D: '#165e0c' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(6,  { H: '#74ea44', M: '#45b828', S: '#267d16', D: '#134c09' }, BOTANICAL_LEAF_MASK);
     tilePixels(7, (x, y, r) => {
       const ch = SAND_MAP[y][x];
       const pal = { a: '#dfd3a0', b: '#d7c992', c: '#e5daaa', d: '#cab981', e: '#ece3b7' };
@@ -1929,11 +1932,8 @@
       if (stem || leaf) return shade(stem ? '#2e6e24' : '#4fa834', (r - 0.5) * 14);
       return null;
     });
-    // Tile 199: Vivid Scarlet/Crimson Autumn Maple Leaves (Matching D:\mine2\image\images (6).jpg!)
-    tilePixels(199, (x, y, r) => {
-      if (((x * 5 + y * 7) % 11) === 0 && r > 0.55) return null;
-      return shade(r > 0.68 ? '#ef4444' : (r > 0.25 ? '#b91c1c' : '#7f1d1d'), (r - 0.5) * 16);
-    });
+    // Tile 199: Vivid Scarlet/Crimson Autumn Maple Leaves
+    drawFancyLeaf(199, { H: '#f87171', M: '#dc2626', S: '#991b1b', D: '#5c0e0e' }, AUTUMN_LEAF_MASK);
     // Tile 200: Abandoned Mineshaft Spider Cobweb
     tilePixels(200, (x, y) => {
       const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5), d = Math.hypot(dx, dy);
@@ -1975,18 +1975,21 @@
     // Tiles 205-208: 4 Wheat Crop Growth Stages (EXACT media_1795130887896 -> media_1795130906211!)
     for (let st = 0; st < 4; st++) {
       tilePixels(205 + st, (x, y, r) => {
-        const stalkXs = [2, 5, 8, 11, 13];
-        const minY = st === 0 ? 12 : (st === 1 ? 8 : (st === 2 ? 4 : 1));
+        const stalkXs = st === 3 ? [1, 3, 5, 7, 9, 11, 13, 15] : [2, 5, 8, 11, 13];
+        const minY = st === 0 ? 12 : (st === 1 ? 8 : (st === 2 ? 4 : 0));
         if (y < minY) return null;
         for (let si = 0; si < stalkXs.length; si++) {
           const sx = stalkXs[si];
           const localTop = minY + ((si * 2) % 3);
           if (y < localTop) continue;
-          if (x === sx || (st >= 2 && Math.abs(x - sx) === 1 && y < localTop + 5 && ((x + y) & 1))) {
+          const hasGrain = st >= 2 && Math.abs(x - sx) === 1 && y < localTop + (st === 3 ? 8 : 5) && (((x + y + si) & 1) || (st === 3 && y < localTop + 5));
+          if (x === sx || hasGrain) {
             if (st === 0) return shade('#22c55e', (r - 0.5) * 20);
             if (st === 1) return shade(y < localTop + 3 ? '#65a30d' : '#3f7d1c', (r - 0.5) * 18);
-            if (st === 2) return shade(y < localTop + 4 ? '#c2b838' : '#588c22', (r - 0.5) * 18);
-            return shade(y < localTop + 7 ? (r > 0.45 ? '#eab308' : '#d49a1a') : '#9a7b1c', (r - 0.5) * 18);
+            if (st === 2) return shade(y < localTop + 4 ? '#d4c33b' : '#659624', (r - 0.5) * 16);
+            if (y < localTop + 3) return shade(r > 0.48 ? '#fef08a' : '#fde047', (r - 0.5) * 12);
+            if (y < localTop + 8) return shade(r > 0.42 ? '#facc15' : '#eab308', (r - 0.5) * 14);
+            return shade(y < 13 ? '#d97706' : '#a16207', (r - 0.5) * 14);
           }
         }
         return null;
@@ -4076,6 +4079,44 @@
       if (dx <= 1.2 || dy <= 1.2) return n > 0.5 ? '#8f5e38' : '#6f4524';
       if ((dx <= 4.5 && y >= 2 && y <= 6) || (dy <= 4.5 && x >= 9 && x <= 13)) return n > 0.5 ? '#f8fafc' : '#e2e8f0';
       return n > 0.55 ? '#5c3c22' : '#4a2f1a';
+    });
+    // 519: Red Sand (Cát Đỏ Badlands)
+    tilePixels(519, (x, y, r) => {
+      const ch = SAND_MAP[y][x];
+      const pal = { a: '#c66126', b: '#b7531d', c: '#d36f32', d: '#a54617', e: '#de7c3c' };
+      return shade(pal[ch] || '#c66126', (r - 0.5) * 8);
+    });
+    // 520-524: Terracotta Strata (Trắng, Cam, Vàng, Nâu, Đỏ)
+    const drawTerracotta = (idx, baseHex, darkHex, hiHex) => {
+      tilePixels(idx, (x, y, r) => {
+        const streak = ((y * 5 + (x >> 2)) % 7 === 0) ? darkHex : (((y * 3 + x) % 11 === 0) ? hiHex : baseHex);
+        return shade(streak, (r - 0.5) * 8);
+      });
+    };
+    drawTerracotta(520, '#d2b2a1', '#bf9b89', '#dfc3b4');
+    drawTerracotta(521, '#a65426', '#8d431b', '#ba6534');
+    drawTerracotta(522, '#c08926', '#a3711a', '#d49d35');
+    drawTerracotta(523, '#523625', '#40281a', '#654531');
+    drawTerracotta(524, '#923d2e', '#792f23', '#a64d3c');
+    // 525: Dead Bush (Bụi Cây Khô)
+    tilePixels(525, (x, y, r) => {
+      const dx = x - 7.5;
+      const stem = (y >= 9 && Math.abs(dx) < 0.8);
+      const b1 = (y >= 4 && y <= 12 && Math.abs(dx + (12 - y) * 0.65) < 0.75);
+      const b2 = (y >= 3 && y <= 11 && Math.abs(dx - (11 - y) * 0.6) < 0.75);
+      const twig = (y >= 5 && y <= 8 && (Math.abs(x - 4) < 0.8 || Math.abs(x - 11) < 0.8));
+      return (stem || b1 || b2 || twig) ? shade('#8a5a2b', (r - 0.5) * 18) : null;
+    });
+    // 526-527: Golden & Orange Ancient Maple Leaves
+    drawFancyLeaf(526, { H: '#fef08a', M: '#eab308', S: '#ca8a04', D: '#854d0e' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(527, { H: '#fdba74', M: '#ea580c', S: '#c2410c', D: '#7c2d12' }, AUTUMN_LEAF_MASK);
+    // 528: Mangrove Propagule (Hanging Mangrove Sprout)
+    tilePixels(528, (x, y, r) => {
+      if (y >= 1 && y <= 3 && (x === 7 || x === 8)) return shade('#5c3c22', (r - 0.5) * 12);
+      if (y >= 4 && y <= 12 && Math.abs(x - 7.5) <= (y < 9 ? 1.2 : 0.7)) {
+        return shade(y < 8 ? '#65a30d' : '#4d7c0f', (r - 0.5) * 14);
+      }
+      return null;
     });
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)

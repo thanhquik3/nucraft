@@ -109,6 +109,7 @@
     uQuality: { value: shaderQuality === 'ultra' ? 2.0 : (shaderQuality === 'low' ? 0.0 : 1.0) },
     uWaterQuality: { value: 1.0 },
     uReflMap: { value: reflRT.texture },
+    uReflMatrix: { value: new THREE.Matrix4() },
     uUsePlanarRefl: { value: 1.0 },
     uCloudCover: { value: 0.46 },
     uVolumetricClouds: { value: 1.0 },
@@ -445,8 +446,10 @@
         // Lush Complementary emerald-lime meadow grass, deep sculpted root AO & golden sunset crop tips!
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(0.99));
         float dayPlant = smoothstep(-0.08, 0.25, normalize(uSunDir).y);
-        float rootShade = mix(mix(0.84, 0.44, uChillMode), 0.34, uEclipseMode);
-        diffuseColor.rgb *= vSkyShade * mix(rootShade, mix(0.96, 1.08, dayPlant), smoothstep(0.0, 0.88, vPlantTip));`)
+        float isGoldCrop = clamp((diffuseColor.r - diffuseColor.b) * 2.2, 0.0, 1.0);
+        float baseRootShade = mix(mix(0.84, 0.56, uChillMode), 0.52, uEclipseMode);
+        float rootShade = mix(baseRootShade, 0.86, isGoldCrop * 0.75);
+        diffuseColor.rgb *= vSkyShade * mix(rootShade, mix(0.98, 1.12, dayPlant), smoothstep(0.0, 0.84, vPlantTip));`)
       .replace('#include <opaque_fragment>', `
         vec3 vDirP = normalize(vWPos - cameraPosition);
         vec3 sDirP = normalize(uSunDir);
@@ -825,7 +828,7 @@
   }));
 
   // Authentic Luanti 3D Voxel Cloud Layer (toggleable classic cloud mode)
-  const CLOUD_PERIOD = 16, CLOUD_CELL = 10, CLOUD_THICK = 3.2, CLOUD_Y = 54;
+  const CLOUD_PERIOD = 16, CLOUD_CELL = 10, CLOUD_THICK = 3.2, CLOUD_Y = 50;
   const CLOUD_PERIOD_W = CLOUD_PERIOD * CLOUD_CELL;
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, fog: false });
   const cloudMesh = (() => {
@@ -876,7 +879,7 @@
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon, uFogColor: envUniforms.uFogColor,
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
-      uReflMap: envUniforms.uReflMap, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
+      uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos
     },
@@ -884,8 +887,9 @@
       attribute float aIsTop;
       attribute float aShore;
       attribute float aDepth;
-      varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore, vColDepth; varying vec4 vClipPos;
+      varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore, vColDepth; varying vec4 vClipPos, vReflClip;
       uniform float uTime, uEclipseMode;
+      uniform mat4 uReflMatrix;
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
         if (aIsTop > 0.5) {
@@ -896,13 +900,14 @@
         vec4 mv = viewMatrix * wp; vDist = length(mv.xyz);
         gl_Position = projectionMatrix * mv;
         vClipPos = gl_Position;
+        vReflClip = uReflMatrix * vec4(wp.x, 0.86, wp.z, 1.0);
       }`,
     fragmentShader: `
       uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode;
       uniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor, uPlayerPos;
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
-      varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore, vColDepth; varying vec4 vClipPos;
+      varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore, vColDepth; varying vec4 vClipPos, vReflClip;
 
       // Single-pass analytical 4-octave directional wave height + slope (saves ~60% trig cost vs 3x finite differences)
       vec3 waterWaveGrad(vec2 p, float t, bool highDetail) {
@@ -1043,11 +1048,11 @@
           reflFallback += activeLightCol * pow(max(dot(reflDir, activeLightDir), 0.0), 18.0) * (0.30 * sunUp + 0.18 * nightK);
           vec3 reflCol = reflFallback;
           if (uUsePlanarRefl > 0.5 && highWater && abs(vWorldPos.y - 0.86) < 0.45) {
-            vec2 ndc = (vClipPos.xy / max(0.001, vClipPos.w)) * 0.5 + 0.5;
+            vec2 ndc = (vReflClip.xy / max(0.001, vReflClip.w)) * 0.5 + 0.5;
             float shoreCalm = 1.0 - smoothstep(0.0, 1.0, vShore) * 0.65;
             float distDamp = 1.0 / (1.0 + vDist * 0.032);
-            vec2 reflUv = vec2(ndc.x, 1.0 - ndc.y) + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(1.0, 0.92, uEclipseMode);
-            float edgeMask = smoothstep(0.0, 0.06, reflUv.x) * smoothstep(1.0, 0.94, reflUv.x)
+            vec2 reflUv = ndc + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(1.0, 0.92, uEclipseMode);
+            float edgeMask = step(0.01, vReflClip.w) * smoothstep(0.0, 0.06, reflUv.x) * smoothstep(1.0, 0.94, reflUv.x)
                            * smoothstep(0.0, 0.08, reflUv.y) * smoothstep(1.0, 0.92, reflUv.y);
             vec3 mapSample = texture2D(uReflMap, clamp(reflUv, 0.004, 0.996)).rgb;
             mapSample = mix(mapSample, max(mapSample, baseWater * 0.72), isUltraW ? 0.22 : 0.30);

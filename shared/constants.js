@@ -2,7 +2,7 @@
   'use strict';
   const CHUNK_W = 16;
   const MIN_Y = -48;
-  const WORLD_H = 96;
+  const WORLD_H = 128;
   const MAX_Y = MIN_Y + WORLD_H - 1;
   const WATER_LEVEL = 0;
 
@@ -12,7 +12,7 @@
   const SPRINT_SPEED = 7.4;
   const SNEAK_SPEED = 2.1;
 
-  const BUILD_TAG = 'BUILD v126';
+  const BUILD_TAG = 'BUILD v127';
   const PLAYER_RADIUS = 0.30;
   const PLAYER_HEIGHT = 1.72;
   const EYE_HEIGHT = 1.54;

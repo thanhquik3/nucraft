@@ -105,7 +105,7 @@ const {
     [B.LAVA]:          { name: 'Dung Nham',           hard: 99,   solid: false, liquid: true, emissive: true,      tiles: [27, 27, 27], mapColor: '#ff5500' },
     [B.APPLE]:         { name: 'Táo Đỏ',              hard: 0.14, solid: false, hangingFruit: true, fruitColor: '#dc2626', food: true, voxelItem: true, heal: 3, feed: 4, drop: B.APPLE, tiles: [28, 28, 28], mapColor: '#dc2626', crumbColor: 0xdc2626 },
     [B.ACACIA_LOG]:    { name: 'Gỗ Keo',              hard: 0.90, solid: true,  wood: true, isLog: true, drop: B.ACACIA_LOG, tiles: [4, 29, 4], mapColor: '#7c4e38' },
-    [B.ACACIA_LEAVES]: { name: 'Lá Thu Đỏ Cam',       hard: 0.25, solid: true,  foliage: true, shearsOnly: true, drop: B.ACACIA_LEAVES, tiles: [30, 30, 30], mapColor: '#d96b27' },
+    [B.ACACIA_LEAVES]: { name: 'Lá Thu Đỏ Cam',       hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, drop: B.ACACIA_LEAVES, tiles: [30, 30, 30], mapColor: '#d96b27' },
     [B.BIRCH_LEAVES]:  { name: 'Lá Bạch Dương',       hard: 0.25, solid: true,  foliage: true, shearsOnly: true, drop: B.BIRCH_LEAVES, tiles: [31, 31, 31], mapColor: '#7cb342' },
     [B.TORCH_BLOCK]:   { name: 'Cây Đuốc (Chuẩn Minecraft)', hard: 0.08, solid: false, torch: true, emissive: true, voxelItem: true, offhandOk: true, drop: B.TORCH_BLOCK, tiles: [132, 132, 132], mapColor: '#fde047' },
     [B.STONE_BRICK]:   { name: 'Gạch Đá Rêu',         hard: 1.40, solid: true,  rock: true, drop: B.STONE_BRICK,   tiles: [33, 33, 33], mapColor: '#8d959e' },
@@ -164,7 +164,7 @@ const {
     [B.PALM_LEAVES]:       { name: 'Tàu Lá Dừa Xanh',     hard: 0.22, solid: true,  foliage: true, shearsOnly: true, drop: B.PALM_LEAVES, tiles: [92, 92, 92], mapColor: '#4da83b' },
     [B.COCONUT]:           { name: 'Quả Dừa Tươi',        hard: 0.16, solid: false, hangingFruit: true, fruitColor: '#6b4423', food: true, voxelItem: true, heal: 3, feed: 4, drop: B.COCONUT, tiles: [93, 93, 93], mapColor: '#7c4d2b' },
     [B.MANGROVE_LOG]:      { name: 'Gỗ Đước Ngập Mặn',    hard: 0.95, solid: true,  wood: true, isLog: true, drop: B.MANGROVE_LOG, tiles: [4, 94, 4], mapColor: '#5c342e' },
-    [B.MANGROVE_ROOTS]:    { name: 'Rễ Đước Ngập Mặn',    hard: 0.45, solid: true,  wood: true, glass: true, drop: B.MANGROVE_ROOTS, tiles: [95, 95, 95], mapColor: '#4f3829' },
+    [B.MANGROVE_ROOTS]:    { name: 'Rễ Đước Ngập Mặn',    hard: 0.45, solid: true,  wood: true, trans: true, subBlock: true, rootCage: true, drop: B.MANGROVE_ROOTS, tiles: [95, 95, 95], mapColor: '#4f3829' },
     [B.MANGROVE_LEAVES]:   { name: 'Lá Rừng Ngập Mặn',    hard: 0.25, solid: true,  foliage: true, shearsOnly: true, drop: B.MANGROVE_LEAVES, tiles: [96, 96, 96], mapColor: '#3f7d3a' },
     [B.MUD]:               { name: 'Đất Bùn Đầm Lầy',     hard: 0.45, solid: true,  dirt: true, drop: B.MUD, tiles: [97, 97, 97], mapColor: '#3d3c44' },
     [B.MUD_BRICK]:         { name: 'Gạch Bùn Cổ',         hard: 1.25, solid: true,  rock: true, drop: B.MUD_BRICK, tiles: [98, 98, 98], mapColor: '#8c6d56' },
@@ -315,8 +315,8 @@ const {
     [B.SPORE_TURF]:           { name: 'Thảm Nấm Sporefield',   hard: 0.60, solid: true,  dirt: true, drop: B.SPORE_TURF, tiles: [295, 295, 296], mapColor: '#8b5cf6' },
     [B.SIFT_STONE]:           { name: 'Đá Tím Hang Burrows',   hard: 1.85, solid: true,  rock: true, reqTier: 1, drop: B.SIFT_STONE, tiles: [296, 296, 296], mapColor: '#4c2c69' },
     [B.SIFT_LOG]:             { name: 'Gỗ Giấc Mơ (Sift)',     hard: 1.05, solid: true,  wood: true, isLog: true, drop: B.SIFT_LOG, tiles: [297, 298, 297], mapColor: '#cbd5e1' },
-    [B.SIFT_LEAVES]:          { name: 'Lá Ngọc Lam Sift',      hard: 0.25, solid: true,  foliage: true, leaves: true, trans: true, drop: B.DREAM_FRUIT, tiles: [299, 299, 299], mapColor: '#5eead4' },
-    [B.LULLABY_LEAVES]:       { name: 'Lá Tuyết Lullaby',      hard: 0.25, solid: true,  foliage: true, leaves: true, trans: true, drop: B.DREAM_FRUIT, tiles: [300, 300, 300], mapColor: '#99e6e0' },
+    [B.SIFT_LEAVES]:          { name: 'Lá Ngọc Lam Sift',      hard: 0.25, solid: true,  foliage: true, leaves: true, neutralLeaf: true, trans: true, drop: B.DREAM_FRUIT, tiles: [299, 299, 299], mapColor: '#5eead4' },
+    [B.LULLABY_LEAVES]:       { name: 'Lá Tuyết Lullaby',      hard: 0.25, solid: true,  foliage: true, leaves: true, neutralLeaf: true, trans: true, drop: B.DREAM_FRUIT, tiles: [300, 300, 300], mapColor: '#99e6e0' },
     [B.SIFT_FLOWER]:          { name: 'Cỏ Hồng Mộng Mơ',       hard: 0.05, solid: false, cross: true, trans: true, instantFruit: true, drop: B.SIFT_FLOWER, tiles: [301, 301, 301], mapColor: '#fb7185' },
     [B.SIFT_BERRY_BUSH]:      { name: 'Bụi Trái Cây Giấc Mơ',  hard: 0.05, solid: false, cross: true, trans: true, instantFruit: true, drop: B.DREAM_FRUIT, tiles: [302, 302, 302], mapColor: '#f472b6' },
     [B.SPORE_SHROOM]:         { name: 'Nấm Phát Sáng Burrows', hard: 0.08, solid: false, cross: true, trans: true, emissive: true, light: 11, drop: B.SPORE_SHROOM, tiles: [303, 303, 303], mapColor: '#38f2ff' },
@@ -358,7 +358,7 @@ const {
     [B.BAMBOO_SHOOT]:      { name: 'Măng Tre Non (Cầm/Trồng)',   hard: 0.10, solid: false, cross: true, foliage: true, shearsOnly: true, drop: B.BAMBOO, tiles: [192, 192, 192], mapColor: '#6d8f28' },
     [B.GLOW_VINES]:        { name: 'Dây Leo Quả Phát Sáng',      hard: 0.10, solid: false, cross: true, foliage: true, emissive: true, hanging: true, drop: B.GLOW_VINES, tiles: [198, 198, 198], mapColor: '#f59e0b' },
     [B.MOSS_BLOCK]:        { name: 'Rêu Xanh Hang Tươi Tốt',     hard: 0.35, solid: true,  dirt: true, drop: B.MOSS_BLOCK, tiles: [197, 197, 197], mapColor: '#4d8a2d' },
-    [B.CRIMSON_MAPLE_LEAVES]: { name: 'Lá Phong Đỏ Cổ Thụ',      hard: 0.25, solid: true,  foliage: true, shearsOnly: true, drop: B.CRIMSON_MAPLE_LEAVES, tiles: [199, 199, 199], mapColor: '#c41e1e' },
+    [B.CRIMSON_MAPLE_LEAVES]: { name: 'Lá Phong Đỏ Cổ Thụ',      hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, drop: B.CRIMSON_MAPLE_LEAVES, tiles: [199, 199, 199], mapColor: '#c41e1e' },
     [B.COBWEB]:            { name: 'Mạng Nhện Hầm Mỏ',           hard: 0.22, solid: false, cross: true, drop: B.STICK, tiles: [200, 200, 200], mapColor: '#e2e8f0' },
     [B.RAIL]:              { name: 'Đường Ray Hầm Mỏ',           hard: 0.35, solid: false, cross: true, flatTrack: true, drop: B.RAIL, tiles: [201, 201, 201], mapColor: '#94a3b8' },
     [B.END_CRYSTAL_BLOCK]: { name: 'Pha Lê End (End Crystal)',   hard: 0.15, solid: true,  rock: true, emissive: true, trans: true, voxelItem: true, endCrystal: true, drop: 0, tiles: [202, 202, 202], itemTile: 438, mapColor: '#e879f9' },
@@ -533,7 +533,7 @@ const {
     [B.DEEPSLATE_BRICKS]:    { name: 'Gạch Đá Bảng Sâu (Deepslate Bricks)', hard: 2.20, solid: true, rock: true, reqTier: 1, drop: B.DEEPSLATE_BRICKS, tiles: [468, 468, 468], mapColor: '#2a2e38' },
     [B.DEEPSLATE_TILES]:     { name: 'Ngói Đá Bảng Sâu (Deepslate Tiles)',  hard: 2.20, solid: true, rock: true, reqTier: 1, drop: B.DEEPSLATE_TILES, tiles: [469, 469, 469], mapColor: '#1f222b' },
     [B.SOUL_LANTERN]:        { name: 'Đèn Lồng Linh Hồn (Soul Lantern)',    hard: 1.50, solid: false, lantern: true, emissive: true, light: 12, drop: B.SOUL_LANTERN, tiles: [470, 470, 470], mapColor: '#22d3ee' },
-    [B.SOUL_FIRE]:           { name: 'Lửa Linh Hồn (Soul Fire)',     hard: 0.05, solid: false, cross: true, emissive: true, light: 13, drop: 0, tiles: [472, 472, 472], mapColor: '#22d3ee' },
+    [B.SOUL_FIRE]:           { name: 'Lửa Linh Hồn (Soul Fire)',     hard: 0.05, solid: false, cross: true, trans: true, fire: true, emissive: true, light: 13, drop: 0, tiles: [472, 472, 472], mapColor: '#22d3ee' },
     [B.CANDLE]:              { name: 'Nến Phát Sáng (Candle)',       hard: 0.15, solid: false, trans: true, subBlock: true, candle: true, emissive: true, light: 10, drop: B.CANDLE, tiles: [471, 471, 471], mapColor: '#fde68a' },
     [B.ENDER_CHEST_BLOCK]:   { name: 'Rương Ender (Toàn Cầu 27 Ô)',  hard: 8.00, solid: true,  rock: true, chest: true, chestTier: 'ender', chestSlots: 27, trans: true, interactive: true, light: 7, reqTier: 2, drop: B.ENDER_CHEST_BLOCK, tiles: [476, 476, 476], mapColor: '#0f2728' },
     [B.NOTE_BLOCK]:          { name: 'Khối Âm Thanh (Note Block)',   hard: 0.80, solid: true,  wood: true, interactive: true, drop: B.NOTE_BLOCK, tiles: [477, 477, 477], mapColor: '#7c4a26' },
@@ -613,6 +613,16 @@ const {
   BLOCK_DEF[B.ELYTRA]           = { name: 'Cánh Cứng Elytra', nameEn: 'Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 0, equipTier: 'elytra', maxDur: 432, tiles: [517, 517, 517], mapColor: '#7c7b96' };
   BLOCK_DEF[B.ENDER_DRAGON_EGG] = { name: 'Trứng Rồng End', nameEn: 'Dragon Egg', hard: 3.0, solid: true, dragonEgg: 'ender', eggPal: { base: 0x0b0812, shell: 0x181024, band: 0x3b1254, spot: 0xc026d3 }, light: 5, emissive: 0.35, tiles: [447, 447, 447], mapColor: '#110b19' };
   BLOCK_DEF[B.WINDMILL_HUB]     = { name: 'Trục Cối Xoay Gió', nameEn: 'Windmill Hub', hard: 2.0, solid: true, windmillHub: true, customAtlasTex: true, tiles: [518, 518, 518], mapColor: '#7c5332' };
+  BLOCK_DEF[B.RED_SAND]            = { name: 'Cát Đỏ (Red Sand)',           nameEn: 'Red Sand',           hard: 0.45, solid: true,  dirt: true, customAtlasTex: true, drop: B.RED_SAND, tiles: [519, 519, 519], mapColor: '#be5b24' };
+  BLOCK_DEF[B.TERRACOTTA_WHITE]    = { name: 'Đất Sét Nung Trắng',          nameEn: 'White Terracotta',   hard: 1.25, solid: true,  rock: true, customAtlasTex: true, drop: B.TERRACOTTA_WHITE, tiles: [520, 520, 520], mapColor: '#d1b1a1' };
+  BLOCK_DEF[B.TERRACOTTA_ORANGE]   = { name: 'Đất Sét Nung Cam',            nameEn: 'Orange Terracotta',  hard: 1.25, solid: true,  rock: true, customAtlasTex: true, drop: B.TERRACOTTA_ORANGE, tiles: [521, 521, 521], mapColor: '#a15325' };
+  BLOCK_DEF[B.TERRACOTTA_YELLOW]   = { name: 'Đất Sét Nung Vàng',           nameEn: 'Yellow Terracotta',  hard: 1.25, solid: true,  rock: true, customAtlasTex: true, drop: B.TERRACOTTA_YELLOW, tiles: [522, 522, 522], mapColor: '#ba8523' };
+  BLOCK_DEF[B.TERRACOTTA_BROWN]    = { name: 'Đất Sét Nung Nâu',            nameEn: 'Brown Terracotta',   hard: 1.25, solid: true,  rock: true, customAtlasTex: true, drop: B.TERRACOTTA_BROWN, tiles: [523, 523, 523], mapColor: '#4d3323' };
+  BLOCK_DEF[B.TERRACOTTA_RED]      = { name: 'Đất Sét Nung Đỏ',             nameEn: 'Red Terracotta',     hard: 1.25, solid: true,  rock: true, customAtlasTex: true, drop: B.TERRACOTTA_RED, tiles: [524, 524, 524], mapColor: '#8e3c2e' };
+  BLOCK_DEF[B.DEAD_BUSH]           = { name: 'Bụi Cây Khô (Dead Bush)',     nameEn: 'Dead Bush',          hard: 0.05, solid: false, cross: true, trans: true, foliage: true, customAtlasTex: true, drop: B.STICK, tiles: [525, 525, 525], mapColor: '#8f5e2c' };
+  BLOCK_DEF[B.GOLDEN_MAPLE_LEAVES] = { name: 'Lá Phong Vàng Rực',           nameEn: 'Golden Maple Leaves', hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.GOLDEN_MAPLE_LEAVES, tiles: [526, 526, 526], mapColor: '#eab308' };
+  BLOCK_DEF[B.ORANGE_MAPLE_LEAVES] = { name: 'Lá Phong Cam Cổ Thụ',         nameEn: 'Orange Maple Leaves', hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.ORANGE_MAPLE_LEAVES, tiles: [527, 527, 527], mapColor: '#ea580c' };
+  BLOCK_DEF[B.MANGROVE_PROPAGULE]  = { name: 'Mầm Đước Ngập Mặn',           nameEn: 'Mangrove Propagule', hard: 0.05, solid: false, cross: true, trans: true, foliage: true, hanging: true, customAtlasTex: true, drop: B.MANGROVE_PROPAGULE, tiles: [528, 528, 528], mapColor: '#4d7c0f' };
 
   for (let i = 0; i < 1024; i++) {
     const d = BLOCK_DEF[i];

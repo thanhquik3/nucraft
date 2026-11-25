@@ -2,9 +2,13 @@
 
   function applyRemotePeerState(rp, st, equip) {
     if (!rp || !st) return;
+    rp.dim = st.dim || rp.dim || 'overworld';
+    rp.depthOffset = typeof st.depthOffset === 'number' ? st.depthOffset : (rp.depthOffset || 0);
+    const localOff = depthOffset || 0;
+    const worldY = (typeof st.trueY === 'number') ? (st.trueY + localOff) : st.y;
     if (!rp._lastPktAt) {
       rp.x = rp.tx = st.x;
-      rp.y = rp.ty = st.y;
+      rp.y = rp.ty = worldY;
       rp.z = rp.tz = st.z;
       rp.tvx = 0; rp.tvy = 0; rp.tvz = 0;
       rp.yaw = rp.tYaw = typeof st.yaw === 'number' ? st.yaw : 0;
@@ -14,9 +18,9 @@
       const _nowNet = performance.now();
       const _pdt = Math.max(0.02, Math.min(0.25, (_nowNet - rp._lastPktAt) / 1000));
       rp.tvx = (typeof st.vx === 'number') ? st.vx : ((st.x - (rp.tx ?? st.x)) / _pdt);
-      rp.tvy = (typeof st.vy === 'number') ? st.vy : ((st.y - (rp.ty ?? st.y)) / _pdt);
+      rp.tvy = (typeof st.vy === 'number') ? st.vy : ((worldY - (rp.ty ?? worldY)) / _pdt);
       rp.tvz = (typeof st.vz === 'number') ? st.vz : ((st.z - (rp.tz ?? st.z)) / _pdt);
-      rp.tx = st.x; rp.ty = st.y; rp.tz = st.z;
+      rp.tx = st.x; rp.ty = worldY; rp.tz = st.z;
       rp.tYaw = st.yaw; rp.tPitch = st.pitch;
       rp._lastPktAt = _nowNet;
     }
@@ -25,6 +29,8 @@
     rp.inWater = !!st.inWater; rp.deepWater = !!st.deepWater; rp.swimMoving = !!st.swimMoving;
     rp.sprintSwimming = !!st.sprintSwimming; rp.lowSprintSwim = !!st.lowSprintSwim;
     rp.onGround = st.onGround !== false; rp.swing = st.swing || 0;
+    rp.swingActive = !!st.swingActive; rp.swingU = st.swingU || 0;
+    rp.actionType = st.actionType || rp.actionType || 'attack';
     if (st.swSeq) { rp.swordAtkSeq = st.swSeq; rp.swordAtkHit = st.swHit || 1; } else if (!rp.swing) rp.swordAtkSeq = 0;
     if (equip) {
       const eqSig = `${equip.helmet||0}_${equip.chest||0}_${equip.legs||0}_${equip.boots||0}_${equip.offhand||0}`;
@@ -78,7 +84,9 @@
             type: 'state',
             name: localPlayerName,
             state: {
-              x: qx, y: qy, z: qz,
+              dim: currentDimension,
+              depthOffset: depthOffset || 0,
+              x: qx, y: qy, trueY: q2(player.y - (depthOffset || 0)), z: qz,
               vx: q2((player.smoothMoveX || 0) + (player.vx || 0)),
               vy: q2(player.vy || 0),
               vz: q2((player.smoothMoveZ || 0) + (player.vz || 0)),
@@ -88,6 +96,7 @@
               swimMoving: (player.curSpeed || 0) > 0.2, sprintSwimming: !!player.sprintSwimming,
               lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying,
               hurtT: q2(player.hurtAnimT || 0), swing: q2(player.curSwing || 0),
+              swingActive: !!player.swingActive, swingU: q3(player.swingU || 0), actionType: player.actionType || 'mine',
               swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
               held: heldId
             }
@@ -143,12 +152,13 @@
       } else {
         // Dead-reckoning prediction (clamped <= 150ms) + frame-rate-independent exponential smoothing + shortest-arc yaw!
         const ageSec = rp._lastPktAt ? Math.min(0.15, Math.max(0, (performance.now() - rp._lastPktAt) / 1000)) : 0;
+        const baseY = (typeof rp.trueY === 'number') ? (rp.trueY + (depthOffset || 0)) : rp.ty;
         const predX = rp.tx + (rp.tvx || 0) * ageSec;
-        const predY = rp.ty + (rp.tvy || 0) * ageSec * 0.5;
+        const predY = baseY + (rp.tvy || 0) * ageSec * 0.5;
         const predZ = rp.tz + (rp.tvz || 0) * ageSec;
         const errDist = Math.hypot(predX - rp.x, predY - rp.y, predZ - rp.z);
         if (errDist > 14.0) {
-          rp.x = rp.tx; rp.y = rp.ty; rp.z = rp.tz;
+          rp.x = rp.tx; rp.y = baseY; rp.z = rp.tz;
         } else {
           const kPos = 1 - Math.exp(-15.5 * dt);
           rp.x += (predX - rp.x) * kPos;
@@ -164,11 +174,22 @@
           rp.pitch = (rp.pitch || 0) + (rp.tPitch - (rp.pitch || 0)) * (1 - Math.exp(-18.0 * dt));
         }
       }
-      rp.rig.g.position.set(rp.x, rp.y, rp.z);
-      rp.rig.g.rotation.y = rp.yaw + Math.PI;
-      animatePlayerRig(rp.rig, rp, dt, tNow);
+      const sameDim = !!rp.isBuddy || ((rp.dim || 'overworld') === currentDimension);
+      rp.rig.g.visible = sameDim;
+      if (sameDim) {
+        rp.rig.g.position.set(rp.x, rp.y, rp.z);
+        rp.rig.g.rotation.y = rp.yaw + Math.PI;
+        animatePlayerRig(rp.rig, rp, dt, tNow);
+      }
 
       // Update persistent GPU-composited locator dot every frame with zero DOM thrash
+      let entry = locatorDotEls.get(pid);
+      if (!sameDim) {
+        if (entry && entry.el.style.display !== 'none') entry.el.style.display = 'none';
+        continue;
+      } else if (entry && entry.el.style.display === 'none') {
+        entry.el.style.display = '';
+      }
       const dx = rp.x - player.x, dz = rp.z - player.z, dy = rp.y - player.y;
       const dist = Math.hypot(dx, dz);
       const fwdDot = dx * (-sinY) + dz * (-cosY);
@@ -181,7 +202,6 @@
       const elev = dy > 5 ? 'u' : (dy < -5 ? 'd' : '');
       const mDist = Math.round(dist);
 
-      let entry = locatorDotEls.get(pid);
       if (!entry) {
         const el = document.createElement('div');
         el.className = 'loc-dot';

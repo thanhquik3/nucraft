@@ -12,17 +12,17 @@ using System.Threading;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("NUCRAFT")]
-[assembly: AssemblyDescription("NUCRAFT PC App (BUILD v126)")]
+[assembly: AssemblyDescription("NUCRAFT PC App (BUILD v127)")]
 [assembly: AssemblyProduct("NUCRAFT")]
-[assembly: AssemblyVersion("1.0.126.0")]
-[assembly: AssemblyFileVersion("1.0.126.0")]
+[assembly: AssemblyVersion("1.0.127.0")]
+[assembly: AssemblyFileVersion("1.0.127.0")]
 
 namespace NUCRAFTLauncher
 {
     internal static class Program
     {
         private const int PreferredPort = 4173;
-        private const string BuildId = "v126";
+        private const string BuildId = "v127";
         private const string EmbeddedZipName = "NUCRAFT_Web_Host.zip";
         private const string EmbeddedIconName = "nucraft.ico";
 

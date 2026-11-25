@@ -6,3 +6,4 @@ index.html
 assets/nucraft_app.min.js
 AGENTS.md
 skin/
+.nucraft_rooms_cache.json

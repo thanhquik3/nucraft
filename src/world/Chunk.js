@@ -79,7 +79,7 @@
     if (b === BIOMES.DEEP_OCEAN || b === BIOMES.ABYSS_TRENCH || b === BIOMES.SWAMP ||
         b === BIOMES.MANGROVE_SWAMP || b === BIOMES.MARSH_RUINS || b === BIOMES.BEACH_PALM ||
         b === BIOMES.TROPICAL_COAST || b === BIOMES.ABANDONED_CITY) return false;
-    if (b === BIOMES.ALPINE_PEAKS || b === BIOMES.HIGHLAND_PLATEAU || b === BIOMES.SAKURA ||
+    if (b === BIOMES.ALPINE_PEAKS || b === BIOMES.CLOUD_PEAKS || b === BIOMES.HIGHLAND_PLATEAU || b === BIOMES.SAKURA ||
         b === BIOMES.SNOW || b === BIOMES.BADLANDS_SPIRES || b === BIOMES.VOLCANIC_BASALT) return true;
     return typeof getTerrainHeight === 'function' && getTerrainHeight(wx, wz, b) >= 12;
   }
@@ -394,8 +394,8 @@
       if (_isl && _isl.inIsland) return _isl.biome;
       return (_oMac.openness > 0.34 || _oMac.trenchFactor > 0.55) ? BIOMES.ABYSS_TRENCH : BIOMES.DEEP_OCEAN;
     }
-    const coast = fbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, worldSeed + 411);
-    const sx = wx * 0.0065, sz = wz * 0.0065;
+    const coast = fbm2D(wx * 0.0048, wz * 0.0048, 2, 0.5, 2.0, worldSeed + 411);
+    const sx = wx * 0.0045, sz = wz * 0.0045;
     const xi0 = Math.floor(sx), zi0 = Math.floor(sz), xf0 = sx - xi0, zf0 = sz - zi0;
     const u0 = xf0 * xf0 * (3 - 2 * xf0), v0 = zf0 * zf0 * (3 - 2 * zf0);
     const sx1 = sx * 2.0, sz1 = sz * 2.0;
@@ -408,10 +408,10 @@
     const sH1c = hash2i(xi1, zi1 + 1, worldSeed + 299), sH1d = hash2i(xi1 + 1, zi1 + 1, worldSeed + 299);
     const h1 = (sH1a + (sH1b - sH1a) * u1) + ((sH1c + (sH1d - sH1c) * u1) - (sH1a + (sH1b - sH1a) * u1)) * v1;
     const humid = (h0 + h1 * 0.5) / 1.5;
-    if (coast < 0.16 && humid > 0.62) return BIOMES.MUSHROOM_ISLAND;
-    if (coast < 0.16) return BIOMES.DEEP_OCEAN;
-    if (coast < 0.245 && humid > 0.63) return BIOMES.MARSH_RUINS;
-    if (coast < 0.27) return BIOMES.DEEP_OCEAN;
+    if (coast < 0.15 && humid > 0.62) return BIOMES.MUSHROOM_ISLAND;
+    if (coast < 0.15) return BIOMES.DEEP_OCEAN;
+    if (coast < 0.23 && humid > 0.62) return BIOMES.MARSH_RUINS;
+    if (coast < 0.25) return BIOMES.DEEP_OCEAN;
     const tA0a = hash2i(xi0, zi0, worldSeed + 101), tA0b = hash2i(xi0 + 1, zi0, worldSeed + 101);
     const tA0c = hash2i(xi0, zi0 + 1, worldSeed + 101), tA0d = hash2i(xi0 + 1, zi0 + 1, worldSeed + 101);
     const t0 = (tA0a + (tA0b - tA0a) * u0) + ((tA0c + (tA0d - tA0c) * u0) - (tA0a + (tA0b - tA0a) * u0)) * v0;
@@ -419,41 +419,45 @@
     const tA1c = hash2i(xi1, zi1 + 1, worldSeed + 198), tA1d = hash2i(xi1 + 1, zi1 + 1, worldSeed + 198);
     const t1 = (tA1a + (tA1b - tA1a) * u1) + ((tA1c + (tA1d - tA1c) * u1) - (tA1a + (tA1b - tA1a) * u1)) * v1;
     const heat = (t0 + t1 * 0.5) / 1.5;
-    if (coast < 0.35 && heat > 0.62) return BIOMES.TROPICAL_COAST;
-    if (coast < 0.35 && heat > 0.36) return BIOMES.BEACH_PALM;
-    const elev = fbm2D(wx * 0.0085, wz * 0.0085, 2, 0.5, 2.0, worldSeed + 303);
-    if (heat < 0.23 && elev > 0.46) return BIOMES.ALPINE_PEAKS;
+    if (coast < 0.33 && heat > 0.62) return BIOMES.TROPICAL_COAST;
+    if (coast < 0.33 && heat > 0.36) return BIOMES.BEACH_PALM;
+    const elev = fbm2D(wx * 0.0072, wz * 0.0072, 2, 0.5, 2.0, worldSeed + 303);
+    if (elev > 0.72) return BIOMES.CLOUD_PEAKS;
+    if (heat < 0.26 && elev > 0.50) return elev > 0.60 ? BIOMES.CLOUD_PEAKS : BIOMES.ALPINE_PEAKS;
     if (heat < 0.28) return BIOMES.SNOW;
-    if (heat < 0.35 && humid > 0.54) return BIOMES.REDWOOD_ANCIENT;
+    if (heat < 0.35 && humid > 0.55) return BIOMES.REDWOOD_ANCIENT;
     if (heat < 0.39) {
-      if (heat >= 0.30 && humid > 0.60) return BIOMES.GIANT_TREES;
-      if (heat >= 0.28 && humid >= 0.44 && humid <= 0.60 && elev < 0.54) return BIOMES.PINE_VALLEY;
+      if (heat >= 0.30 && humid > 0.62) return BIOMES.GIANT_TREES;
+      if (heat >= 0.28 && humid >= 0.44 && humid <= 0.62 && elev < 0.56) return BIOMES.PINE_VALLEY;
       return humid > 0.48 ? BIOMES.TAIGA : BIOMES.SNOW;
     }
-    if (heat > 0.72 && elev > 0.58) return BIOMES.VOLCANIC_BASALT;
-    if (heat > 0.70 && elev < 0.38 && humid < 0.36) return BIOMES.BADLANDS_CRATER;
-    if (heat > 0.74 && elev > 0.50) return BIOMES.BADLANDS_SPIRES;
-    if (elev > 0.67 && humid >= 0.35 && humid <= 0.65) return BIOMES.HIGHLAND_PLATEAU;
-    if (heat > 0.67) return (humid < 0.42) ? BIOMES.DESERT : (elev > 0.52 ? BIOMES.MESA : BIOMES.DESERT);
-    if (heat > 0.56 && humid > 0.66) return BIOMES.BAMBOO_JUNGLE;
-    if (heat > 0.50 && heat <= 0.64 && humid > 0.62 && elev < 0.56) return BIOMES.GIANT_JUNGLE;
+    if (heat > 0.72 && elev > 0.62) return BIOMES.VOLCANIC_BASALT;
+    if (heat > 0.69 && elev < 0.36 && humid < 0.37) return BIOMES.BADLANDS_CRATER;
+    if (heat > 0.67 && elev > 0.50) return BIOMES.BADLANDS_SPIRES;
+    if (heat > 0.65 && humid >= 0.36 && elev > 0.42) return BIOMES.MESA;
+    if (elev > 0.65 && humid >= 0.30 && humid <= 0.66) return BIOMES.HIGHLAND_PLATEAU;
+    if (heat > 0.68) return (humid < 0.40) ? BIOMES.DESERT : BIOMES.MESA;
+    const plainBand = fbm2D(wx * 0.0052, wz * 0.0052, 2, 0.5, 2.0, worldSeed + 641);
+    if (heat >= 0.47 && heat <= 0.63 && humid >= 0.28 && humid <= 0.43 && elev < 0.52) return BIOMES.WHEAT_VALLEY;
+    if (elev < 0.52 && heat >= 0.34 && heat <= 0.66 && (humid < 0.44 || (plainBand > 0.54 && humid < 0.62))) return BIOMES.PLAINS;
+    if (heat > 0.57 && humid > 0.67) return BIOMES.BAMBOO_JUNGLE;
+    if (heat > 0.51 && heat <= 0.65 && humid > 0.62 && elev < 0.56) return BIOMES.GIANT_JUNGLE;
     if (heat > 0.60 && heat <= 0.74 && humid > 0.60) return BIOMES.DAPPLED_FOREST;
-    if (heat > 0.57 && humid >= 0.42 && humid <= 0.60) {
-      if (elev > 0.58) return BIOMES.AUTUMN_DEEP;
-      if (humid > 0.51) return BIOMES.AUTUMN_GOLDEN;
+    if (heat > 0.57 && humid >= 0.44 && humid <= 0.60) {
+      if (elev > 0.57) return BIOMES.AUTUMN_DEEP;
+      if (humid > 0.52) return BIOMES.AUTUMN_GOLDEN;
       return BIOMES.AUTUMN;
     }
-    if (heat >= 0.39 && heat < 0.47 && humid > 0.54 && elev < 0.60) return BIOMES.BLUE_FOREST;
+    if (heat >= 0.39 && heat < 0.47 && humid > 0.55 && elev < 0.60) return BIOMES.BLUE_FOREST;
     if (humid > 0.70 && elev > 0.55) return BIOMES.GLOWSHROOM_GROVE;
     if (humid > 0.66 && elev >= 0.46 && elev < 0.56) return BIOMES.WEEPING_GROVE;
-    if (humid > 0.64) return elev < 0.39 ? BIOMES.MANGROVE_SWAMP : (elev < 0.46 ? BIOMES.SWAMP : (elev < 0.58 ? BIOMES.LUSH_GROVE : BIOMES.FOREST));
-    if (humid > 0.47 && heat > 0.44 && heat <= 0.57) return BIOMES.SAKURA;
-    if (heat >= 0.45 && heat <= 0.60 && humid >= 0.30 && humid <= 0.47 && elev < 0.52) return BIOMES.WHEAT_VALLEY;
-    if (humid > 0.40 && humid <= 0.52 && heat >= 0.39 && heat <= 0.48) return BIOMES.BIRCH_ANCIENT;
-    if (elev > 0.54 && humid > 0.46) return BIOMES.LAVENDER_MEADOW;
-    if (elev > 0.46 && elev <= 0.54 && humid > 0.43 && humid <= 0.52 && heat > 0.40 && heat <= 0.52) return BIOMES.MANOR_GARDEN;
-    if (elev > 0.50 && humid > 0.38) return BIOMES.FLOWER_MEADOW;
-    return BIOMES.PLAINS;
+    if (humid > 0.64) return elev < 0.40 ? BIOMES.MANGROVE_SWAMP : (elev < 0.47 ? BIOMES.SWAMP : (elev < 0.58 ? BIOMES.LUSH_GROVE : BIOMES.FOREST));
+    if (humid > 0.48 && heat > 0.45 && heat <= 0.57) return BIOMES.SAKURA;
+    if (humid > 0.42 && humid <= 0.52 && heat >= 0.39 && heat <= 0.47) return BIOMES.BIRCH_ANCIENT;
+    if (elev > 0.54 && humid > 0.48) return BIOMES.LAVENDER_MEADOW;
+    if (elev > 0.48 && elev <= 0.54 && humid > 0.44 && humid <= 0.53 && heat > 0.40 && heat <= 0.52) return BIOMES.MANOR_GARDEN;
+    if (elev > 0.52 && humid > 0.40) return BIOMES.FLOWER_MEADOW;
+    return humid >= 0.52 ? BIOMES.FOREST : BIOMES.PLAINS;
   }
   function getRawBiomeHeight(wx, wz, biome) {
     if (biome === BIOMES.ABANDONED_CITY) return 2;
@@ -472,43 +476,61 @@
     }
     const cont = fbm2D(wx * 0.011, wz * 0.011, 3, 0.52, 2.05, worldSeed);
     const detail = valueNoise2D(wx * 0.052, wz * 0.052, worldSeed + 404);
-    let h = -7 + cont * 21 + detail * 2.6;
+    let h = -4 + cont * 17 + detail * 2.2;
     if (biome === BIOMES.ABYSS_TRENCH || biome === BIOMES.DEEP_OCEAN) {
       h = Math.max(-44, getOceanFloorTrueY(wx, wz, biome));
     }
+    else if (biome === BIOMES.PLAINS) {
+      const pond = valueNoise2D(wx * 0.028, wz * 0.028, worldSeed + 643);
+      h = (pond < 0.14 && cont < 0.36) ? (WATER_LEVEL - 2.0 + pond * 6) : (1.5 + cont * 5.2 + detail * 0.9);
+    }
     else if (biome === BIOMES.MUSHROOM_ISLAND) h = 1 + cont * 9 + detail * 1.8;
     else if (biome === BIOMES.BEACH_PALM) h = -2.5 + cont * 7.2 + detail * 1.2;
-    else if (biome === BIOMES.MANGROVE_SWAMP) h = -2.0 + cont * 4.8 + detail * 1.0;
-    else if (biome === BIOMES.ALPINE_PEAKS) { const ridge = Math.pow(Math.max(0, cont * 1.12 - 0.14), 1.4); h = 6 + ridge * 28 + detail * 3.8; }
-    else if (biome === BIOMES.HIGHLAND_PLATEAU) h = 8 + cont * 13 + detail * 1.6;
-    else if (biome === BIOMES.VOLCANIC_BASALT) h = 1 + cont * 17 + detail * 3.0;
+    else if (biome === BIOMES.MANGROVE_SWAMP) h = -2.0 + cont * 4.5 + detail * 0.9;
+    else if (biome === BIOMES.CLOUD_PEAKS) {
+      const mPeak = Math.pow(Math.max(0, cont * 1.18 - 0.08), 1.32);
+      const sharp = Math.abs(fbm2D(wx * 0.024, wz * 0.024, 2, 0.5, 2.0, worldSeed + 319) - 0.5) * 20;
+      h = 16 + mPeak * 44 + sharp + detail * 4.2;
+    }
+    else if (biome === BIOMES.ALPINE_PEAKS) { const ridge = Math.pow(Math.max(0, cont * 1.15 - 0.10), 1.35); h = 10 + ridge * 40 + detail * 4.2; }
+    else if (biome === BIOMES.HIGHLAND_PLATEAU) h = 12 + cont * 18 + detail * 2.0;
+    else if (biome === BIOMES.VOLCANIC_BASALT) h = 1 + cont * 19 + detail * 3.0;
     else if (biome === BIOMES.BAMBOO_JUNGLE) h = -1 + cont * 15 + detail * 2.2;
-    else if (biome === BIOMES.REDWOOD_ANCIENT) h = 1 + cont * 16 + detail * 2.4;
+    else if (biome === BIOMES.REDWOOD_ANCIENT) h = 1 + cont * 18 + detail * 2.4;
     else if (biome === BIOMES.WEEPING_GROVE) h = -1.5 + cont * 10 + detail * 1.6;
     else if (biome === BIOMES.BIRCH_ANCIENT) h = 0 + cont * 13 + detail * 2.0;
     else if (biome === BIOMES.SWAMP) h = -2.4 + cont * 6.5 + detail * 1.2;
     else if (biome === BIOMES.LUSH_GROVE) h = -2.8 + cont * 12 + detail * 2.0;
     else if (biome === BIOMES.DESERT) h = -1 + cont * 13 + detail * 1.8;
-    else if (biome === BIOMES.SNOW) h = 1 + cont * 20 + detail * 3.2;
-    else if (biome === BIOMES.TAIGA) h = -1 + cont * 18 + detail * 2.8;
+    else if (biome === BIOMES.SNOW) h = 1 + cont * 22 + detail * 3.2;
+    else if (biome === BIOMES.TAIGA) h = -1 + cont * 19 + detail * 2.8;
     else if (biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP) h = -2 + cont * 15 + detail * 2.2;
-    else if (biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW) h = -1 + cont * 14 + detail * 2.0;
-    else if (biome === BIOMES.MESA) { const raw = 2 + cont * 20; h = Math.floor(raw / 4) * 4 + (raw % 4) * 0.35 + detail * 1.2; }
+    else if (biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW) h = 0 + cont * 11 + detail * 1.6;
+    else if (biome === BIOMES.MESA) {
+      const mPlateau = fbm2D(wx * 0.015, wz * 0.015, 2, 0.5, 2.0, worldSeed + 733);
+      const raw = 2 + Math.max(0, mPlateau - 0.22) * 46;
+      h = Math.floor(raw / 3) * 3 + (raw % 3) * 0.25 + detail * 1.0;
+    }
     // ===== v24 biomes =====
     else if (biome === BIOMES.GLOWSHROOM_GROVE) h = -1 + cont * 13 + detail * 2.2;
     else if (biome === BIOMES.DAPPLED_FOREST) h = -2 + cont * 14 + detail * 2.0;
-    else if (biome === BIOMES.BADLANDS_SPIRES) { const raw = 3 + cont * 26; h = Math.floor(raw / 4) * 4 + (raw % 4) * 0.30 + detail * 1.4; }
+    else if (biome === BIOMES.BADLANDS_SPIRES) {
+      const sField = fbm2D(wx * 0.036, wz * 0.036, 2, 0.5, 2.0, worldSeed + 719);
+      const sPlat = fbm2D(wx * 0.014, wz * 0.014, 2, 0.5, 2.0, worldSeed + 727);
+      const spire = sField > 0.57 ? Math.pow((sField - 0.57) / 0.43, 1.15) * 38 : (sPlat > 0.62 ? Math.floor((sPlat - 0.62) * 42) : 0);
+      h = 2 + Math.min(46, Math.floor(spire / 2) * 2) + detail * 1.1;
+    }
     else if (biome === BIOMES.BADLANDS_CRATER) h = -4 + cont * 7 + detail * 1.4;
     else if (biome === BIOMES.MARSH_RUINS) h = -2.6 + cont * 4.6 + detail * 1.0;
     else if (biome === BIOMES.TROPICAL_COAST) h = -1.5 + cont * 9 + detail * 1.6;
-    else if (biome === BIOMES.GIANT_TREES) h = 0 + cont * 17 + detail * 2.6;
+    else if (biome === BIOMES.GIANT_TREES) h = 0 + cont * 18 + detail * 2.6;
     else if (biome === BIOMES.MANOR_GARDEN) h = -1 + cont * 10 + detail * 1.4;
     else if (biome === BIOMES.BLUE_FOREST) {
       h = (cont < 0.25 && detail < 0.18) ? (WATER_LEVEL - 1.0) : (0.5 + cont * 11 + detail * 1.6);
     }
-    else if (biome === BIOMES.WHEAT_VALLEY) h = 2.2 + cont * 4.2 + detail * 0.5;
+    else if (biome === BIOMES.WHEAT_VALLEY) h = 2.0 + cont * 4.0 + detail * 0.5;
     else if (biome === BIOMES.PINE_VALLEY) {
-      h = (cont < 0.26 && detail < 0.22) ? (WATER_LEVEL - 1.0) : (-0.5 + cont * 11 + detail * 1.5);
+      h = (cont < 0.26 && detail < 0.22) ? (WATER_LEVEL - 1.0) : (-0.5 + cont * 12 + detail * 1.5);
     }
     else if (biome === BIOMES.GIANT_JUNGLE) {
       const jr = Math.abs(fbm2D(wx * 0.0085, wz * 0.0085, 2, 0.5, 2.0, worldSeed + 743) - 0.5);
@@ -575,22 +597,21 @@
       return Math.max(MIN_Y + 6, Math.floor(nh));
     }
     if (biome === BIOMES.ABANDONED_CITY) return 2;
-    // Smooth 5-Point Cross-Biome Height Blending (Eliminates jagged sheer cliffs between biomes!)
     const bC = biome || getBiomeAt(wx, wz);
-    const b1 = getBiomeAt(wx + 12, wz), b2 = getBiomeAt(wx - 12, wz);
-    const b3 = getBiomeAt(wx, wz + 12), b4 = getBiomeAt(wx, wz - 12);
+    const b1 = getBiomeAt(wx + 10, wz), b2 = getBiomeAt(wx - 10, wz);
+    const b3 = getBiomeAt(wx, wz + 10), b4 = getBiomeAt(wx, wz - 10);
     let h;
     if (b1 === bC && b2 === bC && b3 === bC && b4 === bC) {
       h = getRawBiomeHeight(wx, wz, bC);
     } else {
-      h = (getRawBiomeHeight(wx, wz, bC) * 2.0
-        + getRawBiomeHeight(wx + 12, wz, b1) + getRawBiomeHeight(wx - 12, wz, b2)
-        + getRawBiomeHeight(wx, wz + 12, b3) + getRawBiomeHeight(wx, wz - 12, b4)) / 6.0;
+      h = (getRawBiomeHeight(wx, wz, bC) * 4.0
+        + getRawBiomeHeight(wx + 10, wz, b1) + getRawBiomeHeight(wx - 10, wz, b2)
+        + getRawBiomeHeight(wx, wz + 10, b3) + getRawBiomeHeight(wx, wz - 10, b4)) / 8.0;
     }
-    return Math.max(MIN_Y + 4, Math.min(MAX_Y - 12, Math.floor(h)));
+    return Math.max(MIN_Y + 4, Math.min(MAX_Y - 8, Math.floor(h)));
   }
 
-  const CAVE_GRID_X = 5, CAVE_GRID_Y = 25, CAVE_GRID_Z = 5;
+  const CAVE_GRID_X = 5, CAVE_GRID_Y = 33, CAVE_GRID_Z = 5;
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
@@ -736,19 +757,41 @@
    * ============================================================================ */
   // Infinite World Coordinate Chunk Key (works seamlessly across millions of blocks!)
   const chunks = new Map(), emergeQueue = [], emergeSet = new Set(), worldMods = new Map(), worldModsByChunk = new Map();
+  function dimModKey(wx, wy, wz, dim = currentDimension) {
+    const k = modKey(wx, wy, wz);
+    return (!dim || dim === 'overworld') ? k : (dim + ':' + k);
+  }
+  function parseWorldModKey(mk) {
+    const colon = mk.indexOf(':');
+    const dim = colon > 0 ? mk.slice(0, colon) : 'overworld';
+    const coords = colon > 0 ? mk.slice(colon + 1) : mk;
+    const c1 = coords.indexOf(','), c2 = coords.indexOf(',', c1 + 1);
+    if (c1 < 0 || c2 < 0) return null;
+    return {
+      dim,
+      mx: parseInt(coords.slice(0, c1), 10),
+      my: parseInt(coords.slice(c1 + 1, c2), 10),
+      mz: parseInt(coords.slice(c2 + 1), 10)
+    };
+  }
   function indexWorldModKey(mk, id) {
-    const c1 = mk.indexOf(','), c2 = mk.indexOf(',', c1 + 1);
-    if (c1 < 0 || c2 < 0) return;
-    const mx = parseInt(mk.slice(0, c1), 10), my = parseInt(mk.slice(c1 + 1, c2), 10), mz = parseInt(mk.slice(c2 + 1), 10);
+    const parsed = parseWorldModKey(mk);
+    if (!parsed) return;
+    if (parsed.dim !== (currentDimension || 'overworld')) return;
+    const { mx, my, mz } = parsed;
     if (my < MIN_Y - 1200 || my > MAX_Y + 320) return;
     const ck = chunkKey(mx >> 4, mz >> 4);
     let cm = worldModsByChunk.get(ck);
     if (!cm) { cm = new Map(); worldModsByChunk.set(ck, cm); }
     cm.set(((my + 2048) << 8) | ((mz & 15) << 4) | (mx & 15), id);
   }
+  function rebuildCurrentDimModIndex() {
+    worldModsByChunk.clear();
+    for (const [mk, id] of worldMods.entries()) indexWorldModKey(mk, id);
+  }
   function recordWorldMod(wx, wy, wz, id) {
     const trueY = wy - (depthOffset || 0);
-    worldMods.set(modKey(wx, trueY, wz), id);
+    worldMods.set(dimModKey(wx, trueY, wz, currentDimension), id);
     if (trueY < MIN_Y - 1200 || trueY > MAX_Y + 320) return;
     const ck = chunkKey(wx >> 4, wz >> 4);
     let cm = worldModsByChunk.get(ck);
@@ -1512,7 +1555,7 @@
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
     const isFlat = (id === B.SAKURA_PETALS || id === B.LILY_PAD || !!def.flatTrack);
     const flatY = (id === B.LILY_PAD) ? -0.11 : (def.flatTrack ? 0.04 : 0.03);
-    const isHanging = (id === B.VINE || id === B.GLOW_VINES);
+    const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.MANGROVE_PROPAGULE);
     let stackBelow = 0, stackAbove = 0;
     if (!isFlat) {
       if (isHanging) {
@@ -1523,6 +1566,7 @@
       }
     }
     const isStacked = (stackBelow > 0 || stackAbove > 0);
+    const isWheatCrop = (id === B.WHEAT_0 || id === B.WHEAT_1 || id === B.WHEAT_2 || id === B.WHEAT_3);
     let quads;
     if (def.flatTrack) {
       const hasR = (rx, ry, rz) => (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, rx, ry, rz) === B.RAIL || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, rx, ry + 1, rz) === B.RAIL || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, rx, ry - 1, rz) === B.RAIL);
@@ -1540,6 +1584,15 @@
       else quads = [alongX ? qX : qZ];
     } else if (isFlat) {
       quads = [[[0.04,flatY,0.96],[0.96,flatY,0.96],[0.96,flatY,0.04],[0.04,flatY,0.04]]];
+    } else if (isWheatCrop) {
+      const hW = id === B.WHEAT_3 ? 1.04 : (id === B.WHEAT_2 ? 0.94 : (id === B.WHEAT_1 ? 0.80 : 0.65));
+      const pad = 0.25, far = 0.75;
+      quads = [
+        [[0.02, 0.0, pad], [0.98, 0.0, pad], [0.98, hW, pad], [0.02, hW, pad]],
+        [[0.02, 0.0, far], [0.98, 0.0, far], [0.98, hW, far], [0.02, hW, far]],
+        [[pad, 0.0, 0.02], [pad, 0.0, 0.98], [pad, hW, 0.98], [pad, hW, 0.02]],
+        [[far, 0.0, 0.02], [far, 0.0, 0.98], [far, hW, 0.98], [far, hW, 0.02]]
+      ];
     } else if (id === B.FIRE || id === B.SOUL_FIRE) {
       quads = [
         [[0.08, 0, 0.08], [0.92, 0, 0.92], [0.92, 1.02, 0.92], [0.08, 1.02, 0.08]],
@@ -1889,6 +1942,14 @@
           eIndices.push(st.eCount, st.eCount + 1, st.eCount + 2, st.eCount, st.eCount + 2, st.eCount + 3); st.eCount += 4;
         }
       }
+    } else if (def.rootCage) {
+      emitBox(0.36, 0.0, 0.36, 0.64, 1.0, 0.64, 94, 94, 94);
+      emitBox(0.06, 0.0, 0.06, 0.24, 1.0, 0.24, 94, 94, 94);
+      emitBox(0.76, 0.0, 0.06, 0.94, 1.0, 0.24, 94, 94, 94);
+      emitBox(0.06, 0.0, 0.76, 0.24, 1.0, 0.94, 94, 94, 94);
+      emitBox(0.76, 0.0, 0.76, 0.94, 1.0, 0.94, 94, 94, 94);
+      emitBox(0.18, 0.68, 0.18, 0.82, 0.84, 0.36, 94, 94, 94);
+      emitBox(0.18, 0.24, 0.64, 0.82, 0.40, 0.82, 94, 94, 94);
     } else if (id === B.END_ROD) {
       const aboveSolid = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz)] === 1;
       const belowSolid = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz)] === 1;
@@ -1904,7 +1965,7 @@
 
   function _meshFoliageVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, computeAO, sliceLen, st) {
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
-    const isSakura = !!def.sakuraLeaf, isBlue = !!def.blueLeaf, isGlass = !!def.glass;
+    const isSakura = !!def.sakuraLeaf, isBlue = !!def.blueLeaf, isNeutral = !!def.neutralLeaf, isGlass = !!def.glass;
     const cullSame = (sodiumOpts.moreCulling || shaderQuality !== 'ultra' || isGlass);
     if (cullSame && lx > 0 && lx < 15 && lz > 0 && lz < 15 && ly > 0 && ly < WORLD_H - 1) {
       const cIdx = (ly << 8) | (lz << 4) | lx;
@@ -1913,22 +1974,21 @@
           (IS_OPAQUE[n2] === 1 || n2 === id) && (IS_OPAQUE[n3] === 1 || n3 === id) &&
           (IS_OPAQUE[n4] === 1 || n4 === id) && (IS_OPAQUE[n5] === 1 || n5 === id)) return;
     }
-    const tint = (isGlass || isSakura || isBlue) ? 1.0 : (0.92 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.018);
-    let hasExposedFace = false, lastLr = 0, lastLg = 0, lastLb = 0, lastCrTint = tint;
+    const tint = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
+      ? (0.94 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.015)
+      : (0.84 + ((wx * 11 + wy * 13 + wz * 17) & 7) * 0.036));
     for (let f = 0; f < 6; f++) {
       const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
       const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
       const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx, nly, nlz);
       if (IS_OPAQUE[nb] === 1 || (cullSame && nb === id)) continue;
-      hasExposedFace = true;
       if (st.lCount + 4 > _lCap) _growLeafScratch(st.lCount + 4);
       const isInner = (nb === id);
-      const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue)
+      const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
         ? ((f === 0 ? 1.08 : (f === 1 ? 0.78 : 0.96)) * (isInner ? 0.86 : 1.0))
-        : ((f === 0 ? 1.08 : (f === 1 ? 0.64 : 0.90)) * (isInner ? 0.72 : 1.0)));
+        : ((f === 0 ? 1.10 : (f === 1 ? 0.62 : 0.88)) * (isInner ? 0.72 : 1.0)));
       let lr = 0, lg = 0, lb = 0;
       if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
-      lastLr = lr; lastLg = lg; lastLb = lb;
       let vp = st.lCount * 3, up = st.lCount * 2;
       const uxA = face.uAxis[0], uyA = face.uAxis[1], uzA = face.uAxis[2];
       const vxA = face.vAxis[0], vyA = face.vAxis[1], vzA = face.vAxis[2];
@@ -1945,16 +2005,17 @@
           const s1 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux, nly + uy, nlz + uz)];
           const s2 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + vx, nly + vy, nlz + vz)];
           const cn = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux + vx, nly + uy + vy, nlz + uz + vz)];
-          ao = (s1 && s2) ? ((isSakura || isBlue) ? 0.76 : 0.56) : ((isSakura || isBlue) ? Math.max(0.78, AO_LUT[s1 + s2 + cn]) : AO_LUT[s1 + s2 + cn]);
+          ao = (s1 && s2) ? ((isSakura || isBlue || isNeutral) ? 0.76 : 0.56) : ((isSakura || isBlue || isNeutral) ? Math.max(0.78, AO_LUT[s1 + s2 + cn]) : AO_LUT[s1 + s2 + cn]);
         }
         const crTint = Math.min(1.14, tint * shadeMul * ao);
-        lastCrTint = Math.max(lastCrTint * 0.5, tint * ao);
         if (isSakura) {
           _lCols[vp] = Math.min(1.18, crTint * 1.10); _lCols[vp+1] = crTint * 0.99; _lCols[vp+2] = Math.min(1.16, crTint * 1.06);
         } else if (isBlue) {
           _lCols[vp] = crTint * 0.94; _lCols[vp+1] = crTint * 1.00; _lCols[vp+2] = Math.min(1.14, crTint * 1.09);
+        } else if (isNeutral) {
+          _lCols[vp] = crTint; _lCols[vp+1] = crTint; _lCols[vp+2] = crTint;
         } else {
-          _lCols[vp] = crTint; _lCols[vp+1] = Math.min(1.15, crTint * (isGlass ? 1.0 : 1.03)); _lCols[vp+2] = crTint * (isGlass ? 1.0 : 0.95);
+          _lCols[vp] = crTint * 0.96; _lCols[vp+1] = Math.min(1.14, crTint * (isGlass ? 1.0 : 1.04)); _lCols[vp+2] = crTint * (isGlass ? 1.0 : 0.92);
         }
         _lBL[vp] = lr; _lBL[vp+1] = lg; _lBL[vp+2] = lb;
         vp += 3;
@@ -1963,41 +2024,6 @@
       const ip = st.liCount, lc = st.lCount;
       _lIdx[ip]=lc; _lIdx[ip+1]=lc+1; _lIdx[ip+2]=lc+2; _lIdx[ip+3]=lc; _lIdx[ip+4]=lc+2; _lIdx[ip+5]=lc+3;
       st.lCount = lc + 4; st.liCount = ip + 6;
-    }
-    if (!isGlass && hasExposedFace && shaderQuality !== 'low') {
-      if (st.lCount + 8 > _lCap) _growLeafScratch(st.lCount + 8);
-      const fh = Math.imul(wx * 374761 + wy * 668265 + wz * 214748, 0x85ebca6b) >>> 0;
-      const jx = (((fh & 31) / 31) - 0.5) * 0.14;
-      const jy = ((((fh >>> 5) & 31) / 31) - 0.5) * 0.14;
-      const jz = ((((fh >>> 10) & 31) / 31) - 0.5) * 0.14;
-      const ang = ((fh >>> 15) & 63) / 63 * 1.5708;
-      const cx = wx + 0.5 + jx, cy = wy + 0.5 + jy, cz = wz + 0.5 + jz;
-      const rXZ = 0.64, rY = 0.62;
-      const c0 = Math.cos(ang + 0.7854) * rXZ, s0 = Math.sin(ang + 0.7854) * rXZ;
-      const c1 = Math.cos(ang - 0.7854) * rXZ, s1 = Math.sin(ang - 0.7854) * rXZ;
-      const cyB = cy - rY, cyT = cy + rY;
-      const ctB = Math.min(1.12, lastCrTint * 0.86), ctT = Math.min(1.12, lastCrTint * 1.04);
-      const colMulR = isSakura ? 1.10 : (isBlue ? 0.94 : 1.0);
-      const colMulG = isSakura ? 0.99 : (isBlue ? 1.00 : 1.03);
-      const colMulB = isSakura ? 1.06 : (isBlue ? 1.09 : 0.95);
-      const colCapR = isSakura ? 1.18 : 9.0, colCapG = isSakura ? 9.0 : (isBlue ? 9.0 : 1.15), colCapB = (isSakura || isBlue) ? 1.16 : 9.0;
-      const rB = Math.min(colCapR, ctB * colMulR), gB = Math.min(colCapG, ctB * colMulG), bB = Math.min(colCapB, ctB * colMulB);
-      const rT = Math.min(colCapR, ctT * colMulR), gT = Math.min(colCapG, ctT * colMulG), bT = Math.min(colCapB, ctT * colMulB);
-      for (let q = 0; q < 2; q++) {
-        const dxq = q === 0 ? c0 : c1, dzq = q === 0 ? s0 : s1;
-        const xA = cx - dxq, zA = cz - dzq, xB = cx + dxq, zB = cz + dzq;
-        let vp = st.lCount * 3, up = st.lCount * 2;
-        _lPos[vp] = xA; _lPos[vp+1] = cyB; _lPos[vp+2] = zA; _lNorm[vp] = 0; _lNorm[vp+1] = 1; _lNorm[vp+2] = 0; _lCols[vp] = rB; _lCols[vp+1] = gB; _lCols[vp+2] = bB; _lBL[vp] = lastLr; _lBL[vp+1] = lastLg; _lBL[vp+2] = lastLb;
-        _lPos[vp+3] = xB; _lPos[vp+4] = cyB; _lPos[vp+5] = zB; _lNorm[vp+3] = 0; _lNorm[vp+4] = 1; _lNorm[vp+5] = 0; _lCols[vp+3] = rB; _lCols[vp+4] = gB; _lCols[vp+5] = bB; _lBL[vp+3] = lastLr; _lBL[vp+4] = lastLg; _lBL[vp+5] = lastLb;
-        _lPos[vp+6] = xB; _lPos[vp+7] = cyT; _lPos[vp+8] = zB; _lNorm[vp+6] = 0; _lNorm[vp+7] = 1; _lNorm[vp+8] = 0; _lCols[vp+6] = rT; _lCols[vp+7] = gT; _lCols[vp+8] = bT; _lBL[vp+6] = lastLr; _lBL[vp+7] = lastLg; _lBL[vp+8] = lastLb;
-        _lPos[vp+9] = xA; _lPos[vp+10] = cyT; _lPos[vp+11] = zA; _lNorm[vp+9] = 0; _lNorm[vp+10] = 1; _lNorm[vp+11] = 0; _lCols[vp+9] = rT; _lCols[vp+10] = gT; _lCols[vp+11] = bT; _lBL[vp+9] = lastLr; _lBL[vp+10] = lastLg; _lBL[vp+11] = lastLb;
-        _lUvs[up] = u0; _lUvs[up + 1] = v1; _lUvs[up + 2] = u1; _lUvs[up + 3] = v1;
-        _lUvs[up + 4] = u1; _lUvs[up + 5] = v0; _lUvs[up + 6] = u0; _lUvs[up + 7] = v0;
-        const ip = st.liCount, lc = st.lCount;
-        _lIdx[ip] = lc; _lIdx[ip + 1] = lc + 1; _lIdx[ip + 2] = lc + 2;
-        _lIdx[ip + 3] = lc; _lIdx[ip + 4] = lc + 2; _lIdx[ip + 5] = lc + 3;
-        st.lCount = lc + 4; st.liCount = ip + 6;
-      }
     }
   }
 
@@ -2353,7 +2379,7 @@
             continue;
           }
           if (flags & BLK_SUB) {
-            if (waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) {
+            if ((waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) || (def.rootCage && wy <= WATER_LEVEL)) {
               _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, B.WATER, hasFluidLevels, _wBuf, st);
             }
             _meshSubBlockVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);

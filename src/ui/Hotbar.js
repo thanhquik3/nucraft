@@ -28,21 +28,48 @@
   function saveHudLayout() { try { localStorage.setItem(HUD_LAYOUT_KEY, JSON.stringify(hudLayout)); } catch (_) {} }
   function applyHudLayout() {
     const compactMul = (stageW < 760 || stageH < 450) ? 0.84 : 1.0;
+    const topRightEl = document.getElementById('topRightHud');
+    const trRect = (!hudEditMode && topRightEl && topRightEl.offsetHeight > 0) ? topRightEl.getBoundingClientRect() : null;
+    const posByWid = {};
     document.querySelectorAll('.hud-widget').forEach(el => {
       const wid = el.dataset.wid, cfg = hudLayout[wid]; if (!cfg) return;
       const w = el.offsetWidth || (wid === 'joy' ? 128 : 54), h = el.offsetHeight || (wid === 'joy' ? 128 : 54);
       const effScale = cfg.scale * compactMul;
       const halfW = (w * effScale) * 0.5, halfH = (h * effScale) * 0.5;
       const minCx = halfW + 6, maxCx = Math.max(minCx, stageW - halfW - 6);
-      const minCy = halfH + 6, maxCy = Math.max(minCy, stageH - halfH - 6);
+      const maxCy = Math.max(halfH + 6, stageH - halfH - 6);
+      let minCy = halfH + 6;
       const cx = Math.max(minCx, Math.min(maxCx, (cfg.xp / 100) * stageW));
+      if (trRect && trRect.width > 0 && (cx + halfW > trRect.left - 8)) {
+        minCy = Math.min(maxCy, Math.max(minCy, Math.ceil(trRect.bottom + 8 + halfH)));
+      }
       const cy = Math.max(minCy, Math.min(maxCy, (cfg.yp / 100) * stageH));
-      el.style.left = `${Math.round(cx - w / 2)}px`;
-      el.style.top = `${Math.round(cy - h / 2)}px`;
-      el.style.transform = `scale(${effScale.toFixed(2)})`;
-      el.style.opacity = String(cfg.alpha);
-      el.classList.toggle('edit-selected', hudEditMode && (editTargetId === 'all' || editTargetId === wid));
+      posByWid[wid] = { el, w, h, effScale, halfW, halfH, minCy, maxCy, cx, cy, cfg };
     });
+    if (!hudEditMode) {
+      for (const col of [['jump', 'sneak', 'place'], ['sprint', 'attack']]) {
+        for (let i = 1; i < col.length; i++) {
+          const prev = posByWid[col[i - 1]], cur = posByWid[col[i]];
+          if (!prev || !cur || Math.abs(prev.cx - cur.cx) > (prev.halfW + cur.halfW)) continue;
+          const minNextCy = prev.cy + prev.halfH + cur.halfH + 6;
+          if (cur.cy < minNextCy) cur.cy = Math.min(cur.maxCy, minNextCy);
+        }
+        for (let i = col.length - 2; i >= 0; i--) {
+          const cur = posByWid[col[i]], next = posByWid[col[i + 1]];
+          if (!cur || !next || Math.abs(cur.cx - next.cx) > (cur.halfW + next.halfW)) continue;
+          const maxCurCy = next.cy - next.halfH - cur.halfH - 6;
+          if (cur.cy > maxCurCy) cur.cy = Math.max(cur.minCy, maxCurCy);
+        }
+      }
+    }
+    for (const wid of Object.keys(posByWid)) {
+      const p = posByWid[wid], el = p.el;
+      el.style.left = `${Math.round(p.cx - p.w / 2)}px`;
+      el.style.top = `${Math.round(p.cy - p.h / 2)}px`;
+      el.style.transform = `scale(${p.effScale.toFixed(2)})`;
+      el.style.opacity = String(p.cfg.alpha);
+      el.classList.toggle('edit-selected', hudEditMode && (editTargetId === 'all' || editTargetId === wid));
+    }
     const pb = document.getElementById('posBox');
     if (pb && hudLayout.coords) {
       pb.classList.toggle('hidden', !showCoordsHud && !hudEditMode);
@@ -1578,16 +1605,16 @@
       if (srcType === 'chest' && tgt.kind === 'chest') {
         if (tgt.idx === fromIdx) { _handleChestSlotTap(fromIdx); return; }
         if (_swapOrMergeSlots(_getChestLinearSlot(fromIdx), _getChestLinearSlot(tgt.idx))) {
-          playSfx('pickup'); renderChestModal(_activeChestBlockId);
+          playSfx('pickup'); renderChestModal(_activeChestBlockId); syncActiveChestSlotsToNet();
         }
       } else if (srcType === 'chest' && tgt.kind === 'chestInv') {
         if (_swapOrMergeSlots(_getChestLinearSlot(fromIdx), inventory[tgt.idx])) {
-          playSfx('pickup'); renderChestModal(_activeChestBlockId);
+          playSfx('pickup'); renderChestModal(_activeChestBlockId); syncActiveChestSlotsToNet();
           if (tgt.idx < 9) renderHotbar();
         }
       } else if (srcType === 'chestInv' && tgt.kind === 'chest') {
         if (_swapOrMergeSlots(inventory[fromIdx], _getChestLinearSlot(tgt.idx))) {
-          playSfx('place'); renderChestModal(_activeChestBlockId);
+          playSfx('place'); renderChestModal(_activeChestBlockId); syncActiveChestSlotsToNet();
           if (fromIdx < 9) renderHotbar();
         }
       } else if (srcType === 'chestInv' && tgt.kind === 'chestInv') {
@@ -1743,12 +1770,20 @@
         swapIdx = -1; playSfx('pickup'); renderInventoryModal(); renderHotbar();
       } else if (srcType === 'equip' && fromEq && player.equip[fromEq]) {
         const eqId = player.equip[fromEq], dst = inventory[toIdx];
-        const eqMeta = (player.equipMeta && player.equipMeta[fromEq]) ? { ench: !!player.equipMeta[fromEq].ench, trim: player.equipMeta[fromEq].trim ? { ...player.equipMeta[fromEq].trim } : null } : null;
-        if (dst.count <= 0) { setSlotItem(toIdx, eqId, 1, null, eqMeta); player.equip[fromEq] = 0; if (player.equipMeta) player.equipMeta[fromEq] = null; }
+        const em = player.equipMeta && player.equipMeta[fromEq];
+        const eqDef = BLOCK_DEF[eqId];
+        const eqDur = (fromEq === 'offhand' && eqId === B.SHIELD) ? (player.offhandDur || 336) : (em && typeof em.dur === 'number' && em.dur > 0 ? em.dur : (eqDef && eqDef.maxDur ? eqDef.maxDur : 0));
+        const eqMax = (fromEq === 'offhand' && eqId === B.SHIELD) ? (player.offhandMaxDur || 336) : (em && em.maxDur ? em.maxDur : (eqDef && eqDef.maxDur ? eqDef.maxDur : 0));
+        const eqMeta = (em || eqMax > 0) ? { dur: eqDur, maxDur: eqMax, ench: !!(em && em.ench), trim: (em && em.trim) ? { ...em.trim } : null } : null;
+        if (dst.count <= 0) { setSlotItem(toIdx, eqId, 1, eqDur > 0 ? eqDur : null, eqMeta); player.equip[fromEq] = 0; if (player.equipMeta) player.equipMeta[fromEq] = null; }
         else if (getAutoEquipSlotForItem(dst.id, fromEq) === fromEq && dst.count === 1) {
-          const dMeta = (dst.ench || dst.trim) ? { ench: !!dst.ench, trim: dst.trim ? { ...dst.trim } : null } : null;
+          const dDef = BLOCK_DEF[dst.id];
+          const dMax = dst.maxDur || (dDef && dDef.maxDur) || 0;
+          const dDur = (typeof dst.dur === 'number' && dst.dur > 0) ? dst.dur : dMax;
+          const dMeta = (dst.ench || dst.trim || dMax > 0) ? { dur: dDur, maxDur: dMax, ench: !!dst.ench, trim: dst.trim ? { ...dst.trim } : null } : null;
           player.equip[fromEq] = dst.id; if (player.equipMeta) player.equipMeta[fromEq] = dMeta;
-          setSlotItem(toIdx, eqId, 1, null, eqMeta);
+          if (fromEq === 'offhand' && dst.id === B.SHIELD) { player.offhandDur = dDur || 336; player.offhandMaxDur = dMax || 336; }
+          setSlotItem(toIdx, eqId, 1, eqDur > 0 ? eqDur : null, eqMeta);
         } else {
           unequipArmorSlot(fromEq); return;
         }
@@ -3106,8 +3141,23 @@
   });
 
   // ===================== AUTHENTIC ANIMATED 3D MULTI-TIER CHEST UI CONTROLLER (27 / 36 / 45 / 54 SLOTS!) =====================
-  function _fillAncientCityChestLoot(arr) {
-    const pick = (pool) => pool[(Math.random() * pool.length) | 0];
+  function _chestSeedRng(seedStr) {
+    let h = (2166136261 ^ (typeof worldSeed === 'number' ? worldSeed : 1337)) >>> 0;
+    for (let i = 0; i < seedStr.length; i++) {
+      h ^= seedStr.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    let s = h || 1;
+    return () => {
+      s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function _fillAncientCityChestLoot(arr, seedKey = '') {
+    const rng = _chestSeedRng('ancient_city:' + seedKey);
+    const pick = (pool) => pool[(rng() * pool.length) | 0];
     const putLoot = (id, count = 1, ench = false) => {
       const idx = arr.findIndex(s => !s || s.count === 0);
       if (idx < 0) return;
@@ -3116,26 +3166,27 @@
     };
     const coreRare = [B.SWIFT_SNEAK_BOOK, B.ECHO_SHARD, B.DISC_FRAGMENT_5, B.TOTEM_UNDYING, B.NIGHT_VISION_POTION, B.TRIM_WARD, B.TRIM_SILENCE, B.MUSIC_DISC_5, B.MUSIC_DISC_OTHERSIDE];
     const commonCity = [B.GRAY_WOOL, B.CANDLE, B.SOUL_LANTERN, B.SNOWBALL, B.IRON_INGOT, B.COAL, B.DIAMOND, B.GOLD_APPLE, B.GOLDEN_CARROT, B.AMETHYST_LEGS, B.SCULK_CATALYST, B.SCULK_SENSOR, B.ENDER_CHEST_BLOCK];
-    if (Math.random() < 0.72) putLoot(B.ECHO_SHARD, 1 + ((Math.random() * 3) | 0));
-    if (Math.random() < 0.55) putLoot(B.DISC_FRAGMENT_5, 1 + ((Math.random() * 2) | 0));
-    if (Math.random() < 0.48) putLoot(B.SWIFT_SNEAK_BOOK, 1, true);
-    if (Math.random() < 0.42) putLoot(B.NIGHT_VISION_POTION, 1);
-    if (Math.random() < 0.25) putLoot(B.TOTEM_UNDYING, 1);
-    if (Math.random() < 0.30) putLoot(Math.random() < 0.55 ? B.TRIM_WARD : B.TRIM_SILENCE, 1);
-    if (Math.random() < 0.18) putLoot(Math.random() < 0.5 ? B.MUSIC_DISC_5 : B.MUSIC_DISC_OTHERSIDE, 1);
-    if (Math.random() < 0.22) putLoot(B.ENDER_CHEST_BLOCK, 1);
-    const nCommon = 3 + ((Math.random() * 3) | 0);
+    if (rng() < 0.72) putLoot(B.ECHO_SHARD, 1 + ((rng() * 3) | 0));
+    if (rng() < 0.55) putLoot(B.DISC_FRAGMENT_5, 1 + ((rng() * 2) | 0));
+    if (rng() < 0.48) putLoot(B.SWIFT_SNEAK_BOOK, 1, true);
+    if (rng() < 0.42) putLoot(B.NIGHT_VISION_POTION, 1);
+    if (rng() < 0.25) putLoot(B.TOTEM_UNDYING, 1);
+    if (rng() < 0.30) putLoot(rng() < 0.55 ? B.TRIM_WARD : B.TRIM_SILENCE, 1);
+    if (rng() < 0.18) putLoot(rng() < 0.5 ? B.MUSIC_DISC_5 : B.MUSIC_DISC_OTHERSIDE, 1);
+    if (rng() < 0.22) putLoot(B.ENDER_CHEST_BLOCK, 1);
+    const nCommon = 3 + ((rng() * 3) | 0);
     for (let i = 0; i < nCommon; i++) {
       const id = pick(commonCity);
-      const qty = (BLOCK_DEF[id] && (BLOCK_DEF[id].tool || BLOCK_DEF[id].armorSlot || id === B.ENDER_CHEST_BLOCK)) ? 1 : (2 + ((Math.random() * 5) | 0));
+      const qty = (BLOCK_DEF[id] && (BLOCK_DEF[id].tool || BLOCK_DEF[id].armorSlot || id === B.ENDER_CHEST_BLOCK)) ? 1 : (2 + ((rng() * 5) | 0));
       putLoot(id, qty);
     }
     if (arr.every(s => !s || s.count === 0)) putLoot(pick(coreRare), 1);
   }
-  function _fillNaturalChestLoot(arr, blockId, trueK) {
+  function _fillNaturalChestLoot(arr, blockId, trueK, dimKey = '') {
     const tag = naturalChestTags.get(trueK) || '';
+    const seedStr = (dimKey || (currentDimension + ':' + trueK)) + ':' + blockId;
     if (tag === 'ancient_city' && typeof _fillAncientCityChestLoot === 'function') {
-      _fillAncientCityChestLoot(arr);
+      _fillAncientCityChestLoot(arr, seedStr);
       return;
     }
     if (tag === 'end_ship') {
@@ -3153,11 +3204,12 @@
       putE(19, B.ENDER_PEARL, 4, false);
       return;
     }
+    const rng = _chestSeedRng(seedStr);
     if (tag === 'end_city') {
       const endPool = [B.DIAMOND, B.EMERALD, B.GOLD_INGOT, B.IRON_INGOT, B.ENDER_PEARL, B.VOID_PEARL, B.END_ROD, B.PURPUR_BLOCK, B.GOLD_APPLE, B.DIAMOND_HELMET, B.DIAMOND_BOOTS, B.TRIM_SPIRE, B.TRIM_EYE];
       for (let i = 0; i < 6; i++) {
-        const lid = endPool[(Math.random() * endPool.length) | 0], d = BLOCK_DEF[lid];
-        arr[i * 4 + 1] = { id: lid, count: (d?.tool || d?.armorSlot) ? 1 : (2 + ((Math.random() * 4) | 0)), dur: d?.maxDur || 0, maxDur: d?.maxDur || 0, ench: !!(d?.tool || d?.armorSlot), trim: null };
+        const lid = endPool[(rng() * endPool.length) | 0], d = BLOCK_DEF[lid];
+        arr[i * 4 + 1] = { id: lid, count: (d?.tool || d?.armorSlot) ? 1 : (2 + ((rng() * 4) | 0)), dur: d?.maxDur || 0, maxDur: d?.maxDur || 0, ench: !!(d?.tool || d?.armorSlot), trim: null };
       }
       return;
     }
@@ -3167,11 +3219,11 @@
       : [B.IRON_INGOT, B.GOLD_INGOT, B.COAL, B.REDSTONE, B.RAW_IRON, B.RAW_GOLD, B.WHEAT_SEEDS, B.CARROT, B.POTATO, B.APPLE, B.BREAD, B.COOKIE, B.TORCH_BLOCK, B.ARROW, B.IRON_PICK, B.OAK_DOOR];
     const countItems = isHighTier ? 5 : 4;
     for (let i = 0; i < countItems; i++) {
-      const lid = lootPool[Math.floor(Math.random() * lootPool.length)];
-      arr[i * 3 + 1] = { id: lid, count: BLOCK_DEF[lid]?.tool ? 1 : (1 + ((Math.random() * 4) | 0)), dur: BLOCK_DEF[lid]?.maxDur || 0, maxDur: BLOCK_DEF[lid]?.maxDur || 0 };
+      const lid = lootPool[Math.floor(rng() * lootPool.length)];
+      arr[i * 3 + 1] = { id: lid, count: BLOCK_DEF[lid]?.tool ? 1 : (1 + ((rng() * 4) | 0)), dur: BLOCK_DEF[lid]?.maxDur || 0, maxDur: BLOCK_DEF[lid]?.maxDur || 0 };
     }
     const diamondChance = isHighTier ? 0.04 : 0.015;
-    if (Math.random() < diamondChance) {
+    if (rng() < diamondChance) {
       arr[countItems * 3 + 1] = { id: B.DIAMOND, count: 1, dur: 0, maxDur: 0 };
     }
     const trimPool = [
@@ -3179,17 +3231,20 @@
       B.TRIM_SENTRY, B.TRIM_VEX, B.TRIM_RIB, B.TRIM_SNOUT, B.TRIM_EYE, B.TRIM_SPIRE,
       B.TRIM_FLOW, B.TRIM_BOLT, B.TRIM_WAYFINDER, B.TRIM_RAISER, B.TRIM_SHAPER, B.TRIM_HOST
     ];
-    if (Math.random() < (isHighTier ? 0.18 : 0.10)) {
-      const tplId = (isHighTier && Math.random() < 0.45) ? B.TEMPLATE_NETHERITE : trimPool[(Math.random() * trimPool.length) | 0];
+    if (rng() < (isHighTier ? 0.18 : 0.10)) {
+      const tplId = (isHighTier && rng() < 0.45) ? B.TEMPLATE_NETHERITE : trimPool[(rng() * trimPool.length) | 0];
       const emptyIdx = arr.findIndex(x => x.count === 0);
       if (emptyIdx >= 0) arr[emptyIdx] = { id: tplId, count: 1, dur: 0, maxDur: 0 };
     }
   }
+  function _packChestArr(arr) {
+    return arr.map(s => (s && s.id && s.count > 0) ? [s.id, s.count, s.dur || 0, s.maxDur || 0, s.ench ? 1 : 0, s.trim || 0] : null);
+  }
   function serializeChestData() {
     const chests = [];
-    for (const [tk, arr] of chestStorageMap.entries()) {
-      if (Array.isArray(arr) && arr.some(s => s && s.id && s.count > 0)) {
-        chests.push([tk, arr.map(s => (s && s.id && s.count > 0) ? [s.id, s.count, s.dur || 0, s.maxDur || 0, s.ench ? 1 : 0, s.trim || 0] : null)]);
+    for (const [dk, arr] of chestStorageMap.entries()) {
+      if (Array.isArray(arr) && (arr.some(s => s && s.id && s.count > 0) || consumedLootChests.has(dk))) {
+        chests.push([dk, _packChestArr(arr)]);
       }
     }
     const ender = enderChestSlots.some(s => s && s.id && s.count > 0)
@@ -3204,8 +3259,8 @@
     const incEggs = [];
     for (const eg of incubatingEggs.values()) incEggs.push({ x: eg.x, y: eg.y, z: eg.z, el: eg.el, eggId: eg.eggId, timer: +eg.timer.toFixed(2) });
     return {
-      chests: chests.slice(-600),
-      consumedLoot: Array.from(consumedLootChests).slice(-2500),
+      chests: chests.slice(-1200),
+      consumedLoot: Array.from(consumedLootChests).slice(-4000),
       enderChest: ender,
       tamedDragons: tamedDragons.slice(0, 16),
       incubatingEggs: incEggs.slice(0, 16)
@@ -3228,14 +3283,20 @@
   function restoreChestData(src) {
     if (!src) return;
     if (Array.isArray(src.consumedLoot)) {
-      for (let i = 0; i < src.consumedLoot.length; i++) consumedLootChests.add(src.consumedLoot[i]);
+      for (let i = 0; i < src.consumedLoot.length; i++) {
+        const k = String(src.consumedLoot[i] || '');
+        if (k) consumedLootChests.add(k.includes(':') ? k : ('overworld:' + k));
+      }
     }
     if (Array.isArray(src.chests)) {
       for (let i = 0; i < src.chests.length; i++) {
         const entry = src.chests[i];
         if (!Array.isArray(entry) || entry.length < 2) continue;
+        const rawKey = String(entry[0] || '');
+        const dimKey = rawKey.includes(':') ? rawKey : ('overworld:' + rawKey);
         const len = Array.isArray(entry[1]) && entry[1].length <= 27 ? 27 : 54;
-        chestStorageMap.set(entry[0], _unpackChestArr(entry[1], len));
+        chestStorageMap.set(dimKey, _unpackChestArr(entry[1], len));
+        consumedLootChests.add(dimKey);
       }
     }
     if (Array.isArray(src.enderChest)) {
@@ -3255,22 +3316,46 @@
       }
     }
   }
+  function toDimChestKey(k, dim = currentDimension) {
+    if (!k) return '';
+    if (String(k).includes(':')) return String(k);
+    return (dim || 'overworld') + ':' + toTrueChestKey(k);
+  }
   function getOrCreateChestSlots(k, blockId) {
     if (isEnderChestBlock(blockId)) return enderChestSlots;
     const tk = toTrueChestKey(k);
-    const dimTk = currentDimension + ':' + tk;
-    let arr = chestStorageMap.get(tk);
+    const dimTk = toDimChestKey(k);
+    let arr = chestStorageMap.get(dimTk);
+    if (!arr && currentDimension === 'overworld' && chestStorageMap.has(tk)) {
+      arr = chestStorageMap.get(tk);
+      chestStorageMap.delete(tk);
+      chestStorageMap.set(dimTk, arr);
+    }
     const cap = (BLOCK_DEF[blockId] && BLOCK_DEF[blockId].chestSlots) || 27;
     if (!arr) {
-      const canRollLoot = !consumedLootChests.has(dimTk) && !worldMods.has(tk);
+      const canRollLoot = !consumedLootChests.has(dimTk) && !worldMods.has(dimModKey ? dimModKey(...tk.split(',').map(Number), currentDimension) : tk);
       arr = createEmptyChestSlots(cap);
       consumedLootChests.add(dimTk);
-      if (canRollLoot) _fillNaturalChestLoot(arr, blockId, tk);
-      chestStorageMap.set(tk, arr);
+      if (canRollLoot) _fillNaturalChestLoot(arr, blockId, tk, dimTk);
+      chestStorageMap.set(dimTk, arr);
+      if (typeof broadcastChestSync === 'function') broadcastChestSync(dimTk, blockId, _packChestArr(arr));
     } else {
       consumedLootChests.add(dimTk);
     }
     return arr;
+  }
+  function syncActiveChestSlotsToNet() {
+    if (activeChestKey && !isEnderChestBlock(_activeChestBlockId) && typeof broadcastChestSync === 'function') {
+      const dk1 = toDimChestKey(activeChestKey);
+      const a1 = chestStorageMap.get(dk1);
+      if (a1) broadcastChestSync(dk1, _activeChestBlockId, _packChestArr(a1));
+      if (activeChestPartnerKey) {
+        const dk2 = toDimChestKey(activeChestPartnerKey);
+        const a2 = chestStorageMap.get(dk2);
+        if (a2) broadcastChestSync(dk2, _activeChestBlockId, _packChestArr(a2));
+      }
+    }
+    if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
   }
   function _handleChestSlotTap(linearIdx) {
     if (!activeChestKey) return;
@@ -3278,18 +3363,19 @@
     if (!s || s.count <= 0) return;
     addItemToInventory(s.id, s.count, s);
     _clearSlotObj(s);
+    syncActiveChestSlotsToNet();
     playSfx('pickup'); renderChestModal(_activeChestBlockId); renderHotbar();
   }
   function _handleChestInvTap(idx) {
     if (!activeChestKey) return;
     const s = inventory[idx];
     if (!s || s.count <= 0) return;
-    const maxS = (BLOCK_DEF[s.id]?.tool || BLOCK_DEF[s.id]?.armorSlot || s.ench || s.trim) ? 1 : 99;
+    const maxS = (BLOCK_DEF[s.id]?.tool || BLOCK_DEF[s.id]?.armorSlot || s.ench || s.trim || (s.maxDur > 0 && s.dur < s.maxDur)) ? 1 : 99;
     let put = false;
     if (maxS > 1) {
       for (const arr of _activeChestArrs) {
         for (let j = 0; j < arr.length; j++) {
-          if (arr[j].id === s.id && arr[j].count > 0 && !arr[j].ench && !arr[j].trim && arr[j].count < maxS) {
+          if (arr[j].id === s.id && arr[j].count > 0 && !arr[j].ench && !arr[j].trim && !(arr[j].maxDur > 0 && arr[j].dur < arr[j].maxDur) && arr[j].count < maxS) {
             const mv = Math.min(maxS - arr[j].count, s.count); arr[j].count += mv; s.count -= mv; put = true;
             if (s.count <= 0) { _clearSlotObj(s); break; }
           }
@@ -3308,7 +3394,7 @@
         if (s.count <= 0) break;
       }
     }
-    if (put) { playSfx('place'); renderChestModal(_activeChestBlockId); if (idx < 9) renderHotbar(); }
+    if (put) { syncActiveChestSlotsToNet(); playSfx('place'); renderChestModal(_activeChestBlockId); if (idx < 9) renderHotbar(); }
     else showToast('📦 Rương đã đầy!');
   }
   function renderChestModal(blockId) {
@@ -3370,6 +3456,7 @@
     requestAnimationFrame(updateMobileUiScale);
   }
   function closeChestModal() {
+    syncActiveChestSlotsToNet();
     hideMcTooltip(); resetInvDragState();
     activeChestKey = null;
     activeChestPartnerKey = null;
