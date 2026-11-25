@@ -48,7 +48,7 @@
   function applyQualitySetting(val, persist = false) {
     val = (CFG.normalizeQuality ? CFG.normalizeQuality(val, 'high') : val);
     shaderQuality = val;
-    const isLow = (val === 'low'), isUltra = (val === 'ultra');
+    const isLow = (val === 'low'), isExtreme = (val === 'extreme'), isUltra = (val === 'ultra' || isExtreme);
     const direct = _useDirectRender();
     const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[val]) || { shadowSize: 1024, reflW: 256, reflH: 144 };
     document.querySelectorAll('#qualitySeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === val));
@@ -56,7 +56,7 @@
     renderer.shadowMap.enabled = !isLow;
     sunLight.castShadow = !isLow;
     const dedGpu = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
-    const wantShSize = isLow ? 1024 : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024);
+    const wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 4096 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
     if (sunLight.shadow.mapSize.width !== wantShSize) {
       sunLight.shadow.mapSize.set(wantShSize, wantShSize);
       if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
@@ -67,6 +67,7 @@
     renderer.shadowMap.type = (isUltra && !_initMobile) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
     _lastShCx = 999999; _lastShCz = 999999;
+    _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
     _postFxDirty = true;
     renderer.localClippingEnabled = !isLow;
     if (isLow) {
@@ -102,7 +103,7 @@
     } else if (preset === 'moonlit') {
       envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.26; envUniforms.uWarmth.value = -0.02; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.34;
     } else if (preset === 'chill_sunset') {
-      envUniforms.uExposure.value = 0.90; envUniforms.uVibrance.value = 0.40; envUniforms.uWarmth.value = 0.16; envUniforms.uContrast.value = 0.14; envUniforms.uCloudCover.value = 0.56;
+      envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.48; envUniforms.uWarmth.value = 0.24; envUniforms.uContrast.value = 0.14; envUniforms.uCloudCover.value = 0.54;
     } else if (preset === 'verdant_fresh') {
       envUniforms.uExposure.value = 0.88; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.04; envUniforms.uContrast.value = 0.09; envUniforms.uCloudCover.value = 0.50;
     } else if (preset === 'dlss_ultra') {
@@ -129,6 +130,8 @@
   const colStormTop = new THREE.Color(0x28323d), colStormHor = new THREE.Color(0x525e6c);
   const colWhite = new THREE.Color(0xffffff), _tmpTop = new THREE.Color(), _tmpHor = new THREE.Color();
   const _colSkyFillSoft = new THREE.Color(0xdce9fa), _colCityMistWarm = new THREE.Color(0xd8c3a5);
+  const _colPaleFog = new THREE.Color(0xb8c0cc), _colNightmareFog = new THREE.Color(0x1b0b18), _colDarkForestFog = new THREE.Color(0x283526), _colAshFog = new THREE.Color(0x524236);
+  const _colAuroraTop = new THREE.Color(0x0b3b3c), _colAuroraHor = new THREE.Color(0x34d399);
   const _sunProj = new THREE.Vector3();
 
   let _pbX = 1e9, _pbZ = 1e9, _pbDim = '', _pbSeed = -1, _pbVal = null;
@@ -507,10 +510,11 @@
       if (autoWeatherTimer <= 0) {
         autoWeatherTimer = 42 + Math.random() * 44;
         const r = Math.random();
-        if (inChillWheat) activeWeatherKind = r < 0.28 ? 'rain' : (r < 0.36 ? 'meteor' : 'clear');
-        else if (isColdBio) activeWeatherKind = r < 0.25 ? 'snow' : (r < 0.42 ? 'blizzard' : (r < 0.50 ? 'fog' : 'clear'));
-        else if (isSandBio) activeWeatherKind = r < 0.26 ? 'sandstorm' : (r < 0.34 ? 'meteor' : 'clear');
-        else activeWeatherKind = r < 0.22 ? 'rain' : (r < 0.31 ? 'storm' : (r < 0.38 ? 'fog' : (r < 0.43 ? 'meteor' : 'clear')));
+        if (inChillWheat) activeWeatherKind = r < 0.22 ? 'drizzle' : (r < 0.34 ? 'rain' : (r < 0.42 ? 'meteor' : 'clear'));
+        else if (isColdBio) activeWeatherKind = r < 0.24 ? 'snow' : (r < 0.38 ? 'blizzard' : (r < 0.48 ? 'aurora' : (r < 0.56 ? 'fog' : 'clear')));
+        else if (isSandBio) activeWeatherKind = r < 0.24 ? 'sandstorm' : (r < 0.32 ? 'ashfall' : (r < 0.40 ? 'meteor' : 'clear'));
+        else if (biome === BIOMES.VOLCANIC_BASALT) activeWeatherKind = r < 0.38 ? 'ashfall' : (r < 0.50 ? 'fog' : 'clear');
+        else activeWeatherKind = r < 0.16 ? 'drizzle' : (r < 0.28 ? 'rain' : (r < 0.35 ? 'storm' : (r < 0.42 ? 'fog' : (r < 0.48 ? 'aurora' : (r < 0.53 ? 'meteor' : 'clear')))));
       }
       if (!inOverworld) activeWeatherKind = 'clear';
     } else {
@@ -518,13 +522,13 @@
     }
     if (inChillWheat && activeWeatherKind === 'storm') activeWeatherKind = 'rain';
 
-    const wIntensityGoal = (activeWeatherKind === 'clear' || activeWeatherKind === 'meteor') ? 0.0
-      : (activeWeatherKind === 'rain' ? 0.72 : (activeWeatherKind === 'snow' ? 0.68 : (activeWeatherKind === 'fog' ? 0.58 : 1.0)));
+    const wIntensityGoal = (activeWeatherKind === 'clear' || activeWeatherKind === 'meteor' || activeWeatherKind === 'aurora') ? 0.0
+      : (activeWeatherKind === 'drizzle' ? 0.40 : (activeWeatherKind === 'ashfall' ? 0.55 : (activeWeatherKind === 'rain' ? 0.72 : (activeWeatherKind === 'snow' ? 0.68 : (activeWeatherKind === 'fog' ? 0.58 : 1.0)))));
     autoWeatherTarget = (!inOverworld) ? 0.0 : ((weatherMode === 'auto' && inChillWheat && wIntensityGoal > 0.76) ? 0.76 : wIntensityGoal);
     rainIntensity += (autoWeatherTarget - rainIntensity) * Math.min(1, dt * (weatherMode === 'auto' ? 0.95 : 3.2));
-    const wetMode = (activeWeatherKind === 'rain' || activeWeatherKind === 'storm' || activeWeatherKind === 'fog');
+    const wetMode = (activeWeatherKind === 'rain' || activeWeatherKind === 'drizzle' || activeWeatherKind === 'storm' || activeWeatherKind === 'fog');
     envUniforms.uRainWetness.value = (inOverworld && wetMode) ? rainIntensity : 0.0;
-    const windMul = (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm') ? 2.15 : (activeWeatherKind === 'storm' ? 1.55 : (inChillWheat ? 0.68 : 1.15));
+    const windMul = (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm') ? 2.15 : (activeWeatherKind === 'storm' ? 1.55 : ((inChillWheat || activeWeatherKind === 'drizzle') ? 0.68 : 1.15));
     envUniforms.uWindStrength.value = 1.0 + (inOverworld ? rainIntensity * windMul : 0.0);
 
     if (inOverworld && !inChillWheat && activeWeatherKind === 'storm' && rainIntensity > 0.72) {
@@ -545,17 +549,19 @@
 
     const isBlizzard = (activeWeatherKind === 'blizzard');
     const isSandstorm = (activeWeatherKind === 'sandstorm');
-    const isSnow = (activeWeatherKind === 'snow' || isBlizzard || (isColdBio && activeWeatherKind === 'rain'));
-    const hasParticles = (activeWeatherKind === 'rain' || activeWeatherKind === 'storm' || isSnow || isSandstorm);
+    const isAshfall = (activeWeatherKind === 'ashfall');
+    const isDrizzle = (activeWeatherKind === 'drizzle');
+    const isSnow = (activeWeatherKind === 'snow' || isBlizzard || (isColdBio && (activeWeatherKind === 'rain' || isDrizzle)));
+    const hasParticles = (activeWeatherKind === 'rain' || isDrizzle || activeWeatherKind === 'storm' || isSnow || isSandstorm || isAshfall);
     const showWeather = (inOverworld && hasParticles && rainIntensity > 0.05 && player.y > -4 && depthOffset === 0 && !player.eyesInWater);
     weatherLines.visible = showWeather && !!sodiumOpts.weatherFx;
     if (showWeather) {
-      weatherMat.color.setHex(isSandstorm ? 0xe9be74 : (isBlizzard ? 0xe2f4ff : (isSnow ? 0xf8fafc : 0xd8f3ff)));
-      weatherMat.opacity = rainIntensity * (isBlizzard ? 0.90 : (isSandstorm ? 0.82 : (isSnow ? 0.84 : 0.62)));
-      const streakBase = isSandstorm ? 0.62 : (isBlizzard ? 0.34 : (isSnow ? 0.16 : 0.92));
-      const fallMul = isSandstorm ? 0.36 : (isBlizzard ? 0.58 : (isSnow ? 0.25 : 1.18));
-      const windX = isSandstorm ? 1.95 : (isBlizzard ? 1.45 : (isSnow ? 0.06 : (0.18 + Math.sin(elapsed * 0.7) * 0.05)));
-      const windZ = isSandstorm ? 0.85 : (isBlizzard ? 0.62 : (isSnow ? 0.04 : (0.09 + Math.cos(elapsed * 0.5) * 0.03)));
+      weatherMat.color.setHex(isAshfall ? 0xfb923c : (isSandstorm ? 0xe9be74 : (isBlizzard ? 0xe2f4ff : (isSnow ? 0xf8fafc : (isDrizzle ? 0xcfe8ff : 0xd8f3ff)))));
+      weatherMat.opacity = rainIntensity * (isBlizzard ? 0.90 : (isSandstorm ? 0.82 : (isAshfall ? 0.74 : (isSnow ? 0.84 : (isDrizzle ? 0.44 : 0.62)))));
+      const streakBase = isAshfall ? 0.14 : (isSandstorm ? 0.62 : (isBlizzard ? 0.34 : (isSnow ? 0.16 : (isDrizzle ? 0.52 : 0.92))));
+      const fallMul = isAshfall ? 0.20 : (isSandstorm ? 0.36 : (isBlizzard ? 0.58 : (isSnow ? 0.25 : (isDrizzle ? 0.82 : 1.18))));
+      const windX = isAshfall ? (0.14 + Math.sin(elapsed * 1.1) * 0.10) : (isSandstorm ? 1.95 : (isBlizzard ? 1.45 : (isSnow ? 0.06 : (0.18 + Math.sin(elapsed * 0.7) * 0.05))));
+      const windZ = isAshfall ? (0.08 + Math.cos(elapsed * 0.9) * 0.08) : (isSandstorm ? 0.85 : (isBlizzard ? 0.62 : (isSnow ? 0.04 : (0.09 + Math.cos(elapsed * 0.5) * 0.03))));
       const drawCnt = Math.floor(WEATHER_CNT * rainIntensity * (_isMobilePerf ? 0.55 : 1));
       weatherGeo.setDrawRange(0, drawCnt * 2);
       for (let i = 0; i < drawCnt; i++) {
@@ -568,9 +574,9 @@
           w.x = (Math.random() - 0.5) * 26;
           w.z = (Math.random() - 0.5) * 26;
         }
-        const wx = player.x + w.x + (isSnow && !isBlizzard ? Math.sin(elapsed * 2.1 + i) * 0.55 : 0.0);
+        const wx = player.x + w.x + ((isSnow && !isBlizzard) || isAshfall ? Math.sin(elapsed * 2.1 + i) * 0.55 : 0.0);
         const wy = player.y + w.y;
-        const wz = player.z + w.z + (isSnow && !isBlizzard ? Math.cos(elapsed * 1.7 + i) * 0.35 : 0.0);
+        const wz = player.z + w.z + ((isSnow && !isBlizzard) || isAshfall ? Math.cos(elapsed * 1.7 + i) * 0.35 : 0.0);
         const sLen = streakBase * (0.82 + ((i & 3) * 0.12));
         const b = i * 6;
         weatherPositions[b] = wx; weatherPositions[b + 1] = wy; weatherPositions[b + 2] = wz;
@@ -578,7 +584,7 @@
       }
       weatherGeo.attributes.position.needsUpdate = true;
       // Authentic Minecraft ground raindrop splash crowns & ripples on exposed terrain/water around player!
-      if (!isSnow && !isSandstorm && (activeWeatherKind === 'rain' || activeWeatherKind === 'storm') && rainIntensity > 0.18 && Math.random() < Math.min(0.85, rainIntensity * (_isMobilePerf ? 0.55 : 0.95))) {
+      if (!isSnow && !isSandstorm && !isAshfall && (activeWeatherKind === 'rain' || isDrizzle || activeWeatherKind === 'storm') && rainIntensity > 0.18 && Math.random() < Math.min(0.85, rainIntensity * (_isMobilePerf ? 0.55 : 0.95))) {
         const splashes = (_isMobilePerf || rainIntensity < 0.55) ? 1 : 2;
         for (let si = 0; si < splashes; si++) {
           const rx = player.x + (Math.random() - 0.5) * 14.0;
@@ -817,6 +823,22 @@
     } else if (activeWeatherKind === 'fog') {
       _tmpTop.lerp(_colDenseFog, 0.68 * rainIntensity);
       _tmpHor.lerp(_colDenseFog, 0.82 * rainIntensity);
+    } else if (activeWeatherKind === 'ashfall') {
+      _tmpTop.lerp(_colAshFog, 0.58 * rainIntensity);
+      _tmpHor.lerp(_colAshFog, 0.76 * rainIntensity);
+    } else if (activeWeatherKind === 'aurora') {
+      _tmpTop.lerp(_colAuroraTop, 0.42);
+      _tmpHor.lerp(_colAuroraHor, 0.34);
+    }
+    if (curBiome === BIOMES.NIGHTMARE_WOODS) {
+      _tmpTop.lerp(_colNightmareFog, 0.78);
+      _tmpHor.lerp(_colNightmareFog, 0.86);
+    } else if (curBiome === BIOMES.PALE_GARDEN) {
+      _tmpTop.lerp(_colPaleFog, 0.58);
+      _tmpHor.lerp(_colPaleFog, 0.68);
+    } else if (curBiome === BIOMES.DARK_FOREST) {
+      _tmpTop.lerp(_colDarkForestFog, 0.38);
+      _tmpHor.lerp(_colDarkForestFog, 0.45);
     }
     if (lightningFlash > 0) { _tmpTop.lerp(colWhite, lightningFlash * 0.65); _tmpHor.lerp(colWhite, lightningFlash * 0.55); }
     envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
@@ -848,13 +870,27 @@
       if (activeWeatherKind === 'sandstorm') envUniforms.uFogColor.value.lerp(_colSandFog, 0.85 * rainIntensity);
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);
       else if (activeWeatherKind === 'fog') envUniforms.uFogColor.value.lerp(_colDenseFog, 0.74 * rainIntensity);
+      else if (activeWeatherKind === 'ashfall') envUniforms.uFogColor.value.lerp(_colAshFog, 0.74 * rainIntensity);
       const baseStart = renderDistance * (13.2 - rainIntensity * 3.8 - nightFogMul * 2.4);
       const baseEnd   = renderDistance * (22.0 - rainIntensity * 5.2 - nightFogMul * 3.2);
       envUniforms.uFogStart.value = inMegaCity ? 64.0 : Math.max(22.0, baseStart);
       envUniforms.uFogEnd.value   = inMegaCity ? Math.max(165.0, renderDistance * 52.0) : Math.max(48.0, baseEnd);
-      if (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm' || activeWeatherKind === 'fog') {
-        const tgtS = activeWeatherKind === 'fog' ? 7.0 : 8.5;
-        const tgtE = activeWeatherKind === 'fog' ? 30.0 : 32.0;
+      if (curBiome === BIOMES.NIGHTMARE_WOODS) {
+        envUniforms.uFogColor.value.copy(_colNightmareFog);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 4.5);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 16.0);
+      } else if (curBiome === BIOMES.PALE_GARDEN) {
+        envUniforms.uFogColor.value.lerp(_colPaleFog, 0.78);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 8.0);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 26.0);
+      } else if (curBiome === BIOMES.DARK_FOREST) {
+        envUniforms.uFogColor.value.lerp(_colDarkForestFog, 0.55);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 12.0);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 36.0);
+      }
+      if (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm' || activeWeatherKind === 'fog' || activeWeatherKind === 'ashfall') {
+        const tgtS = activeWeatherKind === 'fog' ? 7.0 : (activeWeatherKind === 'ashfall' ? 11.0 : 8.5);
+        const tgtE = activeWeatherKind === 'fog' ? 30.0 : (activeWeatherKind === 'ashfall' ? 38.0 : 32.0);
         envUniforms.uFogStart.value += (tgtS - envUniforms.uFogStart.value) * Math.min(1, rainIntensity * 0.92);
         envUniforms.uFogEnd.value   += (tgtE - envUniforms.uFogEnd.value) * Math.min(1, rainIntensity * 0.92);
       }
@@ -895,7 +931,7 @@
     // Warm Cream-Gold Sunlight + Smooth Midday Zenith Dampening (fresh, warm, zero midday/white-block glare!)
     const noonSoft = 1.0 - 0.24 * Math.max(0, (sunY - 0.50) / 0.50);
     if (shaderPreset === 'chill_sunset') {
-      envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colChillSun, 0.78);
+      envUniforms.uSunColor.value.setHex(0xffe4b4).lerp(_colChillSun, 0.86);
     } else if (shaderPreset === 'verdant_fresh') {
       envUniforms.uSunColor.value.copy(_colFreshSun);
     } else if (shaderPreset === 'dlss_ultra') {
@@ -1004,14 +1040,6 @@
     updateAirMotesBatch(dt, showMotes, player.eyesInWater ? 'underwater' : (isGoldenChill ? 'golden' : (isNight ? 'night' : (isAutumn ? 'autumn' : 'day'))));
   }
 
-  function getSkyscraperRoofY(x, z) {
-    const ch = chunks.get(chunkKey(Math.floor(x) >> 4, Math.floor(z) >> 4));
-    const sp = ch && ch.skyscraperSpec;
-    if (!sp) return -9999;
-    if (x >= sp.wx0 - 0.3 && x <= sp.wx0 + sp.w + 0.3 && z >= sp.wz0 - 0.3 && z <= sp.wz0 + sp.d + 0.3) return sp.topH;
-    return -9999;
-  }
-
   const _isWaterLike = (bid) => (bid === B.WATER || bid === B.SEAGRASS || bid === B.CORAL_PINK || bid === B.CORAL_BLUE || bid === B.CORAL_GOLD);
   function measureWaterColumnAt(wx, wy, wz) {
     const bx = Math.floor(wx), bz = Math.floor(wz);
@@ -1081,7 +1109,7 @@
       _lastShCx = pcx; _lastShCz = pcz; _lastShQual = shaderQuality;
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
       const maxChDist = preset.shadowChunkRange > 0 ? Math.max(1, Math.ceil(preset.shadowChunkRange / CHUNK_W)) : -1;
-      const allowLeafSh = (shaderQuality === 'ultra');
+      const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
       for (const ch of chunks.values()) {
         const near = maxChDist >= 0 && Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz)) <= maxChDist;
         if (ch.mesh && ch.mesh.castShadow !== near) ch.mesh.castShadow = near;
@@ -1097,23 +1125,24 @@
   const _reflHiddenChunks = [], _reflHiddenMobs = [];
   const _REFL_CLIP_ARR = [reflClipPlane], _EMPTY_CLIP_ARR = [];
   function renderWaterReflectionPass(inLobby = false, rawDt = 0.016) {
-    if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || currentDimension !== 'overworld' || depthOffset > 0 || player.eyesInWater || player.y < -4 || camera.rotation.x > 0.35) {
+    if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.y < -4 || camera.rotation.x > 0.35) {
       envUniforms.uUsePlanarRefl.value = 0.0;
       _reflDoneOnce = false;
       return;
     }
     _reflAcc += (rawDt || 0.016);
     const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
-    const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.35 : 1.0;
-    const reflInterval = inLobby ? 0.04 : ((_rPreset.reflIntervalMs || 55) / 1000) * (_fpsSlow ? 1.25 : 1.0) * tierMult;
+    const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.25 : 1.0;
+    const reflInterval = inLobby ? 0.032 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult;
     const camTurned = !_reflDoneOnce ||
-      Math.abs(camera.rotation.y - _lastReflYaw) > 0.0025 ||
-      Math.abs(camera.rotation.x - _lastReflPitch) > 0.0025;
+      Math.abs(camera.rotation.y - _lastReflYaw) > 0.003 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.003;
     const camStatic = _reflDoneOnce && !camTurned &&
       Math.abs(camera.position.x - _lastReflX) < 0.04 &&
       Math.abs(camera.position.y - _lastReflY) < 0.04 &&
       Math.abs(camera.position.z - _lastReflZ) < 0.04;
-    if (_reflDoneOnce && !camTurned && _reflAcc < (camStatic ? Math.max(reflInterval, 0.14) : reflInterval)) return;
+    // Fast camera sweeps render reflection immediately without delay/ghosting lag
+    if (_reflDoneOnce && !camTurned && _reflAcc < (camStatic ? Math.max(reflInterval, 0.10) : reflInterval)) return;
     _reflAcc = 0;
     _reflDoneOnce = true;
     _lastReflX = camera.position.x; _lastReflY = camera.position.y; _lastReflZ = camera.position.z;
@@ -1184,10 +1213,12 @@
     heldPivot.visible = wasHeldVis; weatherLines.visible = wasWeatherVis; _motePoints.visible = wasMoteVis;
   }
 
+  let _fgPrimed = false, _fgYaw = 9e9, _fgPitch = 9e9, _fgX = 0, _fgY = 0, _fgZ = 0;
   function renderMainScene(rawDt = 0.016) {
     if (!_useDirectRender()) {
-      const isUltra = (shaderQuality === 'ultra');
-      if (!sceneRT || (isUltra && !bloomWide1)) resizeViewport();
+      const isUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
+      const fgMode = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
+      if (!sceneRT || (isUltra && !bloomWide1) || (fgMode > 1 && !fgRtA)) resizeViewport();
       renderer.setRenderTarget(sceneRT);
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
@@ -1258,14 +1289,34 @@
         }
       }
 
-      // Pass 4: BSL / Complementary ACES Filmic Split-Tone Color Grading Compositor (Active in BOTH RTX Chuẩn & Ultra!)
+      // Pass 4: BSL / Complementary ACES Filmic Split-Tone Color Grading Compositor + Optional Frame Ao
       postQuad.material = compositeMat;
       compositeMat.uniforms.tScene.value = sceneRT.texture;
       compositeMat.uniforms.tBloom.value = bloomRT1.texture;
       compositeMat.uniforms.tBloomWide.value = isUltra ? bloomWide2.texture : bloomRT1.texture;
       compositeMat.uniforms.tGodRays.value = godRayRT1.texture;
-      renderer.setRenderTarget(null);
-      renderer.render(postScene, postCam);
+      if (fgMode > 1 && fgRtA && fgRtB && typeof fgBlendMat !== 'undefined') {
+        const curRt = fgPing ? fgRtB : fgRtA;
+        const prvRt = fgPing ? fgRtA : fgRtB;
+        renderer.setRenderTarget(curRt);
+        renderer.render(postScene, postCam);
+        const camPan = _fgPrimed ? (Math.abs(camera.rotation.y - _fgYaw) + Math.abs(camera.rotation.x - _fgPitch) + Math.hypot(camera.position.x - _fgX, camera.position.z - _fgZ) * 0.18) : 99;
+        const baseMix = (fgMode >= 4) ? 0.36 : 0.24;
+        const mixW = _fgPrimed ? Math.max(0, baseMix * (1.0 - Math.min(1.0, camPan / 0.045))) : 0.0;
+        postQuad.material = fgBlendMat;
+        fgBlendMat.uniforms.tCur.value = curRt.texture;
+        fgBlendMat.uniforms.tPrev.value = prvRt.texture;
+        fgBlendMat.uniforms.uFgMix.value = mixW;
+        renderer.setRenderTarget(null);
+        renderer.render(postScene, postCam);
+        fgPing ^= 1; _fgPrimed = true;
+        _fgYaw = camera.rotation.y; _fgPitch = camera.rotation.x;
+        _fgX = camera.position.x; _fgY = camera.position.y; _fgZ = camera.position.z;
+      } else {
+        _fgPrimed = false;
+        renderer.setRenderTarget(null);
+        renderer.render(postScene, postCam);
+      }
     } else {
       renderer.setClearColor(envUniforms.uFogColor.value, 1);
       renderer.render(scene, camera);
@@ -1337,7 +1388,7 @@
     window._smoothDt = window._smoothDt ? (window._smoothDt * 0.72 + rawDt * 0.28) : rawDt;
     const dt = Math.min(0.05, window._smoothDt);
     if (inPauseMenu) {
-      const _pSig = `${worldPaused ? 1 : 0}|${remotePlayers.size}|${currentLang}`;
+      const _pSig = `${worldPaused ? 1 : 0}|${remotePlayers.size}|${Array.from(remotePlayers.keys()).join(',')}|${_wsRoomHostId || ''}|${currentLang}`;
       if (_pSig !== window._lastPauseUiSig) {
         window._lastPauseUiSig = _pSig;
         if (typeof syncPauseStatusTag === 'function') syncPauseStatusTag();
@@ -1557,6 +1608,10 @@
   resizeViewport();
   document.querySelectorAll('#qualitySeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === shaderQuality));
   document.querySelectorAll('#renderDistSeg .seg-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.val, 10) === renderDistance));
+  {
+    const _fgV = String((typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen) || 1);
+    document.querySelectorAll('#frameGenSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.fg === _fgV));
+  }
   {
     const cBtn = document.getElementById('btnCloudMode');
     if (cBtn) {

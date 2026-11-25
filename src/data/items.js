@@ -358,7 +358,18 @@
     { cat: 'tools',  out: B.DRAGON_BONE_PICK, qty: 1, req: [{ id: B.DRAGON_BONE, qty: 2 }, { id: B.DRAGON_SCALE, qty: 3 }], grid: [B.DRAGON_SCALE,B.DRAGON_SCALE,B.DRAGON_SCALE, 0,B.DRAGON_BONE,0, 0,B.DRAGON_BONE,0] },
     { cat: 'tools',  out: B.DRAGON_BONE_BOW,  qty: 1, req: [{ id: B.DRAGON_BONE, qty: 3 }, { id: B.DRAGON_SCALE, qty: 2 }], grid: [0,B.DRAGON_BONE,B.DRAGON_SCALE, B.DRAGON_BONE,0,B.DRAGON_SCALE, 0,B.DRAGON_BONE,0] },
     { cat: 'tools',  out: B.DRAGON_SADDLE,    qty: 1, req: [{ id: B.AETHERIUM_ORE, qty: 2 }, { id: B.DRAGON_SCALE, qty: 5 }], grid: [B.DRAGON_SCALE,B.AETHERIUM_ORE,B.DRAGON_SCALE, B.DRAGON_SCALE,B.AETHERIUM_ORE,B.DRAGON_SCALE, B.DRAGON_SCALE,0,0] },
-    { cat: 'tools',  out: B.DRAGON_SADDLE,    qty: 1, req: [{ id: B.AETHERIUM_INGOT, qty: 2 }, { id: B.DRAGON_SCALE, qty: 5 }], grid: [B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,0,0] }
+    { cat: 'tools',  out: B.DRAGON_SADDLE,    qty: 1, req: [{ id: B.AETHERIUM_INGOT, qty: 2 }, { id: B.DRAGON_SCALE, qty: 5 }], grid: [B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,0,0] },
+    { cat: 'blocks', out: B.PALE_PLANKS,      qty: 4, is2x2: true, req: [{ id: B.PALE_LOG, qty: 1 }], grid: [B.PALE_LOG,0,0, 0,0,0, 0,0,0] },
+    { cat: 'tools',  out: B.ELYTRA_PHOENIX,   qty: 1, req: [{ id: B.ELYTRA, qty: 1 }, { id: B.DRAGON_SCALE_FIRE, qty: 4 }, { id: B.BLAZE_ROD, qty: 2 }], grid: [B.DRAGON_SCALE_FIRE,B.ELYTRA,B.DRAGON_SCALE_FIRE, B.DRAGON_SCALE_FIRE,B.BLAZE_ROD,B.DRAGON_SCALE_FIRE, 0,B.BLAZE_ROD,0] },
+    ...['FIRE', 'ICE', 'EARTH', 'WATER', 'LEAF', 'ENDER'].flatMap(el => {
+      const sc = B['DRAGON_SCALE_' + el];
+      return [
+        { cat: 'tools', out: B[`DRAGON_${el}_HELMET`], qty: 1, req: [{ id: sc, qty: 5 }], grid: [sc,sc,sc, sc,0,sc, 0,0,0] },
+        { cat: 'tools', out: B[`DRAGON_${el}_CHEST`],  qty: 1, req: [{ id: sc, qty: 8 }], grid: [sc,0,sc, sc,sc,sc, sc,sc,sc] },
+        { cat: 'tools', out: B[`DRAGON_${el}_LEGS`],   qty: 1, req: [{ id: sc, qty: 7 }], grid: [sc,sc,sc, sc,0,sc, sc,0,sc] },
+        { cat: 'tools', out: B[`DRAGON_${el}_BOOTS`],  qty: 1, req: [{ id: sc, qty: 4 }], grid: [0,0,0, sc,0,sc, sc,0,sc] }
+      ];
+    })
   ];
 
   const BIOMES = {
@@ -416,7 +427,17 @@
     WHEAT_VALLEY:     { id: 51, name: 'Cánh Đồng Lúa' },
     PINE_VALLEY:      { id: 52, name: 'Thung Lũng Thông & Nhà Thợ Rèn' },
     GIANT_JUNGLE:     { id: 53, name: 'Rừng Nhiệt Đới Đại Thụ' },
-    CLOUD_PEAKS:      { id: 54, name: 'Đỉnh Núi Vượt Mây' }
+    CLOUD_PEAKS:      { id: 54, name: 'Đỉnh Núi Vượt Mây' },
+    DARK_FOREST:      { id: 55, name: 'Rừng Tối U Ám' },
+    PALE_GARDEN:      { id: 56, name: 'Khu Rừng Nhợt Nhạt' },
+    NIGHTMARE_WOODS:  { id: 57, name: 'Khu Rừng Ác Mộng' },
+    MEGA_SNOW_PEAKS:  { id: 58, name: 'Núi Tuyết Siêu Cao' },
+    LUSH_STEPPE:      { id: 59, name: 'Đồng Thảo Nguyên Xanh' },
+    SIFT_PLAINS:      { id: 60, name: 'The Sift • Đồng Bằng Giấc Mơ' },
+    SIFT_GIANT_FOREST:{ id: 61, name: 'The Sift • Rừng Đại Thụ Giấc Mơ' },
+    SIFT_SKY_ISLANDS: { id: 62, name: 'The Sift • Đảo Bay Bầu Trời' },
+    SIFT_PEAKS:       { id: 63, name: 'The Sift • Núi Đá Cao Giấc Mơ' },
+    SIFT_OCEAN:       { id: 64, name: 'The Sift • Biển Giấc Mơ' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -444,10 +465,17 @@
     ichor:       { main: '#f472b6', hi: '#fbcfe8', dark: '#831843', glint: '#ffffff', trim: '#fde047', hex: 0xf472b6, rough: 0.22, metal: 0.50, emit: 0.25, rainbow: true, waterSeed: 1.2, style: 'ichor' },
     nebula:      { main: '#c084fc', hi: '#f3e8ff', dark: '#4c1d95', glint: '#ffffff', trim: '#e2e8f0', hex: 0xc084fc, rough: 0.18, metal: 0.64, emit: 0.26, rainbow: true, waterSeed: 2.5, style: 'nebula' },
     aetherium:   { main: '#22d3ee', hi: '#cffafe', dark: '#155e75', glint: '#ffffff', trim: '#f8fafc', hex: 0x22d3ee, rough: 0.18, metal: 0.60, emit: 0.27, rainbow: true, waterSeed: 3.8, style: 'aether' },
-    dragon:      { main: '#b91c1c', hi: '#f87171', dark: '#450a0a', glint: '#fde047', trim: '#f59e0b', hex: 0xdc2626, rough: 0.28, metal: 0.45, emit: 0.18 },
-    dragon_head: { main: '#1e1b24', hi: '#4b4558', dark: '#09080c', glint: '#d946ef', trim: '#c026d3', hex: 0x262130, rough: 0.55, metal: 0.18, emit: 0.12 },
-    elytra:      { main: '#7e7d99', hi: '#abaac7', dark: '#424156', glint: '#c7d2fe', trim: '#52516b', hex: 0x7e7d99, rough: 0.50, metal: 0.25 },
-    dream_prism: { main: '#38e8e1', hi: '#ffffff', dark: '#3b0764', glint: '#ffffff', trim: '#f8fafc', hex: 0x69b8ff, rough: 0.16, metal: 0.68, emit: 0.28, rainbow: true, waterSeed: 5.1, style: 'prism' }
+    dragon:        { main: '#b91c1c', hi: '#f87171', dark: '#450a0a', glint: '#fde047', trim: '#f59e0b', hex: 0xdc2626, rough: 0.28, metal: 0.45, emit: 0.18 },
+    dragon_fire:   { main: '#b91c1c', hi: '#fb923c', dark: '#450a0a', glint: '#fef08a', trim: '#f59e0b', hex: 0xdc2626, rough: 0.26, metal: 0.46, emit: 0.22 },
+    dragon_ice:    { main: '#0284c7', hi: '#7dd3fc', dark: '#0c4a6e', glint: '#f0f9ff', trim: '#bae6fd', hex: 0x0ea5e9, rough: 0.22, metal: 0.48, emit: 0.18 },
+    dragon_earth:  { main: '#92400e', hi: '#d97706', dark: '#3f2314', glint: '#fde047', trim: '#f59e0b', hex: 0xb45309, rough: 0.34, metal: 0.40, emit: 0.12 },
+    dragon_water:  { main: '#0e7490', hi: '#22d3ee', dark: '#083344', glint: '#cffafe', trim: '#2dd4bf', hex: 0x06b6d4, rough: 0.22, metal: 0.46, emit: 0.18 },
+    dragon_leaf:   { main: '#15803d', hi: '#4ade80', dark: '#052e16', glint: '#fef08a', trim: '#84cc16', hex: 0x22c55e, rough: 0.28, metal: 0.36, emit: 0.14 },
+    dragon_ender:  { main: '#6b21a8', hi: '#d946ef', dark: '#1e0b36', glint: '#fae8ff', trim: '#e879f9', hex: 0xa855f7, rough: 0.24, metal: 0.54, emit: 0.24 },
+    dragon_head:   { main: '#1e1b24', hi: '#4b4558', dark: '#09080c', glint: '#d946ef', trim: '#c026d3', hex: 0x262130, rough: 0.55, metal: 0.18, emit: 0.12 },
+    elytra:        { main: '#7e7d99', hi: '#abaac7', dark: '#424156', glint: '#c7d2fe', trim: '#52516b', hex: 0x7e7d99, rough: 0.50, metal: 0.25 },
+    elytra_phoenix:{ main: '#ea580c', hi: '#fbbf24', dark: '#450a0a', glint: '#fef08a', trim: '#f97316', hex: 0xf97316, rough: 0.35, metal: 0.38, emit: 0.26 },
+    dream_prism:   { main: '#38e8e1', hi: '#ffffff', dark: '#3b0764', glint: '#ffffff', trim: '#f8fafc', hex: 0x69b8ff, rough: 0.16, metal: 0.68, emit: 0.28, rainbow: true, waterSeed: 5.1, style: 'prism' }
   };
   const TRIM_MATERIALS = {
     [B.QUARTZ_ORE]:      { id: 'quartz',    label: 'Thạch Anh',  hex: '#e3d4c4', hi: '#fff8f0', dark: '#b4a595' },
@@ -866,7 +894,7 @@
   /* ============================================================================
    * 2. CRISP 16x16 PBR PIXEL-ART TEXTURE ATLAS + BUMP MAP (8x52 = 416 TILES)
    * ============================================================================ */
-  const ATLAS_COLS = 8, ATLAS_ROWS = 68, TILE_PX = 16;
+  const ATLAS_COLS = 8, ATLAS_ROWS = 74, TILE_PX = 16;
 
   function buildTextureAtlas() {
     const canvas = document.createElement('canvas');
@@ -1263,19 +1291,19 @@
     ];
     const drawFancyLeaf = (idx, pal, mask = BOTANICAL_LEAF_MASK) => {
       const tx = (idx % ATLAS_COLS) * TILE_PX, ty = Math.floor(idx / ATLAS_COLS) * TILE_PX;
-      const tierTone = { H: 8, M: 0, S: -10, D: -20 };
+      const tierTone = { H: 10, M: 1, S: -8, D: -18 };
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const ch = mask[y][x];
         if (ch === '.') continue;
         const h = ((x * 374761393 + y * 668265263 + idx * 1442695041) ^ (x * 1274126177)) >>> 0;
-        const rimDark = (x === 0 || x === 15 || y === 15) ? -6 : (y === 0 ? 4 : 0);
-        const jitter = ((h % 1000) / 1000 - 0.5) * 16 + (tierTone[ch] || 0) + rimDark;
+        const rimDark = (x === 0 || x === 15 || y === 15) ? -7 : (y === 0 ? 5 : 0);
+        const jitter = ((h % 1000) / 1000 - 0.5) * 10 + (tierTone[ch] || 0) + rimDark;
         ctx.fillStyle = shade(pal[ch] || pal.M, jitter);
         ctx.fillRect(tx + x, ty + y, 1, 1);
       }
     };
-    // Cây Táo / Sồi (Oak Leaves): kết cấu lá hữu cơ từng chùm đậm nhạt + khe sáng tự nhiên!
-    drawFancyLeaf(6,  { H: '#74ea44', M: '#45b828', S: '#267d16', D: '#134c09' }, BOTANICAL_LEAF_MASK);
+    // Cây Táo / Sồi (Oak Leaves): phối màu đậm-trung-nhạt hài hòa tự nhiên
+    drawFancyLeaf(6,  { H: '#6cd943', M: '#47ad2a', S: '#2d821c', D: '#1b5710' }, BOTANICAL_LEAF_MASK);
     tilePixels(7, (x, y, r) => {
       const ch = SAND_MAP[y][x];
       const pal = { a: '#dfd3a0', b: '#d7c992', c: '#e5daaa', d: '#cab981', e: '#ece3b7' };
@@ -2788,24 +2816,10 @@
       if (x % 4 === 0) return '#5f7688';
       return h > 0.65 ? '#c6d8e0' : (h > 0.28 ? '#9fb5c2' : '#7e97a6');
     });
-    // 299: Sift Leaves (lush weeping cyan-mint foliage — organic ~12% cutouts, ZERO checkerboard!)
-    tilePixels(299, (x, y) => {
-      const h = _siftH(x, y, 2991);
-      if (h < 0.12) return null;
-      if (h > 0.80) return '#7be8d8';
-      if (h > 0.46) return '#38b5a6';
-      if (h > 0.22) return '#259187';
-      return '#1a6f6b';
-    });
-    // 300: Lullaby Leaves (soft frosted mint-pearl weeping tips — ZERO checkerboard or whiteout!)
-    tilePixels(300, (x, y) => {
-      const h = _siftH(x, y, 3001);
-      if (h < 0.11) return null;
-      if (h > 0.78) return '#d8f3f0';
-      if (h > 0.45) return '#9cd8d4';
-      if (h > 0.22) return '#74b8b8';
-      return '#e6c0d8';
-    });
+    // 299: Sift Leaves (harmonious layered cyan-emerald leaf clusters)
+    drawFancyLeaf(299, { H: '#74ebd6', M: '#39baaa', S: '#238e83', D: '#155d59' }, BOTANICAL_LEAF_MASK);
+    // 300: Lullaby Leaves (soft frosted mint-aqua clusters, cohesive palette)
+    drawFancyLeaf(300, { H: '#d4f6f1', M: '#92dad4', S: '#62b3b0', D: '#418688' }, BOTANICAL_LEAF_MASK);
     // 301: Sift Pink Dream Grass/Flower (like image 4!)
     drawSpriteMap(301, [
       '................',
@@ -4059,19 +4073,25 @@
       if ((y >= 2 && y <= 4) && (x === 4 || x === 11)) return '#4b4459';
       return 'rgba(0,0,0,0)';
     });
-    // 517: Elytra Sprite Icon
-    tilePixels(517, (x, y, n) => {
-      const dx = Math.abs(x - 7.5);
-      if (y >= 2 && y <= 13) {
-        const minD = (y < 5) ? 0.5 : (y - 3) * 0.35;
-        const maxD = (y < 6) ? 3.5 + y * 0.7 : 7.5 - Math.max(0, y - 10) * 0.9;
-        if (dx >= minD && dx <= maxD) {
-          if (dx <= minD + 1.1 || dx >= maxD - 0.9) return '#48475c';
-          return n > 0.5 ? '#9d9cb8' : '#7c7b96';
-        }
-      }
-      return 'rgba(0,0,0,0)';
-    });
+    // 517: Stepped Minecraft Elytra Sprite Icon (62f02c71 / ea121d02 match)
+    drawSpriteMap(517, [
+      '................',
+      '....oooooooo....',
+      '..ooMMMMMMMMoo..',
+      '.oMMHHHHHHHHMMo.',
+      '.oMHMMo..oMMHMo.',
+      '.oMMMo....oMMMo.',
+      '.oMMMoo..ooMMMo.',
+      '.oMSSo....oSSMo.',
+      '..oSSo....oSSo..',
+      '..oDSo....oSDoo.',
+      '...oDo....oDo...',
+      '....oo....oo....',
+      '................',
+      '................',
+      '................',
+      '................'
+    ], { o: '#363547', H: '#bab8d4', M: '#8e8da8', S: '#68677f', D: '#4f4e63' });
     // 518: Windmill Rotor Hub Texture (Oak/Spruce axle with iron center bolt & sail cross)
     tilePixels(518, (x, y, n) => {
       const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
@@ -4118,6 +4138,85 @@
       }
       return null;
     });
+    // 529..533: Pale Garden (Pale Oak Log top/side, Planks, Leaves, Pale Moss)
+    tilePixels(529, (x, y, r) => logTopColor(x, y, r, '#4c5158', '#6a7078', '#e2dfd9', '#cbc7bf', '#afa9a0'));
+    tilePixels(530, (x, y, r) => barkColor(x, y, r, { c: '#868c94', a: '#6e737b', b: '#595d64', d: '#3d4046' }));
+    tilePixels(531, (x, y, r) => {
+      const pPal = { d: '#9ea0a6', b: '#c4c5cb', B: '#b8b9bf', m: '#d4d5db', M: '#cccdcf', h: '#e4e5eb', H: '#ededf2' };
+      return shade(pPal[OAK_PLANK_MAP[y][x]] || '#d4d5db', (r - 0.5) * 6);
+    });
+    drawFancyLeaf(532, { H: '#b8c0c8', M: '#8f98a2', S: '#6d7682', D: '#515964' }, BOTANICAL_LEAF_MASK);
+    tilePixels(533, (x, y, r) => grassTopColor(x, y, r).replace(/rgb\((\d+),(\d+),(\d+)\)/, (_, R, G, B2) => {
+      const m = Math.round((+R + +G + +B2) / 3);
+      return `rgb(${Math.min(255, m + 16)},${Math.min(255, m + 19)},${Math.min(255, m + 22)})`;
+    }));
+    // 534..536: Nightmare Woods (Gnarled dark bark, crimson-plum leaves, obsidian moss)
+    tilePixels(534, (x, y, r) => barkColor(x, y, r, { c: '#3d2238', a: '#291528', b: '#1e0e1d', d: '#120712' }));
+    drawFancyLeaf(535, { H: '#9d2c4f', M: '#6e1938', S: '#4a0f26', D: '#2c0818' }, AUTUMN_LEAF_MASK);
+    tilePixels(536, (x, y, r) => shade(((x + y * 3) % 5 === 0) ? '#3b152a' : '#241122', (r - 0.5) * 14));
+    // 537: Phoenix Elytra (fd49b18a exact crisp black-outlined red/orange/gold sprite)
+    drawSpriteMap(537, [
+      '................',
+      '....oooooooo....',
+      '..ooRRRRRRRRoo..',
+      '.oRRDDDDDDDDRRo.',
+      '.oRDoo....ooDRo.',
+      '.oDMMo....oMMDo.',
+      '.oDYYo....oYYDo.',
+      '.oOGGo....oGGOo.',
+      '..oGGo....oGGo..',
+      '..oYYoo..ooYYo..',
+      '...oGo....oGo...',
+      '....oo....oo....',
+      '................',
+      '................',
+      '................',
+      '................'
+    ], { o: '#0a0a0c', R: '#7f1d1d', D: '#b91c1c', M: '#dc2626', O: '#ea580c', Y: '#f59e0b', G: '#fbbf24' });
+    // 538: Earth Dragon Egg (amber/bronze obsidian bands)
+    drawSpriteMap(538, [
+      '................',
+      '......oooo......',
+      '.....oSSSSo.....',
+      '....oSggggSo....',
+      '...oSSbbbbSSo...',
+      '..oSSbsppsbSSo..',
+      '..oSbbbbbbbbSo..',
+      '..oSggbbbggbSo..',
+      '..oSbbbbsppbSo..',
+      '..oSSbbbbbbSSo..',
+      '...oSSggggSSo...',
+      '...oBBBBBBBBo...',
+      '....oooooooo....',
+      '................',
+      '................',
+      '................'
+    ], { o: '#1c1008', B: '#3f2314', S: '#78350f', b: '#5c2d12', g: '#d97706', p: '#fde047' });
+    // 539..544: 6 Elemental Dragon Scales (Fire, Ice, Earth, Water, Leaf, Ender)
+    const drawScaleTile = (tIdx, o, hi, mid, dark) => drawSpriteMap(tIdx, [
+      '................',
+      '......oooo......',
+      '....ooHHHHoo....',
+      '...oHHMMMMMHo...',
+      '..oHMMMMDDDDMo..',
+      '..oHMMMDDDDDMo..',
+      '..oHMMDDDDDDMo..',
+      '...oMDDDDDDDo...',
+      '....oDDDDDDo....',
+      '.....ooDDoo.....',
+      '.......oo.......',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................'
+    ], { o, H: hi, M: mid, D: dark });
+    drawScaleTile(539, '#450a0a', '#fca5a5', '#ef4444', '#991b1b');
+    drawScaleTile(540, '#082f49', '#e0f2fe', '#38bdf8', '#0369a1');
+    drawScaleTile(541, '#29150a', '#fde68a', '#d97706', '#78350f');
+    drawScaleTile(542, '#042f2e', '#99f6e4', '#06b6d4', '#155e75');
+    drawScaleTile(543, '#052e16', '#bef264', '#22c55e', '#15803d');
+    drawScaleTile(544, '#1e0b36', '#f5d0fe', '#c026d3', '#6b21a8');
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
     const bumpCanvas = document.createElement('canvas');

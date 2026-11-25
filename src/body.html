@@ -269,6 +269,9 @@
     <button class="df-btn" id="btnDragonUp" type="button">▲ Lên</button>
     <button class="df-btn" id="btnDragonDown" type="button">▼ Xuống</button>
     <button class="df-btn" id="btnDragonBreath" type="button">Phun Lửa</button>
+    <button class="df-btn" id="btnDragonSk2" type="button">[G] Mưa</button>
+    <button class="df-btn" id="btnDragonSk3" type="button">[V] Lướt</button>
+    <button class="df-btn" id="btnDragonSk4" type="button">[B] Nộ</button>
     <button class="df-btn df-exit" id="btnDragonExit" type="button">Xuống (R)</button>
   </div>
 
@@ -754,6 +757,11 @@
                       <button class="seg-btn" data-lbiome="pine_valley" type="button">🏡 Thung Lũng Thông</button>
                       <button class="seg-btn" data-lbiome="giant_jungle" type="button">🌴 Rừng Đại Thụ</button>
                       <button class="seg-btn" data-lbiome="ancient_city" type="button">👁️ Thành Phố Cổ</button>
+                      <button class="seg-btn" data-lbiome="highland" type="button">⛰️ Cao Nguyên</button>
+                      <button class="seg-btn" data-lbiome="lush_steppe" type="button">🌿 Đồng Bằng Xanh</button>
+                      <button class="seg-btn" data-lbiome="dark_forest" type="button">🌑 Rừng Tối</button>
+                      <button class="seg-btn" data-lbiome="pale_garden" type="button">🤍 Rừng Nhợt Nhạt</button>
+                      <button class="seg-btn" data-lbiome="nightmare_woods" type="button">🕸️ Rừng Ác Mộng</button>
                       <button class="seg-btn" data-lbiome="dim_sift" type="button">✨ Khu Giấc Mơ</button>
                     </div>
                     <div class="ore-setting-desc" id="lobbyBiomeDesc">Khởi đầu bên hồ Hoa Anh Đào rực rỡ dưới nắng vàng Shader BSL, có suối nước trong và thảm cỏ xanh.</div>
@@ -1220,14 +1228,21 @@
               <div class="gm-section">
                 <div class="gm-section-title">Tầm Nhìn &amp; Chất Lượng</div>
                 <div class="seg-group" id="renderDistSeg">
-                  <button class="seg-btn" data-val="2">Gần (2)</button>
-                  <button class="seg-btn active" data-val="3">Chuẩn (3)</button>
-                  <button class="seg-btn" data-val="4">Xa (4)</button>
+                  <button class="seg-btn" data-val="3">Gần (6×6)</button>
+                  <button class="seg-btn active" data-val="4">Chuẩn (8×8)</button>
+                  <button class="seg-btn" data-val="6">Xa (12×12)</button>
+                  <button class="seg-btn" data-val="8">Siêu Xa (16×16)</button>
                 </div>
                 <div class="seg-group" id="qualitySeg">
                   <button class="seg-btn" data-val="low">Nhẹ</button>
                   <button class="seg-btn" data-val="high">RTX Chuẩn</button>
                   <button class="seg-btn active" data-val="ultra">RTX Ultra</button>
+                  <button class="seg-btn" data-val="extreme">Siêu Thực</button>
+                </div>
+                <div class="seg-group" id="frameGenSeg" style="margin-top:5px;">
+                  <button class="seg-btn active" data-fg="1">Frame Ảo: Tắt (x1)</button>
+                  <button class="seg-btn" data-fg="2">Frame Ảo x2</button>
+                  <button class="seg-btn" data-fg="4">Frame Ảo x4</button>
                 </div>
               </div>
               <div class="gm-section">
@@ -1268,11 +1283,14 @@
                   <button class="seg-btn active" data-weather="auto">Tự động</button>
                   <button class="seg-btn" data-weather="clear">Quang</button>
                   <button class="seg-btn" data-weather="rain">Mưa</button>
+                  <button class="seg-btn" data-weather="drizzle">Mưa Phùn</button>
                   <button class="seg-btn" data-weather="storm">Bão</button>
                   <button class="seg-btn" data-weather="snow">Tuyết Rơi</button>
                   <button class="seg-btn" data-weather="blizzard">Bão Tuyết</button>
                   <button class="seg-btn" data-weather="fog">Sương Mù</button>
                   <button class="seg-btn" data-weather="sandstorm">Bão Cát</button>
+                  <button class="seg-btn" data-weather="aurora">Cực Quang</button>
+                  <button class="seg-btn" data-weather="ashfall">Mưa Tro</button>
                   <button class="seg-btn" data-weather="meteor">Mưa Sao Băng</button>
                 </div>
               </div>

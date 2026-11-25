@@ -20,10 +20,11 @@
     swordCombo: 0, swordAtkHit: 0, swordAtkSeq: 0, swordAtkT: 0, swordAtkDur: 0, swordAtkActive: false
   };
   function startHandSwing(dur = 0.26, act = 'attack') {
-    if (player.swingT > 0.025 && (act || 'attack') === player.swingAct) return;
+    if (player.swingT > 0.001 && (act || 'attack') === player.swingAct) return;
     player.swingT = dur;
     player.swingDur = dur;
     player.swingAct = act || 'attack';
+    player.swingStep = ((player.swingStep || 0) + 1) & 1;
     player._mineHitFired = false;
   }
 
@@ -362,12 +363,18 @@
     setArmorMat(rig.armor.chest, eq.chest, m.chest);
     setArmorMat(rig.armor.pauldronL, eq.chest, m.chest);
     setArmorMat(rig.armor.pauldronR, eq.chest, m.chest);
-    if (eq.chest === B.ELYTRA) {
+    const isEly = !!(eq.chest && BLOCK_DEF[eq.chest] && BLOCK_DEF[eq.chest].isElytra);
+    const isPhoenixEly = (eq.chest === B.ELYTRA_PHOENIX);
+    if (isEly) {
       if (rig.armor.chest) rig.armor.chest.visible = false;
       if (rig.armor.pauldronL) rig.armor.pauldronL.visible = false;
       if (rig.armor.pauldronR) rig.armor.pauldronR.visible = false;
     }
-    if (rig.armor.elytra) rig.armor.elytra.visible = (eq.chest === B.ELYTRA);
+    if (rig.armor.elytra) {
+      rig.armor.elytra.visible = isEly;
+      if (rig.armor.elyNormGroups) for (const grp of rig.armor.elyNormGroups) grp.visible = !isPhoenixEly;
+      if (rig.armor.elyPhxGroups) for (const grp of rig.armor.elyPhxGroups) grp.visible = isPhoenixEly;
+    }
     setArmorMat(rig.armor.waist, eq.legs, m.legs);
     setArmorMat(rig.armor.legL, eq.legs, m.legs);
     setArmorMat(rig.armor.legR, eq.legs, m.legs);
@@ -386,9 +393,19 @@
       if (d && d.toughness) tough += d.toughness;
       if (d && d.kbResist) kb += d.kbResist;
     }
+    let elemSet = null;
+    for (const k of ['helmet', 'chest', 'legs', 'boots']) {
+      const id = player.equip[k], d = id ? BLOCK_DEF[id] : null;
+      const es = (d && d.dragonElemSet) ? d.dragonElemSet : '';
+      if (!es) { elemSet = null; break; }
+      if (elemSet === null) elemSet = es;
+      else if (elemSet !== es) { elemSet = null; break; }
+    }
+    player.dragonArmorSet = elemSet;
+    if (elemSet === 'earth') kb = Math.max(kb, 0.75);
     player.armor = Math.min(40, total);
     player.armorToughness = tough;
-    player.kbResist = Math.min(0.75, kb);
+    player.kbResist = Math.min(0.85, kb);
     if (typeof playerAvatar !== 'undefined' && playerAvatar) applyArmorToPlayerRig(playerAvatar, player.equip, player.equipMeta);
     if (typeof updateOffhandViewModel === 'function') updateOffhandViewModel(player.equip.offhand || 0);
     renderStatusBars();
@@ -401,13 +418,16 @@
     try {
       invPreviewRenderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: false, preserveDrawingBuffer: true });
       invPreviewRenderer.setClearColor(0x000000, 0);
+      if (typeof THREE.ACESFilmicToneMapping !== 'undefined') invPreviewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      invPreviewRenderer.toneMappingExposure = 0.88;
       invPreviewRenderer.setSize(106, 156, false);
       invPreviewScene = new THREE.Scene();
       invPreviewCam = new THREE.PerspectiveCamera(36, 106 / 156, 0.1, 20);
       invPreviewCam.position.set(0, 1.04, 4.35);
       invPreviewCam.lookAt(0, 0.96, 0);
-      invPreviewScene.add(new THREE.AmbientLight(0xffffff, 0.85));
-      const dL = new THREE.DirectionalLight(0xfff5e4, 0.95); dL.position.set(2.2, 4.0, 3.2); invPreviewScene.add(dL);
+      invPreviewScene.add(new THREE.AmbientLight(0xffffff, 0.58));
+      const dL = new THREE.DirectionalLight(0xfff5e4, 0.45); dL.position.set(2.2, 4.0, 3.2); invPreviewScene.add(dL);
+      const rL = new THREE.DirectionalLight(0xcbd5e1, 0.18); rL.position.set(-2.4, 2.0, -2.4); invPreviewScene.add(rL);
       invPreviewRig = createPlayerRig(selectedSkinId, null, null, null);
       invPreviewScene.add(invPreviewRig.g);
       let dragging = false, lx = 0;
@@ -697,18 +717,51 @@
     armorChest.visible = false;
 
     const elytraGrp = new THREE.Group(); elytraGrp.position.set(0, 0.28, -0.15); torso.add(elytraGrp);
-    const elyWingMat = new THREE.MeshStandardMaterial({ color: 0x7e7d99, roughness: 0.45, metalness: 0.24 });
-    const elyInnerMat = new THREE.MeshStandardMaterial({ color: 0xa2a1bf, roughness: 0.40, metalness: 0.18 });
-    const elyTrimMat = new THREE.MeshStandardMaterial({ color: 0x45445a, roughness: 0.56, metalness: 0.30 });
+    const elyNormMats = [
+      new THREE.MeshStandardMaterial({ color: 0x3b3a50, roughness: 0.56, metalness: 0.30 }),
+      new THREE.MeshStandardMaterial({ color: 0x7e7d99, roughness: 0.44, metalness: 0.24 }),
+      new THREE.MeshStandardMaterial({ color: 0xa2a1bf, roughness: 0.38, metalness: 0.18 })
+    ];
+    const elyPhxMats = [
+      new THREE.MeshStandardMaterial({ color: 0x170b0b, roughness: 0.52, metalness: 0.32 }),
+      new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.36, metalness: 0.25, emissive: 0x9a3412, emissiveIntensity: 0.28 }),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.24, metalness: 0.15, emissive: 0xf97316, emissiveIntensity: 0.85 })
+    ];
+    const elyNormGroups = [], elyPhxGroups = [], elyFanL = [], elyFanR = [];
     const mkWingPivot = (sideSign) => {
       const p = new THREE.Group(); p.position.set(sideSign * 0.08, 0, 0);
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.94, 0.065), elyWingMat);
-      blade.position.set(sideSign * 0.20, -0.44, -0.02); blade.castShadow = true;
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.62, 0.072), elyInnerMat);
-      panel.position.set(sideSign * 0.18, -0.34, -0.02);
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.96, 0.078), elyTrimMat);
-      trim.position.set(sideSign * 0.40, -0.44, -0.02);
-      p.add(blade, panel, trim); elytraGrp.add(p); return p;
+      const fanOut = new THREE.Group(); p.add(fanOut);
+      if (sideSign > 0) elyFanL.push(fanOut); else elyFanR.push(fanOut);
+      const buildStepped = (mats, targetList, isPhx) => {
+        const gInner = new THREE.Group(), gOuter = new THREE.Group();
+        const strips = [
+          [0.035, -0.02, 0.68, 0, 0.004, gInner],
+          [0.092,  0.00, 0.78, 1, 0.002, gInner],
+          [0.148, -0.02, 0.84, 1, 0.000, gInner],
+          [0.204, -0.06, 0.86, 2, -0.002, gOuter],
+          [0.260, -0.11, 0.84, 2, -0.004, gOuter],
+          [0.316, -0.18, 0.76, 1, -0.006, gOuter],
+          [0.372, -0.25, 0.62, 0, -0.008, gOuter],
+          [0.420, -0.32, 0.44, 0, -0.010, gOuter]
+        ];
+        for (const [xl, yt, h, mi, zo, par] of strips) {
+          const sl = new THREE.Mesh(new THREE.BoxGeometry(0.060, h, 0.056), mats[mi]);
+          sl.position.set(sideSign * xl, yt - h * 0.5, zo); sl.castShadow = true; par.add(sl);
+          if (isPhx && mi >= 1) {
+            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.11, 0.060), mats[2]);
+            tip.position.set(sideSign * xl, yt - h + 0.055, zo); par.add(tip);
+          }
+        }
+        const wrapI = new THREE.Group(); wrapI.add(gInner);
+        const wrapO = new THREE.Group(); wrapO.add(gOuter);
+        wrapO.visible = !isPhx; wrapI.visible = !isPhx;
+        p.add(wrapI); fanOut.add(wrapO);
+        targetList.push(wrapI, wrapO);
+      };
+      buildStepped(elyNormMats, elyNormGroups, false);
+      buildStepped(elyPhxMats, elyPhxGroups, true);
+      elytraGrp.add(p);
+      return p;
     };
     const elytraL = mkWingPivot(1), elytraR = mkWingPivot(-1);
     elytraGrp.visible = false;
@@ -794,7 +847,7 @@
         legL: [0.25, -0.375, 0],
         legR: [-0.25, -0.375, 0]
       },
-      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern },
+      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyFanL, elyFanR, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern },
       animPhase: Math.random() * 6,
       moveBlend: 0, sprintBlend: 0, airBlend: 0, jumpFlip: 1
     };
@@ -1148,7 +1201,8 @@
     rig.swimBlend = (rig.swimBlend || 0) + (_wantSwim - (rig.swimBlend || 0)) * Math.min(1, dtClamped * 9.0);
     rig.swimCrawlBlend = (rig.swimCrawlBlend || 0) + (((_wantSwim && swimMoving) ? 1 : 0) - (rig.swimCrawlBlend || 0)) * Math.min(1, dtClamped * 8.5);
     rig.swimSprintBlend = (rig.swimSprintBlend || 0) + (((_wantSwim && sprintSwim) ? 1 : 0) - (rig.swimSprintBlend || 0)) * Math.min(1, dtClamped * 7.5);
-    const _wantAct = (!rig._r6SwordActive && !(isSword && (st.swordAtkSeq || 0) > 0) && (st.swingActive || swing > 0.01)) ? 1 : 0;
+    const _keepMineBlend = !!(st.isLocal && typeof mining !== 'undefined' && mining && mining.swinging);
+    const _wantAct = (!rig._r6SwordActive && !(isSword && (st.swordAtkSeq || 0) > 0) && (st.swingActive || swing > 0.01 || _keepMineBlend)) ? 1 : 0;
     rig.actionBlend = (rig.actionBlend || 0) + (_wantAct - (rig.actionBlend || 0)) * Math.min(1, dtClamped * (_wantAct ? 26.0 : 14.0));
     const mB = rig.moveBlend, sB = rig.sprintBlend;
     if ((st.swingActive || swing > 0.01) && st.actionType) rig.lastActionType = st.actionType;
@@ -1406,14 +1460,24 @@
       if (st.swingActive) rig._lastSwingU = Math.max(0, Math.min(1, st.swingU || 0));
       else if (rig.actionBlend <= 0.05) rig._lastSwingU = 0;
       const u = (rig._lastSwingU !== undefined) ? rig._lastSwingU : 0;
+      // Steady torso, head, legs, and off-arm during standing mining/chopping/unarmed hits so only armR swings
+      if (!isSword && mB < 0.08 && !sneaking && !swimming && !st.gliding && !climbing && !sitting && !flying) {
+        const swW = rig.actionBlend;
+        ['hips', 'torso', 'head', 'armL', 'legL', 'legR'].forEach((jk) => {
+          const jt = _r6TargetBuf[jk];
+          if (!jt) return;
+          jt.p[0] *= (1 - swW); jt.p[1] *= (1 - swW); jt.p[2] *= (1 - swW);
+          slerpQ4(jt.q, [0, 0, 0, 1], swW, jt.q);
+        });
+      }
       const arc = Math.sin(Math.pow(u, 0.68) * Math.PI) * rig.actionBlend;
       if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
         if (actType === 'chop') {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.38, -arc * 0.34, -arc * 0.24);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.42, -arc * 0.36, -arc * 0.26);
         } else if (actType === 'attack') {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.34, arc * 0.32, arc * 0.16);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.38, arc * 0.30, arc * 0.16);
         } else {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.48, -arc * 0.14, arc * 0.08);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.50, -arc * 0.14, arc * 0.08);
         }
       }
     }
@@ -1454,11 +1518,25 @@
     rig.hips.scale.lerp(_r6V1, damp);
 
     if (rig.armor.elytra && rig.armor.elytra.visible) {
-      const targetSpread = st.gliding ? (0.86 + Math.sin(tNow * 6.5) * 0.06) : (0.10 + Math.min(0.18, speed * 0.02));
-      const targetPitchE = st.gliding ? 0.05 : 0.12;
-      const targetYawE = st.gliding ? 0.10 : 0.06;
-      rig.armor.elytraL.rotation.set(targetPitchE, -targetYawE,  targetSpread);
-      rig.armor.elytraR.rotation.set(targetPitchE,  targetYawE, -targetSpread);
+      // 3-State Stepped Elytra Animation: 0 = Folded Back | 1 = Ready (Sneak / Midair Prep) | 2 = Full Gliding
+      const readyAir = (!onGround && !st.gliding && !sitting && !inWater) || sneaking;
+      const tgtSpread = st.gliding ? (1.06 + Math.sin(tNow * 6.5) * 0.05) : (readyAir ? 0.44 : (0.12 + Math.min(0.14, speed * 0.018)));
+      const tgtPitchE = st.gliding ? 0.06 : (readyAir ? 0.36 : 0.14);
+      const tgtYawE   = st.gliding ? 0.14 : (readyAir ? 0.22 : 0.06);
+      const tgtFanZ   = st.gliding ? 0.32 : (readyAir ? 0.16 : 0.0);
+      const tgtSpanX  = st.gliding ? 1.16 : (readyAir ? 1.03 : 0.90);
+      const ek = rig._r6Init ? (1 - Math.exp(-12.5 * dtClamped)) : 1.0;
+      rig._elySp = (rig._elySp ?? tgtSpread) + (tgtSpread - (rig._elySp ?? tgtSpread)) * ek;
+      rig._elyPt = (rig._elyPt ?? tgtPitchE) + (tgtPitchE - (rig._elyPt ?? tgtPitchE)) * ek;
+      rig._elyYw = (rig._elyYw ?? tgtYawE) + (tgtYawE - (rig._elyYw ?? tgtYawE)) * ek;
+      rig._elyFn = (rig._elyFn ?? tgtFanZ) + (tgtFanZ - (rig._elyFn ?? tgtFanZ)) * ek;
+      rig._elySx = (rig._elySx ?? tgtSpanX) + (tgtSpanX - (rig._elySx ?? tgtSpanX)) * ek;
+      rig.armor.elytraL.rotation.set(rig._elyPt, -rig._elyYw,  rig._elySp);
+      rig.armor.elytraR.rotation.set(rig._elyPt,  rig._elyYw, -rig._elySp);
+      rig.armor.elytraL.scale.set(rig._elySx, 1, 1);
+      rig.armor.elytraR.scale.set(rig._elySx, 1, 1);
+      if (rig.armor.elyFanL) for (const fn of rig.armor.elyFanL) fn.rotation.z = rig._elyFn;
+      if (rig.armor.elyFanR) for (const fn of rig.armor.elyFanR) fn.rotation.z = -rig._elyFn;
     }
     if (rig.armor.dragonHelmet && rig.armor.dragonHelmet.visible && rig.armor.dragonHelmet.userData.jawPivot) {
       rig.armor.dragonHelmet.userData.jawPivot.rotation.x = Math.max(0, Math.sin(tNow * 4.5) * Math.min(0.28, speed * 0.04));
@@ -2554,10 +2632,8 @@
     if (def && def.fireDmg)  return { core: 0xfff3b0, edge: 0xff5500, prism: 0.0 };
     const tier = def ? (def.tier || 0) : 0;
     const nm = def && def.name ? def.name : '';
-    if (/Netherite|Rồng|Void|Obsidian/i.test(nm) || tier >= 5) return { core: 0xf3e8ff, edge: 0xa855f7, prism: 0.0 };
-    if (/Kim Cương|Diamond/i.test(nm) || tier >= 4)             return { core: 0xe0faff, edge: 0x22d3ee, prism: 0.0 };
-    if (/Vàng|Gold/i.test(nm))                                  return { core: 0xfef9c3, edge: 0xf59e0b, prism: 0.0 };
-    return { core: 0xffffff, edge: 0x7dd3fc, prism: 0.0 };
+    if (/Netherite|Rồng|Void|Obsidian/i.test(nm) || tier >= 5) return { core: 0xffffff, edge: 0x38bdf8, prism: 0.0 };
+    return { core: 0xffffff, edge: 0x22d3ee, prism: 0.0 };
   }
 
   function _sampleSwordBladeWorld(outHilt, outTip) {
@@ -3095,7 +3171,12 @@
         const d = Math.hypot(mb.x - opts.fromPos.x, mb.z - opts.fromPos.z);
         if (d < bestAD) { bestAD = d; bestAtt = mb; }
       }
-      if (bestAtt) { _playerCombatTarget = bestAtt; _playerCombatTargetT = 12.0; }
+      if (bestAtt) {
+        _playerCombatTarget = bestAtt; _playerCombatTargetT = 12.0;
+        if (player.dragonArmorSet === 'fire' && !FIRE_IMMUNE_MOBS.has(bestAtt.type)) {
+          bestAtt.burning = true; bestAtt.burnTime = Math.max(bestAtt.burnTime || 0, 4.0);
+        }
+      }
     }
     if (!bypassAll && player.blockingT > 0 && (player.shieldDisableT || 0) <= 0) {
       shieldMul = 0.25;
@@ -3240,14 +3321,16 @@
     return false;
   }
   function hasSupportBelow(x, y, z) {
-    const by = Math.floor(y - 0.08);
-    for (let bx = Math.floor(x - PLAYER_RADIUS); bx <= Math.floor(x + PLAYER_RADIUS); bx++)
-      for (let bz = Math.floor(z - PLAYER_RADIUS); bz <= Math.floor(z + PLAYER_RADIUS); bz++) {
-        const b = getBlockWorld(bx, by, bz);
-        if (IS_FENCE_WALL[b] === 1) {
-          if (aabbHitsFenceOrWall(x - PLAYER_RADIUS, y - 0.14, z - PLAYER_RADIUS, x + PLAYER_RADIUS, y + 0.05, z + PLAYER_RADIUS, bx, by, bz, b)) return true;
-        } else if (isSolidAt(bx, by, bz)) return true;
-      }
+    const byLo = Math.floor(y - 0.58), byHi = Math.floor(y - 0.06);
+    for (let by = byHi; by >= byLo; by--) {
+      for (let bx = Math.floor(x - PLAYER_RADIUS); bx <= Math.floor(x + PLAYER_RADIUS); bx++)
+        for (let bz = Math.floor(z - PLAYER_RADIUS); bz <= Math.floor(z + PLAYER_RADIUS); bz++) {
+          const b = getBlockWorld(bx, by, bz);
+          if (IS_FENCE_WALL[b] === 1) {
+            if (aabbHitsFenceOrWall(x - PLAYER_RADIUS, y - 0.14, z - PLAYER_RADIUS, x + PLAYER_RADIUS, y + 0.05, z + PLAYER_RADIUS, bx, by, bz, b)) return true;
+          } else if (by === byHi && isSolidAt(bx, by, bz)) return true;
+        }
+    }
     return false;
   }
   const _tmpScreenVec = new THREE.Vector3();
@@ -4219,8 +4302,12 @@
       return;
     }
     mining.swinging = true;
+    mining.heldDur = (mining.heldDur || 0) + dt;
     const _mineAct = (selDef && selDef.tool === 'axe') ? 'chop' : 'mine';
-    if (player.swingT <= 0.001) startHandSwing(0.28, _mineAct);
+    if (player.swingT <= 0.001 && (!mining._didInitialSwing || mining.heldDur >= 0.36)) {
+      startHandSwing(0.28, _mineAct);
+      mining._didInitialSwing = true;
+    }
     const _mDur = Math.max(0.18, player.swingDur || 0.28);
     const _mU = Math.max(0, Math.min(1, 1.0 - player.swingT / _mDur));
     player.mineSwingPhase = _mU * Math.PI;
@@ -4243,6 +4330,7 @@
       if (!matched) speedMul = handSpeed;
       if (sel && sel.ench && tierOk && matched) speedMul += 2.5;
     }
+    if (player.dragonArmorSet === 'earth') speedMul *= 1.25;
 
     // v43 Sift Ore Mining Curve: Diamond (tier 4) = slow; Netherite (tier 5) = medium; Ichor/Moon (6) & Aether/Nebula (7) = fast; Dream Prism (8) = turbo!
     if (def.siftOre && gameMode !== 'creative') {
@@ -4414,13 +4502,14 @@
       _elUnderwater.classList.toggle('active', _lastEyesInWater);
     }
 
-    if (feetBlock === B.LAVA && gameMode !== 'creative') {
+    const _isFireImmuneEquip = (player.dragonArmorSet === 'fire' || !!(player.equip.chest && BLOCK_DEF[player.equip.chest] && BLOCK_DEF[player.equip.chest].fireImmune));
+    if (feetBlock === B.LAVA && gameMode !== 'creative' && !_isFireImmuneEquip) {
       player.burnTime = Math.max(player.burnTime || 0, 6.0);
       lavaTick += dt;
       if (lavaTick >= 0.45) { lavaTick = 0; hurtPlayer(4, 'Bạn rơi xuống hồ Dung Nham ở tầng sâu!'); }
     } else lavaTick = 0;
 
-    if (gameMode === 'creative' || player.inWater) {
+    if (gameMode === 'creative' || player.inWater || _isFireImmuneEquip) {
       player.burnTime = 0; player._burnSoul = false; fireTick = 0;
     } else {
       const feetSoul = (feetBlock === B.SOUL_FIRE);
@@ -4501,14 +4590,14 @@
     }
 
     if (player.waterBreathT > 0) player.waterBreathT = Math.max(0, player.waterBreathT - dt);
-    if (player.eyesInWater && gameMode !== 'creative') {
+    if (player.eyesInWater && gameMode !== 'creative' && player.dragonArmorSet !== 'water') {
       if (player.waterBreathT <= 0) {
         player.air = Math.max(0, player.air - dt * 0.68);
         if (player.air <= 0) { drownTick += dt; if (drownTick >= 1.0) { drownTick = 0; hurtPlayer(2, 'Bạn đã hết oxy dưới nước!'); } }
       } else { player.air = player.maxAir; }
       renderStatusBars();
     } else if (player.air < player.maxAir) {
-      player.air = Math.min(player.maxAir, player.air + dt * 4.0);
+      player.air = Math.min(player.maxAir, player.air + dt * (player.dragonArmorSet === 'water' ? 12.0 : 4.0));
       renderStatusBars();
     } else {
       if (_elAirRow && _elAirRow.classList.contains('visible')) renderStatusBars();
@@ -4516,6 +4605,23 @@
 
     if (player.chillT > 0) player.chillT = Math.max(0, player.chillT - dt);
     if (player.entangleT > 0) player.entangleT = Math.max(0, player.entangleT - dt);
+    if (player.dragonArmorSet === 'ice' && (frameCounter % 15) === 0) {
+      for (let mi = 0; mi < mobs.length; mi++) {
+        const mb = mobs[mi];
+        if (!mb || mb._dead || mb.tamed || !mb.hostile) continue;
+        const dx = mb.x - player.x, dz = mb.z - player.z, d2 = dx * dx + dz * dz;
+        if (d2 < 20.25 && Math.abs(mb.y - player.y) < 3.5) {
+          mb._chilledT = 2.0;
+          if ((frameCounter % 30) === 0) spawnParticles(mb.x, mb.y + 0.9, mb.z, 0x7dd3fc, 2, true);
+        }
+      }
+      if (player.sneaking && !player.inWater && player.onGround) {
+        const px = Math.floor(player.x), pz = Math.floor(player.z);
+        for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) {
+          if (getBlockWorld(px + ox, WATER_LEVEL, pz + oz) === B.WATER) setBlockWorld(px + ox, WATER_LEVEL, pz + oz, B.ICE, false);
+        }
+      }
+    }
     const canCtrl = !!(isPlaying && !player.dead);
     if (canCtrl) updateTouchBow(dt);
     updateContextPetBtn(false, dt);
@@ -4538,13 +4644,15 @@
       let rf = f, rs = s;
       if (len > 1) { rf /= len; rs /= len; }
       sprinting = canCtrl && !!(keys['ControlLeft'] || keys['ControlRight'] || touchState.sprint) && rf > 0.15;
-      const rSpd = sprinting ? 22.0 : 15.0;
+      const rSpd = sprinting ? 23.0 : 16.0;
       const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
-      const tVx = (-sinY * rf + cosY * rs) * rSpd;
-      const tVz = (-cosY * rf - sinY * rs) * rSpd;
-      const upDown = canCtrl ? (((keys['Space'] || touchState.jump || dragonFlyCtrl.up) ? 10.5 : 0) - ((keys['ShiftLeft'] || keys['ShiftRight'] || touchState.sneak || dragonFlyCtrl.down) ? 10.5 : 0)) : 0;
-      const smK = 1 - Math.exp(-11.5 * dt);
-      const vK = 1 - Math.exp(-10.0 * dt);
+      const cosP = Math.max(0.28, Math.cos(player.pitch)), sinP = Math.sin(player.pitch);
+      const tVx = (-sinY * cosP * rf + cosY * rs) * rSpd;
+      const tVz = (-cosY * cosP * rf - sinY * rs) * rSpd;
+      const hoverUD = canCtrl ? (((keys['Space'] || touchState.jump || dragonFlyCtrl.up) ? 9.5 : 0) - ((keys['ShiftLeft'] || keys['ShiftRight'] || touchState.sneak || dragonFlyCtrl.down) ? 9.5 : 0)) : 0;
+      const upDown = rf * sinP * rSpd + hoverUD;
+      const smK = 1 - Math.exp(-10.5 * dt);
+      const vK = 1 - Math.exp(-9.5 * dt);
       player.smoothMoveX = (player.smoothMoveX || 0) + (tVx - (player.smoothMoveX || 0)) * smK;
       player.smoothMoveZ = (player.smoothMoveZ || 0) + (tVz - (player.smoothMoveZ || 0)) * smK;
       player.vy = (player.vy || 0) + (upDown - (player.vy || 0)) * vK;
@@ -4554,26 +4662,27 @@
       if (Math.abs(player.vy) < 0.01 && upDown === 0) player.vy = 0;
       const nxD = dm.x + moveX * dt, nzD = dm.z + moveZ * dt, nyD = Math.min(540, dm.y + player.vy * dt);
       const bxCur = Math.floor(dm.x), bzCur = Math.floor(dm.z), byMid = Math.floor(dm.y + 0.9), byHi = Math.floor(dm.y + 1.9);
-      if (!isSolidAt(Math.floor(nxD), byMid, bzCur) && !isSolidAt(Math.floor(nxD), byHi, bzCur)) dm.x = nxD;
+      const _isDrgWall = (wx, wy, wz) => { const b = getBlockWorld(wx, wy, wz), d = BLOCK_DEF[b]; return isSolidAt(wx, wy, wz) && !(d && (d.foliage || d.cross)); };
+      if (!_isDrgWall(Math.floor(nxD), byMid, bzCur) && !_isDrgWall(Math.floor(nxD), byHi, bzCur)) dm.x = nxD;
       else player.smoothMoveX = 0;
-      if (!isSolidAt(Math.floor(dm.x), byMid, Math.floor(nzD)) && !isSolidAt(Math.floor(dm.x), byHi, Math.floor(nzD))) dm.z = nzD;
+      if (!_isDrgWall(Math.floor(dm.x), byMid, Math.floor(nzD)) && !_isDrgWall(Math.floor(dm.x), byHi, Math.floor(nzD))) dm.z = nzD;
       else player.smoothMoveZ = 0;
       const bxNew = Math.floor(dm.x), bzNew = Math.floor(dm.z);
-      const solidUnder = isSolidAt(bxNew, Math.floor(nyD + 0.02), bzNew);
+      const solidUnder = _isDrgWall(bxNew, Math.floor(nyD + 0.02), bzNew);
       if (solidUnder && player.vy <= 0) {
         dm.y = Math.floor(nyD + 0.02) + 1.02;
         player.vy = 0;
       } else if (!solidUnder) {
         dm.y = Math.max(MIN_Y + 2, nyD);
       }
-      dm.flying = (upDown > 0.2) || !isSolidAt(bxNew, Math.floor(dm.y - 0.35), bzNew);
+      dm.flying = (upDown > 0.2) || !_isDrgWall(bxNew, Math.floor(dm.y - 0.35), bzNew);
       let dDiff = (player.yaw + Math.PI) - dm.yaw;
       while (dDiff > Math.PI) dDiff -= Math.PI * 2;
       while (dDiff < -Math.PI) dDiff += Math.PI * 2;
       const yawStep = dDiff * (1 - Math.exp(-9.5 * dt));
       dm.yaw += yawStep;
-      const wantBank = Math.max(-0.26, Math.min(0.26, -rs * 0.16 - yawStep * 2.2));
-      const wantPitch = Math.max(-0.34, Math.min(0.34, -player.vy * 0.024));
+      const wantBank = Math.max(-0.32, Math.min(0.32, -rs * 0.18 - yawStep * 2.2));
+      const wantPitch = Math.max(-0.52, Math.min(0.52, -player.vy * 0.032));
       dm._bankRoll = (dm._bankRoll || 0) + (wantBank - (dm._bankRoll || 0)) * (1 - Math.exp(-9.0 * dt));
       dm._flyPitch = (dm._flyPitch || 0) + (wantPitch - (dm._flyPitch || 0)) * (1 - Math.exp(-9.0 * dt));
       dm.rx = dm.x; dm.ry = dm.y; dm.rz = dm.z; dm.ryaw = dm.yaw;
@@ -4614,7 +4723,7 @@
     player.sneakEyeOff = (player.sneakEyeOff || 0) + ((player.sneaking ? -0.38 : 0) - (player.sneakEyeOff || 0)) * (1 - Math.exp(-18.0 * dt));
     const wantSitDip = (player.sitting && !player.ridingDragon && !player.inBoat && !player.flying && !player.deepWater);
     player.sitEyeOff = (player.sitEyeOff || 0) + ((wantSitDip ? -0.56 : 0) - (player.sitEyeOff || 0)) * (1 - Math.exp(-14.0 * dt));
-    const sprintInput = canCtrl && !!(keys['ControlLeft'] || keys['ControlRight'] || keys['KeyR'] || player.doubleTapSprint || touchState.sprint || (mobileCtrlMode === 'touch_direct' && showMobileControls && touchState.joyY > 0.88 && Math.abs(touchState.joyX) < 0.55));
+    const sprintInput = canCtrl && !!(keys['ControlLeft'] || keys['ControlRight'] || keys['KeyR'] || player.doubleTapSprint || touchState.sprint || (showMobileControls && touchState.joyY >= 0.92 && Math.abs(touchState.joyX) < 0.58));
     sprinting = (!player.sneaking || player.deepWater) && sprintInput && (f > 0.15 || (player.deepWater && len > 0.15)) && player.hunger > 4;
     const wantSprintSwim = player.deepWater && !player.flying && !player.inBoat && sprinting && len > 0.08;
     if (!wantSprintSwim && player.sprintSwimming && !player.flying && playerCollides(player.x, player.y, player.z, PLAYER_HEIGHT)) {
@@ -4640,7 +4749,8 @@
         : (player.sprintSwimming ? (SPRINT_SPEED * 1.04)
           : (player.deepWater ? (WALK_SPEED * 0.82)
             : (player.inWater ? (baseSpeed * 0.82) : (baseSpeed * iceBoost)))));
-    const moveSpeed = swimSpeedBase * elemDebuff;
+    const waterArmBoost = (player.dragonArmorSet === 'water' && player.inWater) ? 1.35 : 1.0;
+    const moveSpeed = swimSpeedBase * elemDebuff * waterArmBoost;
 
     let targetMoveX = 0, targetMoveZ = 0;
     if (len > 0.08) {
@@ -4685,6 +4795,10 @@
         }
       } else { player.regenTimer = 0; }
     } else if (gameMode !== 'creative') {
+      if (player.dragonArmorSet === 'leaf' && player.hp < player.maxHp) {
+        player._leafRegenT = (player._leafRegenT || 0) + dt;
+        if (player._leafRegenT >= 2.5) { player._leafRegenT = 0; player.hp = Math.min(player.maxHp, player.hp + 1); renderStatusBars(); }
+      }
       if (player.hunger >= 18 && player.hp < player.maxHp) {
         const regenInterval = (player.hunger >= 20) ? 1.35 : 3.2;
         player.regenTimer = (player.regenTimer || 0) + dt;
@@ -4701,7 +4815,9 @@
     if (hungerTick >= 6.5) { hungerTick -= 6.5; if (gameMode !== 'creative' && player.hunger > 0) { player.hunger--; renderStatusBars(); } }
 
     const wantJump = canCtrl && !!(keys['Space'] || touchState.jump);
-    if (player.gliding && (player.onGround || player.inWater || player.flying || player.sitting || player.ridingDragon || player.equip.chest !== B.ELYTRA)) {
+    const _chestDef = player.equip.chest ? BLOCK_DEF[player.equip.chest] : null;
+    const _hasElytraEquipped = !!(_chestDef && _chestDef.isElytra);
+    if (player.gliding && (player.onGround || player.inWater || player.flying || player.sitting || player.ridingDragon || !_hasElytraEquipped)) {
       player.gliding = false;
       player.glideVel = null;
     }
@@ -4710,31 +4826,34 @@
       player.vy = flyV;
       player.fallStartY = player.y;
     } else if (player.gliding) {
+      const isPhxGlide = (player.equip.chest === B.ELYTRA_PHOENIX);
       if (!player.glideVel) {
-        const initSp = Math.max(9.0, Math.hypot(moveX, moveZ));
+        const initSp = Math.max(10.0, Math.hypot(moveX, moveZ));
         player.glideVel = { x: -Math.sin(player.yaw) * initSp, y: player.vy, z: -Math.cos(player.yaw) * initSp };
       }
       const sinP = Math.sin(player.pitch), cosP = Math.max(0.25, Math.cos(player.pitch));
       const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
       let hSp = Math.hypot(player.glideVel.x, player.glideVel.z);
       if (sinP < -0.04) {
-        hSp = Math.min(34.0, hSp + (-sinP) * 20.0 * dt);
+        hSp = Math.min(isPhxGlide ? 38.0 : 34.0, hSp + (-sinP) * 21.0 * dt);
         player.vy = Math.max(-22.0, player.vy + sinP * 14.0 * dt);
       } else {
-        hSp = Math.max(4.5, hSp * Math.exp(-0.22 * dt) - sinP * 9.5 * dt);
-        const lift = Math.min(18.0, sinP * hSp * 1.45);
-        player.vy = Math.min(14.0, Math.max(-3.2, player.vy + (lift - 6.8 * cosP) * dt));
+        hSp = Math.max(4.5, hSp * Math.exp((isPhxGlide ? -0.15 : -0.22) * dt) - sinP * 9.5 * dt);
+        const lift = Math.min(18.0, sinP * hSp * (isPhxGlide ? 1.65 : 1.45));
+        player.vy = Math.min(14.0, Math.max(-3.0, player.vy + (lift - (isPhxGlide ? 5.6 : 6.8) * cosP) * dt));
       }
-      player.vy = Math.max(-14.0, player.vy - 1.2 * dt);
-      const steerK = 1 - Math.exp(-4.8 * dt);
+      player.vy = Math.max(-14.0, player.vy - (isPhxGlide ? 0.9 : 1.2) * dt);
+      const steerK = 1 - Math.exp(-5.4 * dt);
       const tgtX = fx * hSp, tgtZ = fz * hSp;
       player.glideVel.x += (tgtX - player.glideVel.x) * steerK;
       player.glideVel.z += (tgtZ - player.glideVel.z) * steerK;
       moveX = player.glideVel.x; moveZ = player.glideVel.z;
       player.curSpeed = Math.hypot(moveX, moveZ);
       if (Math.abs(player.vy) < 10.5) player.fallStartY = player.y;
+      if (isPhxGlide && (frameCounter % 4) === 0) spawnParticles(player.x, player.y + 0.5, player.z, 0xf97316, 2, true);
       if ((frameCounter % 45) === 0 && gameMode !== 'creative') {
-        if (!player.equipMeta.chest) player.equipMeta.chest = { dur: BLOCK_DEF[B.ELYTRA].maxDur, maxDur: BLOCK_DEF[B.ELYTRA].maxDur };
+        const elyMax = (_chestDef && _chestDef.maxDur) || 432;
+        if (!player.equipMeta.chest) player.equipMeta.chest = { dur: elyMax, maxDur: elyMax };
         if (player.equipMeta.chest.dur > 1) player.equipMeta.chest.dur--;
       }
     } else if (player.inBoat) {
@@ -4761,7 +4880,14 @@
       }
       player.fallStartY = player.y;
     }
-    else { if (wantJump && player.onGround) { player.vy = JUMP_VEL; player.onGround = false; player.jumpFlip = -(player.jumpFlip || 1); player.jumpPopT = 1.0; playSfx('jump'); } player.vy = Math.max(-36, player.vy - GRAVITY * dt); }
+    else {
+      player._jumpBufT = wantJump ? 0.10 : Math.max(0, (player._jumpBufT || 0) - dt);
+      if ((wantJump || player._jumpBufT > 0) && player.onGround) {
+        player.vy = JUMP_VEL; player.onGround = false; player._jumpBufT = 0; player.landAnimT = 0;
+        player.jumpFlip = -(player.jumpFlip || 1); player.jumpPopT = 1.0; playSfx('jump');
+      }
+      player.vy = Math.max(-36, player.vy - GRAVITY * dt);
+    }
 
     let resolvedUpY = false;
     if (!player.flying && !player.inBoat && player.vy > 0) {
@@ -4792,11 +4918,15 @@
         if (!player.sneaking || !player.onGround || player.flying || hasSupportBelow(nx, player.y, player.z)) player.x = nx;
       } else if ((sY = _tryStepPlayerStair(nx, player.z)) >= 0) {
         _applyPlayerStairStep(sY); player.x = nx;
+      } else if (!player.onGround && player.vy > -2.8 && (Math.floor(player.y + 0.16) > Math.floor(player.y)) && !playerCollides(nx, Math.floor(player.y + 0.16) + 0.002, player.z)) {
+        _applyPlayerStairStep(Math.floor(player.y + 0.16) + 0.002); player.x = nx;
       } else player.vx = 0;
       if (!playerCollides(player.x, player.y, nz)) {
         if (!player.sneaking || !player.onGround || player.flying || hasSupportBelow(player.x, player.y, nz)) player.z = nz;
       } else if ((sY = _tryStepPlayerStair(player.x, nz)) >= 0) {
         _applyPlayerStairStep(sY); player.z = nz;
+      } else if (!player.onGround && player.vy > -2.8 && (Math.floor(player.y + 0.16) > Math.floor(player.y)) && !playerCollides(player.x, Math.floor(player.y + 0.16) + 0.002, nz)) {
+        _applyPlayerStairStep(Math.floor(player.y + 0.16) + 0.002); player.z = nz;
       } else player.vz = 0;
     }
 
@@ -4805,31 +4935,22 @@
       else { player.landAnimT += dt; if (player.landAnimT >= 0.483) player.landAnimT = 0; }
     }
     if (!resolvedUpY) {
-      const ny = Math.min(540, player.y + player.vy * dt);
-      const roofY = getSkyscraperRoofY(player.x, player.z);
-      if (roofY > 0 && player.vy <= 0 && player.y >= roofY - 0.6 && ny <= roofY + 0.12) {
-        const fallDist = player.fallStartY - roofY;
-        if (fallDist > 4.6 && !player.flying) hurtPlayer(Math.floor((fallDist - 3.6) * 2), 'Bạn rơi xuống sân thượng cao ốc!');
-        if (!player.onGround && player.vy < -3.0) {
-          playFootstep(B.CONCRETE, true);
-          if (!player.inWater && !player.flying && !(player.sitting || player.inBoat) && fallDist >= 7.95) {
-            player.landSquash = Math.min(1.0, Math.abs(player.vy) / 14.0);
-            player.landAnimT = 0.001;
-          }
-        }
-        player.y = roofY + 0.02; player.onGround = true; player.fallStartY = player.y; player.vy = 0;
-      } else if (!playerCollides(player.x, ny, player.z)) {
-        player.y = ny; player.onGround = false; if (player.vy > 0) player.fallStartY = player.y;
-      } else if (player.vy <= 0) {
-        const landBlock = getBlockWorld(Math.floor(player.x), Math.floor(ny - 0.1), Math.floor(player.z));
-        const wasOnGround = player.onGround;
-        let lo = ny, hi = Math.max(ny, player.y);
-        if (playerCollides(player.x, hi, player.z)) {
-          let landedY = hi, stepUp = 0;
-          while (playerCollides(player.x, landedY, player.z) && stepUp < 1.05) { landedY += 0.02; stepUp += 0.02; }
-          hi = landedY; lo = landedY;
-        } else {
-          for (let b = 0; b < 6; b++) {
+      if (player.onGround && player.vy <= 0 && !playerCollides(player.x, player.y, player.z) && hasSupportBelow(player.x, player.y, player.z)) {
+        player.vy = 0; player.fallStartY = player.y;
+      } else {
+        const ny = Math.min(540, player.y + player.vy * dt);
+        if (!playerCollides(player.x, ny, player.z)) {
+          player.y = ny; player.onGround = false; if (player.vy > 0) player.fallStartY = player.y;
+        } else if (player.vy <= 0) {
+          const landBlock = getBlockWorld(Math.floor(player.x), Math.floor(ny - 0.1), Math.floor(player.z));
+          const wasOnGround = player.onGround;
+          let lo = ny, hi = Math.max(ny, player.y);
+          if (playerCollides(player.x, hi, player.z)) {
+            let landedY = hi, stepUp = 0;
+            while (playerCollides(player.x, landedY, player.z) && stepUp < 1.05) { landedY += 0.02; stepUp += 0.02; }
+            hi = landedY; lo = landedY;
+          } else {
+            for (let b = 0; b < 6; b++) {
             const mid = (lo + hi) * 0.5;
             if (playerCollides(player.x, mid, player.z)) lo = mid; else hi = mid;
           }
@@ -4845,9 +4966,9 @@
           playSfx('splash');
         } else {
           if (fallDist > 4.6 && !player.inWater && !player.flying) {
-            const rawFall = Math.floor((fallDist - 3.6) * 2);
+            const rawFall = Math.floor((fallDist - 3.6) * 2 * (player.dragonArmorSet === 'earth' ? 0.70 : 1.0));
             const finalFall = (landBlock === B.HAY_BALE) ? Math.max(1, Math.floor(rawFall * 0.2)) : rawFall;
-            hurtPlayer(finalFall, 'Bạn rơi từ trên cao xuống!');
+            if (finalFall > 0) hurtPlayer(finalFall, 'Bạn rơi từ trên cao xuống!');
           }
           if (!wasOnGround && player.vy < -2.6) {
             playFootstep(landBlock || B.STONE, true);
@@ -4866,11 +4987,12 @@
       } else {
         player.vy = 0;
       }
+      }
     }
 
     // Authentic Minecraft Cactus Prick Contact Damage (touching any B.CACTUS deals 1 HP damage + gentle pushback!)
     player.cactusCd = Math.max(0, (player.cactusCd || 0) - dt);
-    if (!player.dead && player.cactusCd <= 0 && gameMode !== 'creative' && currentDimension === 'overworld' && ((frameCounter % 3) === 0 || len > 0.08)) {
+    if (!player.dead && player.cactusCd <= 0 && gameMode !== 'creative' && player.dragonArmorSet !== 'leaf' && currentDimension === 'overworld' && ((frameCounter % 3) === 0 || len > 0.08)) {
       const cr = PLAYER_RADIUS + 0.10;
       let hitCac = null;
       for (let bx = Math.floor(player.x - cr); bx <= Math.floor(player.x + cr) && !hitCac; bx++) {
@@ -4896,6 +5018,12 @@
         if (gameMode === 'creative') {
           player.y = 26; player.vy = 0; player.flying = true; player.fallStartY = player.y;
           showToast('🕊️ Chế độ Sáng Tạo bất tử — Đã nâng trở lại Đảo End!');
+        } else if (player.dragonArmorSet === 'ender' && (!player._enderRescueAt || elapsed - player._enderRescueAt > 20)) {
+          player._enderRescueAt = elapsed;
+          player.y = 42; player.vy = 0; player.fallStartY = 42;
+          spawnParticles(player.x, player.y + 1, player.z, 0xd946ef, 22, true);
+          playSfx('warp');
+          showToast('🌌 Giáp Rồng Ender đã cứu bạn khỏi Hư Không!');
         } else {
           hurtPlayer(player.hp + 99, 'Bạn đã rơi xuống Hư Không ở tầng đáy Khu Kết Thúc!', true);
           return;
@@ -5352,7 +5480,7 @@
     const eqY = -eqPop * eqPop * 0.34 + Math.sin(eqPop * Math.PI) * 0.035;
     const eqRx = -eqPop * 0.55;
 
-    // Punchy! Item-Specific Attack & Mining Swing Curves (Custom 6-Hit Rig2 Sword Combo vs Pickaxe/Axe Chop vs Boxing Jab!)
+    // Afterswing+ 1P Hand+Tool Attack & Mining Swing Curves (Sword L<->R sweep, Pick overhead strike, Axe cleave, Shovel scoop, Hoe snap, Trident thrust, steady punch)
     let swX = 0, swY = 0, swZ = 0, swRx = 0, swRy = 0, swRz = 0;
     if (heldToolKind === 'sword' && (player.swordAtkActive || swing > 0.005)) {
       if (player.swordAtkActive && sampleR6Clip('rig2_sword_' + Math.max(1, Math.min(6, player.swordAtkHit || 1)), Math.min(player.swordAtkT, player.swordAtkDur || 0.5), _r6FpBuf)) {
@@ -5367,12 +5495,12 @@
         const dCamX = -_fpV1.x, dCamY = _fpV1.y, dCamZ = -_fpV1.z;
         _fpV2.set(0, 0.35, 0.94).normalize().applyQuaternion(_fpQ2).applyQuaternion(_fpQ1);
         const bX = -_fpV2.x, bY = _fpV2.y, bZ = -_fpV2.z;
-        let tx = Math.max(-0.42, Math.min(0.24, dCamX * 0.32));
-        let ty = Math.max(-0.22, Math.min(0.22, (dCamY - 0.20) * 0.22));
-        let tz = Math.max(-0.32, Math.min(0.06, dCamZ * 0.18 - 0.14));
-        let trx = -0.88 + bY * 0.56 - (bZ > 0 ? bZ * 0.22 : 0);
-        let try_ = -bX * 0.85;
-        let trz = -bX * 0.56 + (dCamY - 0.30) * 0.10;
+        let tx = Math.max(-0.46, Math.min(0.28, dCamX * 0.36));
+        let ty = Math.max(-0.24, Math.min(0.24, (dCamY - 0.20) * 0.24));
+        let tz = Math.max(-0.36, Math.min(0.06, dCamZ * 0.20 - 0.15));
+        let trx = -0.92 + bY * 0.58 - (bZ > 0 ? bZ * 0.22 : 0);
+        let try_ = -bX * 0.92;
+        let trz = -bX * 0.62 + (dCamY - 0.30) * 0.12;
         if (!player._fpSwCur) { player._fpSwCur = [0,0,0,0,0,0]; player._fpSwPrev = [0,0,0,0,0,0]; player._fpSwSeq = 0; player._fpSwXfadeT = 0; }
         if (player.swordAtkSeq !== player._fpSwSeq) {
           for (let m = 0; m < 6; m++) player._fpSwPrev[m] = player._fpSwCur[m];
@@ -5380,8 +5508,8 @@
           player._fpSwXfadeT = 0;
         }
         player._fpSwXfadeT += dt;
-        if (player._fpSwXfadeT < 0.075) {
-          const xu = smoothstep01(player._fpSwXfadeT / 0.075);
+        if (player._fpSwXfadeT < 0.065) {
+          const xu = smoothstep01(player._fpSwXfadeT / 0.065);
           tx   = player._fpSwPrev[0] + (tx   - player._fpSwPrev[0]) * xu;
           ty   = player._fpSwPrev[1] + (ty   - player._fpSwPrev[1]) * xu;
           tz   = player._fpSwPrev[2] + (tz   - player._fpSwPrev[2]) * xu;
@@ -5389,7 +5517,7 @@
           try_ = player._fpSwPrev[4] + (try_ - player._fpSwPrev[4]) * xu;
           trz  = player._fpSwPrev[5] + (trz  - player._fpSwPrev[5]) * xu;
         }
-        const dur = player.swordAtkDur || 0.5, hold = 0.08, fadeOut = 0.20;
+        const dur = player.swordAtkDur || 0.5, hold = 0.06, fadeOut = 0.18;
         let envW = 1.0;
         if (player.swordAtkT > dur + hold) envW = Math.max(0, 1.0 - smoothstep01((player.swordAtkT - (dur + hold)) / fadeOut));
         swX = tx * envW; swY = ty * envW; swZ = tz * envW;
@@ -5397,53 +5525,43 @@
         player._fpSwCur[0] = swX; player._fpSwCur[1] = swY; player._fpSwCur[2] = swZ;
         player._fpSwCur[3] = swRx; player._fpSwCur[4] = swRy; player._fpSwCur[5] = swRz;
       } else if (swing > 0.005) {
-        const pPow = Math.pow(swing, 0.68);
-        swX = -pPow * 0.24; swY = pPow * 0.10; swZ = -pPow * 0.16;
-        swRx = -pPow * 0.35; swRy = pPow * 0.72; swRz = pPow * 0.45;
+        const pPow = Math.pow(swing, 0.65);
+        const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
+        swX = -pPow * (dirS > 0 ? 0.34 : 0.16); swY = pPow * 0.08; swZ = -pPow * 0.22;
+        swRx = -pPow * 0.42; swRy = pPow * 0.85 * dirS; swRz = pPow * 0.58 * dirS;
       }
     } else if (swing > 0.005) {
-      const pPow = Math.pow(swing, 0.68);
+      const pPow = Math.pow(swing, 0.66);
       const pArc = Math.sin(swingU * Math.PI);
-      if (heldToolKind === 'pick') {
-        // Punchy Overhead Pickaxe Strike + Mineral Impact Recoil!
-        swX = -pPow * 0.16;
-        swY = pArc * 0.13 - pPow * 0.24;
-        swZ = -pPow * 0.32;
-        swRx = -pPow * 1.48 - pArc * 0.24;
-        swRy = pPow * 0.18;
-        swRz = pPow * 0.10;
+      const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
+      if (heldDef && heldDef.id === B.TRIDENT) {
+        // Afterswing+ Trident crisp forward spear thrust
+        swX = -pPow * 0.18; swY = pArc * 0.08 - pPow * 0.06; swZ = -pPow * 0.44;
+        swRx = -pPow * 1.15; swRy = pPow * 0.12; swRz = pPow * 0.08;
+      } else if (heldToolKind === 'pick') {
+        // Afterswing+ Overhead Pickaxe Strike + clean rebound
+        swX = -pPow * 0.18; swY = pArc * 0.14 - pPow * 0.22; swZ = -pPow * 0.34;
+        swRx = -pPow * 1.54 - pArc * 0.22; swRy = pPow * 0.16; swRz = pPow * 0.08;
       } else if (heldToolKind === 'axe') {
-        // Sweeping Diagonal Lumberjack Wood Cleave!
-        swX = -pPow * 0.34;
-        swY = -pPow * 0.10 + pArc * 0.12;
-        swZ = -pPow * 0.26;
-        swRx = -pPow * 1.18 - pArc * 0.18;
-        swRy = pPow * 0.78;
-        swRz = pPow * 0.56;
+        // Afterswing+ Alternating Diagonal Axe Chop
+        swX = -pPow * (0.28 + 0.08 * dirS); swY = -pPow * 0.10 + pArc * 0.12; swZ = -pPow * 0.28;
+        swRx = -pPow * 1.24 - pArc * 0.20; swRy = pPow * 0.72 * (dirS > 0 ? 1 : 0.55); swRz = pPow * 0.52 * (dirS > 0 ? 1 : 0.45);
       } else if (heldToolKind === 'shovel') {
-        // Shovel Scoop & Flick!
-        swX = -pPow * 0.20;
-        swY = -pPow * 0.14 + pArc * 0.09;
-        swZ = -pPow * 0.26;
-        swRx = -pPow * 1.12 + pArc * 0.18;
-        swRy = pPow * 0.38;
-        swRz = pPow * 0.22;
+        // Afterswing+ Shovel Scoop & Flick
+        swX = -pPow * 0.20; swY = -pPow * 0.14 + pArc * 0.11; swZ = -pPow * 0.28;
+        swRx = -pPow * 1.16 + pArc * 0.22; swRy = pPow * 0.34; swRz = pPow * 0.20;
+      } else if (heldToolKind === 'hoe') {
+        // Afterswing+ Quick Hoe Snap
+        swX = -pPow * 0.22; swY = -pPow * 0.12 + pArc * 0.10; swZ = -pPow * 0.26;
+        swRx = -pPow * 1.38; swRy = pPow * 0.24; swRz = pPow * 0.18;
       } else if (!heldDef) {
-        // Move Those Hands! Punchy Boxing Jab!
-        swX = -pPow * 0.22;
-        swY = pArc * 0.06 - pPow * 0.04;
-        swZ = -pPow * 0.36;
-        swRx = -pPow * 0.92;
-        swRy = pPow * 0.44;
-        swRz = pPow * 0.52;
+        // Afterswing+ Clean Forward Fist Jab (camera stays steady)
+        swX = -pPow * 0.20; swY = pArc * 0.05 - pPow * 0.03; swZ = -pPow * 0.38;
+        swRx = -pPow * 0.94; swRy = pPow * 0.38; swRz = pPow * 0.42;
       } else {
-        // Crisp Block / Item Tap!
-        swX = -pPow * 0.24;
-        swY = -pPow * 0.10 + pArc * 0.05;
-        swZ = -pPow * 0.22;
-        swRx = -pPow * 1.15 - pArc * 0.18;
-        swRy = pPow * 0.48;
-        swRz = pPow * 0.26;
+        // Crisp Block / Item Tap
+        swX = -pPow * 0.24; swY = -pPow * 0.10 + pArc * 0.05; swZ = -pPow * 0.22;
+        swRx = -pPow * 1.15 - pArc * 0.18; swRy = pPow * 0.48; swRz = pPow * 0.26;
       }
     }
 

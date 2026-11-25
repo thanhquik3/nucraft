@@ -249,7 +249,12 @@
       blue_forest: { biome: BIOMES.BLUE_FOREST,      needWater: false, time: 0.33,  preset: 'bsl',     pitch: 0.02, msg: '💙 Rừng Xanh Lam Huyền Ảo & Nấm Đỏ Khổng Lồ' },
       wheat_valley:{ biome: BIOMES.WHEAT_VALLEY,     needWater: false, time: 0.746, preset: 'chill_sunset', pitch: -0.02, msg: '🌾 Cánh Đồng Lúa' },
       pine_valley: { biome: BIOMES.PINE_VALLEY,      needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.03, msg: '🏡 Thung Lũng Thông & Lò Rèn Cổ Điển' },
-      giant_jungle:{ biome: BIOMES.GIANT_JUNGLE,     needWater: true,  time: 0.35,  preset: 'bsl',     pitch: 0.03, msg: '🌴 Rừng Nhiệt Đới Đại Thụ & Dây Leo Rủ' }
+      giant_jungle:{ biome: BIOMES.GIANT_JUNGLE,     needWater: true,  time: 0.35,  preset: 'bsl',     pitch: 0.03, msg: '🌴 Rừng Nhiệt Đới Đại Thụ & Dây Leo Rủ' },
+      highland:    { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.01, msg: '⛰️ Cao Nguyên Đá Dựng & Mây Trời' },
+      lush_steppe: { biome: BIOMES.LUSH_STEPPE,      needWater: false, time: 0.32,  preset: 'bliss',   pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Mênh Mông' },
+      dark_forest: { biome: BIOMES.DARK_FOREST,      needWater: false, time: 0.36,  preset: 'moonlit', pitch: 0.01, msg: '🌑 Rừng Tối Cây Cổ Thụ Rậm Rạp' },
+      pale_garden: { biome: BIOMES.PALE_GARDEN,      needWater: false, time: 0.38,  preset: 'moonlit', pitch: 0.01, msg: '🤍 Khu Rừng Nhợt Nhạt & Sương Mù Lạnh' },
+      nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: 0.76, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' }
     };
     const cfg = mapCfg[targetKey]; if (!cfg) return;
     let found = null;
@@ -260,6 +265,8 @@
     const oz = Math.floor(player.z) + ((_bHashB % 960) - 480);
     if (targetKey === 'wheat_valley' && typeof WHEAT_PLAIN_CX === 'number') {
       found = { x: WHEAT_PLAIN_CX + 0.5, z: WHEAT_PLAIN_CZ + 0.5, yaw: 0.0 };
+    } else if (targetKey === 'castle_city') {
+      found = { x: 12000.5, z: -11940.5, yaw: 0.0 };
     }
     if (targetKey === 'abyss_trench') {
       for (let r = 256; r <= 28000 && !found; r += 192) {
@@ -656,6 +663,17 @@
       showToast(`Đồ họa: ${btn.textContent}`);
     });
   });
+  document.querySelectorAll('#frameGenSeg .seg-btn').forEach(btn => {
+    const fg = parseInt(btn.dataset.fg, 10) || 1;
+    btn.classList.toggle('active', ((sodiumOpts.frameGen | 0) || 1) === fg);
+    btn.addEventListener('click', () => {
+      sodiumOpts.frameGen = fg;
+      saveSodiumOpts();
+      document.querySelectorAll('#frameGenSeg .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      if (typeof resizeViewport === 'function') resizeViewport();
+      showToast(`Frame Ảo: ${fg > 1 ? 'x' + fg : 'Tắt (x1)'}`);
+    });
+  });
   document.querySelectorAll('#presetSeg .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       applyShaderPreset(btn.dataset.preset, true);
@@ -766,15 +784,17 @@
       weatherMode = btn.dataset.weather;
       if (typeof updateWeatherAndLights === 'function') updateWeatherAndLights(0.016);
       if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
-      if (typeof broadcastWeatherSync === 'function') broadcastWeatherSync(weatherMode, typeof autoWeatherTarget !== 'undefined' ? (autoWeatherTarget > 0.5 ? 'rain' : 'clear') : '');
+      if (typeof broadcastWeatherSync === 'function') broadcastWeatherSync(weatherMode, (typeof activeWeatherKind === 'string' && activeWeatherKind) ? activeWeatherKind : weatherMode);
       showToast(tr(`🌦️ Thời tiết: ${btn.textContent}`, `🌦️ Weather: ${btn.textContent}`));
     });
   });
   function applyRemoteWeatherSync(w) {
     if (!w) return;
     if (typeof w.weatherMode === 'string') weatherMode = w.weatherMode;
-    if (w.activeWeatherKind === 'rain') { if (typeof autoWeatherTarget !== 'undefined') autoWeatherTarget = 1; }
-    else if (w.activeWeatherKind === 'clear') { if (typeof autoWeatherTarget !== 'undefined') autoWeatherTarget = 0; }
+    if (typeof w.activeWeatherKind === 'string' && w.activeWeatherKind) {
+      activeWeatherKind = w.activeWeatherKind;
+      if (typeof autoWeatherTarget !== 'undefined') autoWeatherTarget = (w.activeWeatherKind === 'clear' || w.activeWeatherKind === 'meteor' || w.activeWeatherKind === 'aurora') ? 0 : (w.activeWeatherKind === 'drizzle' ? 0.40 : 1);
+    }
     if (typeof updateWeatherAndLights === 'function') updateWeatherAndLights(0.016);
     if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
   }
@@ -1219,6 +1239,11 @@
     pine_valley:    { label: '🏡 Pine Valley',      desc: 'Deep spruce valley with a cozy blacksmith cottage, warm forge hearth, and terracotta roof.' },
     giant_jungle:   { label: '🌴 Giant Jungle',     desc: 'Towering tropical canopy trees stretching over calm rivers with hanging green vines.' },
     ancient_city:   { label: '👁️ Ancient City',     desc: 'Deep mountain cavern city with the ancient stone portal, soul lanterns, wool carpets, and Wardens.' },
+    highland:       { label: '⛰️ Highland Plateau', desc: 'Sweeping high plateaus and clay mountain cliffs rising into sunlit clouds.' },
+    lush_steppe:    { label: '🌿 Lush Steppe',      desc: 'Vast rolling grass plains built for villages, windmills, and open exploration.' },
+    dark_forest:    { label: '🌑 Dark Forest',      desc: 'Dense dark oak canopy with red mushrooms and dappled twilight shade.' },
+    pale_garden:    { label: '🤍 Pale Garden',      desc: 'Eerie pale woods shrouded in silver mist with pale oak trunks and moss carpets.' },
+    nightmare_woods:{ label: '🕸️ Nightmare Woods',  desc: 'Cursed twilight forest cloaked in heavy crimson mist that restricts far visibility.' },
     dim_sift:       { label: '✨ Dream Realm',      desc: 'The Sift dimension shimmering with emerald aurora skies, Lullaby Hills, Ichor pools, and cute mobs.' },
     dim_nether:     { label: '🔥 The Nether',       desc: 'Molten lava dimension filled with Crimson fungus forests and glowing Netherrack caverns.' },
     dim_end:        { label: '🐉 The End City',     desc: 'Deep violet void with floating End Stone islands, obsidian pillars, and glowing Purpur towers.' }
@@ -1455,6 +1480,11 @@ const ORE_BIOME_PREVIEWS = {
   pine_valley:    { label: '🏡 Thung Lũng Thông', desc: 'Thung lũng thông xanh thẫm cùng căn nhà thợ rèn cổ kính ống khói cao mái ngói cam và hiên lò ấm.',                   sky1: '#2b7be0', sky2: '#cfe7fa', grass: '#4fa832', dirt: '#7a5230', water: '#2584c6', tree: '#295748', trunk: '#4a3525', accent: '#b85c3e', kind: 'trees' },
   giant_jungle:   { label: '🌴 Rừng Đại Thụ',     desc: 'Rừng nhiệt đới cây đại thụ tán dù cao vút bên dòng sông êm đềm với những màn dây leo xanh rủ dài.',                  sky1: '#1d75d8', sky2: '#b8e8f5', grass: '#3fa334', dirt: '#5c4228', water: '#1e7fb8', tree: '#3a7d34', trunk: '#6d4c2f', accent: '#84cc16', kind: 'trees' },
   ancient_city:   { label: '👁️ Thành Phố Cổ',     desc: 'Thành phố cổ đại sâu dưới lòng núi với đại cổng đá cổ, lửa xanh, thảm len và Warden canh giữ.', sky1: '#040911', sky2: '#0c2736', grass: '#09242e', dirt: '#1f222b', water: '#0891b2', tree: '#22d3ee', trunk: '#2a2e38', accent: '#22d3ee', kind: 'sift' },
+  highland:       { label: '⛰️ Cao Nguyên',        desc: 'Vùng cao nguyên rộng lớn với vách núi đất sét, thảm cỏ cao và tầm nhìn bao quát biển mây.',                 sky1: '#2672d6', sky2: '#c5e2fa', grass: '#65a30d', dirt: '#a16244', water: '#2584c6', tree: '#4d7c0f', trunk: '#6d4c2f', accent: '#e7e5e4', kind: 'trees' },
+  lush_steppe:    { label: '🌿 Đồng Bằng Xanh',    desc: 'Đồng bằng cỏ xanh trải dài 2000–5000m thích hợp xây thành quách, làng mạc và trang trại lúa.',              sky1: '#217ef0', sky2: '#d5f2ff', grass: '#58b942', dirt: '#448c2d', water: '#2aa4e0', tree: '#4ea832', trunk: '#6d4c2f', accent: '#fde047', kind: 'trees' },
+  dark_forest:    { label: '🌑 Rừng Tối',          desc: 'Rừng sồi đen tán rậm rạp phủ bóng râm âm u cùng nấm đỏ khổng lồ và thảm rêu cổ thụ.',                     sky1: '#141e26', sky2: '#2d3b32', grass: '#2c4c26', dirt: '#3f2e21', water: '#1e3a4c', tree: '#1e3a1a', trunk: '#3b2416', accent: '#ef4444', kind: 'trees' },
+  pale_garden:    { label: '🤍 Rừng Nhợt Nhạt',    desc: 'Khu rừng sồi trắng nhợt nhạt bao phủ bởi rêu xám bạc và lớp sương mù lạnh buốt giăng lối.',                sky1: '#64748b', sky2: '#cbd5e1', grass: '#94a3b8', dirt: '#64748b', water: '#475569', tree: '#cbd5e1', trunk: '#94a3b8', accent: '#e2e8f0', kind: 'trees' },
+  nightmare_woods:{ label: '🕸️ Rừng Ác Mộng',      desc: 'Khu rừng ma quái chìm trong màn sương tím sẫm đặc quánh làm hạn chế tầm nhìn ở xa!',                        sky1: '#09030b', sky2: '#3b0724', grass: '#3b152a', dirt: '#1f0b18', water: '#581c87', tree: '#4c0519', trunk: '#1c1917', accent: '#f43f5e', kind: 'sift' },
   dim_sift:       { label: '✨ Khu Giấc Mơ',       desc: 'Chiều không gian mộng mơ The Sift với cực quang ngọc lục bảo, hồ Ichor phát sáng và tán cây huyền ảo.',               sky1: '#16284c', sky2: '#5eead4', grass: '#c084fc', dirt: '#6d28d9', water: '#2dd4bf', tree: '#f0abfc', trunk: '#312e81', accent: '#fef08a', kind: 'sift' },
   dim_nether:     { label: '🔥 Địa Ngục',         desc: 'Thế giới dung nham đỏ rực với rừng nấm Crimson và đá Netherrack rực lửa.',                                            sky1: '#450a0a', sky2: '#991b1b', grass: '#7f1d1d', dirt: '#450a0a', water: '#f97316', tree: '#b91c1c', trunk: '#292524', accent: '#facc15', kind: 'nether' },
   dim_end:        { label: '🐉 Thành Phố End',    desc: 'Hư không tím thẫm với đảo End Stone lơ lửng, trụ Hắc Diện Thạch và tháp Purpur phát sáng.',                           sky1: '#090514', sky2: '#2e1065', grass: '#e9d594', dirt: '#c2ad6b', water: '#1e1b4b', tree: '#18181b', trunk: '#09090b', accent: '#e879f9', kind: 'end' }
@@ -1601,14 +1631,40 @@ function syncTitleAvatarFace() {
   const locatorBarEl = document.getElementById('locatorBar');
 
   function getSavedWorldsList() {
-    try { return JSON.parse(localStorage.getItem(WORLDS_KEY) || '[]'); } catch (_) { return []; }
+    try {
+      const list = JSON.parse(localStorage.getItem(WORLDS_KEY) || '[]');
+      let changed = false;
+      for (const w of list) {
+        if (w && !w.roomId) {
+          w.roomId = (typeof mintPermanentRoomCode === 'function') ? mintPermanentRoomCode() : ('LC' + Math.random().toString(36).slice(2, 6).toUpperCase());
+          changed = true;
+        }
+      }
+      if (changed) try { localStorage.setItem(WORLDS_KEY, JSON.stringify(list)); } catch (_) {}
+      return list;
+    } catch (_) { return []; }
+  }
+  function _captureLiveWorldThumb(fallback) {
+    try {
+      if (typeof inLobby !== 'undefined' && inLobby) return fallback || null;
+      if (typeof renderer === 'undefined' || !renderer || !renderer.domElement) return fallback || null;
+      if (typeof renderMainScene === 'function') renderMainScene(0.016);
+      const c = document.createElement('canvas'); c.width = 160; c.height = 100;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(renderer.domElement, 0, 0, 160, 100);
+      return c.toDataURL('image/jpeg', 0.72);
+    } catch (_) { return fallback || null; }
   }
   function saveCurrentWorldToList() {
     try {
+      if (!currentWorldMeta.roomId) currentWorldMeta.roomId = (typeof mintPermanentRoomCode === 'function') ? mintPermanentRoomCode() : ('LC' + Math.random().toString(36).slice(2, 6).toUpperCase());
+      const thumbUrl = _captureLiveWorldThumb(currentWorldMeta.thumb || null);
+      if (thumbUrl) currentWorldMeta.thumb = thumbUrl;
       const list = getSavedWorldsList().filter(w => w.id !== currentWorldMeta.id);
       const modsArr = []; for (const [k, v] of worldMods.entries()) modsArr.push([k, v]);
       list.unshift({
         ...currentWorldMeta,
+        thumb: currentWorldMeta.thumb || undefined,
         updatedAt: Date.now(),
         player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, depthOffset, currentDimension, mods: modsArr.slice(-4000),
@@ -1635,16 +1691,24 @@ function renderSavedWorldsList() {
     const bioLbl = typeof getLocBiomeLabel === 'function' ? getLocBiomeLabel(w.biome) : bioInfo.label;
     const diffLbl = typeof getLocDiffLabel === 'function' ? getLocDiffLabel(w.difficulty) : diffInfo.label;
     const dtStr = new Date(w.updatedAt || Date.now()).toLocaleString(currentLang === 'en' ? 'en-US' : 'vi-VN');
+    const rCode = String(w.roomId || '').toUpperCase();
+    const liveInfo = (rCode && typeof liveRoomsByCode !== 'undefined') ? liveRoomsByCode.get(rCode) : null;
+    const livePlayers = liveInfo ? (Number(liveInfo.players) || 0) : 0;
+    const thumbStyle = w.thumb
+      ? `background-image:url('${w.thumb}');background-size:cover;background-position:center;`
+      : `background:linear-gradient(180deg, ${bioInfo.sky1} 0%, ${bioInfo.sky2} 46%, ${bioInfo.grass} 47%, ${bioInfo.dirt} 100%);`;
     const card = document.createElement('div');
     card.className = 'ore-world-card';
     card.innerHTML = `
-      <div class="ore-world-thumb" style="background:linear-gradient(180deg, ${bioInfo.sky1} 0%, ${bioInfo.sky2} 46%, ${bioInfo.grass} 47%, ${bioInfo.dirt} 100%);"></div>
+      <div class="ore-world-thumb" style="${thumbStyle}"></div>
       <div class="ore-world-info">
-        <div class="ore-world-name">${w.name || tr('Thế giới của tôi', 'My World')}</div>
+        <div class="ore-world-name">${escHtml(w.name || tr('Thế giới của tôi', 'My World'))}</div>
         <div class="ore-world-sub">Seed: ${w.seed} • ${bioLbl} • ${dtStr}</div>
         <div class="ore-world-tags">
           <span class="ore-tag">${w.mode === 'creative' ? tr('Sáng tạo', 'Creative') : tr('Sinh tồn', 'Survival')}</span>
           <span class="ore-tag diff">${diffLbl}</span>
+          ${rCode ? `<span class="ore-tag">🔑 ${escHtml(rCode)}</span>` : ''}
+          ${w.shareWithFriends !== false ? `<span class="ore-tag" style="${livePlayers > 0 ? 'background:#14532d;color:#bbf7d0;border-color:#22c55e;' : ''}">${livePlayers > 0 ? `🟢 Đang chơi: ${livePlayers} người` : '⚪ 0 người trong map'}</span>` : ''}
         </div>
       </div>
     `;
@@ -1680,7 +1744,8 @@ function renderSavedWorldsList() {
     const _doLoadSaved = () => {
       const uid = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || localPlayerName || 'Người chơi';
       localPlayerName = uid;
-      currentWorldMeta = { id: w.id, name: w.name, seed: w.seed, mode: w.mode || 'survival', difficulty: w.difficulty || 'normal', biome: w.biome || 'sakura', preset: w.preset || 'bsl', shareWithFriends: w.shareWithFriends !== false };
+      const permRoomId = w.roomId || (typeof mintPermanentRoomCode === 'function' ? mintPermanentRoomCode() : ('LC' + Math.random().toString(36).slice(2, 6).toUpperCase()));
+      currentWorldMeta = { id: w.id, roomId: permRoomId, name: w.name, seed: w.seed, mode: w.mode || 'survival', difficulty: w.difficulty || 'normal', biome: w.biome || 'sakura', preset: w.preset || 'bsl', shareWithFriends: w.shareWithFriends !== false };
       gameMode = currentWorldMeta.mode;
       if (typeof syncMobSpawnLockUI === 'function') syncMobSpawnLockUI();
       worldDifficulty = currentWorldMeta.difficulty;
@@ -1714,7 +1779,7 @@ function renderSavedWorldsList() {
       document.getElementById('lobbyScreen').classList.add('hidden');
       if (!isWorldLoading) startPlaying();
       if (currentWorldMeta.shareWithFriends) {
-        try { hostCoopRoom(); } catch (_) {}
+        try { window._nextCreateRoomFresh = false; hostCoopRoom(currentWorldMeta.roomId); } catch (_) {}
       }
       if (typeof broadcastFriendWorldPresence === 'function') broadcastFriendWorldPresence();
     };
@@ -1757,8 +1822,10 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   const worldNameClean = (opts.name || 'Thế Giới Mới').trim() || 'Thế Giới Mới';
 
   const _doCreateWorld = () => {
+    const permRoomId = (typeof mintPermanentRoomCode === 'function') ? mintPermanentRoomCode() : ('LC' + Math.random().toString(36).slice(2, 6).toUpperCase());
     currentWorldMeta = {
       id: 'w_' + Date.now(),
+      roomId: permRoomId,
       name: worldNameClean,
       seed: seedNum,
       mode: gameMode,
@@ -1782,7 +1849,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     }
     if (!isPlaying && !isWorldLoading) startPlaying();
     saveCurrentWorldToList();
-    if (hostCoop || shareFriends) hostCoopRoom();
+    if (hostCoop || shareFriends) { window._nextCreateRoomFresh = true; hostCoopRoom(permRoomId); }
     if (typeof broadcastFriendWorldPresence === 'function') broadcastFriendWorldPresence();
   };
 
@@ -1961,6 +2028,8 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       _skinThumbRenderer = new THREE.WebGLRenderer({ canvas: offCv, alpha: true, antialias: false, preserveDrawingBuffer: true });
       _skinThumbRenderer.setSize(w, h, false);
       _skinThumbRenderer.setClearColor(0x000000, 0);
+      if (typeof THREE.ACESFilmicToneMapping !== 'undefined') _skinThumbRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      _skinThumbRenderer.toneMappingExposure = 0.88;
       _skinThumbScene = new THREE.Scene();
       _skinThumbCam = new THREE.PerspectiveCamera(35, w / h, 0.1, 20);
       _skinThumbCam.position.set(0, 0.96, 3.55);
@@ -2108,6 +2177,8 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       try {
         skinPreviewRenderer = new THREE.WebGLRenderer({ canvas: drCanvas, alpha: true, antialias: false });
         skinPreviewRenderer.setSize(210, 240, false);
+        if (typeof THREE.ACESFilmicToneMapping !== 'undefined') skinPreviewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+        skinPreviewRenderer.toneMappingExposure = 0.88;
         skinPreviewScene = new THREE.Scene();
         skinPreviewCam = new THREE.PerspectiveCamera(35, 210 / 240, 0.1, 20);
         skinPreviewCam.position.set(0, 0.98, 3.55);
@@ -2128,6 +2199,8 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       try {
         titleSkinRenderer = new THREE.WebGLRenderer({ canvas: tCanvas, alpha: true, antialias: false });
         titleSkinRenderer.setSize(176, 224, false);
+        if (typeof THREE.ACESFilmicToneMapping !== 'undefined') titleSkinRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+        titleSkinRenderer.toneMappingExposure = 0.88;
         titleSkinScene = new THREE.Scene();
         titleSkinCam = new THREE.PerspectiveCamera(34, 176 / 224, 0.1, 20);
         titleSkinCam.position.set(0, 1.02, 3.85);
@@ -2493,12 +2566,13 @@ function initLobbyOreUI() {
       }
       if (k === 'skin') renderSkinPreview3DOnce();
       if (k === 'mods' && typeof renderModManagerList === 'function') renderModManagerList();
-      if (k === 'worlds') { renderSavedWorldsList(); if (typeof renderFriendWorldsList === 'function') renderFriendWorldsList(); }
+      if (k === 'worlds') { if (typeof fetchLiveRoomsHttp === 'function') fetchLiveRoomsHttp(); renderSavedWorldsList(); if (typeof renderFriendWorldsList === 'function') renderFriendWorldsList(); }
       if (k === 'coop') {
         const stEl = document.getElementById('coopServerStatus');
         if (stEl && !activeRoomId) stEl.innerHTML = tr('🌐 Internet Relay &amp; P2P: <b style="color:#4ade80;">Sẵn sàng kết nối xuyên mạng Wi-Fi / 4G ✓</b>', '🌐 Internet Relay &amp; P2P: <b style="color:#4ade80;">Ready for Cross-Network Wi-Fi / 4G ✓</b>');
+        if (typeof fetchLiveRoomsHttp === 'function') fetchLiveRoomsHttp();
         ncMqtt.ensureConnected();
-        connectCoopSocket();
+        connectCoopSocket((online) => { if (online && wsConn && wsConn.readyState === 1) wsConn.send(JSON.stringify({ type: 'list_rooms' })); });
       }
     });
   });
@@ -2645,7 +2719,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
 
         // Build full spiral ring list of REAL visible chunks around player's actual destination (r = 0 .. loadRad)
         const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
-        const loadRad = Math.max(3, renderDistance || 3);
+        const loadRad = Math.min(3, Math.max(3, renderDistance || 3));
         const gridRad = loadRad + 1;
         const genRings = [], meshRings = [];
         const chunkState = new Map();
@@ -3059,6 +3133,11 @@ function _buildBiomeDioramaScene(biomeKey) {
     wheat_valley:   { skyTop: '#1c244f', skyMid: '#7d4d68', skyBot: '#f59f63', fog: 0xd98e62, sun: 0xffc675, amb: 0xf4a872, gnd: 0x4d3418, fluid: null, fluidSpec: 0xffe4a0, fluidAlpha: 0, clouds: true, sunX: 0.42, sunY: 0.30, rayTint: 'rgba(255,196,120,0.34)', mistRgba: 'rgba(245,180,120,0.26)', fireflies: true },
     pine_valley:    { skyTop: '#2672d6', skyMid: '#72b3e8', skyBot: '#d9ecfa', fog: 0xc4ddf2, sun: 0xffe9c4, amb: 0xaad2f5, gnd: 0x384d2a, fluid: 0x2584c6, fluidSpec: 0xfff0c4, fluidAlpha: 0.78, clouds: true, sunX: 0.70, sunY: 0.20, rayTint: 'rgba(255,226,168,0.25)', mistRgba: 'rgba(218,236,250,0.20)' },
     giant_jungle:   { skyTop: '#1a6fd6', skyMid: '#68bee8', skyBot: '#d4f0e8', fog: 0xbadfd8, sun: 0xffe9c4, amb: 0x99dec8, gnd: 0x284722, fluid: 0x1c7db8, fluidSpec: 0xffe9c4, fluidAlpha: 0.76, clouds: true, sunX: 0.66, sunY: 0.19, rayTint: 'rgba(255,228,165,0.24)', mistRgba: 'rgba(205,238,228,0.22)' },
+    highland:       { skyTop: '#1f70db', skyMid: '#72b8f5', skyBot: '#e3f1ff', fog: 0xcbe3fa, sun: 0xffefc4, amb: 0xb0d8ff, gnd: 0x5c4028, fluid: 0x2584c6, fluidSpec: 0xffffff, fluidAlpha: 0.78, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,240,190,0.26)', mistRgba: 'rgba(220,238,255,0.24)' },
+    lush_steppe:    { skyTop: '#217ef0', skyMid: '#7accff', skyBot: '#eef9ff', fog: 0xd4f0ff, sun: 0xfff1c4, amb: 0xb7e4ff, gnd: 0x42662b, fluid: 0x269be6, fluidSpec: 0xffffff, fluidAlpha: 0.76, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,244,185,0.28)', mistRgba: 'rgba(232,248,255,0.22)' },
+    dark_forest:    { skyTop: '#162026', skyMid: '#2f4538', skyBot: '#6d8272', fog: 0x35473a, sun: 0xd1fae5, amb: 0x5d7a64, gnd: 0x1e2e1a, fluid: 0x1e3a4c, fluidSpec: 0x94a3b8, fluidAlpha: 0.82, clouds: true, sunX: 0.65, sunY: 0.20, rayTint: 'rgba(180,220,190,0.18)', mistRgba: 'rgba(55,75,60,0.28)' },
+    pale_garden:    { skyTop: '#475569', skyMid: '#94a3b8', skyBot: '#e2e8f0', fog: 0xb8c0cc, sun: 0xe2e8f0, amb: 0xcbd5e1, gnd: 0x64748b, fluid: 0x64748b, fluidSpec: 0xffffff, fluidAlpha: 0.80, clouds: true, sunX: 0.55, sunY: 0.22, rayTint: 'rgba(226,232,240,0.22)', mistRgba: 'rgba(203,213,225,0.34)' },
+    nightmare_woods:{ skyTop: '#07020a', skyMid: '#26061b', skyBot: '#4a0b2c', fog: 0x240718, sun: 0xf43f5e, amb: 0x9d174d, gnd: 0x1a0612, fluid: 0x581c87, fluidSpec: 0xf43f5e, fluidAlpha: 0.84, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(244,63,94,0.22)', mistRgba: 'rgba(76,5,25,0.40)' },
     dim_sift:       { skyTop: '#111d42', skyMid: '#2a6f82', skyBot: '#7ef5dc', fog: 0x4dbeb8, sun: 0xd8b4fe, amb: 0xa78bfa, gnd: 0x3b1d5e, fluid: 0x2dd4bf, fluidSpec: 0xfef08a, fluidAlpha: 0.82, clouds: false, aurora: true, noSunRays: true, sunX: 0.50, sunY: 0.18, rayTint: 'rgba(110,245,220,0.25)', mistRgba: 'rgba(130,245,225,0.22)' },
     dim_nether:     { skyTop: '#240404', skyMid: '#6e100a', skyBot: '#c93818', fog: 0x7d180e, sun: 0xff9b54, amb: 0xd9461f, gnd: 0x290707, fluid: 0xff6200, fluidSpec: 0xfef08a, fluidAlpha: 0.96, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.35, rayTint: 'rgba(255,120,40,0.24)', mistRgba: 'rgba(180,45,15,0.22)' },
     dim_end:        { skyTop: '#060312', skyMid: '#180833', skyBot: '#3b156b', fog: 0x240b47, sun: 0xe9d5ff, amb: 0x8b5cf6, gnd: 0x140826, fluid: null, fluidSpec: 0xe9d5ff, fluidAlpha: 0, clouds: false, stars: true, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(216,180,254,0.22)', mistRgba: 'rgba(90,30,150,0.20)' }
@@ -3409,6 +3488,28 @@ function _buildBiomeDioramaScene(biomeKey) {
       fillBox(tx - 3, 4 + th, tz - 3, tx + 3, 5 + th, tz + 3, B_.OAK_LEAVES);
       for (let vy = 6; vy < 4 + th; vy++) { setB(tx - 2, vy, tz + 2, B_.VINE); setB(tx + 2, vy, tz - 1, B_.VINE); }
     }
+  } else if (biomeKey === 'highland' || biomeKey === 'lush_steppe') {
+    fluidY = -99;
+    const isH = (biomeKey === 'highland');
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.DIRT);
+      const h = isH ? Math.floor(5 + (x > 14 ? 4 : 0) + Math.sin(z * 0.25) * 1.5) : Math.floor(4 + Math.sin(x * 0.22) * 0.8);
+      for (let y = 2; y < h; y++) setB(x, y, z, (isH && y > 5) ? (B_.TERRACOTTA || B_.DIRT) : B_.DIRT);
+      setB(x, h, z, B_.GRASS);
+    }
+    placeTree(5, 6, 13, B_.OAK_LOG, B_.OAK_LEAVES, 4);
+  } else if (biomeKey === 'dark_forest' || biomeKey === 'pale_garden' || biomeKey === 'nightmare_woods') {
+    fluidY = -99;
+    const isPale = (biomeKey === 'pale_garden'), isNight = (biomeKey === 'nightmare_woods');
+    const topB = isPale ? (B_.PALE_MOSS || B_.MOSS_BLOCK) : (isNight ? (B_.NIGHTMARE_MOSS || B_.MOSS_BLOCK) : B_.GRASS);
+    const logB = isPale ? (B_.PALE_LOG || B_.BIRCH_LOG) : (isNight ? (B_.NIGHTMARE_LOG || B_.SPRUCE_LOG) : B_.OAK_LOG);
+    const leafB = isPale ? (B_.PALE_LEAVES || B_.WHITE_WOOL) : (isNight ? (B_.NIGHTMARE_LEAVES || B_.SPRUCE_LEAVES) : B_.SPRUCE_LEAVES);
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.DIRT); setB(x, 2, z, B_.DIRT); setB(x, 3, z, B_.DIRT); setB(x, 4, z, topB);
+    }
+    placeTree(6, 5, 13, logB, leafB, 6);
+    placeTree(17, 5, 11, logB, leafB, 6);
+    placeTree(11, 5, 6, logB, leafB, 5);
   } else {
     // Default 'sakura': lush cherry blossom river & sandbar in golden BSL light
     for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
@@ -3899,24 +4000,30 @@ function renderPausePlayersListV61() {
   if (!box) return;
   const myName = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || (typeof localPlayerName !== 'undefined' && localPlayerName) || tr('Người chơi', 'Player');
   const myAv = buildPixelAvatarSvg(null, 'js-local-av');
+  const amIHost = (typeof isSimAuthority === 'function') ? isSimAuthority() : true;
+  const hostPeerId = (typeof _wsRoomHostId !== 'undefined') ? _wsRoomHostId : '';
   let html = `
     <div class="pause-player-row">
       <div class="pause-player-row-main">
         <div class="pause-player-av js-local-av">${myAv}</div>
-        <div class="pause-player-row-name">${myName}</div>
+        <div class="pause-player-row-name">${escHtml(myName)}</div>
       </div>
-      <div class="pause-crown-box" title="${tr('Chủ phòng (Host)', 'World Host')}">${PAUSE_CROWN_SVG}</div>
+      ${amIHost ? `<div class="pause-crown-box" title="${tr('Chủ phòng (Host)', 'World Host')}">${PAUSE_CROWN_SVG}</div>` : ''}
     </div>
   `;
   if (typeof remotePlayers !== 'undefined' && remotePlayers) {
     for (const rp of remotePlayers.values()) {
-      const guestAv = buildPixelAvatarSvg({ skin: '#d4a373', hair: '#2b2d42', eye: '#1d4ed8' });
+      if (!rp || rp.isBuddy) continue;
+      const skObj = (typeof getSkinDef === 'function' && rp.skinId) ? getSkinDef(rp.skinId) : null;
+      const guestAv = buildPixelAvatarSvg(skObj || { skin: '#d4a373', hair: '#2b2d42', eye: '#1d4ed8' });
+      const rpIsHost = !!(hostPeerId && rp.id === hostPeerId);
       html += `
         <div class="pause-player-row">
           <div class="pause-player-row-main">
             <div class="pause-player-av">${guestAv}</div>
-            <div class="pause-player-row-name">${rp.name || tr('Bạn chơi', 'Player')}</div>
+            <div class="pause-player-row-name">${escHtml(rp.name || tr('Bạn chơi', 'Player'))}</div>
           </div>
+          ${rpIsHost ? `<div class="pause-crown-box" title="${tr('Chủ phòng (Host)', 'World Host')}">${PAUSE_CROWN_SVG}</div>` : ''}
         </div>
       `;
     }

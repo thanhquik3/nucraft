@@ -31,10 +31,10 @@
   const _getSharpMaxPR = (q) => {
     const qn = CFG.normalizeQuality ? CFG.normalizeQuality(q, 'high') : q;
     const p = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[qn]) || { maxPixelRatio: 1.0 };
-    if (_initMobile) return qn === 'ultra' ? p.maxPixelRatio : Math.min(1.0, p.maxPixelRatio);
+    if (_initMobile) return (qn === 'extreme' || qn === 'ultra') ? Math.min(1.5, p.maxPixelRatio) : Math.min(1.0, p.maxPixelRatio);
     const ded = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
     const bigScreen = Math.max(window.innerWidth || 0, window.innerHeight || 0) >= 1500;
-    const baseMax = (!ded || bigScreen) ? Math.min(1.0, p.maxPixelRatio) : p.maxPixelRatio;
+    const baseMax = (qn === 'extreme') ? p.maxPixelRatio : ((!ded && bigScreen) ? Math.min(1.25, p.maxPixelRatio) : p.maxPixelRatio);
     return Math.max(0.75, baseMax * _autoPerfPrScale);
   };
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(shaderQuality)));
@@ -106,7 +106,7 @@
     uFogColor: { value: new THREE.Color(0x9bc4e8) },
     uFogStart: { value: 48.0 },
     uFogEnd: { value: 78.0 },
-    uQuality: { value: shaderQuality === 'ultra' ? 2.0 : (shaderQuality === 'low' ? 0.0 : 1.0) },
+    uQuality: { value: (shaderQuality === 'extreme' || shaderQuality === 'ultra') ? 2.0 : (shaderQuality === 'low' ? 0.0 : 1.0) },
     uWaterQuality: { value: 1.0 },
     uReflMap: { value: reflRT.texture },
     uReflMatrix: { value: new THREE.Matrix4() },
@@ -1222,8 +1222,8 @@
   const postScene = new THREE.Scene();
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const postQuadGeo = new THREE.PlaneBufferGeometry(2, 2);
-  let sceneRT = null, bloomRT1 = null, bloomRT2 = null, bloomWide1 = null, bloomWide2 = null, godRayRT1 = null, godRayRT2 = null;
-  function ensurePostRTs(needWide = false) {
+  let sceneRT = null, bloomRT1 = null, bloomRT2 = null, bloomWide1 = null, bloomWide2 = null, godRayRT1 = null, godRayRT2 = null, fgRtA = null, fgRtB = null, fgPing = 0;
+  function ensurePostRTs(needWide = false, needFg = false) {
     if (!sceneRT) {
       sceneRT = new THREE.WebGLRenderTarget(1280, 720, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false });
       const fxOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
@@ -1236,6 +1236,11 @@
       const wOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
       bloomWide1 = new THREE.WebGLRenderTarget(160, 90, wOpts);
       bloomWide2 = new THREE.WebGLRenderTarget(160, 90, wOpts);
+    }
+    if (needFg && !fgRtA) {
+      const fgOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
+      fgRtA = new THREE.WebGLRenderTarget(1280, 720, fgOpts);
+      fgRtB = new THREE.WebGLRenderTarget(1280, 720, fgOpts);
     }
   }
 
@@ -1265,6 +1270,18 @@
         s += (texture2D(tDiffuse, vUv + uDir * 1.3846).rgb + texture2D(tDiffuse, vUv - uDir * 1.3846).rgb) * 0.316216;
         s += (texture2D(tDiffuse, vUv + uDir * 3.2307).rgb + texture2D(tDiffuse, vUv - uDir * 3.2307).rgb) * 0.070270;
         gl_FragColor = vec4(s, 1.0);
+      }`
+  });
+  const fgBlendMat = new THREE.ShaderMaterial({
+    uniforms: { tCur: { value: null }, tPrev: { value: null }, uFgMix: { value: 0.0 } },
+    depthTest: false, depthWrite: false,
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform sampler2D tCur, tPrev; uniform float uFgMix; varying vec2 vUv;
+      void main() {
+        vec3 cur = texture2D(tCur, vUv).rgb;
+        vec3 prv = texture2D(tPrev, vUv).rgb;
+        gl_FragColor = vec4(mix(cur, prv, clamp(uFgMix, 0.0, 0.45)), 1.0);
       }`
   });
   const godRayMat = new THREE.ShaderMaterial({
@@ -2336,18 +2353,27 @@
       g.userData.iconReady = true;
       return g;
     }
-    if (blockId === B.ELYTRA) {
+    if (blockId === B.ELYTRA || blockId === B.ELYTRA_PHOENIX) {
+      const isPhx = (blockId === B.ELYTRA_PHOENIX);
       const g = new THREE.Group();
-      const mWing = new THREE.MeshStandardMaterial({ color: 0x7e7d99, roughness: 0.48, metalness: 0.25 });
-      const mTrim = new THREE.MeshStandardMaterial({ color: 0x48475c, roughness: 0.58, metalness: 0.32 });
-      const addW = (w, h, d, x, y, z, m, rz = 0) => {
+      const cA = new THREE.MeshStandardMaterial({ color: isPhx ? 0x180a0a : 0x45445c, roughness: 0.45, metalness: 0.28 });
+      const cB = new THREE.MeshStandardMaterial({ color: isPhx ? 0xea580c : 0x7e7d99, roughness: 0.42, metalness: 0.24, emissive: isPhx ? 0x9a3412 : 0x000000, emissiveIntensity: isPhx ? 0.25 : 0 });
+      const cC = new THREE.MeshStandardMaterial({ color: isPhx ? 0xfbbf24 : 0xa5a4c2, roughness: 0.36, metalness: 0.20, emissive: isPhx ? 0xf59e0b : 0x000000, emissiveIntensity: isPhx ? 0.55 : 0 });
+      const addSlat = (w, h, d, x, y, z, m, rz = 0) => {
         const bm = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
         bm.position.set(x, y, z); if (rz) bm.rotation.z = rz; g.add(bm);
       };
-      addW(0.095, 0.24, 0.025, -0.065, -0.01, 0, mWing, 0.22);
-      addW(0.095, 0.24, 0.025,  0.065, -0.01, 0, mWing, -0.22);
-      addW(0.028, 0.26, 0.032, -0.028,  0.01, 0.004, mTrim, 0.16);
-      addW(0.028, 0.26, 0.032,  0.028,  0.01, 0.004, mTrim, -0.16);
+      // Shoulder collar bar + stepped pixelated twin wings matching 62f02c71 / fd49b18a sprites
+      addSlat(0.14, 0.032, 0.032, 0, 0.115, 0.002, cA);
+      const tiers = [
+        [0.036, 0.20, 0.028, 0.030,  0.005, 0.002, cA, 0.08],
+        [0.038, 0.23, 0.028, 0.056, -0.010, 0.000, cB, 0.14],
+        [0.038, 0.23, 0.026, 0.082, -0.024,-0.002, cC, 0.18],
+        [0.034, 0.17, 0.024, 0.106, -0.042,-0.004, isPhx ? cA : cB, 0.22]
+      ];
+      for (const sx of [-1, 1]) {
+        for (const [w, h, d, x, y, z, m, rz] of tiers) addSlat(w, h, d, sx * x, y, z, m, sx * -rz);
+      }
       g.rotation.order = 'YXZ'; g.position.set(0.01, 0.01, -0.05); g.rotation.set(0.18, -0.45, 0.08);
       g.userData.iconReady = true;
       return g;
@@ -2862,7 +2888,16 @@
     return (t && t.pattern) ? `${blockId}:${t.pattern}:${t.matId || t.hex || ''}` : blockId;
   }
 
+  let _fpEmptySkin = '';
+  let _fpToolArmWrap = null;
+  let _fpToolArmSkin = '';
+
   function updateHeldViewModel(blockId, meta = null) {
+    const _skinNow = String((typeof window !== 'undefined' && window.selectedSkinId) || 'steve');
+    if (_skinNow !== _fpEmptySkin) {
+      heldModelCache.delete(0);
+      _fpEmptySkin = _skinNow;
+    }
     const _heldKey = _itemMetaCacheKey(blockId || 0, meta);
     const keyChanged = (typeof player !== 'undefined' && player && player._lastHeldKey !== _heldKey);
     if (keyChanged) {
@@ -2874,7 +2909,27 @@
       player.atkCdMax = cdMax;
       player.atkCd = cdMax;
       if (!(swDef && swDef.tool === 'sword')) { player.swordCombo = 0; player.comboResetT = 0; }
-    } else if (activeHeldObj && (!activeHeldObj.userData || activeHeldObj.userData.iconReady !== false)) {
+    }
+    const _defHeld = (blockId && BLOCK_DEF[blockId]) ? BLOCK_DEF[blockId] : null;
+    const _showToolArm = !!(_defHeld && (_defHeld.tool || blockId === B.TRIDENT));
+    if (_showToolArm) {
+      if (!_fpToolArmWrap || _fpToolArmSkin !== _skinNow) {
+        if (_fpToolArmWrap) heldPivot.remove(_fpToolArmWrap);
+        _fpToolArmWrap = new THREE.Group();
+        const arm = buildEmptyHandMesh();
+        arm.position.set(0, 0, 0);
+        arm.rotation.set(0, 0, 0);
+        _fpToolArmWrap.add(arm);
+        _fpToolArmWrap.position.set(0.055, -0.155, 0.085);
+        _fpToolArmWrap.rotation.set(1.18, -0.18, 0.14);
+        _fpToolArmSkin = _skinNow;
+        heldPivot.add(_fpToolArmWrap);
+      }
+      _fpToolArmWrap.visible = true;
+    } else if (_fpToolArmWrap) {
+      _fpToolArmWrap.visible = false;
+    }
+    if (!keyChanged && activeHeldObj && (!activeHeldObj.userData || activeHeldObj.userData.iconReady !== false)) {
       if (typeof invPreviewRig !== 'undefined' && invPreviewRig && typeof setRigHeldItem === 'function') {
         setRigHeldItem(invPreviewRig, blockId || 0, meta);
       }
@@ -2887,7 +2942,7 @@
     if (typeof invPreviewRig !== 'undefined' && invPreviewRig && typeof setRigHeldItem === 'function') {
       setRigHeldItem(invPreviewRig, blockId || 0, meta);
     }
-    if (!blockId || blockId === B.AIR || !BLOCK_DEF[blockId]) {
+    if (!blockId || blockId === B.AIR || !_defHeld) {
       if (!heldModelCache.has(0)) heldModelCache.set(0, buildEmptyHandMesh());
       activeHeldObj = heldModelCache.get(0);
       heldPivot.add(activeHeldObj);
@@ -3000,7 +3055,7 @@
       while (n > 0) { f /= base; r += f * (n % base); n = Math.floor(n / base); }
       return r;
     };
-    const COLS = _isLiteGrass ? 6 : 7;
+    const COLS = _isLiteGrass ? 6 : 8;
     const BLADES = COLS * COLS;
     const cellSpan = 0.97 / COLS;
     const tiers = [0.0, 0.50];
@@ -3232,7 +3287,7 @@
           bio = _egBiomeCache.get(bqk);
           if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
         }
-        let cr = 0.36, cg = 0.78, cb = 0.13;
+        let cr = 0.28, cg = 0.84, cb = 0.14;
         if (id === B.AUTUMN_PODZOL) {
           if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.94; cg = 0.54; cb = 0.10; }
           else { cr = 0.88; cg = 0.42; cb = 0.08; }
@@ -3242,7 +3297,12 @@
         else if (id === B.BLUE_GRASS) { cr = 0.16; cg = 0.72; cb = 0.66; }
         else if (id === B.MOSS_BLOCK) { cr = 0.28; cg = 0.64; cb = 0.16; }
         else if (typeof BIOMES !== 'undefined' && bio) {
-          if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.TAIGA) { cr = 0.28; cg = 0.60; cb = 0.34; }
+          if (bio === BIOMES.PLAINS || bio === BIOMES.LUSH_STEPPE || bio === BIOMES.FLOWER_MEADOW || bio === BIOMES.HIGHLAND_PLATEAU) {
+            cr = 0.34; cg = 0.88; cb = 0.13;
+          } else if (bio === BIOMES.DARK_FOREST) { cr = 0.19; cg = 0.54; cb = 0.14; }
+          else if (bio === BIOMES.PALE_GARDEN) { cr = 0.48; cg = 0.56; cb = 0.52; }
+          else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.40; cg = 0.18; cb = 0.34; }
+          else if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.28; cg = 0.60; cb = 0.34; }
           else if (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST) {
             cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.94 : 0.90;
             cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.56 : 0.45;
@@ -3251,9 +3311,9 @@
           else if (bio === BIOMES.SAVANNA || bio === BIOMES.MESA || bio === BIOMES.DESERT) { cr = 0.66; cg = 0.68; cb = 0.20; }
         }
 
-        const macroH = 0.82 + 0.38 * (0.5 + 0.5 * Math.sin(wx * 0.24 + Math.cos(wz * 0.21) * 1.3));
-        const nearTiles = (d2 <= 72) ? 2 : 1;
-        const lodScale = (d2 <= 72) ? 1.0 : 1.15;
+        const macroH = 0.88 + 0.38 * (0.5 + 0.5 * Math.sin(wx * 0.24 + Math.cos(wz * 0.21) * 1.3));
+        const nearTiles = (d2 <= 100) ? 2 : 1;
+        const lodScale = (d2 <= 100) ? 1.05 : 1.18;
         if (d2 > maxEmitD2) maxEmitD2 = d2;
         let h = Math.imul(wx * 374761 + wz * 668265 + wy * 214748, 0x85ebca6b) >>> 0;
         const baseAng = (h & 3) * (Math.PI * 0.5); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;

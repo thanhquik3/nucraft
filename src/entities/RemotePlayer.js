@@ -28,7 +28,7 @@
     rp.sprinting = !!st.sprinting; rp.sneaking = !!st.sneaking;
     rp.inWater = !!st.inWater; rp.deepWater = !!st.deepWater; rp.swimMoving = !!st.swimMoving;
     rp.sprintSwimming = !!st.sprintSwimming; rp.lowSprintSwim = !!st.lowSprintSwim;
-    rp.onGround = st.onGround !== false; rp.swing = st.swing || 0;
+    rp.onGround = st.onGround !== false; rp.flying = !!st.flying; rp.gliding = !!st.gliding; rp.swing = st.swing || 0;
     rp.swingActive = !!st.swingActive; rp.swingU = st.swingU || 0;
     rp.actionType = st.actionType || rp.actionType || 'attack';
     if (st.swSeq) { rp.swordAtkSeq = st.swSeq; rp.swordAtkHit = st.swHit || 1; } else if (!rp.swing) rp.swordAtkSeq = 0;
@@ -94,7 +94,7 @@
               speed: q2(player.curSpeed || 0), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
               inWater: !!player.inWater, deepWater: !!player.deepWater,
               swimMoving: (player.curSpeed || 0) > 0.2, sprintSwimming: !!player.sprintSwimming,
-              lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying,
+              lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying, gliding: !!player.gliding,
               hurtT: q2(player.hurtAnimT || 0), swing: q2(player.curSwing || 0),
               swingActive: !!player.swingActive, swingU: q3(player.swingU || 0), actionType: player.actionType || 'mine',
               swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
@@ -125,6 +125,10 @@
     const barInnerW = locatorBarEl.clientWidth || 360;
 
     for (const [pid, rp] of remotePlayers.entries()) {
+      if (!rp.isBuddy && activeRoomId && rp._lastPktAt && typeof worldPaused !== 'undefined' && !worldPaused && (performance.now() - rp._lastPktAt > 12000)) {
+        removeRemotePeer(pid);
+        continue;
+      }
       if (rp.isBuddy) {
         const dxP = player.x - rp.x, dzP = player.z - rp.z, distP = Math.hypot(dxP, dzP);
         if (distP > 9.5) {

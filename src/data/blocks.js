@@ -610,7 +610,7 @@ const {
   BLOCK_DEF[B.PURPUR_PILLAR]    = { name: 'Cột Purpur', nameEn: 'Purpur Pillar', hard: 1.6, solid: true, reqTool: 'pick', tiles: [512, 513, 512], mapColor: '#a878a8' };
   BLOCK_DEF[B.END_ROD]          = { name: 'Đèn Thanh End Rod', nameEn: 'End Rod', hard: 0.2, solid: false, subBlock: true, endRod: true, trans: true, emissive: 0.95, light: 14, tiles: [514, 514, 515], mapColor: '#f8fafc' };
   BLOCK_DEF[B.DRAGON_HEAD]      = { name: 'Đầu Rồng End', nameEn: 'Dragon Head', hard: 1.0, solid: true, dragonHead: true, armorSlot: 'helmet', armorVal: 3, equipTier: 'dragon_head', customAtlasTex: true, tiles: [516, 516, 516], mapColor: '#1f1b24' };
-  BLOCK_DEF[B.ELYTRA]           = { name: 'Cánh Cứng Elytra', nameEn: 'Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 0, equipTier: 'elytra', maxDur: 432, tiles: [517, 517, 517], mapColor: '#7c7b96' };
+  BLOCK_DEF[B.ELYTRA]           = { name: 'Cánh Cứng Elytra', nameEn: 'Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 0, equipTier: 'elytra', isElytra: true, maxDur: 432, tiles: [517, 517, 517], mapColor: '#7c7b96' };
   BLOCK_DEF[B.ENDER_DRAGON_EGG] = { name: 'Trứng Rồng End', nameEn: 'Dragon Egg', hard: 3.0, solid: true, dragonEgg: 'ender', eggPal: { base: 0x0b0812, shell: 0x181024, band: 0x3b1254, spot: 0xc026d3 }, light: 5, emissive: 0.35, tiles: [447, 447, 447], mapColor: '#110b19' };
   BLOCK_DEF[B.WINDMILL_HUB]     = { name: 'Trục Cối Xoay Gió', nameEn: 'Windmill Hub', hard: 2.0, solid: true, windmillHub: true, customAtlasTex: true, tiles: [518, 518, 518], mapColor: '#7c5332' };
   BLOCK_DEF[B.RED_SAND]            = { name: 'Cát Đỏ (Red Sand)',           nameEn: 'Red Sand',           hard: 0.45, solid: true,  dirt: true, customAtlasTex: true, drop: B.RED_SAND, tiles: [519, 519, 519], mapColor: '#be5b24' };
@@ -623,6 +623,47 @@ const {
   BLOCK_DEF[B.GOLDEN_MAPLE_LEAVES] = { name: 'Lá Phong Vàng Rực',           nameEn: 'Golden Maple Leaves', hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.GOLDEN_MAPLE_LEAVES, tiles: [526, 526, 526], mapColor: '#eab308' };
   BLOCK_DEF[B.ORANGE_MAPLE_LEAVES] = { name: 'Lá Phong Cam Cổ Thụ',         nameEn: 'Orange Maple Leaves', hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.ORANGE_MAPLE_LEAVES, tiles: [527, 527, 527], mapColor: '#ea580c' };
   BLOCK_DEF[B.MANGROVE_PROPAGULE]  = { name: 'Mầm Đước Ngập Mặn',           nameEn: 'Mangrove Propagule', hard: 0.05, solid: false, cross: true, trans: true, foliage: true, hanging: true, customAtlasTex: true, drop: B.MANGROVE_PROPAGULE, tiles: [528, 528, 528], mapColor: '#4d7c0f' };
+  BLOCK_DEF[B.PALE_LOG]            = { name: 'Gỗ Sồi Nhợt (Pale Oak)',      nameEn: 'Pale Oak Log',       hard: 0.95, solid: true,  wood: true, isLog: true, customAtlasTex: true, drop: B.PALE_LOG, tiles: [529, 530, 529], mapColor: '#9aa0a6' };
+  BLOCK_DEF[B.PALE_PLANKS]         = { name: 'Ván Gỗ Nhợt (Pale Planks)',   nameEn: 'Pale Oak Planks',    hard: 0.75, solid: true,  wood: true, isPlanks: true, customAtlasTex: true, drop: B.PALE_PLANKS, tiles: [531, 531, 531], mapColor: '#d1d5db' };
+  BLOCK_DEF[B.PALE_LEAVES]         = { name: 'Lá Sồi Nhợt (Pale Leaves)',   nameEn: 'Pale Oak Leaves',    hard: 0.25, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.PALE_LEAVES, tiles: [532, 532, 532], mapColor: '#94a3b8' };
+  BLOCK_DEF[B.PALE_MOSS]           = { name: 'Rêu Trắng Xám (Pale Moss)',   nameEn: 'Pale Moss',          hard: 0.45, solid: true,  dirt: true, customAtlasTex: true, drop: B.PALE_MOSS, tiles: [533, 533, 533], mapColor: '#7b8794' };
+  BLOCK_DEF[B.NIGHTMARE_LOG]       = { name: 'Gỗ Ác Mộng (Nightmare)',      nameEn: 'Nightmare Log',      hard: 1.05, solid: true,  wood: true, isLog: true, customAtlasTex: true, drop: B.NIGHTMARE_LOG, tiles: [534, 534, 534], mapColor: '#26142e' };
+  BLOCK_DEF[B.NIGHTMARE_LEAVES]    = { name: 'Lá Rừng Ác Mộng',             nameEn: 'Nightmare Leaves',   hard: 0.28, solid: true,  foliage: true, neutralLeaf: true, shearsOnly: true, customAtlasTex: true, drop: B.NIGHTMARE_LEAVES, tiles: [535, 535, 535], mapColor: '#4c1d2e' };
+  BLOCK_DEF[B.NIGHTMARE_MOSS]      = { name: 'Đất Rêu Ác Mộng',             nameEn: 'Nightmare Turf',     hard: 0.55, solid: true,  dirt: true, customAtlasTex: true, drop: B.NIGHTMARE_MOSS, tiles: [536, 536, 536], mapColor: '#1f1024' };
+  BLOCK_DEF[B.ELYTRA_PHOENIX]      = { name: 'Cánh Phượng Hoàng (Phoenix Elytra)', nameEn: 'Phoenix Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, fireImmune: true, armorSlot: 'chest', armorVal: 3, toughness: 2, equipTier: 'elytra_phoenix', isElytra: true, maxDur: 640, customAtlasTex: true, tiles: [537, 537, 537], mapColor: '#f97316' };
+  BLOCK_DEF[B.DRAGON_EGG_EARTH]    = { name: 'Trứng Rồng Đất (Đặt Để Ấp Nở)', nameEn: 'Earth Dragon Egg', hard: 0.45, solid: true, rock: true, trans: true, emissive: true, light: 7, dragonEgg: 'earth', eggPal: { base: 0x2c1b0e, shell: 0x78350f, band: 0xd97706, spot: 0xfde047 }, customAtlasTex: true, drop: B.DRAGON_EGG_EARTH, tiles: [538, 538, 538], mapColor: '#92400e' };
+  BLOCK_DEF[B.DRAGON_SCALE_FIRE]   = { name: 'Vảy Rồng Lửa',                nameEn: 'Fire Dragon Scale',  hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [539, 539, 539], mapColor: '#ef4444' };
+  BLOCK_DEF[B.DRAGON_SCALE_ICE]    = { name: 'Vảy Rồng Băng',               nameEn: 'Ice Dragon Scale',   hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [540, 540, 540], mapColor: '#38bdf8' };
+  BLOCK_DEF[B.DRAGON_SCALE_EARTH]  = { name: 'Vảy Rồng Đất',                nameEn: 'Earth Dragon Scale', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [541, 541, 541], mapColor: '#d97706' };
+  BLOCK_DEF[B.DRAGON_SCALE_WATER]  = { name: 'Vảy Rồng Nước',               nameEn: 'Water Dragon Scale', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [542, 542, 542], mapColor: '#06b6d4' };
+  BLOCK_DEF[B.DRAGON_SCALE_LEAF]   = { name: 'Vảy Rồng Lá',                 nameEn: 'Leaf Dragon Scale',  hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [543, 543, 543], mapColor: '#22c55e' };
+  BLOCK_DEF[B.DRAGON_SCALE_ENDER]  = { name: 'Vảy Rồng Ender',              nameEn: 'Ender Dragon Scale', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [544, 544, 544], mapColor: '#c026d3' };
+  for (const [elKey, elVi, elEn, elHex, fireImm] of [
+    ['FIRE',  'Lửa',   'Fire',  '#ef4444', true],
+    ['ICE',   'Băng',  'Ice',   '#38bdf8', false],
+    ['EARTH', 'Đất',   'Earth', '#b45309', false],
+    ['WATER', 'Nước',  'Water', '#06b6d4', false],
+    ['LEAF',  'Lá',    'Leaf',  '#22c55e', false],
+    ['ENDER', 'Ender', 'Ender', '#c026d3', true]
+  ]) {
+    const tierKey = 'dragon_' + elKey.toLowerCase();
+    for (const [slotKey, slotVi, slotEn, val, dur] of [
+      ['HELMET', 'Mũ',   'Helmet',     4, 2400],
+      ['CHEST',  'Áo',   'Chestplate', 9, 2800],
+      ['LEGS',   'Quần', 'Leggings',   7, 2600],
+      ['BOOTS',  'Giày', 'Boots',      4, 2400]
+    ]) {
+      const sl = slotKey === 'CHEST' ? 'chest' : (slotKey === 'HELMET' ? 'helmet' : (slotKey === 'LEGS' ? 'legs' : 'boots'));
+      const tile = slotKey === 'HELMET' ? 496 : (slotKey === 'CHEST' ? 497 : (slotKey === 'LEGS' ? 498 : 499));
+      BLOCK_DEF[B[`DRAGON_${elKey}_${slotKey}`]] = {
+        name: `${slotVi} Giáp Rồng ${elVi} (+${val})`, nameEn: `${elEn} Dragon ${slotEn}`,
+        hard: 0, solid: false, itemOnly: true, voxelItem: true, fireImmune: fireImm,
+        armorSlot: sl, armorVal: val, toughness: 4.0, kbResist: 0.12, maxDur: dur,
+        armorTier: tierKey, dragonElemSet: elKey.toLowerCase(), customAtlasTex: true,
+        tiles: [tile, tile, tile], mapColor: elHex
+      };
+    }
+  }
 
   for (let i = 0; i < 1024; i++) {
     const d = BLOCK_DEF[i];

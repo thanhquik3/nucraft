@@ -1,5 +1,5 @@
 'use strict';
-const CAVE_GRID_X = 5, CAVE_GRID_Y = 33, CAVE_GRID_Z = 5;
+const CAVE_GRID_X = 5, CAVE_GRID_Y = 65, CAVE_GRID_Z = 5;
 
 function hash2i(x, z, seed) {
   let h = Math.imul(x, 374761393) + Math.imul(z, 668265263) + Math.imul(seed, 1442695041);

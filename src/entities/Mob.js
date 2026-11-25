@@ -655,7 +655,7 @@
     const _sheepSpec = (type === 'sheep') ? ((opts && opts.woolSpec) || pickSeededWoolColor(wx, wz)) : null;
     const _directProceduralMob = (
       type === 'villager' || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire' ||
-      type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden' ||
+      type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden' || type === 'dream_warden' ||
       type === 'pillager' || type === 'pillager_raider' || type === 'vindicator' || type === 'evoker' ||
       type === 'skeleton' || type === 'stray' || type === 'desert_skeleton' || type === 'bogged' ||
       type === 'zombie' || type === 'husk' || type === 'frozen_zombie' || type === 'mossy_zombie' ||
@@ -1001,66 +1001,70 @@
       return finishMob();
     }
 
-    if (type === 'ichor_ray') {
-      anim.torso = makePivot(g, 0, 0.34, 0);
-      addArtBox(anim.torso, 0.50, 0.14, 0.72, 'sift_ichor_body', (ctx, h) => {
-        h.fillAll(0x5b21b6, 12, 'voxel', 16, -20);
-        h.spots(2, 0xe879f9, [[7, 2, 2, 2], [7, 6, 2, 2], [7, 10, 2, 2]]);
-        h.px(2, 1, 1, 14, 2, 0x38bdf8);
+    if (type === 'ichor_ray' || type === 'sky_manta') {
+      const isSkyManta = (type === 'sky_manta');
+      anim.torso = makePivot(g, 0, isSkyManta ? 0.42 : 0.34, 0);
+      addArtBox(anim.torso, 0.50, 0.14, 0.72, isSkyManta ? 'sift_skymanta_body' : 'sift_ichor_body', (ctx, h) => {
+        h.fillAll(isSkyManta ? 0x0284c7 : 0x5b21b6, 12, 'voxel', 16, -20);
+        h.spots(2, isSkyManta ? 0xf9a8d4 : 0xe879f9, [[7, 2, 2, 2], [7, 6, 2, 2], [7, 10, 2, 2]]);
+        h.px(2, 1, 1, 14, 2, isSkyManta ? 0xa5f3fc : 0x38bdf8);
       }, 0, 0, 0, { rough: 0.62 });
-      addBoxTo(anim.torso, 0.08, 0.05, 0.06, 0x38f2ff, -0.16, 0.06, 0.28, true);
-      addBoxTo(anim.torso, 0.08, 0.05, 0.06, 0x38f2ff,  0.16, 0.06, 0.28, true);
+      addBoxTo(anim.torso, 0.08, 0.05, 0.06, isSkyManta ? 0xfef08a : 0x38f2ff, -0.16, 0.06, 0.28, true);
+      addBoxTo(anim.torso, 0.08, 0.05, 0.06, isSkyManta ? 0xfef08a : 0x38f2ff,  0.16, 0.06, 0.28, true);
       const wingDraw = (ctx, h) => {
-        h.fillTile(0, 0x7c3aed, 12);
-        h.px(0, 0, 0, 16, 2, 0x38bdf8);
-        h.px(0, 0, 14, 16, 2, 0x38bdf8);
-        h.spots(0, 0xc084fc, [[2, 5, 4, 2], [8, 7, 5, 2], [4, 10, 4, 2]]);
+        h.fillTile(0, isSkyManta ? 0x38bdf8 : 0x7c3aed, 12);
+        h.px(0, 0, 0, 16, 2, isSkyManta ? 0xf0abfc : 0x38bdf8);
+        h.px(0, 0, 14, 16, 2, isSkyManta ? 0xf0abfc : 0x38bdf8);
+        h.spots(0, isSkyManta ? 0xe0f2fe : 0xc084fc, [[2, 5, 4, 2], [8, 7, 5, 2], [4, 10, 4, 2]]);
       };
       for (const sx of [-1, 1]) {
         const wp = makePivot(anim.torso, sx * 0.24, 0, -0.02);
-        addArtBox(wp, 0.46, 0.07, 0.52, 'sift_ichor_wing', wingDraw, sx * 0.23, 0, -0.02, { atlas: false, rough: 0.60 });
-        addArtBox(wp, 0.36, 0.05, 0.34, 'sift_ichor_wing', wingDraw, sx * 0.60, 0, -0.08, { atlas: false, rough: 0.60 });
+        addArtBox(wp, 0.46, 0.07, 0.52, isSkyManta ? 'sift_skymanta_wing' : 'sift_ichor_wing', wingDraw, sx * 0.23, 0, -0.02, { atlas: false, rough: 0.60 });
+        addArtBox(wp, 0.36, 0.05, 0.34, isSkyManta ? 'sift_skymanta_wing' : 'sift_ichor_wing', wingDraw, sx * 0.60, 0, -0.08, { atlas: false, rough: 0.60 });
         anim.wings.push({ p: wp, dir: sx });
       }
       anim.tail = makePivot(anim.torso, 0, 0, -0.35);
-      addBoxTo(anim.tail, 0.10, 0.06, 0.44, 0x9333ea, 0, 0, -0.22, false, 0.65);
-      addBoxTo(anim.tail, 0.06, 0.05, 0.26, 0xf472b6, 0, 0, -0.54, true);
+      addBoxTo(anim.tail, 0.10, 0.06, 0.44, isSkyManta ? 0x0ea5e9 : 0x9333ea, 0, 0, -0.22, false, 0.65);
+      addBoxTo(anim.tail, 0.06, 0.05, 0.26, isSkyManta ? 0xfbbf24 : 0xf472b6, 0, 0, -0.54, true);
+      if (isSkyManta) g.scale.setScalar(1.22);
       return finishMob();
     }
 
-    if (type === 'harmonizer') {
+    if (type === 'harmonizer' || type === 'nightmare_stalker') {
+      const isNight = (type === 'nightmare_stalker');
       anim.torso = makePivot(g, 0, 1.06, 0);
-      addArtBox(anim.torso, 0.54, 0.60, 0.54, 'sift_harmonizer_head', (ctx, h) => {
-        h.fillAll(0x581c87, 16, 'crystal', 18, -22);
-        for (const t of [0, 1, 2, 5]) h.spots(t, 0xa855f7, [[2, 3, 3, 4], [10, 2, 3, 3], [6, 10, 4, 3]]);
-        h.px(4, 3, 4, 10, 9, 0x160a24); // dark obsidian resonance visor
+      addArtBox(anim.torso, 0.54, 0.60, 0.54, isNight ? 'sift_nightmare_head' : 'sift_harmonizer_head', (ctx, h) => {
+        h.fillAll(isNight ? 0x26081c : 0x581c87, 16, 'crystal', 18, -22);
+        for (const t of [0, 1, 2, 5]) h.spots(t, isNight ? 0xbe123c : 0xa855f7, [[2, 3, 3, 4], [10, 2, 3, 3], [6, 10, 4, 3]]);
+        h.px(4, 3, 4, 10, 9, 0x0d040c); // dark obsidian resonance visor
       }, 0, 0.24, 0, { rough: 0.55 });
-      addArtBox(anim.torso, 0.22, 0.22, 0.05, 'sift_harmonizer_eye', (ctx, h) => {
-        h.fillTile(0, 0x38bdf8, 8, 'crystal');
-        h.px(0, 3, 3, 10, 10, 0xa5f3fc);
+      addArtBox(anim.torso, 0.22, 0.22, 0.05, isNight ? 'sift_nightmare_eye' : 'sift_harmonizer_eye', (ctx, h) => {
+        h.fillTile(0, isNight ? 0xf43f5e : 0x38bdf8, 8, 'crystal');
+        h.px(0, 3, 3, 10, 10, isNight ? 0xfda4af : 0xa5f3fc);
         h.px(0, 6, 6, 4, 4, 0xffffff);
       }, 0, 0.22, 0.265, { atlas: false, glow: true });
-      addArtBox(anim.torso, 0.58, 0.11, 0.58, 'sift_harmonizer_collar', (ctx, h) => {
-        h.fillAll(0xe2c290, 10, 'stone', 12, -16);
-        for (const t of [0, 1, 4, 5]) h.spots(t, 0x785838, [[2, 6, 2, 4], [7, 6, 2, 4], [12, 6, 2, 4]]);
+      addArtBox(anim.torso, 0.58, 0.11, 0.58, isNight ? 'sift_nightmare_collar' : 'sift_harmonizer_collar', (ctx, h) => {
+        h.fillAll(isNight ? 0x451a2b : 0xe2c290, 10, 'stone', 12, -16);
+        for (const t of [0, 1, 4, 5]) h.spots(t, isNight ? 0xf43f5e : 0x785838, [[2, 6, 2, 4], [7, 6, 2, 4], [12, 6, 2, 4]]);
       }, 0, -0.10, 0, { rough: 0.65 });
-      addArtBox(anim.torso, 0.80, 0.12, 0.80, 'sift_harmonizer_skirt', (ctx, h) => {
-        h.fillAll(0x7e22ce, 16, 'crystal', 16, -20);
-        for (const t of [0, 1, 2, 4, 5]) h.spots(t, 0xc084fc, [[2, 2, 3, 3], [11, 10, 3, 3]]);
+      addArtBox(anim.torso, 0.80, 0.12, 0.80, isNight ? 'sift_nightmare_skirt' : 'sift_harmonizer_skirt', (ctx, h) => {
+        h.fillAll(isNight ? 0x4c0519 : 0x7e22ce, 16, 'crystal', 16, -20);
+        for (const t of [0, 1, 2, 4, 5]) h.spots(t, isNight ? 0xfb7185 : 0xc084fc, [[2, 2, 3, 3], [11, 10, 3, 3]]);
       }, 0, -0.22, 0, { rough: 0.55 });
       for (const [px, pz, rx, rz] of [[0, 0.42, 0.35, 0], [0, -0.42, -0.35, 0], [0.42, 0, 0, -0.35], [-0.42, 0, 0, 0.35]]) {
-        const pt = addBoxTo(anim.torso, px ? 0.22 : 0.40, 0.07, pz ? 0.22 : 0.40, 0x9333ea, px, -0.28, pz, false, 0.55, 'crystal');
+        const pt = addBoxTo(anim.torso, px ? 0.22 : 0.40, 0.07, pz ? 0.22 : 0.40, isNight ? 0x881337 : 0x9333ea, px, -0.28, pz, false, 0.55, 'crystal');
         pt.rotation.x = rx; pt.rotation.z = rz;
       }
       for (const [tx, tz] of [[-0.18, 0.18], [0.18, 0.18], [-0.18, -0.18], [0.18, -0.18]]) {
-        addBoxTo(anim.torso, 0.06, 0.38, 0.06, 0xa855f7, tx, -0.45, tz, false, 0.55, 'crystal');
+        addBoxTo(anim.torso, 0.06, 0.38, 0.06, isNight ? 0xbe123c : 0xa855f7, tx, -0.45, tz, false, 0.55, 'crystal');
       }
       for (const sx of [-1, 1]) {
-        const ant = addBoxTo(anim.torso, 0.07, 0.36, 0.07, 0xc084fc, sx * 0.23, 0.66, 0, false, 0.50, 'crystal');
+        const ant = addBoxTo(anim.torso, 0.07, 0.36, 0.07, isNight ? 0xf43f5e : 0xc084fc, sx * 0.23, 0.66, 0, false, 0.50, 'crystal');
         ant.rotation.z = -sx * 0.26;
-        addBoxTo(anim.torso, 0.05, 0.14, 0.05, 0x67e8f9, sx * 0.32, 0.72, 0, true);
+        addBoxTo(anim.torso, 0.05, 0.14, 0.05, isNight ? 0xfda4af : 0x67e8f9, sx * 0.32, 0.72, 0, true);
       }
-      anim.core = addBoxTo(anim.torso, 0.14, 0.14, 0.14, 0x67e8f9, 0, 0.72, 0, true);
+      anim.core = addBoxTo(anim.torso, 0.14, 0.14, 0.14, isNight ? 0xf43f5e : 0x67e8f9, 0, 0.72, 0, true);
+      if (isNight) g.scale.setScalar(1.12);
       return finishMob();
     }
 
@@ -1569,7 +1573,7 @@
     const _isZombieVariant = (type === 'zombie' || type === 'husk' || type === 'frozen_zombie' || type === 'mossy_zombie');
     const _isCustomV92 = _isPlush || _isSkelVariant || _isZombieVariant || type === 'chicken' || type === 'chicken_jockey' || type === 'spider_jockey'
       || (!!ELEMENTAL_DRAGON_CFG[type] && !(window.BLENDER_MOB_GLBS && window.BLENDER_MOB_GLBS[type]) && !blenderMobTemplates.has(type)) || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire'
-      || type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden'
+      || type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden' || type === 'dream_warden'
       || type === 'antler_deer' || type === 'tuff_golem' || type === 'cinnamon_ferret' || type === 'mini_abomination'
       || type === 'savanna_monkey' || type === 'pink_dolphin' || type === 'vulture' || type === 'moss_golem'
       || type === 'villager' || type === 'pillager' || type === 'pillager_raider' || type === 'vindicator' || type === 'evoker';
@@ -1797,11 +1801,12 @@
       }
 
 
-      if (type === 'cave_warden') {
+      if (type === 'cave_warden' || type === 'dream_warden') {
+        const isDreamW = (type === 'dream_warden');
         // Reworked 1.19 Deep Dark Warden (Image 1-4): Eyeless sculpted skull, glowing curved ear tendrils, 4 bone ribs, pulsing soul-heart core & ivory shoulder chitin!
-        const wDark = '#07161e', wMid = '#0b2c37', wTeal = '#155461', wCyan = '#22d3ee', wPaleCyan = '#a5f3fc', wBone = '#d8d0b2', wBoneSh = '#9b9b82', wMouth = '#02060a';
+        const wDark = '#07161e', wMid = '#0b2c37', wTeal = isDreamW ? '#701a75' : '#155461', wCyan = isDreamW ? '#e879f9' : '#22d3ee', wPaleCyan = isDreamW ? '#fae8ff' : '#a5f3fc', wBone = '#d8d0b2', wBoneSh = '#9b9b82', wMouth = '#02060a';
         anim.torso = mkPiv(g, 0, 0.92, 0);
-        addArt(anim.torso, 1.04, 1.12, 0.72, 'warden_torso_v101', (ctx, { px, fillTile, hash }) => {
+        addArt(anim.torso, 1.04, 1.12, 0.72, isDreamW ? 'dream_warden_torso' : 'warden_torso_v101', (ctx, { px, fillTile, hash }) => {
           for (let f = 0; f < 6; f++) {
             fillTile(f, 0x07161e, 10, 'voxel');
             if (f === 4) {
@@ -1825,9 +1830,9 @@
         }, 0, 0.56, 0, { rough: 0.78 });
 
         // Per-instance glowing soul-heart chest core (pulsing synced to heartbeat & Sonic Boom charge!)
-        const coreTex = _makeCuteVoxelTex('warden_core_v101', (ctx, { px, fillTile }) => {
+        const coreTex = _makeCuteVoxelTex(isDreamW ? 'dream_warden_core' : 'warden_core_v101', (ctx, { px, fillTile }) => {
           fillTile(0, 0x02080c, 4, 'voxel');
-          px(0, 5, 1, 6, 14, '#083344');
+          px(0, 5, 1, 6, 14, isDreamW ? '#4a044e' : '#083344');
           px(0, 3, 4, 3, 4, wCyan); px(0, 9, 3, 4, 4, wCyan);
           px(0, 6, 6, 4, 4, wPaleCyan); px(0, 7, 10, 3, 3, wCyan);
           px(0, 2, 10, 2, 2, wTeal); px(0, 11, 9, 2, 2, wTeal);
@@ -1842,7 +1847,7 @@
 
         // Blind Sculpted Skull + Crown Plate + Recessed Gaping Mouth (NO EYES!)
         anim.head = mkPiv(anim.torso, 0, 1.12, 0.04);
-        addArt(anim.head, 0.94, 0.78, 0.80, 'warden_head_v101', (ctx, { px, fillTile, hash }) => {
+        addArt(anim.head, 0.94, 0.78, 0.80, isDreamW ? 'dream_warden_head' : 'warden_head_v101', (ctx, { px, fillTile, hash }) => {
           for (let f = 0; f < 6; f++) {
             fillTile(f, 0x07161e, 10, 'voxel');
             if (f === 2) {
@@ -2926,15 +2931,15 @@
         else if (edc.el === 'tree') { addPart(tail3, 0.56, 0.28, 0.48, 0x3a7d34, 0, 0, -0.962, false, 0.82, 'wool'); addFlower(tail3, edc.crest, 0xfef08a, 0, 0.142, -0.962, 1.1); }
         else { for (const sx of [-1, 1]) addPart(tail3, 0.40, 0.09, 0.48, edc.wing, sx * 0.22, 0.02, -0.962, false, 0.78, 'wool'); }
 
-        // 4 Muscular Clawed Legs (non-overlapping outside torso)
-        const legX = 0.55 * wMul + 0.185;
-        for (const [lx, lz, d] of [[-legX, 0.56, 1], [legX, 0.56, -1], [-legX, -0.58, -1], [legX, -0.58, 1]]) {
+        // 2 Clawed Hind Wyvern Legs ONLY (RLCraft-style bipedal Wyvern!)
+        const legX = 0.55 * wMul + 0.16;
+        for (const [lx, lz, d] of [[-legX, -0.34, -1], [legX, -0.34, 1]]) {
           const leg = mkPiv(anim.torso, lx, -0.20, lz);
           anim.legs.push({ p: leg, dir: d });
-          addPart(leg, 0.32, 0.44, 0.36, edc.body, 0, -0.22, 0, false, roughBody);
-          addPart(leg, 0.26, 0.40, 0.28, edc.body, 0, -0.642, -0.02, false, roughBody);
-          addPart(leg, 0.32, 0.13, 0.40, edc.horn, 0, -0.910, 0.05, false, 0.72);
-          for (const cx of [-0.10, 0.0, 0.10]) addPart(leg, 0.06, 0.08, 0.12, 0xe7e5e4, cx, -0.935, 0.312, false, 0.38);
+          addPart(leg, 0.34, 0.46, 0.40, edc.body, 0, -0.22, 0.08, false, roughBody);
+          addPart(leg, 0.24, 0.42, 0.26, edc.body, 0, -0.62, -0.02, false, roughBody);
+          addPart(leg, 0.34, 0.12, 0.42, edc.horn, 0, -0.92, 0.08, false, 0.72);
+          for (const cx of [-0.11, 0.0, 0.11]) addPart(leg, 0.06, 0.08, 0.14, 0xe7e5e4, cx, -0.94, 0.34, false, 0.38);
         }
         return finishCustom();
       }
@@ -3487,13 +3492,13 @@
   }
 
   const MOB_STATS = {
-    ender_dragon:    { hostile: true,  hp: 600, speed: 7.40, r: 2.50, h: 3.1, dmg: 9.0, isBoss: true, flying: true, bossLabel: 'ENDER DRAGON • CHÚA TỂ HƯ KHÔNG', bossGrad: 'linear-gradient(90deg, #7e22ce, #d946ef, #f0abfc)' },
-    ice_dragon:      { displayName: 'Rồng Băng Vĩnh Cửu',  hostile: true, hp: 420, speed: 6.80, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'ice',   bossLabel: 'RỒNG BĂNG VĨNH CỬU',  bossGrad: 'linear-gradient(180deg, #38bdf8, #0284c7, #075985)' },
-    fire_dragon:     { displayName: 'Rồng Lửa Hỏa Diệm',   hostile: true, hp: 450, speed: 7.20, r: 2.35, h: 2.9, dmg: 8.5, isBoss: true, flying: true, elementalDragon: 'fire',  noSunBurn: true, bossLabel: 'RỒNG LỬA HỎA DIỆM', bossGrad: 'linear-gradient(180deg, #facc15, #f97316, #991b1b)' },
-    earth_dragon:    { displayName: 'Rồng Đất Địa Chấn',   hostile: true, hp: 500, speed: 6.20, r: 2.50, h: 3.0, dmg: 9.0, isBoss: true, flying: true, elementalDragon: 'earth', bossLabel: 'RỒNG ĐẤT ĐỊA CHẤN', bossGrad: 'linear-gradient(180deg, #f59e0b, #a16207, #44403c)' },
-    water_dragon:    { displayName: 'Rồng Nước Thủy Triều',hostile: true, hp: 430, speed: 7.00, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'water', noSunBurn: true, bossLabel: 'RỒNG NƯỚC THỦY TRIỀU', bossGrad: 'linear-gradient(180deg, #67e8f9, #06b6d4, #1e40af)' },
-    leaf_dragon:     { displayName: 'Rồng Lá Thần Rừng',   hostile: true, hp: 410, speed: 6.90, r: 2.35, h: 2.9, dmg: 7.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ THẦN RỪNG', bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
-    tree_dragon:     { displayName: 'Rồng Cây Cổ Thụ',     hostile: true, hp: 460, speed: 6.50, r: 2.40, h: 3.0, dmg: 8.0, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CÂY CỔ THỤ', bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
+    ender_dragon:    { hostile: true,  hp: 600, speed: 7.40, r: 2.50, h: 3.1, dmg: 9.0, isBoss: true, flying: true, bossLabel: 'RỒNG ENDER', bossGrad: 'linear-gradient(90deg, #7e22ce, #d946ef, #f0abfc)' },
+    ice_dragon:      { displayName: 'Rồng Băng',     hostile: true, hp: 420, speed: 6.80, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'ice',   bossLabel: 'RỒNG BĂNG',     bossGrad: 'linear-gradient(180deg, #38bdf8, #0284c7, #075985)' },
+    fire_dragon:     { displayName: 'Rồng Lửa',      hostile: true, hp: 450, speed: 7.20, r: 2.35, h: 2.9, dmg: 8.5, isBoss: true, flying: true, elementalDragon: 'fire',  noSunBurn: true, bossLabel: 'RỒNG LỬA', bossGrad: 'linear-gradient(180deg, #facc15, #f97316, #991b1b)' },
+    earth_dragon:    { displayName: 'Rồng Đất',      hostile: true, hp: 500, speed: 6.20, r: 2.50, h: 3.0, dmg: 9.0, isBoss: true, flying: true, elementalDragon: 'earth', bossLabel: 'RỒNG ĐẤT',      bossGrad: 'linear-gradient(180deg, #f59e0b, #a16207, #44403c)' },
+    water_dragon:    { displayName: 'Rồng Nước',     hostile: true, hp: 430, speed: 7.00, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'water', noSunBurn: true, bossLabel: 'RỒNG NƯỚC', bossGrad: 'linear-gradient(180deg, #67e8f9, #06b6d4, #1e40af)' },
+    leaf_dragon:     { displayName: 'Rồng Lá',       hostile: true, hp: 410, speed: 6.90, r: 2.35, h: 2.9, dmg: 7.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ',       bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
+    tree_dragon:     { displayName: 'Rồng Cổ Thụ',   hostile: true, hp: 460, speed: 6.50, r: 2.40, h: 3.0, dmg: 8.0, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CỔ THỤ',   bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
     cave_warden:     { hostile: true,  hp: 500, speed: 2.85, r: 0.72, h: 2.85, dmg: 16.0, isBoss: true, noSunBurn: true, displayName: 'Warden', bossLabel: '💀 WARDEN — QUÁI THÚ DEEP DARK', bossGrad: 'linear-gradient(90deg, #064e63, #0891b2, #22d3ee)' },
     // v22 4 Brand-New Nether Mobs + 4 Brand-New End City Mobs (Cute Project-Verdant Blender Voxel Style!)
     strider:         { hostile: false, hp: 20,  speed: 2.15, r: 0.58, h: 1.45, dmg: 0,   noSunBurn: true, displayName: 'Strider Dung Nham' },
@@ -3518,6 +3523,9 @@
     roamroot:        { hostile: false, siftOnly: true, hp: 20, speed: 1.80, r: 0.52, h: 1.35, dmg: 0, noSunBurn: true, displayName: 'Nấm Đi Bộ Roamroot' },
     ichor_ray:       { hostile: false, siftOnly: true, hp: 18, speed: 2.60, r: 0.65, h: 0.60, dmg: 0, noSunBurn: true, skyBird: true, displayName: 'Cá Đuối Bay Ichor Ray' },
     harmonizer:      { hostile: true,  siftOnly: true, hp: 42, speed: 2.45, r: 0.55, h: 1.85, dmg: 6.0, noSunBurn: true, flying: true, displayName: 'Tinh Linh Harmonizer' },
+    nightmare_stalker:{ hostile: true, siftOnly: true, hp: 64, speed: 2.85, r: 0.62, h: 2.05, dmg: 8.5, noSunBurn: true, flying: true, displayName: 'Ác Mộng Giấc Mơ' },
+    sky_manta:       { hostile: false, siftOnly: true, skyBird: true, hp: 28, speed: 3.10, r: 0.75, h: 0.70, dmg: 0, noSunBurn: true, displayName: 'Cá Đuối Mây Sift' },
+    dream_warden:    { hostile: true,  siftOnly: true, isBoss: true, hp: 420, speed: 2.75, r: 0.74, h: 2.85, dmg: 14.0, noSunBurn: true, displayName: 'Vệ Thần Giấc Mơ', bossLabel: '✨ VỆ THẦN GIẤC MƠ — BOSS THE SIFT', bossGrad: 'linear-gradient(90deg, #581c87, #a855f7, #f0abfc)' },
     ghast:           { hostile: true,  hp: 32,  speed: 2.80, r: 1.55, h: 2.8, dmg: 7.0, noSunBurn: true, flying: true, ranged: 'ghast_fire' },
     wither_skeleton: { hostile: true,  hp: 32,  speed: 2.55, r: 0.55, h: 2.3, dmg: 5.5, noSunBurn: true },
     shulker:         { hostile: true,  hp: 30,  speed: 0.0,  r: 0.65, h: 1.1, dmg: 4.5, noSunBurn: true, ranged: 'shulker_bolt', turret: true },
@@ -3939,21 +3947,64 @@
     playSfx('equip');
   }
 
-  function fireRiddenDragonBreath() {
+  function castRiddenDragonSkill(skillIdx = 1) {
     const m = player.ridingDragon;
-    if (!m || m._dead || (m.atkCd || 0) > 0) return false;
-    m.atkCd = 0.65;
-    m.atkAnimT = 0.45;
+    if (!m || m._dead) return false;
+    const el = m.elemDragon || 'fire';
+    const kindMap = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
+    const kind = kindMap[el] || 'drg_fire';
+    const pCol = el === 'ice' ? 0x38bdf8 : (el === 'earth' ? 0xf59e0b : (el === 'water' ? 0x22d3ee : (el === 'leaf' || el === 'tree' ? 0x4ade80 : 0xf97316)));
     _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ');
     _rayDir.set(0, 0, -1).applyEuler(_rayEuler);
-    const kindMap = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
-    const kind = kindMap[m.elemDragon] || 'drg_fire';
     const mp = getDragonMouthWorldPos(m, _mouthPos);
-    const pCol = m.elemDragon === 'ice' ? 0x38bdf8 : (m.elemDragon === 'earth' ? 0xf59e0b : (m.elemDragon === 'water' ? 0x22d3ee : (m.elemDragon === 'leaf' || m.elemDragon === 'tree' ? 0x4ade80 : 0xf97316)));
+
+    if (skillIdx === 2) {
+      if ((m._sk2Cd || 0) > 0) return false;
+      m._sk2Cd = 3.5; m.atkAnimT = 0.50; playSfx('roar');
+      const rainKind = (el === 'fire') ? 'drg_fire_meteor' : kind;
+      for (let i = -1; i <= 1; i++) {
+        const sp = i * 0.14;
+        const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+        const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+        fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y - 0.04, sz, 29.0, m.dmg * 1.45, rainKind, { friendlyDragon: true, ownerDragon: m });
+      }
+      spawnParticles(mp.x, mp.y, mp.z, pCol, 14, true);
+      showToast('🌠 Chiêu 2: Mưa Năng Lượng Rồng!');
+      return true;
+    }
+    if (skillIdx === 3) {
+      if ((m._sk3Cd || 0) > 0) return false;
+      m._sk3Cd = 5.0; m.atkAnimT = 0.50; playSfx('roar');
+      player.smoothMoveX = _rayDir.x * 28.0; player.smoothMoveZ = _rayDir.z * 28.0; player.vy = _rayDir.y * 22.0 + 4.0;
+      for (let mi = 0; mi < mobs.length; mi++) {
+        const mb = mobs[mi];
+        if (!mb || mb._dead || mb === m || mb.tamed) continue;
+        const d = Math.hypot(mb.x - m.x, mb.y - m.y, mb.z - m.z);
+        if (d < 9.5) hurtMob(mb, m.dmg * 1.6, mb.x - m.x, mb.z - m.z, 9.5, el === 'fire', false);
+      }
+      spawnParticles(m.x, m.y + 0.8, m.z, pCol, 22, true);
+      showToast('🌪️ Chiêu 3: Lướt Cánh Xung Kích!');
+      return true;
+    }
+    if (skillIdx === 4) {
+      if ((m._sk4Cd || 0) > 0) return false;
+      m._sk4Cd = 9.0; m.atkAnimT = 0.65; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.36);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.10, Math.sin(a), 24.0, m.dmg * 1.85, kind, { friendlyDragon: true, ownerDragon: m });
+      }
+      spawnParticles(m.x, m.y + 1.0, m.z, pCol, 28, true);
+      showToast('💥 Chiêu 4: Đại Hồng Thủy Nguyên Tố!');
+      return true;
+    }
+    if ((m.atkCd || 0) > 0) return false;
+    m.atkCd = 0.65;
+    m.atkAnimT = 0.45;
     spawnParticles(mp.x, mp.y, mp.z, pCol, 7, true);
     fireEnergyOrb(mp.x, mp.y, mp.z, _rayDir.x, _rayDir.y, _rayDir.z, 28.0, m.dmg * 1.5, kind, { friendlyDragon: true, ownerDragon: m });
     return true;
   }
+  function fireRiddenDragonBreath() { return castRiddenDragonSkill(1); }
 
   function feedOrInteractTamedDragon(m, slot, selDef, toggleSit = true) {
     if (!m || m._dead || !m.tamed || !m.elemDragon) return false;
@@ -4075,9 +4126,15 @@
     bindHoldBtn('btnDragonDown', 'down');
     const bBr = document.getElementById('btnDragonBreath');
     if (bBr) {
-      bBr.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); fireRiddenDragonBreath(); }, { passive: false });
-      bBr.addEventListener('click', (e) => { e.stopPropagation(); fireRiddenDragonBreath(); });
+      bBr.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); castRiddenDragonSkill(1); }, { passive: false });
+      bBr.addEventListener('click', (e) => { e.stopPropagation(); castRiddenDragonSkill(1); });
     }
+    const bindSkillBtn = (id, sk) => {
+      const el = document.getElementById(id); if (!el) return;
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); castRiddenDragonSkill(sk); }, { passive: false });
+      el.addEventListener('click', (e) => { e.stopPropagation(); castRiddenDragonSkill(sk); });
+    };
+    bindSkillBtn('btnDragonSk2', 2); bindSkillBtn('btnDragonSk3', 3); bindSkillBtn('btnDragonSk4', 4);
     const bEx = document.getElementById('btnDragonExit');
     if (bEx) {
       bEx.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); dismountDragon(); }, { passive: false });
@@ -4162,10 +4219,14 @@
       if (biome === BIOMES.SIFT_HUSKLAND) pool = ['humbler', 'humbler', 'trill', 'wobble'];
       else if (biome === BIOMES.SIFT_SPOREFIELDS) pool = ['roamroot', 'roamroot', 'harmonizer', 'blub'];
       else if (biome === BIOMES.SIFT_LULLABY || biome === BIOMES.SIFT_LULLABY_TOP) pool = ['blub', 'wobble', 'nuzzle', 'trill'];
-      else if (biome === BIOMES.SIFT_CHORAL_GLEN) pool = ['singer', 'trill', 'nuzzle', 'echo_golem'];
-      else if (biome === BIOMES.SIFT_CANYON) pool = ['harmonizer', 'humbler', 'ichor_ray'];
+      else if (biome === BIOMES.SIFT_CHORAL_GLEN || biome === BIOMES.SIFT_GIANT_FOREST) pool = ['singer', 'trill', 'nuzzle', 'echo_golem', 'roamroot'];
+      else if (biome === BIOMES.SIFT_PLAINS) pool = ['blub', 'wobble', 'nuzzle', 'trill', 'singer'];
+      else if (biome === BIOMES.SIFT_SKY_ISLANDS || biome === BIOMES.SIFT_PEAKS) pool = ['sky_manta', 'ichor_ray', 'harmonizer', 'nightmare_stalker'];
+      else if (biome === BIOMES.SIFT_OCEAN) pool = ['ichor_ray', 'sky_manta', 'blub'];
+      else if (biome === BIOMES.SIFT_CANYON) pool = ['harmonizer', 'nightmare_stalker', 'humbler', 'ichor_ray'];
       else pool = ['blub', 'wobble', 'nuzzle', 'trill', 'singer', 'echo_golem'];
-      const pick = pool[(Math.random() * pool.length) | 0];
+      const pick = (biome === BIOMES.SIFT_CANYON && Math.random() < 0.06 && !mobs.some(m => m && !m._dead && m.type === 'dream_warden'))
+        ? 'dream_warden' : pool[(Math.random() * pool.length) | 0];
       if ((MOB_STATS[pick]?.skyBird || MOB_STATS[pick]?.flying) && skyCnt >= skyCap) return;
       spawnMobOfType(pick, wx + 0.5, sy + 1.3, wz + 0.5);
       return;
@@ -4837,26 +4898,28 @@
       }
       else if (mob.elemDragon) {
         const dLoot = {
-          ice: [B.PACKED_ICE, B.SNOW, B.DIAMOND],
+          ice: [B.PACKED_ICE, B.SNOW, B.LAPIS_ORE || B.EMERALD],
           fire: [B.MAGMA_CORE, B.BLAZE_ROD, B.GOLD_INGOT],
           earth: [B.OBSIDIAN, B.EMERALD, B.IRON_INGOT],
-          water: [B.SEA_LANTERN, B.WATER_BREATH_POTION, B.DIAMOND],
+          water: [B.SEA_LANTERN, B.WATER_BREATH_POTION, B.EMERALD],
           leaf: [B.MOSS_BLOCK, B.OAK_LEAVES, B.GOLD_APPLE],
           tree: [B.MOSS_BLOCK, B.OAK_LOG, B.GOLD_APPLE]
-        }[mob.elemDragon] || [B.DIAMOND];
+        }[mob.elemDragon] || [B.EMERALD];
         for (let di = 0; di < dLoot.length; di++) if (dLoot[di]) spawnDroppedItem(bx, by, bz, dLoot[di]);
-        spawnDroppedItem(bx, by, bz, B.DRAGON_SCALE, { count: 3 + ((Math.random() * 3) | 0) });
+        const scaleKey = 'DRAGON_SCALE_' + String(mob.elemDragon || 'fire').toUpperCase();
+        const scaleId = B[scaleKey] || B.DRAGON_SCALE;
+        spawnDroppedItem(bx, by, bz, scaleId, { count: 4 + ((Math.random() * 3) | 0) });
         spawnDroppedItem(bx, by, bz, B.DRAGON_BONE,  { count: 2 + ((Math.random() * 3) | 0) });
         spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 65);
         showToast(`🏆 ĐÃ HẠ GỤC ${mob.displayName.toUpperCase()}! Nhặt Vảy Rồng & Xương Rồng để rèn trang bị!`);
       }
-      else if (mob.type === 'cave_warden') {
-        spawnDroppedItem(bx, by, bz, B.SCULK_CATALYST);
-        spawnDroppedItem(bx, by, bz, B.ECHO_SHARD, { count: 2 });
+      else if (mob.type === 'cave_warden' || mob.type === 'dream_warden') {
+        spawnDroppedItem(bx, by, bz, mob.type === 'dream_warden' ? (B.ICHOR_CRYSTAL || B.SCULK_CATALYST) : B.SCULK_CATALYST);
+        spawnDroppedItem(bx, by, bz, B.ECHO_SHARD, { count: 3 });
         spawnDroppedItem(bx, by, bz, B.DISC_FRAGMENT_5);
         spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 50);
-        spawnParticles(mob.x, mob.y + 1.5, mob.z, 0x22d3ee, 24, true);
-        showToast('🏆 ĐÃ HẠ GỤC WARDEN THÀNH PHỐ CỔ!');
+        spawnParticles(mob.x, mob.y + 1.5, mob.z, mob.type === 'dream_warden' ? 0xe879f9 : 0x22d3ee, 24, true);
+        showToast(mob.type === 'dream_warden' ? '🏆 ĐÃ HẠ GỤC VỆ THẦN GIẤC MƠ!' : '🏆 ĐÃ HẠ GỤC WARDEN THÀNH PHỐ CỔ!');
       }
       else if (mob.type === 'magma_golem') { spawnDroppedItem(bx, by, bz, B.MAGMA_CORE); spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); spawnDroppedItem(bx, by, bz, B.DIAMOND); showToast('🏆 ĐÃ HẠ GỤC BOSS GOLEM DUNG NHAM!'); }
       else if (mob.type === 'redstone_monstrosity') { spawnDroppedItem(bx, by, bz, B.REDSTONE, { count: 6 }); spawnDroppedItem(bx, by, bz, B.DIAMOND, { count: 2 }); spawnDroppedItem(bx, by, bz, B.MAGMA_CORE); spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 45); showToast('🏆 ĐÃ HẠ GỤC BOSS REDSTONE MONSTROSITY!'); }
@@ -4877,11 +4940,11 @@
       else if (mob.type === 'drowned') { spawnDroppedItem(bx, by, bz, B.RAW_FISH); spawnDroppedItem(bx, by, bz, B.IRON_INGOT); }
       else if (mob.type === 'guardian') { spawnDroppedItem(bx, by, bz, B.SEA_LANTERN); spawnDroppedItem(bx, by, bz, B.RAW_FISH); }
       else if (mob.type === 'witch') { spawnDroppedItem(bx, by, bz, B.WATER_BREATH_POTION); spawnDroppedItem(bx, by, bz, B.GLOW_CRYSTAL); }
-      else if (mob.type === 'iceologer') { spawnDroppedItem(bx, by, bz, B.PACKED_ICE); spawnDroppedItem(bx, by, bz, B.DIAMOND); }
-      else if (mob.type === 'ruin_stalker') { spawnDroppedItem(bx, by, bz, B.RUST_STEEL); spawnDroppedItem(bx, by, bz, B.DIAMOND); }
+      else if (mob.type === 'iceologer') { spawnDroppedItem(bx, by, bz, B.PACKED_ICE); spawnDroppedItem(bx, by, bz, B.EMERALD); }
+      else if (mob.type === 'ruin_stalker') { spawnDroppedItem(bx, by, bz, B.RUST_STEEL); spawnDroppedItem(bx, by, bz, B.IRON_INGOT); }
       else if (mob.type === 'gargoyle') { spawnDroppedItem(bx, by, bz, B.BASALT); spawnDroppedItem(bx, by, bz, B.LANTERN); }
-      else if (mob.type === 'echo_golem' || mob.type === 'harmonizer') { spawnDroppedItem(bx, by, bz, B.ECHO_SHARD); if (Math.random() < 0.55) spawnDroppedItem(bx, by, bz, B.ICHOR_CRYSTAL); }
-      else if (mob.type === 'humbler' || mob.type === 'roamroot' || mob.type === 'ichor_ray') { spawnDroppedItem(bx, by, bz, Math.random() < 0.5 ? B.DREAM_FRUIT : B.ECHO_SHARD); }
+      else if (mob.type === 'echo_golem' || mob.type === 'harmonizer' || mob.type === 'nightmare_stalker') { spawnDroppedItem(bx, by, bz, B.ECHO_SHARD); if (Math.random() < 0.65) spawnDroppedItem(bx, by, bz, B.ICHOR_CRYSTAL); }
+      else if (mob.type === 'humbler' || mob.type === 'roamroot' || mob.type === 'ichor_ray' || mob.type === 'sky_manta') { spawnDroppedItem(bx, by, bz, Math.random() < 0.5 ? B.DREAM_FRUIT : B.ECHO_SHARD); }
       else if (mob.type === 'blub' || mob.type === 'wobble' || mob.type === 'nuzzle' || mob.type === 'trill' || mob.type === 'singer') { spawnDroppedItem(bx, by, bz, B.DREAM_FRUIT); }
       else if (mob.type === 'blaze' || mob.type === 'wildfire') { spawnDroppedItem(bx, by, bz, B.BLAZE_ROD); if (Math.random() < 0.55) spawnDroppedItem(bx, by, bz, B.BLAZE_ROD); spawnDroppedItem(bx, by, bz, B.MAGMA_CORE); if (mob.type === 'wildfire') spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
       else if (mob.type === 'ghast' || mob.type === 'baby_ghast') {
@@ -4893,9 +4956,9 @@
       else if (mob.type === 'moobloom' || mob.type === 'wooly_cow') { const bf = mob.burning ? B.COOKED_BEEF : B.RAW_BEEF; spawnDroppedItem(bx, by, bz, bf); spawnDroppedItem(bx, by, bz, B.FLOWER_YELLOW); }
       else if (mob.type === 'cluckshroom') { spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_CHICKEN : B.RAW_CHICKEN); }
       else if (mob.type === 'zombified_piglin') { spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
-      else if (mob.type === 'wither_skeleton') { spawnDroppedItem(bx, by, bz, B.COAL); spawnDroppedItem(bx, by, bz, B.DIAMOND); }
+      else if (mob.type === 'wither_skeleton') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); }
       else if (mob.type === 'shulker') { spawnDroppedItem(bx, by, bz, B.PURPUR_BLOCK); spawnDroppedItem(bx, by, bz, B.VOID_PEARL); }
-      else if (mob.type === 'wither_knight') { spawnDroppedItem(bx, by, bz, B.COAL); spawnDroppedItem(bx, by, bz, B.DIAMOND); }
+      else if (mob.type === 'wither_knight') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
       else if (mob.type === 'iron_golem') { spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.FLOWER_RED); }
       else if (mob.type === 'slime') { spawnDroppedItem(bx, by, bz, B.MUSHROOM_GLOW); }
       else if (mob.type === 'phantom_drake') { spawnDroppedItem(bx, by, bz, B.GLOW_CRYSTAL); spawnDroppedItem(bx, by, bz, B.ARROW); }
@@ -5093,6 +5156,8 @@
     if (isSwordWpn) {
       playSwordSlashSfx(player.swordAtkHit || 1, !!mobHit, !!(def && def.fireDmg), !!(def && def.rainbow));
       spawnSwordSlashArc(player.swordAtkHit || 1, def, !!mobHit);
+    } else if (def && (def.tool === 'axe' || def.tool === 'pick' || def.tool === 'hoe' || def.id === B.TRIDENT)) {
+      spawnSwordSlashArc(((player.swingStep || 0) % 2) + 1, def, !!mobHit);
     }
     if (!mobHit) return false;
     let baseDmg = (def && def.dmg) ? def.dmg : 1.5;
@@ -5113,7 +5178,11 @@
     return true;
   }
 
+  let _lastPrimaryDownMs = 0;
   function handlePrimaryActionDown() {
+    const _nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    if (_nowMs - _lastPrimaryDownMs < 110) return;
+    _lastPrimaryDownMs = _nowMs;
     if (raycastMob(4.6)) {
       attackTargetMob();
       return;
@@ -5127,6 +5196,8 @@
     const sel = inventory[player.selectedSlot], def = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
     if (hitB && !(gameMode === 'creative' && def && def.tool === 'sword')) {
       mining.active = true;
+      mining.heldDur = 0;
+      mining._didInitialSwing = false;
       return;
     }
     attackTargetMob();
@@ -5338,26 +5409,36 @@
   function updateDragonMode(m, dt, dist) {
     if (!m.elemDragon) return;
     if (!m._groundCacheT || m._groundCacheT <= 0) {
-      m._groundCacheT = 0.55;
+      m._groundCacheT = 0.45;
       m._groundY = Math.max(WATER_LEVEL + 1, colGroundY(Math.floor(m.x), Math.floor(m.z)) + 1);
     } else m._groundCacheT -= dt;
     m.dragonModeTimer -= dt;
+    const isSolidNonFoliage = (wx, wy, wz) => {
+      const b = getBlockWorld(wx, wy, wz), d = BLOCK_DEF[b];
+      return isSolidAt(wx, wy, wz) && !(d && (d.foliage || d.isLog || d.cross));
+    };
     if (m.dragonMode === 'fly') {
       m.flying = true;
-      const nearHome = (typeof m.homeX !== 'number') || Math.hypot(m.x - m.homeX, m.z - m.homeZ) <= ((m.homeRadius || 24) + 6);
-      if (m.dragonModeTimer <= 0 && dist < 48 && nearHome) {
-        m.dragonMode = 'land'; m.dragonModeTimer = 4.0;
-        m.lastSkillLabel = '🦅 ĐÁP XUỐNG MẶT ĐẤT!';
+      m._landVy = 0;
+      const nearHome = (typeof m.homeX !== 'number') || Math.hypot(m.x - m.homeX, m.z - m.homeZ) <= ((m.homeRadius || 24) + 2);
+      if (m.dragonModeTimer <= 0 && dist < 44 && nearHome) {
+        m.dragonMode = 'land'; m.dragonModeTimer = 5.5;
+        m.lastSkillLabel = '🦅 HẠ CÁNH XUỐNG TỔ!';
       }
     } else if (m.dragonMode === 'land') {
       m.flying = true;
       const landY = Math.max(WATER_LEVEL + 0.6, m._groundY || 2);
-      m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
-      m.y += (landY - m.y) * Math.min(1, dt * 4.2);
-      const belowSolid = isSolidAt(Math.floor(m.x), Math.floor(m.y - 0.35), Math.floor(m.z));
-      if (belowSolid || m.y <= landY + 0.9 || m.dragonModeTimer <= 0) {
+      const tgtYaw = Math.atan2((typeof m.homeX === 'number' ? m.homeX : player.x) - m.x, (typeof m.homeZ === 'number' ? m.homeZ : player.z) - m.z);
+      m.yaw = _turnAngleTowards(m.yaw, tgtYaw, 3.8, dt);
+      const altAbove = Math.max(0, m.y - landY);
+      const desSink = altAbove > 5.0 ? -4.2 : -(1.1 + altAbove * 0.55);
+      m._landVy = (m._landVy || desSink) + (desSink - (m._landVy || desSink)) * Math.min(1, dt * 4.5);
+      m.y = Math.max(landY, m.y + m._landVy * dt);
+      m._flyPitch = Math.max(-0.22, Math.min(0.28, altAbove < 3.5 ? -0.18 : 0.14));
+      const belowSolid = isSolidNonFoliage(Math.floor(m.x), Math.floor(m.y - 0.35), Math.floor(m.z));
+      if (belowSolid || altAbove <= 0.35 || m.dragonModeTimer <= 0) {
         m.y = Math.max(WATER_LEVEL + 0.6, belowSolid ? Math.floor(m.y - 0.35) + 1.0 : landY);
-        m.dragonMode = 'ground'; m.flying = false; m.vy = 0; m.onGround = true;
+        m.dragonMode = 'ground'; m.flying = false; m.vy = 0; m._landVy = 0; m.onGround = true;
         m.dragonModeTimer = 9.0 + Math.random() * 2.5;
         m.atkCd = Math.min(m.atkCd || 0, 0.7);
         playSfx('roar'); cameraShake = Math.max(cameraShake, 0.25);
@@ -5365,11 +5446,11 @@
       }
     } else if (m.dragonMode === 'ground') {
       m.flying = false;
-      const tooFarHome = (typeof m.homeX === 'number') && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > ((m.homeRadius || 24) + 8);
+      const tooFarHome = (typeof m.homeX === 'number') && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > ((m.homeRadius || 24) + 3);
       if (m.dragonModeTimer <= 0 || tooFarHome || (m.y < WATER_LEVEL - 1.5 && m.elemDragon !== 'water')) {
-        m.dragonMode = 'fly'; m.flying = true; m.y += 1.8; m.vy = 0;
+        m.dragonMode = 'fly'; m.flying = true; m.y += 1.4; m.vy = 0;
         m.dragonModeTimer = 8.5 + Math.random() * 2.5;
-        playSfx('roar'); m.lastSkillLabel = '🕊️ CẤT CÁNH LÊN TRỜI!';
+        playSfx('roar'); m.lastSkillLabel = '🕊️ CẤT CÁNH TUẦN TRA TỔ!';
       }
     }
   }
@@ -5393,9 +5474,9 @@
     const tvy = tgtMob ? (tgtMob.flyVy || tgtMob.vy || 0) : player.vy;
     const tvz = tgtMob ? (tgtMob.flyVz || tgtMob.vz || 0) : ((player.smoothMoveZ || 0) + player.vz);
     const mp = getDragonMouthWorldPos(m, _mouthPos);
-    const skill2 = (Math.random() < 0.45);
+    const skPick = Math.random();
     m.atkAnimT = 0.55; playSfx('roar');
-    if (!skill2) {
+    if (skPick < 0.34) {
       // Aerial Skill 1: Elemental Breath Volley with smart target-velocity lead from exact mouth pos!
       const cfg = {
         ice:   ['❄️ BAY 1: HƠI THỞ BĂNG HÀN!',   'drg_ice',   3, 21.5, 0.12, 6.5, 2.8],
@@ -5413,7 +5494,7 @@
         const sz = aim.x * Math.sin(sp) + aim.z * Math.cos(sp);
         fireEnergyOrb(mp.x, mp.y, mp.z, sx, aim.y, sz, cfg[3], cfg[5], cfg[1], { ownerDragon: m });
       }
-    } else {
+    } else if (skPick < 0.68) {
       // Aerial Skill 2: Elemental Sky Bombardment around target from mouth!
       const skyMap = {
         ice:   ['🌨️ BAY 2: MƯA BĂNG CỰC HÀN!',    'drg_ice',        4, 20.5, 6.0],
@@ -5430,6 +5511,20 @@
         const oz = tz + (bi === 0 ? 0 : (Math.random() - 0.5) * 3.8);
         const aim = computeSmartAimDir(mp.x, mp.y, mp.z, ox, ty, oz, tvx, tgtMob && tgtMob.elemDragon ? tvy * 2.0 : tvy, tvz, skyMap[3], 0, 0.005);
         fireEnergyOrb(mp.x, mp.y, mp.z, aim.x, aim.y, aim.z, skyMap[3], skyMap[4], skyMap[1], { ownerDragon: m });
+      }
+    } else {
+      // Aerial Skill 3/4: Wing Vortex Dash or Radial Elemental Burst!
+      const kindMap4 = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
+      const isBurst = (Math.random() < 0.5);
+      m.lastSkillLabel = isBurst ? '💥 BAY 4: BÃO NGUYÊN TỐ VÒNG TRÒN!' : '🌪️ BAY 3: CÁNH RỒNG XUNG KÍCH!';
+      m.atkCd = 3.6;
+      if (isBurst) {
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2;
+          fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.18, Math.sin(a), 20.0, m.dmg * 1.1, kindMap4[el] || 'drg_fire', { ownerDragon: m });
+        }
+      } else {
+        m.swoopT = 2.0;
       }
     }
   }
@@ -5809,6 +5904,7 @@
       const villagerThreat = (m.villager && m._vilThreat && !m._vilThreat._dead) ? m._vilThreat : null;
 
       let speed = m.speed;
+      if (m._chilledT > 0) { m._chilledT = Math.max(0, m._chilledT - dt); speed *= 0.52; }
       let visualTargetYaw = m.yaw;
       const _isGuestMobClient = !!(activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(m.tamed && player.ridingDragon === m));
       if (_isGuestMobClient) {
@@ -6137,32 +6233,39 @@
           const bx = m.x + Math.sin(m.yaw) * airSpd * dt, bz = m.z + Math.cos(m.yaw) * airSpd * dt;
           if (!m._groundCacheT || m._groundCacheT <= 0) {
             m._groundCacheT = 0.65;
-            m._groundY = Math.max(WATER_LEVEL + 2, getTerrainHeight(Math.floor(bx), Math.floor(bz), getBiomeAt(Math.floor(bx), Math.floor(bz))));
+            const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(Math.floor(bx), Math.floor(bz)) : getTerrainHeight(Math.floor(bx), Math.floor(bz), getBiomeAt(Math.floor(bx), Math.floor(bz)));
+            m._groundY = Math.max(WATER_LEVEL + 2, cTop);
           } else m._groundCacheT -= dt;
           const gH = m._groundY || (WATER_LEVEL + 2);
           const soarWave = m._isGliding ? Math.sin(elapsed * 0.95 + i) * 0.7 : Math.sin(elapsed * 2.1 + i) * 1.15;
-          const wantY = Math.min(MAX_Y - 4, gH + (isLowHover ? 2.6 : 6.4) + soarWave);
+          const wantY = Math.min(MAX_Y - 4, gH + (isLowHover ? 3.2 : 6.8) + soarWave);
           const prevY = m.y;
           const ny = m.y + (wantY - m.y) * Math.min(1, dt * (m._isGliding ? 1.3 : 2.1));
           m._flyPitch = Math.max(-0.35, Math.min(0.35, (prevY - ny) / Math.max(0.01, dt * 8.0)));
-          if (!isSolidAt(Math.floor(bx), Math.floor(ny), Math.floor(bz)) && !isSolidAt(Math.floor(bx), Math.floor(ny + 0.6), Math.floor(bz))) {
+          const hitB = getBlockWorld(Math.floor(bx), Math.floor(ny), Math.floor(bz));
+          const inLeaf = !!(BLOCK_DEF[hitB] && BLOCK_DEF[hitB].foliage);
+          if (!inLeaf && !isSolidAt(Math.floor(bx), Math.floor(ny), Math.floor(bz)) && !isSolidAt(Math.floor(bx), Math.floor(ny + 0.6), Math.floor(bz))) {
             m.x = bx; m.z = bz; m.y = ny;
           } else {
-            m.targetYaw = m.yaw + Math.PI * 0.72;
-            m.y = Math.min(MAX_Y - 4, m.y + dt * 2.2);
+            m.targetYaw = m.yaw + Math.PI * (inLeaf ? 0.35 : 0.72);
+            m.y = Math.min(MAX_Y - 4, m.y + dt * (inLeaf ? 4.8 : 2.4));
           }
         }
       } else if (m.flying || (m.tamed && m.elemDragon)) {
         // Flying Mobs & EPIC 600-HP ENDER DRAGON / ELEMENTAL DRAGONS!
         const isDragon = IS_DRAGON_MOB.has(m.type), isGhast = (m.type === 'ghast'), isBlaze = (m.type === 'blaze' || m.type === 'soul_wisp' || m.type === 'wildfire');
         const isPassiveFlyer = (!m.hostile && !m.neutral && !m.skyBird);
-        const cruiseOffset = isDragon ? 13.5 : (isGhast ? 7.5 : (isBlaze ? 3.8 : (isPassiveFlyer ? 3.2 : 6.0)));
+        const cruiseOffset = isDragon ? 13.5 : (isGhast ? 7.5 : (isBlaze ? 3.8 : (isPassiveFlyer ? 3.6 : 6.0)));
         if (!m._groundCacheT || m._groundCacheT <= 0) {
           m._groundCacheT = 0.6;
-          m._groundY = Math.max(WATER_LEVEL + 1, getTerrainHeight(Math.floor(m.x), Math.floor(m.z), getBiomeAt(Math.floor(m.x), Math.floor(m.z))));
+          const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(Math.floor(m.x), Math.floor(m.z)) : getTerrainHeight(Math.floor(m.x), Math.floor(m.z), getBiomeAt(Math.floor(m.x), Math.floor(m.z)));
+          m._groundY = Math.max(WATER_LEVEL + 1, cTop);
         } else m._groundCacheT -= dt;
         const targetH = Math.min(MAX_Y - 5, Math.max(m._groundY + cruiseOffset, player.y + cruiseOffset));
         if (m.atkCd > 0) m.atkCd -= dt;
+        if (m._sk2Cd > 0) m._sk2Cd = Math.max(0, m._sk2Cd - dt);
+        if (m._sk3Cd > 0) m._sk3Cd = Math.max(0, m._sk3Cd - dt);
+        if (m._sk4Cd > 0) m._sk4Cd = Math.max(0, m._sk4Cd - dt);
 
         // End Crystal Healing Beam for Ender Dragon only!
         if (m.type === 'ender_dragon') {
@@ -6305,9 +6408,10 @@
         const aimZ = aimTgtMob ? aimTgtMob.z : player.z;
         const aimDist = aimTgtMob ? Math.hypot(aimX - m.x, aimZ - m.z) : dist;
         const aimDist3D = aimTgtMob ? Math.hypot(aimX - m.x, aimY - m.y, aimZ - m.z) : dist3D;
-        const _drgHomeLeash = (isDragon && !m.tamed && typeof m.homeX === 'number') ? (m.type === 'ender_dragon' ? 46 : 34) : 0;
+        const _drgHomeLeash = (isDragon && !m.tamed && typeof m.homeX === 'number') ? (m.type === 'ender_dragon' ? 46 : 26) : 0;
         const _drgAimFromHome = _drgHomeLeash > 0 ? Math.hypot(aimX - m.homeX, aimZ - m.homeZ) : 0;
         const hasTarget = (canSeePlayer || !!aimTgtMob) && (!_drgHomeLeash || _drgAimFromHome <= _drgHomeLeash + 4);
+        if (_drgHomeLeash > 0 && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > _drgHomeLeash + 2) m.swoopT = 0;
 
         if (m.elemDragon && m.dragonMode === 'land') {
           m.swoopT = 0;
@@ -6372,9 +6476,13 @@
           } else {
             const hpPct = m.hp / m.maxHp;
             const dPhase = hpPct < 0.34 ? 3 : (hpPct < 0.67 ? 2 : 1);
-            const orbitR = isDragon ? (dPhase === 3 ? 17.0 : 21.0) : 8.5;
+            const orbitR = isDragon ? (_drgHomeLeash > 0 ? Math.min(14.0, _drgHomeLeash * 0.55) : (dPhase === 3 ? 17.0 : 21.0)) : 8.5;
             const orbitAng = elapsed * (isDragon ? (0.48 + dPhase * 0.11) : 0.92) + i;
-            const tx = aimX + Math.cos(orbitAng) * orbitR, tz = aimZ + Math.sin(orbitAng) * orbitR;
+            let tx = aimX + Math.cos(orbitAng) * orbitR, tz = aimZ + Math.sin(orbitAng) * orbitR;
+            if (_drgHomeLeash > 0) {
+              const hd = Math.hypot(tx - m.homeX, tz - m.homeZ);
+              if (hd > _drgHomeLeash - 2) { const scH = (_drgHomeLeash - 2) / hd; tx = m.homeX + (tx - m.homeX) * scH; tz = m.homeZ + (tz - m.homeZ) * scH; }
+            }
             const desYawO = Math.atan2(tx - m.x, tz - m.z);
             m.yaw = isDragon ? _turnAngleTowards(m.yaw, desYawO, 4.0, dt) : desYawO;
             const desH = isDragon ? Math.min(MAX_Y - 5, Math.max((m._groundY || 2) + 12.5, aimY + 11.5)) : targetH;
@@ -7151,7 +7259,7 @@
             const atkPitch = isPillager ? (-atkPhase * 0.20) : (isRavager ? (atkPhase * 0.34) : (atkPhase * (isHeavy ? 0.48 : 0.34)));
             m.anim.torso.rotation.y = (!isQuad && !isDragon && !m.flying) ? Math.sin(wp) * (isPillager ? 0.07 : 0.16) * mv : 0;
             m.anim.torso.rotation.z = (!m.flying && !m.skyBird) ? (Math.sin(wp) * (isHeavy ? 0.098 : 0.072) * mv + idleBreath * 0.55) : (turnBank * 0.5);
-            m.anim.torso.rotation.x = (isDragon ? (isRidingThis ? (m._flyPitch || 0) : (m.swoopT > 0 ? 0.34 : (m._flyPitch || 0) + Math.sin(wingCycle) * 0.04)) : (m.skyBird ? ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.05) : (idleBreath + (m.sitting ? -0.24 : quadPitch + jumpPitch + swimPitch)))) + atkPitch;
+            m.anim.torso.rotation.x = (isDragon ? (isRidingThis ? (m._flyPitch || 0) : (m.swoopT > 0 ? 0.34 : (!m.flying ? (-0.12 + idleBreath * 0.8) : ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.04)))) : (m.skyBird ? ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.05) : (idleBreath + (m.sitting ? -0.24 : quadPitch + jumpPitch + swimPitch)))) + atkPitch;
           }
         }
         const isMidJump = (!m.flying && !m.skyBird && !m.aqua && swimT < 0.35 && !m.onGround && Math.abs(m.vy) > 0.65);
@@ -7164,8 +7272,8 @@
             lg.p.rotation.z = Math.max(0, Math.cos(wp * 1.45 + li * 0.9)) * 0.22 * mv * (lg.dir > 0 ? 1 : -1);
           } else if (isDragon) {
             lg.p.rotation.x = m.flying
-              ? (0.48 + Math.sin(wingCycle + li * 0.6) * 0.18)
-              : (Math.sin(wpW + (li >= 2 ? 0.35 : 0)) * lg.dir * (0.06 + mv * 0.72));
+              ? (0.52 + Math.sin(wingCycle + li * 0.6) * 0.16)
+              : (m.sitting ? -0.45 : (Math.sin(wpW) * (li % 2 === 0 ? 1 : -1) * (0.04 + mv * 0.78)));
           } else if (m.flying || m.skyBird) {
             // Flying birds & airborne mobs tuck legs cleanly backward instead of walking in midair!
             const tuckFlight = (m.type === 'flamingo' || m.type === 'heron') ? (1.32 + Math.sin(wingCycle) * 0.05) : (0.85 + Math.sin(wingCycle) * 0.06);
@@ -7499,7 +7607,7 @@
           _elBossCrest.style.setProperty('--drg-eye', crestPal[2]);
           _elBossCrest.style.setProperty('--drg-snout', crestPal[3]);
         }
-        _elBossName.textContent = isEnderDrg ? 'Ender Dragon' : (bst.bossLabel || activeBoss.displayName || 'BOSS');
+        _elBossName.textContent = isEnderDrg ? 'Rồng Ender' : (bst.bossLabel || activeBoss.displayName || 'BOSS');
         _elBossMeta.textContent = `${hpCeil} / ${activeBoss.maxHp}`;
         _elBossFill.style.width = `${Math.max(0, pct * 100)}%`;
         _elBossFill.style.background = isEnderDrg ? 'linear-gradient(180deg,#ef5aff,#c026d3,#86198f)' : (bst.bossGrad || 'linear-gradient(180deg,#ef4444,#b91c1c)');

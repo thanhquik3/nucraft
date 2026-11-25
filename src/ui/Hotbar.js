@@ -226,11 +226,15 @@
     }
     renderer.setSize(stageW, stageH, false);
     if (!_useDirectRender()) {
-      const needWide = (shaderQuality === 'ultra');
-      ensurePostRTs(needWide);
+      const needWide = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
+      const needFg = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1);
+      ensurePostRTs(needWide, needFg);
       const pr = renderer.getPixelRatio();
       const rtW = Math.max(128, Math.round(stageW * pr)), rtH = Math.max(128, Math.round(stageH * pr));
       sceneRT.setSize(rtW, rtH);
+      if (needFg && typeof fgRtA !== 'undefined' && fgRtA && fgRtB) {
+        fgRtA.setSize(rtW, rtH); fgRtB.setSize(rtW, rtH);
+      }
       envUniforms.uTexelSize.value.set(1 / rtW, 1 / rtH);
       const bDiv = (_isMobilePerf && !needWide) ? 6 : 4;
       const bW = Math.max(48, Math.round(rtW / bDiv)), bH = Math.max(48, Math.round(rtH / bDiv));
@@ -645,7 +649,8 @@
     }
     if (e.code === 'KeyF' && isPlaying && !player.dead) {
       if (player.ridingDragon) { dismountDragon(); return; }
-      if (player.equip && player.equip.chest === B.ELYTRA && !player.onGround && !player.inWater && !player.flying) {
+      const cDef = player.equip && player.equip.chest ? BLOCK_DEF[player.equip.chest] : null;
+      if (cDef && cDef.isElytra && !player.onGround && !player.inWater && !player.flying) {
         player.gliding = !player.gliding;
         if (player.gliding) {
           const sp = Math.max(10.0, Math.hypot(player.smoothMoveX || 0, player.smoothMoveZ || 0));
@@ -661,6 +666,18 @@
       }
       player.flying = !player.flying; player.vy = 0; player.fallStartY = player.y;
       showToast(player.flying ? '🕊️ Đã bật Bay Tự Do (Space = Bay lên • Shift = Bay xuống • Tới 540m!)' : '🦶 Đã tắt Bay Tự Do');
+      return;
+    }
+    if (e.code === 'KeyG' && !e.repeat && isPlaying && !player.dead && player.ridingDragon) {
+      if (typeof castRiddenDragonSkill === 'function') castRiddenDragonSkill(2);
+      return;
+    }
+    if (e.code === 'KeyV' && !e.repeat && isPlaying && !player.dead && player.ridingDragon) {
+      if (typeof castRiddenDragonSkill === 'function') castRiddenDragonSkill(3);
+      return;
+    }
+    if (e.code === 'KeyB' && !e.repeat && isPlaying && !player.dead && player.ridingDragon) {
+      if (typeof castRiddenDragonSkill === 'function') castRiddenDragonSkill(4);
       return;
     }
     if (e.code === 'KeyR' && !e.repeat && isPlaying && !player.dead) {
@@ -680,7 +697,8 @@
     }
     if (e.code === 'Space' && !e.repeat && isPlaying && !player.dead) {
       const nowMs = performance.now();
-      if (player.equip && player.equip.chest === B.ELYTRA && !player.onGround && !player.inWater && !player.flying && !player.gliding && player.vy < -0.5) {
+      const cDefS = player.equip && player.equip.chest ? BLOCK_DEF[player.equip.chest] : null;
+      if (cDefS && cDefS.isElytra && !player.onGround && !player.inWater && !player.flying && !player.gliding && player.vy < -0.5) {
         player.gliding = true;
         const sp = Math.max(10.0, Math.hypot(player.smoothMoveX || 0, player.smoothMoveZ || 0));
         player.glideVel = { x: -Math.sin(player.yaw) * sp, y: Math.max(0.5, player.vy * 0.25), z: -Math.cos(player.yaw) * sp };
@@ -1199,6 +1217,14 @@
     touchState.joyX = jx; touchState.joyY = jy;
     _applyDpadMask(mask);
   }
+  let _sneakLocked = false, _lastSneakTapMs = 0;
+  function toggleMobileSneakLatch() {
+    _sneakLocked = !_sneakLocked;
+    touchState.sneak = _sneakLocked;
+    if (touchState.sneak) { touchState.sprint = false; document.getElementById('btnSprint')?.classList.remove('toggled'); }
+    document.getElementById('btnSneak')?.classList.toggle('toggled', touchState.sneak);
+    _dpadBtnsMap?.mid?.classList.toggle('active', touchState.sneak);
+  }
   if (dpadZone) {
     dpadZone.addEventListener('touchstart', (e) => {
       if (hudEditMode) return; e.preventDefault(); e.stopPropagation(); ensureAudio();
@@ -1210,16 +1236,27 @@
         const nry = (t.clientY - (r.top + r.height / 2)) / (r.height * 0.5);
         const ndx = isRotated90 ? nry : nrx, ndy = isRotated90 ? -nrx : nry;
         if (Math.hypot(ndx, ndy) < 0.32) {
-          touchState.sneak = !touchState.sneak;
-          if (touchState.sneak) { touchState.sprint = false; document.getElementById('btnSprint')?.classList.remove('toggled'); }
-          document.getElementById('btnSneak')?.classList.toggle('toggled', touchState.sneak);
-          _dpadBtnsMap?.mid?.classList.toggle('active', touchState.sneak);
+          const nowMs = performance.now();
+          if (nowMs - _lastSneakTapMs < 320) {
+            _lastSneakTapMs = 0;
+            toggleMobileSneakLatch();
+          } else {
+            _lastSneakTapMs = nowMs;
+            touchState.sneak = true;
+            _dpadBtnsMap?.mid?.classList.add('active');
+          }
           return;
         }
         dpadTouchId = t.identifier;
         handleDpadPoint(t.clientX, t.clientY);
       }
     }, { passive: false });
+    dpadZone.addEventListener('touchend', () => {
+      if (dpadTouchId === null && !_sneakLocked && touchState.sneak) {
+        touchState.sneak = false;
+        _dpadBtnsMap?.mid?.classList.remove('active');
+      }
+    }, { passive: true });
   }
 
   let joyMouseDown = false;
@@ -1239,7 +1276,8 @@
   }
   bindMultiTouchButton('btnJump', () => {
     const nowMs = performance.now();
-    if (player.equip && player.equip.chest === B.ELYTRA && !player.onGround && !player.inWater && !player.flying && !player.gliding && player.vy < -0.5) {
+    const cDefJ = player.equip && player.equip.chest ? BLOCK_DEF[player.equip.chest] : null;
+    if (cDefJ && cDefJ.isElytra && !player.onGround && !player.inWater && !player.flying && !player.gliding && player.vy < -0.5) {
       player.gliding = true;
       const sp = Math.max(10.0, Math.hypot(player.smoothMoveX || 0, player.smoothMoveZ || 0));
       player.glideVel = { x: -Math.sin(player.yaw) * sp, y: Math.max(0.5, player.vy * 0.25), z: -Math.cos(player.yaw) * sp };
@@ -1254,8 +1292,24 @@
   }, () => { touchState.jump = false; });
   bindMultiTouchButton('btnAttack', () => { handlePrimaryActionDown(); }, () => { mining.active = false; });
   bindMultiTouchButton('btnPlace', () => { handlePlaceOrEat(); }, null);
-  bindMultiTouchButton('btnSprint', () => { touchState.sprint = !touchState.sprint; if (touchState.sprint) { touchState.sneak = false; document.getElementById('btnSneak').classList.remove('toggled'); _dpadBtnsMap?.mid?.classList.remove('active'); } document.getElementById('btnSprint').classList.toggle('toggled', touchState.sprint); }, null);
-  bindMultiTouchButton('btnSneak', () => { touchState.sneak = !touchState.sneak; if (touchState.sneak) { touchState.sprint = false; document.getElementById('btnSprint').classList.remove('toggled'); } document.getElementById('btnSneak').classList.toggle('toggled', touchState.sneak); _dpadBtnsMap?.mid?.classList.toggle('active', touchState.sneak); }, null);
+  bindMultiTouchButton('btnSprint', () => { touchState.sprint = !touchState.sprint; if (touchState.sprint) { _sneakLocked = false; touchState.sneak = false; document.getElementById('btnSneak').classList.remove('toggled'); _dpadBtnsMap?.mid?.classList.remove('active'); } document.getElementById('btnSprint').classList.toggle('toggled', touchState.sprint); }, null);
+  bindMultiTouchButton('btnSneak', () => {
+    const nowMs = performance.now();
+    if (nowMs - _lastSneakTapMs < 320) {
+      _lastSneakTapMs = 0;
+      toggleMobileSneakLatch();
+    } else {
+      _lastSneakTapMs = nowMs;
+      touchState.sneak = true;
+      document.getElementById('btnSneak').classList.add('toggled');
+    }
+  }, () => {
+    if (!_sneakLocked) {
+      touchState.sneak = false;
+      document.getElementById('btnSneak').classList.remove('toggled');
+      _dpadBtnsMap?.mid?.classList.remove('active');
+    }
+  });
 
   function isTouchDevice() {
     return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
@@ -3190,12 +3244,14 @@
       return;
     }
     if (tag === 'end_ship') {
+      const rngShip = _chestSeedRng(seedStr);
       const putE = (idx, id, count = 1, ench = false) => {
         const d = BLOCK_DEF[id];
         arr[idx] = { id, count, dur: (d && d.maxDur) || 0, maxDur: (d && d.maxDur) || 0, ench: !!ench, trim: null };
       };
       putE(13, B.ELYTRA, 1, false);
-      putE(3, B.DIAMOND, 4, false);
+      if (rngShip() < 0.15) putE(14, B.ELYTRA_PHOENIX || B.ELYTRA, 1, true);
+      putE(3, B.DIAMOND, 2, false);
       putE(5, B.EMERALD, 5, false);
       putE(11, B.DIAMOND_SWORD, 1, true);
       putE(15, B.DIAMOND_PICK, 1, true);
@@ -3206,7 +3262,7 @@
     }
     const rng = _chestSeedRng(seedStr);
     if (tag === 'end_city') {
-      const endPool = [B.DIAMOND, B.EMERALD, B.GOLD_INGOT, B.IRON_INGOT, B.ENDER_PEARL, B.VOID_PEARL, B.END_ROD, B.PURPUR_BLOCK, B.GOLD_APPLE, B.DIAMOND_HELMET, B.DIAMOND_BOOTS, B.TRIM_SPIRE, B.TRIM_EYE];
+      const endPool = [B.EMERALD, B.GOLD_INGOT, B.IRON_INGOT, B.AMETHYST || B.EMERALD, B.ENDER_PEARL, B.VOID_PEARL, B.END_ROD, B.PURPUR_BLOCK, B.GOLD_APPLE, B.DIAMOND_HELMET, B.DIAMOND_BOOTS, B.TRIM_SPIRE, B.TRIM_EYE];
       for (let i = 0; i < 6; i++) {
         const lid = endPool[(rng() * endPool.length) | 0], d = BLOCK_DEF[lid];
         arr[i * 4 + 1] = { id: lid, count: (d?.tool || d?.armorSlot) ? 1 : (2 + ((rng() * 4) | 0)), dur: d?.maxDur || 0, maxDur: d?.maxDur || 0, ench: !!(d?.tool || d?.armorSlot), trim: null };
@@ -3222,7 +3278,7 @@
       const lid = lootPool[Math.floor(rng() * lootPool.length)];
       arr[i * 3 + 1] = { id: lid, count: BLOCK_DEF[lid]?.tool ? 1 : (1 + ((rng() * 4) | 0)), dur: BLOCK_DEF[lid]?.maxDur || 0, maxDur: BLOCK_DEF[lid]?.maxDur || 0 };
     }
-    const diamondChance = isHighTier ? 0.04 : 0.015;
+    const diamondChance = isHighTier ? 0.025 : 0.008;
     if (rng() < diamondChance) {
       arr[countItems * 3 + 1] = { id: B.DIAMOND, count: 1, dur: 0, maxDur: 0 };
     }

@@ -247,11 +247,51 @@
     return { ensureConnected, subscribe, publish, isConnected: () => ready, _encStr: encStr, _pktPub: pktPublish, _topicMatches: topicMatches };
   })();
 
-  function ensureRemotePeer(peerId, name, color = '#38bdf8', isBuddy = false, skinId = null) {
+  const liveRoomsByCode = new Map();
+  function mintPermanentRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let id = 'LC';
+    for (let i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return id;
+  }
+  function updateLiveRoomsCache(list) {
+    if (!Array.isArray(list)) return;
+    liveRoomsByCode.clear();
+    for (const r of list) {
+      if (r && r.roomId) liveRoomsByCode.set(String(r.roomId).toUpperCase(), r);
+    }
+    if (typeof renderSavedWorldsList === 'function') renderSavedWorldsList();
+  }
+  function fetchLiveRoomsHttp() {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    if (/\.github\.io$/i.test(location.hostname || '') || /[?&]standalone=1\b/.test(location.search || '')) return;
+    fetch('/api/rooms', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.rooms)) {
+          updateLiveRoomsCache(data.rooms);
+          renderOpenRoomsList(data.rooms);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function ensureRemotePeer(peerId, name, color = '#38bdf8', isBuddy = false, skinId = null, playerKey = '') {
     let rp = remotePlayers.get(peerId);
     if (rp) {
+      if (name) rp.name = name;
+      if (playerKey) rp.playerKey = String(playerKey);
       if (skinId && rp.skinId !== skinId) { rp.skinId = skinId; applySkinToRig(rp.rig, skinId); }
+      rp._lastPktAt = rp._lastPktAt || performance.now();
       return rp;
+    }
+    const cleanKey = playerKey ? String(playerKey) : '';
+    if (!isBuddy && cleanKey) {
+      for (const [oldId, oldRp] of Array.from(remotePlayers.entries())) {
+        if (oldId !== peerId && !oldRp.isBuddy && oldRp.playerKey && oldRp.playerKey === cleanKey) {
+          removeRemotePeer(oldId);
+        }
+      }
     }
     const skinList = PLAYER_SKINS.map(s => s.id);
     const hashC = peerId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -260,13 +300,14 @@
     rig.g.position.set(player.x + 3, player.y, player.z + 3);
     scene.add(rig.g);
     rp = {
-      id: peerId, name: name || 'Bạn Chơi', color, isBuddy, skinId: chosenSkin,
+      id: peerId, name: name || 'Bạn Chơi', color, isBuddy, skinId: chosenSkin, playerKey: cleanKey,
       x: player.x + 3.5, y: player.y, z: player.z + 3.5, tx: player.x + 3.5, ty: player.y, tz: player.z + 3.5,
       yaw: 0, pitch: 0, speed: 0, sprinting: false, sneaking: false, inWater: false, onGround: true, swing: 0,
-      wanderT: 2.0, rig
+      wanderT: 2.0, rig, _lastPktAt: performance.now()
     };
     remotePlayers.set(peerId, rp);
     updateRoomBadgeUI();
+    if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
     return rp;
   }
 
@@ -276,6 +317,7 @@
       scene.remove(rp.rig.g);
       remotePlayers.delete(peerId);
       updateRoomBadgeUI();
+      if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
     }
     const dotEntry = locatorDotEls.get(peerId);
     if (dotEntry) { dotEntry.el.remove(); locatorDotEls.delete(peerId); }
@@ -651,7 +693,7 @@
 
   const _hostSavedPlayers = new Map();
   function _getP2PRoomRelays(m) {
-    return (m.type === 'state' || m.type === 'block' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'mob_action');
+    return (m.type === 'state' || m.type === 'block' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'mob_action' || m.type === 'leave' || m.type === 'peer_leave');
   }
   function handleIncomingP2PData(senderId, m, senderConn, viaTransport = 'p2p') {
     if (!m || typeof m !== 'object') return;
@@ -694,7 +736,7 @@
       }
       if (m.type === 'p2p_hello') {
         if (senderConn) senderConn._ncPeerId = fromId;
-        const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId);
+        const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '');
         if (m.equip) applyArmorToPlayerRig(rp.rig, m.equip);
         const hItem = (m.state && m.state.held !== undefined) ? m.state.held : (m.held !== undefined ? m.held : undefined);
         if (hItem !== undefined) setRigHeldItem(rp.rig, hItem);
@@ -725,7 +767,7 @@
       return;
     }
     if (m.type === 'state' && m.state) {
-      const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId);
+      const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '');
       applyRemotePeerState(rp, m.state, m.equip);
     } else if (m.type === 'block') {
       const bDim = m.dim || 'overworld';
@@ -762,10 +804,14 @@
       if (!isSimAuthority() && typeof applyRemoteWeatherSync === 'function') applyRemoteWeatherSync(m);
     } else if (m.type === 'chat' && m.text) {
       appendChatLine(m.name || 'Bạn Chơi', m.text, false);
-    } else if (m.type === 'leave') {
-      mqttRoomPeers.delete(fromId);
-      bcRoomPeers.delete(fromId);
-      removeRemotePeer(fromId);
+    } else if (m.type === 'leave' || m.type === 'peer_leave') {
+      const byeId = m.peerId || fromId;
+      mqttRoomPeers.delete(byeId);
+      bcRoomPeers.delete(byeId);
+      removeRemotePeer(byeId);
+      if (p2pIsHost && m.type === 'leave') {
+        sendCoopMsg({ type: 'peer_leave', peerId: byeId, name: m.name || '' });
+      }
     }
   }
 
@@ -978,13 +1024,33 @@
         if (msg.type === 'room_joined') {
           wsSelfPeerId = msg.peerId;
           _wsRoomHostId = msg.hostId || (msg.isHost ? msg.peerId : '');
-          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, chests: msg.chests, consumedChests: msg.consumedChests, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
+          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, reusePrev: !!msg.reusePrev, chests: msg.chests, consumedChests: msg.consumedChests, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
           if (pendingJoinCb) {
             pendingJoinCb('ws', msg.roomId, msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
-          } else if (!msg.isHost) {
+          } else if (!msg.isHost || msg.reusePrev) {
             activeRoomId = msg.roomId;
-            activeCoopTransport = 'ws';
-            applyJoinedWorld(msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
+            activeCoopTransport = msg.isHost ? 'host' : 'ws';
+            p2pIsHost = !!msg.isHost;
+            if (!isPlaying && !msg.isHost) {
+              applyJoinedWorld(msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
+            } else {
+              if (msg.world && typeof msg.world.dayTime === 'number') dayTime = msg.world.dayTime;
+              if (msg.world && typeof applyRemoteWeatherSync === 'function' && (msg.world.weatherMode || msg.world.activeWeatherKind)) applyRemoteWeatherSync(msg.world);
+              if (Array.isArray(msg.mods) && msg.mods.length && (msg.reusePrev || worldMods.size === 0)) applyModsChunkList(msg.mods);
+              if (typeof restoreChestData === 'function' && msg.reusePrev) restoreChestData({ chests: msg.chests || [], consumedLoot: msg.consumedChests || [] });
+              if (Array.isArray(msg.drops)) _applyRemoteDropBatch(msg.drops);
+              if (msg.savedPlayer && msg.reusePrev && isPlaying) applySavedPlayerRoomState(msg.savedPlayer);
+              if (Array.isArray(msg.peers)) {
+                for (const p of msg.peers) {
+                  if (!p || p.peerId === localPeerId || p.peerId === wsSelfPeerId) continue;
+                  const rp = ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null, p.playerKey || '');
+                  if (p.equip) applyArmorToPlayerRig(rp.rig, p.equip);
+                  if (p.state) applyRemotePeerState(rp, p.state, p.equip);
+                }
+              }
+              updateRoomBadgeUI();
+              if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
+            }
           } else {
             p2pIsHost = true;
             if (!activeRoomId) activeRoomId = msg.roomId;
@@ -992,24 +1058,44 @@
             if (Array.isArray(msg.mods) && msg.mods.length && worldMods.size === 0) applyModsChunkList(msg.mods);
             if (msg.savedPlayer && isPlaying) applySavedPlayerRoomState(msg.savedPlayer);
             updateRoomBadgeUI();
+            if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
+          }
+        } else if (msg.type === 'room_roster') {
+          if (activeRoomId && msg.roomId === activeRoomId && Array.isArray(msg.peers)) {
+            if (msg.hostId) {
+              _wsRoomHostId = msg.hostId;
+              p2pIsHost = !!(wsSelfPeerId && _wsRoomHostId === wsSelfPeerId);
+            }
+            const liveIds = new Set(msg.peers.map(p => p && p.peerId).filter(Boolean));
+            for (const [pid, rp] of Array.from(remotePlayers.entries())) {
+              if (!rp.isBuddy && !liveIds.has(pid)) removeRemotePeer(pid);
+            }
+            for (const p of msg.peers) {
+              if (!p || !p.peerId || p.peerId === wsSelfPeerId || p.peerId === localPeerId) continue;
+              ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null, p.playerKey || '');
+            }
+            updateRoomBadgeUI();
+            if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
           }
         } else if (msg.type === 'host_promote') {
           p2pIsHost = true;
           _wsRoomHostId = wsSelfPeerId;
           activeCoopTransport = 'host';
           updateRoomBadgeUI();
+          if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
           showToast('👑 Chủ phòng đã rời — bạn là Chủ Phòng mới!');
         } else if (msg.type === 'host_changed') {
           _wsRoomHostId = msg.hostId || '';
           p2pIsHost = !!(wsSelfPeerId && _wsRoomHostId === wsSelfPeerId);
           updateRoomBadgeUI();
+          if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
         } else if (msg.type === 'ws_mods_chunk') {
           if (isWorldLoading && Array.isArray(msg.mods)) _pendingWsMods.push(...msg.mods);
           applyModsChunkList(msg.mods);
         } else if (msg.type === 'peer_join') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
-            ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null);
+            ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '');
             showToast(`👥 ${msg.name} đã tham gia phòng ${activeRoomId}!`);
           }
         } else if (msg.type === 'peer_leave') {
@@ -1021,7 +1107,7 @@
         } else if (msg.type === 'peer_state' && msg.state) {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId) return;
-          const rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null);
+          const rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '');
           applyRemotePeerState(rp, msg.state, msg.equip);
           if (p2pIsHost) {
             const relay = { type: 'state', _from: msg.peerId, _relayBy: localPeerId, name: msg.name, skinId: msg.skinId || null, equip: msg.equip || null, state: msg.state };
@@ -1078,7 +1164,9 @@
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) appendChatLine(msg.name || 'Bạn Chơi', msg.text, false);
         } else if (msg.type === 'rooms_list') {
-          renderOpenRoomsList(msg.rooms || []);
+          const rList = msg.rooms || [];
+          updateLiveRoomsCache(rList);
+          renderOpenRoomsList(rList);
         } else if (msg.type === 'friend_packet' && msg.payload) {
           if (typeof handleIncomingFriendPacket === 'function') handleIncomingFriendPacket(msg.payload);
         } else if (msg.type === 'error') {
@@ -1104,9 +1192,10 @@
     }
     box.innerHTML = '';
     for (const r of list) {
+      const cnt = Number(r.players) || 0;
       const row = document.createElement('div');
       row.className = 'world-item';
-      row.innerHTML = `<div class="world-meta"><b>Phòng ${escHtml(r.roomId)} — ${escHtml(r.worldName)}</b><small>${Number(r.players) || 1} người chơi • ${r.mode === 'creative' ? 'Sáng Tạo' : 'Sinh Tồn'}</small></div>`;
+      row.innerHTML = `<div class="world-meta"><b>Phòng ${escHtml(r.roomId)} — ${escHtml(r.worldName)}</b><small>${cnt > 0 ? `<span style="color:#4ade80;">🟢 Đang chơi: ${cnt} người</span>` : '<span style="color:#94a3b8;">⚪ Chờ người chơi (0 người)</span>'} • ${r.mode === 'creative' ? 'Sáng Tạo' : 'Sinh Tồn'}</small></div>`;
       const btn = document.createElement('button');
       btn.className = 'mc-btn mc-btn-green'; btn.textContent = 'VÀO NGAY';
       btn.addEventListener('click', () => {
@@ -1118,12 +1207,15 @@
     }
   }
 
-  function hostCoopRoom() {
+  function hostCoopRoom(preferredRoomId = null) {
     leaveCoopRoom();
     initBroadcastChannelFallback();
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let id = 'LC';
-    for (let i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    const isFreshCreate = !!window._nextCreateRoomFresh;
+    window._nextCreateRoomFresh = false;
+    const rawPref = preferredRoomId || (typeof currentWorldMeta !== 'undefined' && currentWorldMeta && currentWorldMeta.roomId) || '';
+    const cleanPref = String(rawPref).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const id = (cleanPref.length >= 4 && cleanPref.length <= 8) ? cleanPref : mintPermanentRoomCode();
+    if (typeof currentWorldMeta !== 'undefined' && currentWorldMeta) currentWorldMeta.roomId = id;
     activeRoomId = id;
     p2pIsHost = true;
     activeCoopTransport = 'host';
@@ -1158,9 +1250,16 @@
           conn.on('data', (d) => handleIncomingP2PData(conn.peer, d, conn, 'p2p'));
           conn.on('close', () => {
             p2pClientConns.delete(conn.peer);
-            removeRemotePeer(conn._ncPeerId || conn.peer);
+            const leftId = conn._ncPeerId || conn.peer;
+            removeRemotePeer(leftId);
+            if (p2pIsHost) sendCoopMsg({ type: 'peer_leave', peerId: leftId });
           });
-          conn.on('error', () => { p2pClientConns.delete(conn.peer); });
+          conn.on('error', () => {
+            p2pClientConns.delete(conn.peer);
+            const leftId = conn._ncPeerId || conn.peer;
+            removeRemotePeer(leftId);
+            if (p2pIsHost) sendCoopMsg({ type: 'peer_leave', peerId: leftId });
+          });
         });
         p2pPeer.on('error', () => {
           showToast(`🌐 Đã mở Phòng Relay/LAN • Mã Phòng: ${id}`);
@@ -1175,6 +1274,7 @@
         const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
         wsConn.send(JSON.stringify({
           type: 'create_room', roomId: id, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(),
+          fresh: isFreshCreate,
           name: localPlayerName, skinId: selectedSkinId,
           seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
           preset: shaderPreset, dayTime, weatherMode,
@@ -1184,7 +1284,7 @@
           mods: allMods.slice(0, 2500)
         }));
         for (let i = 2500; i < allMods.length; i += 2500) {
-          wsConn.send(JSON.stringify({ type: 'mods_push', mods: allMods.slice(i, i + 2500) }));
+          wsConn.send(JSON.stringify({ type: 'mods_push', initSeedOnly: true, mods: allMods.slice(i, i + 2500) }));
         }
       }
     });
@@ -1238,6 +1338,7 @@
       pendingJoinCb = null;
       cleanupTimers();
       if (transport !== 'mqtt' && guestMqttUnsub) {
+        if (remoteStarted) { try { ncMqtt.publish(topic, { type: 'leave', _from: localPeerId, name: localPlayerName }); } catch (_) {} }
         try { guestMqttUnsub(); } catch (_) {}
         guestMqttUnsub = null;
         mqttRoomUnsub = null;
@@ -1246,7 +1347,10 @@
         mqttRoomUnsub = guestMqttUnsub;
         mqttRoomTopic = topic;
       }
-      if (transport !== 'p2p') destroyP2P();
+      if (transport !== 'p2p') {
+        if (remoteStarted && p2pHostConn && p2pHostConn.open) { try { p2pHostConn.send({ type: 'leave', _from: localPeerId, name: localPlayerName }); } catch (_) {} }
+        destroyP2P();
+      }
       if (transport !== 'ws' && wsConn && wsConn.readyState === 1) {
         try { wsConn.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
       }
@@ -1355,7 +1459,7 @@
     if (bcChannel) bcChannel.postMessage({ type: 'bc_join_req', _from: localPeerId, playerKey: getLocalPlayerSaveKey(), roomId, name: localPlayerName });
     if (wsConn && wsConn.readyState === 1) {
       window._triggerRemoteJoinNow = startRemoteTransports;
-      remoteDelayTimer = setTimeout(startRemoteTransports, 180);
+      remoteDelayTimer = setTimeout(startRemoteTransports, 900);
     } else {
       startRemoteTransports();
     }

@@ -36,6 +36,7 @@ const MIME = {
 
 // In-memory multiplayer rooms: roomId -> { seed, name, mode, biome, preset, mods: Map, peers: Map }
 const rooms = new Map();
+const allWsPeers = new Set();
 const uidPeers = new Map(); // uidKey -> Set<peer>
 const friendMailbox = new Map(); // uidKey -> Array<payload> (offline LAN friend queue)
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#c084fc', '#2dd4bf', '#f87171'];
@@ -193,6 +194,43 @@ function sendWsModsInChunks(peer, entries, msgType = 'ws_mods_chunk') {
   }
 }
 
+function serializeRoomListEntry(r) {
+  return { roomId: r.id, worldName: r.worldName, players: r.peers.size, mode: r.mode, biome: r.biome, seed: r.seed };
+}
+
+function getAllRoomsSummary() {
+  return Array.from(rooms.values()).map(serializeRoomListEntry);
+}
+
+function broadcastRoomsList() {
+  if (allWsPeers.size === 0) return;
+  const buf = encodeWsFrame(JSON.stringify({ type: 'rooms_list', rooms: getAllRoomsSummary() }));
+  for (const p of allWsPeers) {
+    if (p && p.socket && !p.socket.destroyed) { try { p.socket.write(buf); } catch (_) {} }
+  }
+}
+
+function broadcastRoomRoster(room) {
+  if (!room) return;
+  const peers = [];
+  for (const p of room.peers.values()) {
+    peers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, playerKey: p.playerKey || '' });
+  }
+  broadcastRoom(room, { type: 'room_roster', roomId: room.id, hostId: room.hostId || '', peers });
+}
+
+function evictSamePlayerKey(room, pKey, keepPeerId) {
+  if (!room || !pKey) return;
+  for (const [oldId, oldPeer] of Array.from(room.peers.entries())) {
+    if (oldId === keepPeerId || oldPeer.playerKey !== pKey) continue;
+    room.peers.delete(oldId);
+    oldPeer.roomId = null;
+    broadcastRoom(room, { type: 'peer_leave', peerId: oldId, name: oldPeer.name });
+    if (room.hostId === oldId) room.hostId = keepPeerId || null;
+    try { oldPeer.socket.end(); } catch (_) {}
+  }
+}
+
 function removePeerFromRoom(peer) {
   if (!peer.roomId) return;
   const room = rooms.get(peer.roomId);
@@ -207,6 +245,8 @@ function removePeerFromRoom(peer) {
       broadcastRoom(room, { type: 'host_changed', hostId: nextPeer.id }, nextPeer.id);
     }
   }
+  broadcastRoomRoster(room);
+  broadcastRoomsList();
   scheduleRoomsSave();
   peer.roomId = null;
 }
@@ -224,6 +264,7 @@ function handleMessage(peer, msg) {
     const prev = rooms.get(roomId);
     const seedNum = Number(msg.seed) || 133742;
     const reusePrev = !!(prev && !msg.fresh && prev.seed === seedNum);
+    if (reusePrev) evictSamePlayerKey(prev, peer.playerKey, peer.id);
     const room = reusePrev ? prev : {
       id: roomId,
       hostId: peer.id,
@@ -245,37 +286,44 @@ function handleMessage(peer, msg) {
       playersData: new Map(),
       peers: new Map()
     };
-    room.hostId = peer.id;
+    const hasServerState = !!(reusePrev && (room.peers.size > 0 || room.mods.size > 0 || room.chests.size > 0 || room.consumedChests.size > 0));
+    peer._skipInitModsPush = hasServerState;
+    const hasLiveHost = !!(reusePrev && room.hostId && room.hostId !== peer.id && room.peers.has(room.hostId));
+    if (!hasLiveHost) room.hostId = peer.id;
     if (typeof msg.ruinOriginX === 'number' && !reusePrev) room.ruinOriginX = msg.ruinOriginX;
     if (typeof msg.ruinOriginZ === 'number' && !reusePrev) room.ruinOriginZ = msg.ruinOriginZ;
-    if (Array.isArray(msg.mods)) {
-      for (const [k, v] of msg.mods.slice(-120000)) room.mods.set(String(k), Number(v) || 0);
-    }
-    if (Array.isArray(msg.chests)) {
-      for (const entry of msg.chests) if (Array.isArray(entry) && entry.length >= 2) room.chests.set(String(entry[0]), entry[1]);
-    }
-    if (Array.isArray(msg.consumedChests)) {
-      for (const ck of msg.consumedChests) room.consumedChests.add(String(ck));
+    if (!hasServerState) {
+      if (Array.isArray(msg.mods)) {
+        for (const [k, v] of msg.mods.slice(-120000)) room.mods.set(String(k), Number(v) || 0);
+      }
+      if (Array.isArray(msg.chests)) {
+        for (const entry of msg.chests) if (Array.isArray(entry) && entry.length >= 2) room.chests.set(String(entry[0]), entry[1]);
+      }
+      if (Array.isArray(msg.consumedChests)) {
+        for (const ck of msg.consumedChests) room.consumedChests.add(String(ck));
+      }
     }
     rooms.set(roomId, room);
     peer.name = String(msg.name || 'Người Chơi').slice(0, 20);
     if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 24);
     if (msg.state) peer.state = msg.state;
-    peer.color = PEER_COLORS[0];
+    peer.color = PEER_COLORS[room.peers.size % PEER_COLORS.length];
     peer.roomId = roomId;
+    const existingPeers = [];
+    for (const p of room.peers.values()) {
+      if (p.id !== peer.id) existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
+    }
     room.peers.set(peer.id, peer);
     const allMods = Array.from(room.mods.entries());
     const inlineMods = allMods.slice(0, 2500);
-    const existingPeers = [];
-    for (const p of room.peers.values()) {
-      if (p.id !== peer.id) existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, equip: p.equip || null, state: p.state });
-    }
+    const amHost = (room.hostId === peer.id);
     sendJson(peer, {
       type: 'room_joined',
       roomId,
       peerId: peer.id,
       color: peer.color,
-      isHost: true,
+      isHost: amHost,
+      reusePrev: hasServerState,
       hostId: room.hostId,
       world: { seed: room.seed, worldName: room.worldName, mode: room.mode, biome: room.biome, preset: room.preset, dayTime: room.dayTime, weatherMode: room.weatherMode, activeWeatherKind: room.activeWeatherKind, ruinOriginX: room.ruinOriginX, ruinOriginZ: room.ruinOriginZ },
       mods: inlineMods,
@@ -288,6 +336,11 @@ function handleMessage(peer, msg) {
       peers: existingPeers
     });
     if (allMods.length > inlineMods.length) sendWsModsInChunks(peer, allMods.slice(inlineMods.length));
+    if (existingPeers.length > 0) {
+      broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
+    }
+    broadcastRoomRoster(room);
+    broadcastRoomsList();
     scheduleRoomsSave();
   } else if (msg.type === 'join_room') {
     const roomId = String(msg.roomId || '').trim().toUpperCase();
@@ -300,6 +353,7 @@ function handleMessage(peer, msg) {
     const cid = (msg.clientId && /^[A-Za-z0-9_-]{4,24}$/.test(String(msg.clientId))) ? String(msg.clientId) : '';
     if (cid && !room.peers.has(cid)) peer.id = cid;
     peer.playerKey = sanitizePlayerKey(msg.playerKey || msg.clientId || peer.id) || peer.id;
+    evictSamePlayerKey(room, peer.playerKey, peer.id);
     peer.name = String(msg.name || 'Bạn Chơi').slice(0, 20);
     if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 24);
     peer.color = PEER_COLORS[room.peers.size % PEER_COLORS.length];
@@ -308,7 +362,7 @@ function handleMessage(peer, msg) {
     if (becomeHost) room.hostId = peer.id;
     const existingPeers = [];
     for (const p of room.peers.values()) {
-      existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, equip: p.equip || null, state: p.state });
+      existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
     }
     room.peers.set(peer.id, peer);
     const allMods = Array.from(room.mods.entries());
@@ -331,10 +385,14 @@ function handleMessage(peer, msg) {
       peers: existingPeers
     });
     if (allMods.length > inlineMods.length) sendWsModsInChunks(peer, allMods.slice(inlineMods.length));
-    broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, state: peer.state }, peer.id);
+    broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
+    broadcastRoomRoster(room);
+    broadcastRoomsList();
+    scheduleRoomsSave();
   } else if (msg.type === 'mods_push' && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room || !Array.isArray(msg.mods)) return;
+    if (msg.initSeedOnly && peer._skipInitModsPush) return;
     for (const [k, v] of msg.mods) room.mods.set(String(k), Number(v) || 0);
     while (room.mods.size > 120000) room.mods.delete(room.mods.keys().next().value);
     scheduleRoomsSave();
@@ -443,11 +501,7 @@ function handleMessage(peer, msg) {
   } else if (msg.type === 'leave') {
     removePeerFromRoom(peer);
   } else if (msg.type === 'list_rooms') {
-    const list = [];
-    for (const r of rooms.values()) {
-      if (r.peers.size > 0) list.push({ roomId: r.id, worldName: r.worldName, players: r.peers.size, mode: r.mode });
-    }
-    sendJson(peer, { type: 'rooms_list', rooms: list });
+    sendJson(peer, { type: 'rooms_list', rooms: getAllRoomsSummary() });
   } else if (msg.type === 'register_uid') {
     const uidKey = sanitizeUidKey(msg.uid);
     if (!uidKey) return;
@@ -498,9 +552,8 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (urlPath === '/api/rooms') {
-    const list = Array.from(rooms.values()).map(r => ({ roomId: r.id, worldName: r.worldName, players: r.peers.size, mode: r.mode }));
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ ok: true, rooms: list }));
+    res.end(JSON.stringify({ ok: true, rooms: getAllRoomsSummary() }));
     return;
   }
   const rel = urlPath === '/' ? DEFAULT_HTML : urlPath.replace(/^\/+/, '');
@@ -592,7 +645,9 @@ server.on('upgrade', (req, socket) => {
     state: null,
     socket
   };
+  allWsPeers.add(peer);
   const cleanupPeer = () => {
+    allWsPeers.delete(peer);
     removePeerFromRoom(peer);
     unregisterUidPeer(peer);
   };

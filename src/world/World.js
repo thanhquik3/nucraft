@@ -872,6 +872,72 @@
       for (const [bxOff, bzOff] of [[3,3],[-2,-2],[3,-2]]) {
         if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 719) > 0.35) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, B.OAK_LEAVES);
       }
+    } else if (style === 'dark_oak') {
+      const th = 5 + Math.floor(r0 * 3);
+      for (let i = 0; i < th; i++) {
+        setLocalSafe(data, lx, baseWy + i, lz, B.SPRUCE_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz, B.SPRUCE_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz + 1, B.SPRUCE_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.SPRUCE_LOG, true);
+      }
+      const cy = baseWy + th - 1;
+      for (let dy = 0; dy <= 3; dy++) {
+        const rad = (dy === 0 || dy === 3) ? 2 : 3;
+        for (let dx = -rad; dx <= rad + 1; dx++) for (let dz = -rad; dz <= rad + 1; dz++) {
+          if (Math.hypot(dx - 0.5, dz - 0.5) > rad + 0.45) continue;
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, (dy === 0) ? B.SPRUCE_LEAVES : B.OAK_LEAVES, false);
+        }
+      }
+      placeLeafBushCluster(data, lx + 2, baseWy, lz + 2, wx + 2, wz + 2, B.SPRUCE_LEAVES);
+    } else if (style === 'pale_oak') {
+      const th = 6 + Math.floor(r0 * 4);
+      for (let i = 0; i < th; i++) {
+        setLocalSafe(data, lx, baseWy + i, lz, B.PALE_LOG, true);
+        if (i < th - 1) setLocalSafe(data, lx + 1, baseWy + i, lz, B.PALE_LOG, true);
+      }
+      const cy = baseWy + th - 1;
+      for (let dy = 0; dy <= 3; dy++) {
+        const rad = dy === 3 ? 1 : (dy === 0 ? 3 : 2);
+        for (let dx = -rad; dx <= rad + 1; dx++) for (let dz = -rad; dz <= rad; dz++) {
+          if (Math.hypot(dx - 0.5, dz) > rad + 0.4) continue;
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.PALE_LEAVES, false);
+        }
+      }
+      placeLeafBushCluster(data, lx - 1, baseWy, lz + 2, wx - 1, wz + 2, B.PALE_LEAVES);
+    } else if (style === 'nightmare_tree') {
+      const th = 7 + Math.floor(r0 * 5);
+      let bx = lx, bz = lz;
+      for (let i = 0; i < th; i++) {
+        if (i > 2 && (i & 1) === 0) bx += (hash2i(wx, i, worldSeed + 757) > 0.5 ? 1 : -1);
+        if (i > 3 && (i % 3) === 0) bz += (hash2i(wz, i, worldSeed + 761) > 0.5 ? 1 : -1);
+        setLocalSafe(data, bx, baseWy + i, bz, B.NIGHTMARE_LOG, true);
+      }
+      for (let dy = -1; dy <= 2; dy++) {
+        const rad = dy === 2 ? 1 : 3;
+        for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+          if (Math.hypot(dx, dz) > rad + 0.3) continue;
+          setLocalSafe(data, bx + dx, baseWy + th + dy, bz + dz, B.NIGHTMARE_LEAVES, false);
+        }
+      }
+      if (r1 > 0.45) setLocalSafe(data, bx, baseWy + th - 1, bz + 1, B.GLOW_CRYSTAL, false);
+    } else if (style === 'sift_giant') {
+      const th = 11 + Math.floor(r0 * 6);
+      for (let i = 0; i < th; i++) {
+        setLocalSafe(data, lx, baseWy + i, lz, B.SIFT_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz, B.SIFT_LOG, true);
+      }
+      const cy = baseWy + th - 1;
+      const capLeaf = r1 > 0.48 ? B.LULLABY_LEAVES : B.SIFT_LEAVES;
+      for (let dy = 0; dy <= 3; dy++) {
+        const rad = (dy === 1) ? 4 : (dy === 3 ? 2 : 3);
+        for (let dx = -rad; dx <= rad + 1; dx++) for (let dz = -rad; dz <= rad; dz++) {
+          if (Math.hypot(dx - 0.5, dz) > rad + 0.4) continue;
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, capLeaf, false);
+        }
+      }
+      for (const [vx, vz] of [[3, 0], [-2, 0], [0, 3], [0, -3]]) {
+        for (let d = 1; d <= 3; d++) setLocalSafe(data, lx + vx, cy - d, lz + vz, B.GLOW_VINES, false);
+      }
     }
   }
 
@@ -923,66 +989,69 @@
   function stampEndShipInChunk(data, wx0, wz0, ship, maxLy) {
     if (!ship || !ship.hasShip) return maxLy;
     const sx = ship.shipX, sy = ship.shipY, sz = ship.shipZ;
-    if (sx + 6 < wx0 || sx - 6 > wx0 + 15 || sz + 12 < wz0 || sz - 12 > wz0 + 15) return maxLy;
+    if (sx + 7 < wx0 || sx - 7 > wx0 + 15 || sz + 14 < wz0 || sz - 14 > wz0 + 15) return maxLy;
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz, dz = wz - sz;
-      if (dz < -11 || dz > 9) continue;
+      if (dz < -12 || dz > 10) continue;
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const wx = wx0 + lx, dx = wx - sx, adx = Math.abs(dx);
-        if (adx > 4) continue;
-        // Tapering ship half-width (prow points forward along -Z!)
-        const maxW = dz < -7 ? 0 : (dz < -4 ? 1 : (dz < -1 ? 2 : (dz > 6 ? 2 : 3)));
+        if (adx > 5) continue;
+        // Sculpted End Ship hull (prow -> -Z, broad midship, raised quarterdeck -> +Z)
+        const maxW = dz < -8 ? 0 : (dz < -5 ? 1 : (dz < -1 ? 3 : (dz > 7 ? 3 : 4)));
+        const keelDrop = (dz >= -5 && dz <= 7) ? 2 : 1;
         if (adx <= maxW) {
-          // Keel & deck hull
-          setLocalSafe(data, lx, sy - 1, lz, B.OBSIDIAN, true);
+          for (let ky = -keelDrop; ky <= -1; ky++) {
+            setLocalSafe(data, lx, sy + ky, lz, ky === -keelDrop ? B.OBSIDIAN : B.PURPUR_BLOCK, true);
+          }
           setLocalSafe(data, lx, sy, lz, adx === maxW ? B.PURPUR_PILLAR : B.END_STONE_BRICKS, true);
-          if (adx === maxW || dz === 8 || dz === -7) {
+          if (adx === maxW || dz === 9 || dz === -8) {
             setLocalSafe(data, lx, sy + 1, lz, B.PURPUR_BLOCK, true);
-            if (adx === maxW && Math.abs(dz) % 3 === 0) setLocalSafe(data, lx, sy + 2, lz, B.END_ROD, true);
+            if (dz >= 4 && adx === maxW) setLocalSafe(data, lx, sy + 2, lz, B.PURPUR_BLOCK, true);
+            if (adx === maxW && Math.abs(dz) % 3 === 0) setLocalSafe(data, lx, sy + (dz >= 4 ? 3 : 2), lz, B.END_ROD, true);
           }
         }
-        // Extended slender bowsprit reaching out to the mounted Dragon Head at dz = -10!
-        if (dx === 0 && dz >= -10 && dz <= -7) {
+        // Slender Purpur bowsprit & Dragon Head figurehead at dz = -11
+        if (dx === 0 && dz >= -11 && dz <= -8) {
           setLocalSafe(data, lx, sy + 2, lz, B.PURPUR_BLOCK, true);
-          if (dz === -10) {
+          if (dz === -11) {
             setLocalSafe(data, lx, sy + 3, lz, B.DRAGON_HEAD, true);
             dragonHeadYaw.set(modKey(wx, sy + 3, wz), Math.PI);
           }
         }
-        // Stern Treasure Cabin housing the Elytra chest!
-        if (dz >= 3 && dz <= 7 && adx <= 2) {
-          const isWall = (adx === 2 || dz === 3 || dz === 7);
-          const isDoor = (dz === 3 && dx === 0);
-          for (let hy = 1; hy <= 4; hy++) {
-            if (hy === 4) {
-              setLocalSafe(data, lx, sy + hy, lz, B.PURPUR_PILLAR, true);
+        // Aft Treasury Cabin housing Elytra Chest, Enchant Table & Shulker Watch
+        if (dz >= 3 && dz <= 8 && adx <= 3) {
+          const isWall = (adx === 3 || dz === 3 || dz === 8);
+          const isDoor = (dz === 3 && Math.abs(dx) <= 0);
+          for (let hy = 1; hy <= 5; hy++) {
+            if (hy === 5) {
+              setLocalSafe(data, lx, sy + hy, lz, adx <= 2 ? B.PURPUR_PILLAR : B.END_STONE_BRICKS, true);
             } else if (isWall && !isDoor) {
-              const win = (hy === 2 && adx === 2 && dz === 5);
+              const win = ((hy === 2 || hy === 3) && adx === 3 && (dz === 5 || dz === 6));
               setLocalSafe(data, lx, sy + hy, lz, win ? B.GLASS : B.PURPUR_BLOCK, true);
             } else {
               setLocalSafe(data, lx, sy + hy, lz, B.AIR, true);
             }
           }
-          if (dx === 0 && dz === 5) {
+          if (dx === 0 && dz === 6) {
             setLocalSafe(data, lx, sy + 1, lz, B.GOLD_CHEST, true);
             naturalChestTags.set(modKey(wx, sy + 1, wz), 'end_ship');
           }
-          if (dx === -1 && dz === 6) setLocalSafe(data, lx, sy + 1, lz, B.ENCHANT_TABLE, true);
-          if (dx === 1 && dz === 6) setLocalSafe(data, lx, sy + 1, lz, B.END_ROD, true);
+          if (dx === -2 && dz === 7) setLocalSafe(data, lx, sy + 1, lz, B.ENCHANT_TABLE, true);
+          if (dx === 2 && dz === 7) setLocalSafe(data, lx, sy + 1, lz, B.ENDER_CHEST_BLOCK, true);
         }
-        // Obsidian mast & floating purple/white sail
+        // Towering Obsidian/Purpur Mast + Dual Yardarms + Striped End Sail
         if (dx === 0 && dz === -1) {
-          for (let my = 1; my <= 12; my++) setLocalSafe(data, lx, sy + my, lz, B.PURPUR_PILLAR, true);
-          setLocalSafe(data, lx, sy + 13, lz, B.END_ROD, true);
+          for (let my = 1; my <= 16; my++) setLocalSafe(data, lx, sy + my, lz, my > 12 ? B.OBSIDIAN : B.PURPUR_PILLAR, true);
+          setLocalSafe(data, lx, sy + 17, lz, B.END_ROD, true);
         }
-        if (dz === -1 && adx <= 3) {
-          for (let my = 5; my <= 10; my++) {
-            setLocalSafe(data, lx, sy + my, lz, ((adx + my) & 1) ? B.MAGENTA_WOOL : B.WHITE_WOOL, true);
+        if (dz === -1 && adx <= 4) {
+          for (let my = 5; my <= 13; my++) {
+            const band = (my === 5 || my === 13) ? B.PURPUR_PILLAR : (((adx + my) & 1) ? B.MAGENTA_WOOL : B.WHITE_WOOL);
+            setLocalSafe(data, lx, sy + my, lz, band, true);
           }
         }
-        // Stepping pier from ship stern back toward the End City upper deck
-        if (dx === 0 && dz >= 8 && dz <= 10) setLocalSafe(data, lx, sy, lz, B.PURPUR_BLOCK, true);
-        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, (sy + 14) - MIN_Y));
+        if (dx === 0 && dz >= 9 && dz <= 11) setLocalSafe(data, lx, sy, lz, B.PURPUR_BLOCK, true);
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, (sy + 18) - MIN_Y));
       }
     }
     return maxLy;
@@ -991,25 +1060,48 @@
   function stampEndCityInChunk(data, wx0, wz0, city, maxLy) {
     if (!city) return maxLy;
     const hw = city.towerW, bY = city.baseY, topY = bY + city.towerH;
-    if (city.cx + hw + 10 < wx0 || city.cx - hw - 10 > wx0 + 15 || city.cz + hw + 18 < wz0 || city.cz - hw - 18 > wz0 + 15) {
+    if (city.cx + hw + 18 < wx0 || city.cx - hw - 18 > wx0 + 15 || city.cz + hw + 22 < wz0 || city.cz - hw - 22 > wz0 + 15) {
       return stampEndShipInChunk(data, wx0, wz0, city, maxLy);
     }
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz, dz = wz - city.cz, adz = Math.abs(dz);
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const wx = wx0 + lx, dx = wx - city.cx, adx = Math.abs(dx);
-        // Connecting Purpur dock bridge from city chest level up to floating End Ship
-        if (city.hasShip && Math.abs(dx) <= 1 && dz >= -(city.cz - (city.shipZ + 8)) && dz <= -hw) {
-          const bridgeLen = (city.cz - hw) - (city.shipZ + 9);
+        // Purpur Skybridge up to docked End Ship
+        if (city.hasShip && Math.abs(dx) <= 1 && dz >= -(city.cz - (city.shipZ + 9)) && dz <= -hw) {
+          const bridgeLen = (city.cz - hw) - (city.shipZ + 10);
           const prog = bridgeLen > 0 ? Math.max(0, Math.min(1, (-dz - hw) / bridgeLen)) : 0;
           const bBridgeY = Math.round(bY + 1 + prog * (city.shipY - (bY + 1)));
           setLocalSafe(data, lx, bBridgeY, lz, Math.abs(dx) === 1 ? B.PURPUR_PILLAR : B.END_STONE_BRICKS, true);
           if (Math.abs(dz) % 4 === 0 && Math.abs(dx) === 1) setLocalSafe(data, lx, bBridgeY + 1, lz, B.END_ROD, true);
         }
-        if (adx <= hw && adz <= hw) {
-          const isCorner = (adx === hw && adz === hw);
-          const isWall = (adx === hw || adz === hw);
-          const isDoor = ((adx <= 1 && adz === hw) || (adz <= 1 && adx === hw));
+        // Twin East/West Cantilevered Side Towers + Connecting Walkways
+        for (const sideSgn of [-1, 1]) {
+          const sxC = sideSgn * (hw + 6), bxS = dx - sxC, axS = Math.abs(bxS);
+          if (adx > hw && Math.abs(dx) <= hw + 3 && adz <= 1) {
+            setLocalSafe(data, lx, bY + 8, lz, B.END_STONE_BRICKS, true);
+            if (adz === 1) setLocalSafe(data, lx, bY + 9, lz, B.PURPUR_PILLAR, true);
+          }
+          if (axS <= 3 && adz <= 3) {
+            const subTop = bY + 16;
+            for (let wy = bY + 7; wy <= subTop; wy++) {
+              const sWall = (axS === 3 || adz === 3), sFl = (wy === bY + 7 || wy === subTop);
+              if (sWall || sFl) setLocalSafe(data, lx, wy, lz, (axS === 3 && adz === 3) ? B.PURPUR_PILLAR : (sFl ? B.END_STONE_BRICKS : B.PURPUR_BLOCK), true);
+              else setLocalSafe(data, lx, wy, lz, B.AIR, true);
+            }
+            if (bxS === 0 && dz === 0) {
+              setLocalSafe(data, lx, bY + 8, lz, B.CHEST, true);
+              naturalChestTags.set(modKey(wx, bY + 8, wz), 'end_city');
+              setLocalSafe(data, lx, subTop + 1, lz, B.END_ROD, true);
+            }
+          }
+        }
+        // Main Multi-Tiered Central End Citadel Tower (flares wider near the crown!)
+        const activeW = (topY > bY + 16) ? hw : hw;
+        if (adx <= activeW && adz <= activeW) {
+          const isCorner = (adx === activeW && adz === activeW);
+          const isWall = (adx === activeW || adz === activeW);
+          const isDoor = ((adx <= 1 && adz === activeW) || (adz <= 1 && adx === activeW));
           for (let wy = bY; wy <= topY; wy++) {
             const relY = wy - bY;
             if (isDoor && relY >= 1 && relY <= 4) {
@@ -1028,9 +1120,8 @@
               setLocalSafe(data, lx, wy, lz, B.AIR, true);
             }
           }
-          // Stepped interior Spiral Stairs & End Rod Lights + Treasure Vault
           for (let fBase = 0; fBase <= 16; fBase += 8) {
-            const stOff = (dx === -hw + 2 && dz >= -2 && dz <= 4);
+            const stOff = (dx === -activeW + 2 && dz >= -2 && dz <= 4);
             if (stOff) setLocalSafe(data, lx, bY + fBase + 1 + (dz + 2), lz, B.PURPUR_BLOCK, true);
           }
           if (isCorner) setLocalSafe(data, lx, topY + 1, lz, B.END_ROD, true);
@@ -1040,8 +1131,10 @@
             setLocalSafe(data, lx, bY + 17, lz, B.ENDER_CHEST_BLOCK, true);
             setLocalSafe(data, lx, topY + 1, lz, B.END_CRYSTAL_BLOCK, true);
           }
-          if (adx === hw - 1 && adz === hw - 1) setLocalSafe(data, lx, bY + 1, lz, B.END_ROD, true);
-          maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, (topY + 2) - MIN_Y));
+          if (adx === activeW - 1 && adz === activeW - 1) setLocalSafe(data, lx, bY + 1, lz, B.END_ROD, true);
+          maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, (topY + 3) - MIN_Y));
+        } else if (Math.abs(adx - (hw + 1)) === 0 && adz <= hw + 1 && hash2i(wx, wz, worldSeed + 991) > 0.94) {
+          setLocalSafe(data, lx, bY + 1, lz, B.CHORUS_PLANT, true);
         }
       }
     }
@@ -1330,6 +1423,7 @@
 
   function _genSiftChunk(cx, cz, wx0, wz0, data) {
     let maxLy = 0;
+    if (!chunkWorkerPool.take(wx0, wz0, 0)) fillCoarseCaveGrid(wx0, wz0);
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz;
       for (let lx = 0; lx < CHUNK_W; lx++) {
@@ -1339,15 +1433,12 @@
         const ci = (lz << 4) | lx; colHeights[ci] = topH; colBiomes[ci] = b.id;
         const isMesaPillar = (topH >= WATER_LEVEL + 9) && (b === BIOMES.SIFT_HUSKLAND || b === BIOMES.SIFT_MEADOW || b === BIOMES.SIFT_CANYON);
         const topBlock = isMesaPillar ? B.TERRACOTTA
+          : (b === BIOMES.SIFT_PEAKS) ? (topH >= WATER_LEVEL + 38 ? B.SNOW : B.SIFT_STONE)
           : (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) ? B.LULLABY_GRASS
           : (b === BIOMES.SIFT_HUSKLAND || b === BIOMES.SIFT_CANYON) ? B.TERRACOTTA
           : (b === BIOMES.SIFT_SPOREFIELDS) ? B.SPORE_TURF
           : B.SIFT_GRASS;
-        const cliffBlock = isMesaPillar ? B.TERRACOTTA : ((b === BIOMES.SIFT_SPOREFIELDS) ? B.SIFT_STONE : B.HUSK_SOIL);
-        const caveCol = valueNoise2D(wx * 0.055, wz * 0.055, worldSeed + 4777);
-        const hasCaveBand = (caveCol > 0.68);
-        const caveY0 = MIN_Y + 5 + Math.floor((caveCol - 0.68) * 28);
-        const caveY1 = Math.min(topH - 5, caveY0 + 4);
+        const cliffBlock = (isMesaPillar ? B.TERRACOTTA : ((b === BIOMES.SIFT_SPOREFIELDS || b === BIOMES.SIFT_PEAKS) ? B.SIFT_STONE : B.HUSK_SOIL));
         const maxFillLy = Math.min(WORLD_H - 1, Math.max(WATER_LEVEL, topH) - MIN_Y);
         if (maxFillLy > maxLy) maxLy = maxFillLy;
         for (let ly = 0; ly <= maxFillLy; ly++) {
@@ -1355,11 +1446,11 @@
           const idx = (ly << 8) | (lz << 4) | lx;
           if (wy === MIN_Y) { data[idx] = B.BEDROCK; continue; }
           if (wy > topH) { data[idx] = (wy <= WATER_LEVEL) ? B.WATER : B.AIR; continue; }
-          if (hasCaveBand && wy >= caveY0 && wy <= caveY1) {
-            data[idx] = (wy === caveY0 && hash2i(wx * 5 + 3, wz * 5 - 7, worldSeed) > 0.92) ? B.SPORE_SHROOM : B.AIR;
+          if (wy < topH - 2 && wy > MIN_Y + 3 && sampleCaveFast(lx, ly, lz) > 0.74) {
+            data[idx] = (wy === MIN_Y + 4 && hash2i(wx * 5 + 3, wz * 5 - 7, worldSeed) > 0.90) ? B.SPORE_SHROOM : B.AIR;
             continue;
           }
-          if (wy === topH) data[idx] = (topH < WATER_LEVEL) ? B.HUSK_SOIL : topBlock;
+          if (wy === topH) data[idx] = (topH < WATER_LEVEL) ? (b === BIOMES.SIFT_OCEAN && hash2i(wx, wz, worldSeed + 4511) > 0.94 ? B.PRISMARINE : B.HUSK_SOIL) : topBlock;
           else if (isMesaPillar && wy >= WATER_LEVEL) data[idx] = ((wy & 3) === 0) ? B.HUSK_SOIL : B.TERRACOTTA;
           else if (wy >= topH - 3) data[idx] = cliffBlock;
           else {
@@ -1372,31 +1463,40 @@
             else data[idx] = B.SIFT_STONE;
           }
         }
+        if ((b === BIOMES.SIFT_OCEAN || b === BIOMES.SIFT_ICHOR_PONDS) && topH <= WATER_LEVEL - 4) {
+          const sh = hash2i(wx, wz, worldSeed + 4611);
+          if (sh > 0.975) setLocalSafe(data, lx, topH + 1, lz, B.SEA_LANTERN, false);
+          else if (sh > 0.86) setLocalSafe(data, lx, topH + 1, lz, B.SEAGRASS, false);
+        }
         if (topH >= WATER_LEVEL) {
           const fh = hash2i(wx * 3 + 17, wz * 3 - 29, worldSeed);
           const nearPortalClear = (Math.abs(wx) <= 6 && wz >= -13 && wz <= 5);
-          if (!nearPortalClear && !isMesaPillar && fh > 0.958 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
-            const isSpore = (b === BIOMES.SIFT_SPOREFIELDS);
-            const isLullaby = (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP);
-            const leafId = isSpore ? B.SPORE_TURF : (isLullaby ? B.LULLABY_LEAVES : B.SIFT_LEAVES);
-            const capId  = isSpore ? B.SPORE_TURF : B.LULLABY_LEAVES;
-            const trunkH = 5 + ((Math.abs(wx * 7 + wz * 13)) % 4);
-            for (let ty = 1; ty <= trunkH; ty++) setLocalSafe(data, lx, topH + ty, lz, B.SIFT_LOG);
-            for (let dy = 0; dy <= 2; dy++) {
-              const rad = dy === 2 ? 1 : 2;
-              for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
-                if (Math.abs(dx) === rad && Math.abs(dz) === rad && dy > 0) continue;
-                setLocalSafe(data, lx + dx, topH + trunkH + dy, lz + dz, (dy >= 1 && ((dx + dz) & 1) === 0) ? capId : leafId);
-                if (dy === 0 && (Math.abs(dx) === rad || Math.abs(dz) === rad)) {
-                  const hang = 1 + (Math.abs(wx + dx * 3 + wz + dz * 5) % 3);
-                  for (let hh = 1; hh <= hang; hh++) {
-                    setLocalSafe(data, lx + dx, topH + trunkH - hh, lz + dz, (hh === hang) ? capId : leafId);
+          const isGiantBiome = (b === BIOMES.SIFT_GIANT_FOREST);
+          if (!nearPortalClear && !isMesaPillar && b !== BIOMES.SIFT_PEAKS && (fh > (isGiantBiome ? 0.964 : (b === BIOMES.SIFT_PLAINS ? 0.993 : 0.962))) && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
+            if (isGiantBiome && fh > 0.982) {
+              placeLuantiTree(data, lx, topH + 1, lz, wx, wz, 'sift_giant');
+              const topTrG = Math.min(WORLD_H - 1, (topH + 22) - MIN_Y);
+              if (topTrG > maxLy) maxLy = topTrG;
+            } else {
+              const isSpore = (b === BIOMES.SIFT_SPOREFIELDS);
+              const isLullaby = (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP);
+              const treeLeaf = isSpore ? B.SPORE_TURF : (isLullaby ? B.LULLABY_LEAVES : B.SIFT_LEAVES);
+              const trunkH = 5 + ((Math.abs(wx * 7 + wz * 13)) % 4);
+              for (let ty = 1; ty <= trunkH; ty++) setLocalSafe(data, lx, topH + ty, lz, B.SIFT_LOG);
+              for (let dy = 0; dy <= 2; dy++) {
+                const rad = dy === 2 ? 1 : 2;
+                for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+                  if (Math.abs(dx) === rad && Math.abs(dz) === rad && dy > 0) continue;
+                  setLocalSafe(data, lx + dx, topH + trunkH + dy, lz + dz, treeLeaf);
+                  if (dy === 0 && (Math.abs(dx) === rad || Math.abs(dz) === rad)) {
+                    const hang = 1 + (Math.abs(wx + dx * 3 + wz + dz * 5) % 2);
+                    for (let hh = 1; hh <= hang; hh++) setLocalSafe(data, lx + dx, topH + trunkH - hh, lz + dz, treeLeaf);
                   }
                 }
               }
+              const topTr = Math.min(WORLD_H - 1, (topH + trunkH + 3) - MIN_Y);
+              if (topTr > maxLy) maxLy = topTr;
             }
-            const topTr = Math.min(WORLD_H - 1, (topH + trunkH + 3) - MIN_Y);
-            if (topTr > maxLy) maxLy = topTr;
           } else if (!nearPortalClear) {
             if ((b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) && fh > 0.68) setLocalSafe(data, lx, topH + 1, lz, B.SIFT_FLOWER);
             else if (fh > 0.87) setLocalSafe(data, lx, topH + 1, lz, B.SIFT_FLOWER);
@@ -1404,16 +1504,65 @@
             else if ((b === BIOMES.SIFT_SPOREFIELDS && fh > 0.76) || fh > 0.942) setLocalSafe(data, lx, topH + 1, lz, B.SPORE_SHROOM);
           }
         }
+        // Floating Sky Islands in SIFT_SKY_ISLANDS (and high Sift regions)
+        const skyN = fbm2D(wx * 0.022, wz * 0.022, 2, 0.5, 2.0, worldSeed + 4977);
+        const skyThresh = (b === BIOMES.SIFT_SKY_ISLANDS) ? 0.54 : 0.72;
+        if (skyN > skyThresh) {
+          const islY = 48 + Math.floor(hash2i(cx >> 1, cz >> 1, worldSeed + 4981) * 26);
+          const depth = Math.min(9, Math.max(2, Math.round((skyN - skyThresh) * 38)));
+          for (let dy = -depth; dy <= 0; dy++) {
+            const bid = dy === 0 ? B.SIFT_GRASS : (dy >= -2 ? B.HUSK_SOIL : ((skyN > skyThresh + 0.14 && dy === -3 && hash2i(wx, wz, worldSeed + 4987) > 0.93) ? B.AETHERIUM_ORE : B.SIFT_STONE));
+            setLocalSafe(data, lx, islY + dy, lz, bid, true);
+          }
+          if (hash2i(wx, wz, worldSeed + 4993) > 0.88) setLocalSafe(data, lx, islY + 1, lz, B.SIFT_FLOWER, false);
+          if (skyN > skyThresh + 0.16 && lx === 8 && lz === 8) placeLuantiTree(data, 8, islY + 1, 8, wx, wz, 'sift_giant');
+          const topSky = Math.min(WORLD_H - 1, (islY + 16) - MIN_Y);
+          if (topSky > maxLy) maxLy = topSky;
+        }
       }
     }
+    // Dream Houses, Crystal Arches & Dream Boss Sanctuaries across flat Sift lands
     const midH = colHeights[(8 << 4) | 8];
-    if (midH >= WATER_LEVEL + 1 && midH < WATER_LEVEL + 8 && (Math.abs(cx) > 0 || Math.abs(cz) > 1) && hash2i(cx, cz, worldSeed + 4909) > 0.86) {
-      for (let py = 1; py <= 5; py++) {
-        setLocalSafe(data, 5, midH + py, 8, B.MOSS_BLOCK, true);
-        setLocalSafe(data, 10, midH + py, 8, B.MOSS_BLOCK, true);
+    const sr = hash2i(cx, cz, worldSeed + 4909);
+    if (midH >= WATER_LEVEL + 1 && midH < WATER_LEVEL + 10 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
+      if (sr > 0.985) {
+        // Dream Sanctuary Arena w/ Purpur Ring, Crystal Beacon & Chest
+        for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+          const d = Math.hypot(dx - 7.5, dz - 7.5);
+          if (d > 6.2) continue;
+          setLocalSafe(data, dx, midH, dz, d > 5.0 ? B.PURPUR_PILLAR : B.MARBLE_BRICK, true);
+          for (let wy = 1; wy <= 6; wy++) setLocalSafe(data, dx, midH + wy, dz, B.AIR, true);
+        }
+        for (const [px, pz] of [[3, 3], [12, 3], [3, 12], [12, 12]]) {
+          for (let py = 1; py <= 5; py++) setLocalSafe(data, px, midH + py, pz, py === 5 ? B.GLOW_CRYSTAL : B.PURPUR_PILLAR, true);
+        }
+        setLocalSafe(data, 7, midH + 1, 7, B.GOLD_CHEST, true);
+        setLocalSafe(data, 8, midH + 1, 8, B.END_CRYSTAL_BLOCK, true);
+        const topAr = Math.min(WORLD_H - 1, (midH + 7) - MIN_Y); if (topAr > maxLy) maxLy = topAr;
+      } else if (sr > 0.968) {
+        // Dream Villa Cottage
+        for (let dz = 4; dz <= 11; dz++) for (let dx = 4; dx <= 11; dx++) {
+          setLocalSafe(data, dx, midH, dz, B.PURPUR_BLOCK, true);
+          for (let wy = 1; wy <= 6; wy++) setLocalSafe(data, dx, midH + wy, dz, B.AIR, true);
+          const isW = (dx === 4 || dx === 11 || dz === 4 || dz === 11);
+          if (isW && !(dx === 7 && dz === 11)) {
+            for (let wy = 1; wy <= 4; wy++) setLocalSafe(data, dx, midH + wy, dz, wy === 2 && (dx === 7 || dz === 7) ? B.GLASS : (wy === 4 ? B.PURPUR_PILLAR : B.SIFT_LOG), true);
+          }
+          setLocalSafe(data, dx, midH + 5, dz, B.LULLABY_LEAVES, false);
+        }
+        setLocalSafe(data, 7, midH + 1, 11, B.BIRCH_DOOR, true);
+        setLocalSafe(data, 6, midH + 1, 6, B.CHEST, true);
+        setLocalSafe(data, 9, midH + 1, 6, B.ENCHANT_TABLE, true);
+        setLocalSafe(data, 7, midH + 4, 7, B.SEA_LANTERN, true);
+        const topDh = Math.min(WORLD_H - 1, (midH + 6) - MIN_Y); if (topDh > maxLy) maxLy = topDh;
+      } else if (sr > 0.87) {
+        for (let py = 1; py <= 5; py++) {
+          setLocalSafe(data, 5, midH + py, 8, B.MOSS_BLOCK, true);
+          setLocalSafe(data, 10, midH + py, 8, B.MOSS_BLOCK, true);
+        }
+        for (let px = 5; px <= 10; px++) setLocalSafe(data, px, midH + 6, 8, (px === 7 || px === 8) ? (hash2i(cx, cz, worldSeed + 71) > 0.72 ? B.DREAM_PRISM_ORE : B.GLOW_CRYSTAL) : B.SIFT_STONE, true);
+        const rTop = Math.min(WORLD_H - 1, (midH + 7) - MIN_Y); if (rTop > maxLy) maxLy = rTop;
       }
-      for (let px = 5; px <= 10; px++) setLocalSafe(data, px, midH + 6, 8, (px === 7 || px === 8) ? (hash2i(cx, cz, worldSeed + 71) > 0.72 ? B.DREAM_PRISM_ORE : B.GLOW_CRYSTAL) : B.SIFT_STONE, true);
-      const rTop = Math.min(WORLD_H - 1, (midH + 7) - MIN_Y); if (rTop > maxLy) maxLy = rTop;
     }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
     const chS = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
@@ -1842,72 +1991,83 @@
         }
       }
       maxLy = Math.min(WORLD_H - 1, (streetY + 20) - MIN_Y);
-    } else if (lotR < 0.74) {
-      // 2B) Architectural Building Plots: Style A (Hollow Window-Grid Skyscraper) or Style B (Mid-Rise Modernist Terraced Ruin)
-      const isSkyscraper = (lotR < 0.48);
-      const facadeKind = facadeR < 0.38 ? 0 : (facadeR < 0.72 ? 1 : 2); // 0=Concrete, 1=Dark Brutalist (Image 8), 2=Brick-Concrete (Image 2)
-      const wallB = facadeKind === 1 ? B.DEEPSLATE : (facadeKind === 2 ? B.TERRACOTTA : B.CONCRETE);
-      const slabB = facadeKind === 1 ? B.CONCRETE : (facadeKind === 2 ? B.CONCRETE : B.SMOOTH_STONE);
-      const trimB = facadeKind === 2 ? B.MUD_BRICK : B.CRACKED_CONCRETE;
-      const voxelTop = isSkyscraper ? (MAX_Y - 2) : (streetY + 16 + Math.floor(hash2i(cx + 3, cz, worldSeed + 2045) * 14));
-      const topH = isSkyscraper ? (lotR < 0.14 ? 198 : (lotR < 0.30 ? 132 : 84)) : voxelTop;
+    } else if (lotR < 0.76) {
+      // 2B) 100% Real Collidable Voxel Modern Skyscrapers & Non-Repeating Architectural Styles (WORLD_H = 256, MAX_Y = 207)
+      const bHash = (Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663) ^ worldSeed) >>> 0;
+      const archType = bHash % 8;
+      const isSkyscraper = (archType < 5);
+      const wallMats = [B.CONCRETE, B.DEEPSLATE, B.MARBLE_BRICK, B.TERRACOTTA, B.SMOOTH_STONE];
+      const wallB = wallMats[(bHash >> 3) % wallMats.length];
+      const slabB = (archType & 1) ? B.CONCRETE : B.SMOOTH_STONE;
+      const trimB = (archType === 3) ? B.MUD_BRICK : B.CRACKED_CONCRETE;
+      const baseSpan = isSkyscraper ? (44 + (bHash % 136)) : (18 + (bHash % 24));
+      const topH = Math.min(MAX_Y - 12, streetY + baseSpan);
+      const stepY1 = streetY + Math.floor(baseSpan * 0.55);
+      const stepY2 = streetY + Math.floor(baseSpan * 0.80);
 
-      for (let wy = streetY + 1; wy <= voxelTop; wy++) {
+      for (let wy = streetY + 1; wy <= topH; wy++) {
         const fl = (wy - streetY) % 4;
-        for (let lz = 1; lz <= 14; lz++) for (let lx = 1; lx <= 14; lx++) {
-          const isEdge = (lx === 1 || lx === 14 || lz === 1 || lz === 14);
-          const isCorner = (lx === 1 || lx === 14) && (lz === 1 || lz === 14);
-          const isDoor = ((lz === 1 || lz === 14) && lx >= 7 && lx <= 8 && wy <= streetY + 3)
-                      || ((lx === 1 || lx === 14) && lz >= 7 && lz <= 8 && wy <= streetY + 3);
+        const inset = (archType === 0 && wy > stepY2) ? 2 : ((archType === 1 && wy > stepY1) ? 1 : 0);
+        const aLo = 1 + inset, aHi = 14 - inset;
+        const isRoof = (wy === topH);
+        for (let lz = aLo; lz <= aHi; lz++) for (let lx = aLo; lx <= aHi; lx++) {
+          const isEdge = (lx === aLo || lx === aHi || lz === aLo || lz === aHi);
+          const isCorner = (lx === aLo || lx === aHi) && (lz === aLo || lz === aHi);
+          if (archType === 2 && isCorner) continue; // Chamfered diagonal modern tower
+          if (archType === 5 && lx > 9 && lz > 9) continue; // L-wing apartment
+          const isDoor = (wy <= streetY + 3 && (((lz === aLo || lz === aHi) && lx >= 7 && lx <= 8) || ((lx === aLo || lx === aHi) && lz >= 7 && lz <= 8)));
           if (isDoor) continue;
           const dmg = hash3i(wx0 + lx, wy, wz0 + lz, worldSeed + 2051);
-          // Ruined top decay & open facade breaches
-          if (!isCorner && dmg > (wy > streetY + 14 ? 0.78 : 0.89)) continue;
+          if (!isRoof && !isCorner && dmg > 0.93) continue;
           let bid = B.AIR;
-          if (isCorner) {
-            bid = (dmg > 0.78) ? B.RUST_STEEL : slabB;
+          if (isRoof) {
+            if (isEdge) bid = B.STONE_WALL;
+            else if (archType === 2 && ((lx >= 6 && lx <= 9) && (lz === 6 || lz === 9) || ((lx === 6 || lx === 9) && lz >= 6 && lz <= 9))) bid = B.ROAD_LINE;
+            else bid = (dmg > 0.82 && archType === 7) ? B.MOSS_BLOCK : slabB;
+          } else if (isCorner) {
+            bid = wallB;
           } else if (isEdge) {
-            const onMullion = ((lx === 1 || lx === 14) ? ((lz - 1) % 3 === 0) : ((lx - 1) % 3 === 0));
-            if (fl === 0) bid = dmg > 0.60 ? trimB : slabB;
+            const onMullion = ((lx === aLo || lx === aHi) ? ((lz - aLo) % 3 === 0) : ((lx - aLo) % 3 === 0));
+            if (fl === 0) bid = (archType === 7 && dmg > 0.55) ? trimB : slabB;
             else if (onMullion) bid = wallB;
-            else bid = dmg > 0.44 ? (dmg > 0.68 ? B.AIR : B.BROKEN_GLASS) : B.GLASS;
+            else bid = (archType === 7 && dmg > 0.55) ? B.BROKEN_GLASS : B.GLASS;
           } else if (fl === 0) {
-            // Hollow central atrium for skyscrapers (matches Image 8!), stepped interior walkways & Style B full floors
-            const nearWall = (lx <= 3 || lx >= 12 || lz <= 3 || lz >= 12);
-            if ((!isSkyscraper || nearWall) && dmg < 0.78) bid = dmg > 0.56 ? trimB : slabB;
+            const nearWall = (lx <= aLo + 2 || lx >= aHi - 2 || lz <= aLo + 2 || lz >= aHi - 2);
+            if ((!isSkyscraper || nearWall) || (wy === stepY1 || wy === stepY2)) bid = slabB;
           }
           if (bid !== B.AIR) data[((wy - MIN_Y) << 8) | (lz << 4) | lx] = bid;
         }
       }
+      // Solid Rooftop Details (Parapet Lanterns, AC Units/Water Tank, Spire or Rooftop Trees!)
+      setLocalSafe(data, 6, topH + 1, 6, B.IRON_CHEST, true);
+      setLocalSafe(data, 9, topH + 1, 9, B.SEA_LANTERN, true);
+      if (isSkyscraper && archType <= 2) {
+        for (let ay = 1; ay <= 6; ay++) setLocalSafe(data, 7, topH + ay, 7, ay === 6 ? B.SEA_LANTERN : B.RUST_STEEL, true);
+      } else {
+        placeLuantiTree(data, 8, topH + 1, 8, wx0 + 8, wz0 + 8, archType === 4 ? 'sakura' : 'apple');
+      }
 
-      // Ground lobby details (table, grass debris, loot chest, lantern & fast skyscraper elevator)
+      // Ground lobby details + working Express Elevator Shaft up to real solid topH!
       setLocalSafe(data, 4, streetY + 1, 4, B.PLANKS, true);
-      setLocalSafe(data, 5, streetY + 1, 4, B.HAY_BALE, false);
       setLocalSafe(data, 3, streetY + 1, 11, B.CHEST, true);
       setLocalSafe(data, 11, streetY + 1, 4, B.LANTERN, true);
       if (isSkyscraper) {
         setLocalSafe(data, 12, streetY + 1, 12, B.ELEVATOR_BLOCK, true);
-        skyscraperSpec = { wx0: wx0 + 1, wz0: wz0 + 1, w: 14, d: 14, baseH: voxelTop + 1, topH, facadeKind, seed: (cx * 73856093) ^ (cz * 19349663) };
-      } else {
-        // Mid-rise overgrown rooftop garden + tree
-        placeLuantiTree(data, 8, voxelTop + 1, 8, wx0 + 8, wz0 + 8, 'apple');
+        setLocalSafe(data, 12, topH, 12, B.ELEVATOR_BLOCK, true);
+        skyscraperSpec = { wx0: wx0 + 1, wz0: wz0 + 1, w: 14, d: 14, topH };
       }
 
-      // Cascading diagonal green foliage rivers + hanging vines wrapping exterior & hollow atrium!
-      for (let wy = streetY + 3; wy <= voxelTop; wy++) {
-        for (const [lx, lz] of [[1, 3], [1, 9], [14, 5], [14, 12], [4, 1], [11, 1], [6, 14], [12, 14]]) {
-          const wave = Math.sin(wy * 0.24 + (lx + lz) * 0.45 + facadeR * 6.0);
-          if (wave > 0.28) {
-            const idxF = ((wy - MIN_Y) << 8) | (lz << 4) | lx;
-            data[idxF] = hash3i(wx0 + lx, wy, wz0 + lz, worldSeed + 2059) > 0.45 ? B.OAK_LEAVES : B.MANGROVE_LEAVES;
-            // Spill vines outward & inward
-            const ox = lx === 1 ? 0 : (lx === 14 ? 15 : lx);
-            const oz = lz === 1 ? 0 : (lz === 14 ? 15 : lz);
-            if (hash3i(wx0 + ox, wy, wz0 + oz, worldSeed + 2063) > 0.38) setLocalSafe(data, ox, wy, oz, B.VINE, false);
+      // Cascading green foliage rivers on overgrown ruin lots
+      if (archType >= 6) {
+        for (let wy = streetY + 3; wy <= topH; wy++) {
+          for (const [lx, lz] of [[1, 3], [14, 5], [4, 1], [11, 14]]) {
+            if (Math.sin(wy * 0.24 + (lx + lz) * 0.45 + facadeR * 6.0) > 0.34) {
+              data[((wy - MIN_Y) << 8) | (lz << 4) | lx] = hash3i(wx0 + lx, wy, wz0 + lz, worldSeed + 2059) > 0.45 ? B.OAK_LEAVES : B.MANGROVE_LEAVES;
+            }
           }
         }
       }
-      maxLy = Math.min(WORLD_H - 1, (voxelTop + 9) - MIN_Y);
+      maxLy = Math.min(WORLD_H - 1, (topH + 9) - MIN_Y);
     } else if (lotR < 0.88) {
       // 2C) Overgrown Urban Park / Plaza
       placeLuantiTree(data, 6, streetY + 1, 6, wx0 + 6, wz0 + 6, 'ancient_vine_tree');
@@ -1932,7 +2092,7 @@
       setLocalSafe(data, 5, streetY + 1, 10, B.CHEST, true);
       maxLy = Math.min(WORLD_H - 1, (streetY + 14) - MIN_Y);
     }
-    const chCity = { cx, cz, data, maxLy, skyscraperSpec, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, towerMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chCity = { cx, cz, data, maxLy, skyscraperSpec, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chCity);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chCity;
@@ -2061,8 +2221,9 @@
                 id = (h <= WATER_LEVEL + 4 && wy >= h - 1) ? B.RED_SAND : _MESA_STRATA[((wy % 16) + 16) & 15];
               }
               else if (biome === BIOMES.MARSH_RUINS || biome === BIOMES.MANGROVE_SWAMP) id = B.MUD;
-              else if ((biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && wy >= 14) id = ((wy & 3) === 0 ? B.PACKED_ICE : B.STONE);
+              else if ((biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS || biome === BIOMES.MEGA_SNOW_PEAKS) && wy >= 14) id = ((wy & 3) === 0 ? B.PACKED_ICE : B.STONE);
               else if (biome === BIOMES.HIGHLAND_PLATEAU && wy < h - 1) id = B.STONE;
+              else if (biome === BIOMES.NIGHTMARE_WOODS) id = B.DEEPSLATE;
               else id = B.DIRT;
             } else if (wy === h) {
               if (h <= WATER_LEVEL) {
@@ -2075,9 +2236,14 @@
               else if (biome === BIOMES.MUSHROOM_ISLAND) id = B.MYCELIUM;
               else if (biome === BIOMES.VOLCANIC_BASALT) id = (hash2i(wx, wz, worldSeed + 527) > 0.96 ? B.LAVA : B.BASALT);
               else if (biome === BIOMES.MANGROVE_SWAMP) id = (hash2i(wx, wz, worldSeed + 521) > 0.42 ? B.MUD : B.GRASS);
+              else if (biome === BIOMES.MEGA_SNOW_PEAKS) id = h >= 62 ? ((hash2i(wx, wz, worldSeed + 523) > 0.72) ? B.PACKED_ICE : B.SNOW) : (h >= 34 ? (hash2i(wx, wz, worldSeed + 529) > 0.35 ? B.SNOW : B.STONE) : B.GRASS);
               else if (biome === BIOMES.CLOUD_PEAKS) id = h >= 44 ? ((hash2i(wx, wz, worldSeed + 523) > 0.72) ? B.PACKED_ICE : B.SNOW) : (h >= 24 ? (hash2i(wx, wz, worldSeed + 529) > 0.40 ? B.STONE : B.SNOW) : B.GRASS);
               else if (biome === BIOMES.ALPINE_PEAKS) id = (h >= 28 && hash2i(wx, wz, worldSeed + 523) > 0.72) ? B.PACKED_ICE : (h >= 20 ? B.SNOW : B.GRASS);
               else if (biome === BIOMES.SNOW) id = B.SNOW;
+              else if (biome === BIOMES.PALE_GARDEN) id = B.PALE_MOSS;
+              else if (biome === BIOMES.NIGHTMARE_WOODS) id = (hash2i(wx, wz, worldSeed + 531) > 0.85 ? B.SCULK : B.NIGHTMARE_MOSS);
+              else if (biome === BIOMES.DARK_FOREST) id = (hash2i(wx, wz, worldSeed + 533) > 0.56 ? B.AUTUMN_PODZOL : B.GRASS);
+              else if (biome === BIOMES.LUSH_STEPPE) id = B.GRASS;
               else if (biome === BIOMES.MESA || biome === BIOMES.BADLANDS_SPIRES || biome === BIOMES.BADLANDS_CRATER) {
                 id = (h <= WATER_LEVEL + 4) ? B.RED_SAND : _MESA_STRATA[((wy % 16) + 16) & 15];
               }
@@ -2393,10 +2559,29 @@
           else if (biome === BIOMES.GIANT_JUNGLE && rTree > 0.952) {
             placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && rTree > 0.972) ? 'mega_jungle' : 'canopy_jungle'); placed = true;
           }
+          else if (biome === BIOMES.DARK_FOREST && rTree > 0.946) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, rTree > 0.976 ? 'dark_oak' : 'giant_mushroom'); placed = true;
+          }
+          else if (biome === BIOMES.PALE_GARDEN && rTree > 0.952) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'pale_oak'); placed = true;
+          }
+          else if (biome === BIOMES.NIGHTMARE_WOODS && rTree > 0.954) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'nightmare_tree'); placed = true;
+          }
+          else if (biome === BIOMES.LUSH_STEPPE && surfTopId === B.GRASS && rTree > 0.992) {
+            placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true;
+          }
           else if (biome === BIOMES.GIANT_JUNGLE && rTree > 0.934 && rTree <= 0.944) {
             placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true;
           }
-          if (placed) { const top = Math.min(WORLD_H - 1, (h + 30) - MIN_Y); if (top > maxLy) maxLy = top; }
+          if (placed) {
+            if (biome === BIOMES.FOREST || biome === BIOMES.AUTUMN || biome === BIOMES.SAKURA || biome === BIOMES.PINE_VALLEY) {
+              if (lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13 && hash2i(wx + 5, wz - 5, worldSeed + 997) > 0.52) {
+                placeLeafBushCluster(data, lx + (rTree > 0.97 ? 1 : -1), h + 1, lz + 1, wx + 1, wz + 1, biome === BIOMES.SAKURA ? B.SAKURA_LEAVES : B.OAK_LEAVES);
+              }
+            }
+            const top = Math.min(WORLD_H - 1, (h + 30) - MIN_Y); if (top > maxLy) maxLy = top;
+          }
         }
       }
     }
@@ -2565,6 +2750,7 @@
           maxLy = stampWheatPlainWindmills(data, wx0, wz0, maxLy);
         }
         maxLy = stampPlainsVillageInChunk(data, cx, cz, wx0, wz0, maxLy);
+        if (typeof stampOverworldMegaStructures === 'function') maxLy = stampOverworldMegaStructures(data, cx, cz, wx0, wz0, maxLy);
       }
     }
 
@@ -2820,7 +3006,8 @@
     }
   }
 
-  function clearFluidState() { fluidLevel.clear(); pouredFluidSources.clear(); fluidQueue.length = 0; fluidQueuedSet.clear(); waterloggedBlocks.clear(); }
+  let fluidQueueHead = 0;
+  function clearFluidState() { fluidLevel.clear(); pouredFluidSources.clear(); fluidQueue.length = 0; fluidQueueHead = 0; fluidQueuedSet.clear(); waterloggedBlocks.clear(); }
 
   function flowWaterInto(startX, startY, startZ) {
     const k = modKey(startX, startY, startZ);
@@ -2846,14 +3033,23 @@
   }
 
   function tickFluids(dt) {
-    if (!fluidQueue.length) return;
+    if (fluidQueueHead >= fluidQueue.length) {
+      if (fluidQueue.length > 0) { fluidQueue.length = 0; fluidQueueHead = 0; }
+      return;
+    }
     let processed = 0, changedVisuals = 0;
-    const maxOps = 140;
-    for (let i = 0; i < fluidQueue.length && processed < maxOps; ) {
+    const maxOps = 120;
+    const len = fluidQueue.length;
+    let writeIdx = fluidQueueHead;
+    let i = fluidQueueHead;
+    for (; i < len && processed < maxOps; i++) {
       const item = fluidQueue[i];
       item.t -= dt;
-      if (item.t > 0) { i++; continue; }
-      fluidQueue.splice(i, 1);
+      if (item.t > 0) {
+        if (writeIdx !== i) fluidQueue[writeIdx] = item;
+        writeIdx++;
+        continue;
+      }
       const x = item.x, y = item.y, z = item.z;
       const k = modKey(x, y, z);
       fluidQueuedSet.delete(k);
@@ -2900,7 +3096,7 @@
 
         if (curLvl > 0) {
           if (expectedLvl > maxSpread && expectedLvl !== 8) {
-            setBlockWorld(x, y, z, B.AIR, true);
+            setBlockWorld(x, y, z, B.AIR, false);
             fluidLevel.delete(k);
             pouredFluidSources.delete(k);
             changedVisuals++;
@@ -2944,7 +3140,7 @@
         if (_canFluidReplace(belowId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) > 0 && getFluidLevel(x, y - 1, z, curId) !== 8)) {
           if (belowId === B.FIRE) playSfx('hiss');
           const bk = modKey(x, y - 1, z);
-          if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, true);
+          if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, false);
           else markFluidDirty(x, y - 1, z);
           fluidLevel.set(bk, 8);
           scheduleFluid(x, y - 1, z, delayStep);
@@ -2979,7 +3175,7 @@
           if (_canFluidReplace(nbId) || (nbId === curId && nbLvl > nextLvl && nbLvl !== 8)) {
             if (nbId === B.FIRE) playSfx('hiss');
             const nk = modKey(nx, y, nz);
-            if (nbId !== curId) setBlockWorld(nx, y, nz, curId, true);
+            if (nbId !== curId) setBlockWorld(nx, y, nz, curId, false);
             else markFluidDirty(nx, y, nz);
             fluidLevel.set(nk, nextLvl);
             scheduleFluid(nx, y, nz, delayStep);
@@ -2988,7 +3184,12 @@
         }
       }
     }
-    if (changedVisuals > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(24, true);
+    if (i > writeIdx) {
+      for (let j = i; j < len; j++) fluidQueue[writeIdx++] = fluidQueue[j];
+      fluidQueue.length = writeIdx;
+    }
+    fluidQueueHead = 0;
+    if (changedVisuals > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(5, true);
   }
 
 
@@ -3711,10 +3912,12 @@
           v.pivot.rotation.x = Math.max(0, Math.sin(elapsed * 2.4 + (v.phase || 0)) * 0.24);
         } else if (v && v.kind === 'windmill_hub' && v.pivot && v.group && v.group.visible) {
           const st = windmillHubState.get(v.key);
-          const spdMul = st ? st.speed : 1;
-          if (spdMul > 0) {
-            const windBoost = (typeof weatherState !== 'undefined' && weatherState && weatherState.type && weatherState.type !== 'clear') ? 1.55 : 1.0;
-            v.pivot.rotation.z -= dt * 0.62 * spdMul * windBoost;
+          const targetSpd = st ? st.speed : 1;
+          if (v._curSpd === undefined) v._curSpd = targetSpd;
+          v._curSpd += (targetSpd - v._curSpd) * Math.min(1, dt * 4.5);
+          if (v._curSpd > 0.005) {
+            const windBoost = (typeof activeWeatherKind !== 'undefined' && activeWeatherKind !== 'clear') ? 1.45 : 1.0;
+            v.pivot.rotation.z -= Math.min(0.06, dt) * 0.62 * v._curSpd * windBoost;
           }
         }
       }
@@ -4021,6 +4224,17 @@
       const id = getBlockWorld(wx, y, wz);
       const def = BLOCK_DEF[id];
       if (id === B.AIR || id === B.WATER || id === B.LAVA || !def || def.foliage || def.isLog || def.cross || def.hangingFruit) continue;
+      return y;
+    }
+    return WATER_LEVEL;
+  }
+
+  function getCanopyTopY(wx, wz) {
+    for (let y = MAX_Y - 1; y >= 1; y--) {
+      const id = getBlockWorld(wx, y, wz);
+      if (id === B.AIR || id === B.WATER || id === B.LAVA) continue;
+      const def = BLOCK_DEF[id];
+      if (!def || def.cross) continue;
       return y;
     }
     return WATER_LEVEL;
@@ -4707,70 +4921,95 @@
     return baseY;
   }
 
-  function buildGoldenWindmill(wx0, wz0) {
-    const rcx = wx0 >> 4, rcz = wz0 >> 4;
-    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
-      if (!chunks.has(chunkKey(rcx + dx, rcz + dz))) generateChunk(rcx + dx, rcz + dz);
-    }
-    const baseY = Math.max(WATER_LEVEL + 1, Math.min(22, colGroundY(wx0, wz0)));
-    const put = (dx, y, dz, id) => setBlockWorld(wx0 + dx, baseY + y, wz0 + dz, id, true);
-    // Broad golden wheat surround + clear stray trees/shrubs + stone viewing walkway leading to the mill
-    for (let dz = -20; dz <= 25; dz++) for (let dx = -20; dx <= 20; dx++) {
-      const dist = Math.hypot(dx, dz);
-      if (dist > 25) continue;
-      const wx = wx0 + dx, wz = wz0 + dz;
-      const gy = colGroundY(wx, wz);
-      for (let wy = 1; wy <= 20; wy++) setBlockWorld(wx, gy + wy, wz, B.AIR, true);
-      if (gy <= WATER_LEVEL) continue;
-      const onPath = (Math.abs(dx) <= 1 && dz >= 4 && dz <= 25);
-      if (dist > 4.2) {
-        if (onPath) {
-          setBlockWorld(wx, gy, wz, B.STONE_BRICK, true);
-          if ((dz % 6 === 0) && dx === 1) {
-            setBlockWorld(wx, gy + 1, wz, B.OAK_FENCE, true);
-            setBlockWorld(wx, gy + 2, wz, B.LANTERN, true);
+  function stampOverworldMegaStructures(data, cx, cz, wx0, wz0, maxLy) {
+    if (currentDimension !== 'overworld' || (depthOffset || 0) !== 0) return maxLy;
+    const putL = (wx, wy, wz, id) => {
+      const lx = wx - wx0, lz = wz - wz0, ly = wy - MIN_Y;
+      if (lx < 0 || lx >= 16 || lz < 0 || lz >= 16 || ly <= 0 || ly >= WORLD_H) return;
+      data[(ly << 8) | (lz << 4) | lx] = id;
+      if (ly > maxLy) maxLy = ly;
+    };
+    // 1) 1000x1000 Grand Walled Royal Citadel centered at (12000, -12000)
+    const CIT_X = 12000, CIT_Z = -12000, CIT_R = 500;
+    if (wx0 + 15 >= CIT_X - CIT_R && wx0 <= CIT_X + CIT_R && wz0 + 15 >= CIT_Z - CIT_R && wz0 <= CIT_Z + CIT_R) {
+      const baseY = 6;
+      for (let lz = 0; lz < CHUNK_W; lz++) for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx, wz = wz0 + lz;
+        const dx = wx - CIT_X, dz = wz - CIT_Z, adx = Math.abs(dx), adz = Math.abs(dz);
+        if (adx > CIT_R || adz > CIT_R) continue;
+        colHeights[(lz << 4) | lx] = baseY;
+        const onOuterWall = (adx >= CIT_R - 2 || adz >= CIT_R - 2);
+        const isGate = (adx <= 4 && adz >= CIT_R - 2) || (adz <= 4 && adx >= CIT_R - 2);
+        const onAve = (adx <= 4 || adz <= 4 || (adx % 64) <= 2 || (adz % 64) <= 2);
+        for (let wy = baseY - 2; wy <= baseY + 14; wy++) {
+          putL(wx, wy, wz, wy <= baseY ? (onAve ? B.MARBLE_BRICK : B.STONE_BRICK) : B.AIR);
+        }
+        if (onOuterWall && !isGate) {
+          for (let wy = 1; wy <= 10; wy++) putL(wx, baseY + wy, wz, (wy === 10 && ((wx + wz) & 1)) ? B.MARBLE_BRICK : B.STONE_BRICK);
+        } else if (isGate && (adx === 4 || adz === 4)) {
+          for (let wy = 1; wy <= 12; wy++) putL(wx, baseY + wy, wz, wy === 12 ? B.COPPER_ROOF : B.MARBLE_BRICK);
+        } else if (!onAve) {
+          // District Watchtowers & Houses inside 64x64 city blocks
+          const bx = ((dx % 64) + 64) % 64, bz = ((dz % 64) + 64) % 64;
+          const bSeed = hash2i(Math.floor(dx / 64), Math.floor(dz / 64), worldSeed + 9111);
+          if (adx <= 24 && adz <= 24) {
+            const isKeepWall = (adx === 24 || adz === 24 || adx === 10 || adz === 10);
+            if (isKeepWall && !((dx === 0 || dz === 0) && (adx === 24 || adz === 24))) {
+              for (let wy = 1; wy <= (adx <= 10 && adz <= 10 ? 18 : 11); wy++) putL(wx, baseY + wy, wz, wy % 5 === 0 ? B.COPPER_ROOF : B.MARBLE_BRICK);
+            }
+          } else if (bx >= 14 && bx <= 26 && bz >= 14 && bz <= 26 && bSeed > 0.35) {
+            const wall = (bx === 14 || bx === 26 || bz === 14 || bz === 26), hH = bSeed > 0.72 ? 12 : 6;
+            for (let wy = 1; wy <= hH; wy++) {
+              if (wy === hH) putL(wx, baseY + wy, wz, B.COPPER_ROOF);
+              else if (wall && !(bx === 20 && bz === 26 && wy <= 2)) putL(wx, baseY + wy, wz, (wy === 3 && (bx === 20 || bz === 20)) ? B.GLASS : (bSeed > 0.65 ? B.MARBLE_BRICK : B.PLANKS));
+            }
           }
-        } else {
-          setBlockWorld(wx, gy, wz, B.FARMLAND, true);
-          setBlockWorld(wx, gy + 1, wz, B.WHEAT_3, true);
         }
       }
-    }
-    put(5, 1, 7, B.HAY_BALE); put(6, 1, 7, B.HAY_BALE); put(5, 2, 7, B.HAY_BALE);
-    put(-6, 1, 9, B.HAY_BALE); put(-6, 1, 10, B.HAY_BALE);
-    // Windmill foundation & tower (base stone radius 3.3, upper tapered wood radius 2.5, dark slate cap)
-    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) {
-      if (Math.hypot(dx, dz) <= 3.5) {
-        const gy = colGroundY(wx0 + dx, wz0 + dz);
-        for (let y = gy + 1; y < baseY; y++) setBlockWorld(wx0 + dx, y, wz0 + dz, B.STONE_BRICK, true);
-        put(dx, 0, dz, B.STONE_BRICK);
-        for (let wy = 1; wy <= 18; wy++) put(dx, wy, dz, B.AIR);
+      if ((Math.floor(wx0 / 64) + Math.floor(wz0 / 64)) % 2 === 0 && hash2i(cx, cz, worldSeed + 9133) > 0.65) {
+        putL(wx0 + 8, baseY + 1, wz0 + 8, B.GOLD_CHEST);
       }
+      return maxLy;
     }
-    for (let wy = 1; wy <= 13; wy++) {
-      const r = wy <= 5 ? 3.2 : (wy <= 9 ? 2.6 : 2.2);
-      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
-        const d = Math.hypot(dx, dz);
-        if (d > r || d < r - 1.15) continue;
-        if (wy <= 2 && dz >= 2 && dx === 0) { put(dx, wy, dz, wy === 1 ? B.OAK_DOOR : B.AIR); continue; }
-        if ((wy === 7 || wy === 10) && (dx === 0 || dz === 0)) { put(dx, wy, dz, B.GLASS); continue; }
-        const beam = (Math.abs(dx) === Math.abs(dz) || wy === 5 || wy === 9);
-        put(dx, wy, dz, wy <= 5 ? B.STONE_BRICK : (beam ? B.SPRUCE_LOG : B.PLANKS));
+
+    // 2) Regional Castles, Watchtowers & Colossal Ruin Complexes (512x512 regions)
+    const RSEC = 512;
+    const minRx = Math.floor((wx0 - 24) / RSEC), maxRx = Math.floor((wx0 + 39) / RSEC);
+    const minRz = Math.floor((wz0 - 24) / RSEC), maxRz = Math.floor((wz0 + 39) / RSEC);
+    for (let rz = minRz; rz <= maxRz; rz++) for (let rx = minRx; rx <= maxRx; rx++) {
+      const mcx = rx * RSEC + 180 + Math.floor(hash2i(rx, rz, worldSeed + 7111) * 160);
+      const mcz = rz * RSEC + 180 + Math.floor(hash2i(rx + 9, rz - 7, worldSeed + 7117) * 160);
+      if (Math.hypot(mcx, mcz) < 120) continue;
+      if (mcx + 22 < wx0 || mcx - 22 >= wx0 + 16 || mcz + 22 < wz0 || mcz - 22 >= wz0 + 16) continue;
+      const b = getBiomeAt(mcx, mcz);
+      if (b === BIOMES.DEEP_OCEAN || b === BIOMES.ABYSS_TRENCH || b === BIOMES.ABANDONED_CITY) continue;
+      const kind = Math.floor(hash2i(rx - 3, rz + 5, worldSeed + 7129) * 3); // 0=Castle, 1=Colossal Ruin, 2=Watchtower Keep
+      const baseY = Math.max(WATER_LEVEL + 1, Math.min(34, getTerrainHeight(mcx, mcz, b)));
+      const rad = kind === 1 ? 18 : (kind === 0 ? 15 : 8);
+      for (let dz = -rad; dz <= rad; dz++) for (let dx = -rad; dx <= rad; dx++) {
+        const wx = mcx + dx, wz = mcz + dz;
+        if (wx < wx0 || wx >= wx0 + 16 || wz < wz0 || wz >= wz0 + 16) continue;
+        const adx = Math.abs(dx), adz = Math.abs(dz);
+        putL(wx, baseY, wz, kind === 1 && hash2i(wx, wz, worldSeed + 7141) > 0.72 ? B.MOSS_BLOCK : B.STONE_BRICK);
+        for (let wy = 1; wy <= 20; wy++) putL(wx, baseY + wy, wz, B.AIR);
+        const onPerim = (adx === rad || adz === rad);
+        const onInner = (kind <= 1 && (adx === 6 || adz === 6) && adx <= 6 && adz <= 6);
+        if (onPerim && !(dz === rad && adx <= 1)) {
+          const wH = kind === 1 ? (3 + ((adx + adz) % 6)) : (kind === 2 ? 15 : 8);
+          for (let wy = 1; wy <= wH; wy++) putL(wx, baseY + wy, wz, (wy === wH && kind === 2) ? B.COPPER_ROOF : B.STONE_BRICK);
+          if (adx === rad && adz === rad) {
+            for (let ty = wH + 1; ty <= wH + 5; ty++) putL(wx, baseY + ty, wz, ty === wH + 5 ? B.LANTERN : B.MARBLE_BRICK);
+          }
+        } else if (onInner && !(dz === 6 && dx === 0)) {
+          const iH = kind === 1 ? (5 + ((wx ^ wz) & 3)) : 12;
+          for (let wy = 1; wy <= iH; wy++) putL(wx, baseY + wy, wz, wy === iH && kind === 0 ? B.COPPER_ROOF : B.MARBLE_BRICK);
+        }
       }
+      putL(mcx, baseY + 1, mcz - 2, kind === 0 ? B.GOLD_CHEST : B.IRON_CHEST);
+      putL(mcx, baseY + 1, mcz, B.ENCHANT_TABLE);
+      putL(mcx + 2, baseY + 1, mcz, B.LANTERN);
     }
-    put(0, 7, 0, B.LANTERN); put(0, 10, 0, B.LANTERN);
-    put(-1, 1, -1, B.HAY_BALE); put(1, 1, -1, B.CHEST); put(0, 3, 2, B.LANTERN);
-    // Conical roof
-    for (let ry = 14; ry <= 17; ry++) {
-      const r = 17.5 - ry;
-      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
-        if (Math.hypot(dx, dz) <= r) put(dx, ry, dz, B.DARK_SLATE_ROOF);
-      }
-    }
-    // Rotating 3D Windmill Hub projecting from front axle (dz = 3..4, y = 11)
-    const ay = 11;
-    put(0, ay, 3, B.SPRUCE_LOG); put(0, ay, 4, B.WINDMILL_HUB);
-    return baseY;
+    return maxLy;
   }
 
   function stampPlainsVillageInChunk(data, cx, cz, wx0, wz0, maxLy) {
@@ -4801,9 +5040,9 @@
         }
         for (let dx = -1; dx <= 2; dx++) for (let dz = -1; dz <= 2; dz++) {
           const edge = (dx === -1 || dx === 2 || dz === -1 || dz === 2);
-          putLocal(vcx + dx, baseY, vcz + dz, edge ? B.COBBLE : B.WATER);
+          putLocal(vcx + dx, baseY, vcz + dz, edge ? B.STONE_BRICK : B.WATER);
           if (edge) {
-            putLocal(vcx + dx, baseY + 1, vcz + dz, B.COBBLE);
+            putLocal(vcx + dx, baseY + 1, vcz + dz, B.STONE_BRICK);
             if ((dx === -1 || dx === 2) && (dz === -1 || dz === 2)) {
               putLocal(vcx + dx, baseY + 2, vcz + dz, B.OAK_FENCE);
               putLocal(vcx + dx, baseY + 3, vcz + dz, B.OAK_FENCE);
@@ -4820,7 +5059,7 @@
           const [hx, hz, doorDir] = huts[hi];
           const hy = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(hx + 3, hz + 3, BIOMES.PLAINS)));
           for (let dz = 0; dz <= 5; dz++) for (let dx = 0; dx <= 5; dx++) {
-            for (let fy = hy - 2; fy < hy; fy++) putLocal(hx + dx, fy, hz + dz, B.COBBLE);
+            for (let fy = hy - 2; fy < hy; fy++) putLocal(hx + dx, fy, hz + dz, B.STONE_BRICK);
             putLocal(hx + dx, hy, hz + dz, B.PLANKS);
             for (let ay = 1; ay <= 5; ay++) putLocal(hx + dx, hy + ay, hz + dz, B.AIR);
             const isC = (dx === 0 || dx === 5) && (dz === 0 || dz === 5);
@@ -4832,7 +5071,7 @@
                   putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.OAK_DOOR : B.AIR);
                 } else if (wy === 2 && (dx === 2 || dz === 2)) {
                   putLocal(hx + dx, hy + wy, hz + dz, B.GLASS);
-                } else putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.COBBLE : B.PLANKS);
+                } else putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.STONE_BRICK : B.PLANKS);
               }
             }
             putLocal(hx + dx, hy + 4, hz + dz, isW ? B.SPRUCE_LOG : B.PLANKS);
@@ -5060,9 +5299,9 @@
     setBlockWorld(rx - 2, baseY + 1, rz - 1, B.CHEST, true);
     setBlockWorld(rx + 2, baseY + 1, rz - 1, B.CHEST, true);
     setBlockWorld(rx, baseY + 1, rz - 5, B.CHEST, true);
-    setBlockWorld(rx - 3, baseY + 1, rz - 4, B.RUBY_ORE, true);
+    setBlockWorld(rx - 3, baseY + 1, rz - 4, B.IRON_ORE, true);
     setBlockWorld(rx + 3, baseY + 1, rz - 4, B.EMERALD_ORE, true);
-    setBlockWorld(rx, baseY + 1, rz - 6, B.DIAMOND_ORE, true);
+    setBlockWorld(rx, baseY + 1, rz - 6, B.OBSIDIAN, true);
     buildDoorAccessStairs(rx, baseY, rz + R, 0, 1, B.STONE_BRICK, 2);
 
     // 4) Heavy Monster Garrison Guarding the Mysterious Ruins — clearing all raises the Dream Portal!

@@ -143,7 +143,7 @@
   function getDragonNestLocations() {
     const s = (typeof worldSeed === 'number' ? worldSeed : 1337);
     if (_dnLocCache && _dnLocSeed === s) return _dnLocCache;
-    const els = ['fire', 'ice', 'water', 'leaf', 'tree'];
+    const els = ['fire', 'ice', 'earth', 'water', 'leaf', 'tree'];
     const out = [];
     for (let ni = 0; ni < els.length; ni++) {
       const h1 = Math.imul((s ^ 0x517cc1b7) + ni * 911, 0x85ebca6b) >>> 0;
@@ -182,7 +182,7 @@
       const n = nests[ni];
       if (wx0 + 15 < n.x - 11 || wx0 > n.x + 11 || wz0 + 15 < n.z - 11 || wz0 > n.z + 11) continue;
       const eggByEl = {
-        fire: B.DRAGON_EGG_FIRE, ice: B.DRAGON_EGG_ICE,
+        fire: B.DRAGON_EGG_FIRE, ice: B.DRAGON_EGG_ICE, earth: B.DRAGON_EGG_EARTH,
         water: B.DRAGON_EGG_WATER, leaf: B.DRAGON_EGG_LEAF, tree: B.DRAGON_EGG_TREE
       };
       for (let lx = 0; lx < 16; lx++) for (let lz = 0; lz < 16; lz++) {
@@ -366,22 +366,26 @@
   }
   function getBiomeAt(wx, wz) {
     if (currentDimension === 'sift') {
-      const n1 = fbm2D(wx * 0.009, wz * 0.009, 2, 0.5, 2.0, worldSeed + 4101);
-      const n2 = fbm2D(wx * 0.011, wz * 0.011, 2, 0.5, 2.0, worldSeed + 4202);
-      const n3 = fbm2D(wx * 0.014, wz * 0.014, 2, 0.5, 2.0, worldSeed + 4303);
-      if (Math.hypot(wx, wz) < 28) return BIOMES.SIFT_MEADOW;
-      if (n3 < 0.24) return BIOMES.SIFT_ICHOR_PONDS;
-      if (n1 < 0.28) return BIOMES.SIFT_HUSKLAND;
-      if (n1 > 0.72) return BIOMES.SIFT_SPOREFIELDS;
-      if (n2 > 0.66) return (n3 > 0.62) ? BIOMES.SIFT_LULLABY_TOP : BIOMES.SIFT_LULLABY;
-      if (n2 < 0.28) return BIOMES.SIFT_CANYON;
+      const swx = wx + (valueNoise2D(wx * 0.0018, wz * 0.0018, worldSeed + 4199) - 0.5) * 90.0;
+      const swz = wz + (valueNoise2D(wx * 0.0018 + 31.3, wz * 0.0018 - 17.7, worldSeed + 4211) - 0.5) * 90.0;
+      const n1 = fbm2D(swx * 0.0012, swz * 0.0012, 2, 0.5, 2.0, worldSeed + 4101);
+      const n2 = fbm2D(swx * 0.0015, swz * 0.0015, 2, 0.5, 2.0, worldSeed + 4202);
+      const n3 = fbm2D(swx * 0.0020, swz * 0.0020, 2, 0.5, 2.0, worldSeed + 4303);
+      if (Math.hypot(wx, wz) < 32) return BIOMES.SIFT_MEADOW;
+      if (n3 < 0.23) return n1 < 0.45 ? BIOMES.SIFT_OCEAN : BIOMES.SIFT_ICHOR_PONDS;
+      if (n2 > 0.74) return BIOMES.SIFT_PEAKS;
+      if (n1 < 0.25) return BIOMES.SIFT_HUSKLAND;
+      if (n1 > 0.74) return n2 > 0.54 ? BIOMES.SIFT_GIANT_FOREST : BIOMES.SIFT_SPOREFIELDS;
+      if (n2 > 0.64) return (n3 > 0.62) ? BIOMES.SIFT_LULLABY_TOP : BIOMES.SIFT_LULLABY;
+      if (n2 < 0.26) return n3 < 0.45 ? BIOMES.SIFT_SKY_ISLANDS : BIOMES.SIFT_CANYON;
       if (n3 > 0.68) return BIOMES.SIFT_CHORAL_GLEN;
-      if (n1 > 0.45 && n1 < 0.58 && n2 > 0.45) return BIOMES.SIFT_WILD;
+      if (n1 >= 0.36 && n1 <= 0.52 && n2 >= 0.34 && n2 <= 0.56) return BIOMES.SIFT_PLAINS;
+      if (n1 > 0.52 && n1 < 0.64 && n2 > 0.45) return BIOMES.SIFT_WILD;
       return BIOMES.SIFT_MEADOW;
     }
     if (currentDimension === 'end') return BIOMES.THE_END;
     if (currentDimension === 'nether') {
-      const nB = fbm2D(wx * 0.011, wz * 0.011, 2, 0.5, 2.0, worldSeed + 707);
+      const nB = fbm2D(wx * 0.0038, wz * 0.0038, 2, 0.5, 2.0, worldSeed + 707);
       if (nB < 0.39) return BIOMES.NETHER_CRIMSON;
       if (nB > 0.61) return BIOMES.NETHER_WARPED;
       return BIOMES.NETHER_WASTES;
@@ -394,66 +398,59 @@
       if (_isl && _isl.inIsland) return _isl.biome;
       return (_oMac.openness > 0.34 || _oMac.trenchFactor > 0.55) ? BIOMES.ABYSS_TRENCH : BIOMES.DEEP_OCEAN;
     }
-    const coast = fbm2D(wx * 0.0048, wz * 0.0048, 2, 0.5, 2.0, worldSeed + 411);
-    const sx = wx * 0.0045, sz = wz * 0.0045;
-    const xi0 = Math.floor(sx), zi0 = Math.floor(sz), xf0 = sx - xi0, zf0 = sz - zi0;
-    const u0 = xf0 * xf0 * (3 - 2 * xf0), v0 = zf0 * zf0 * (3 - 2 * zf0);
-    const sx1 = sx * 2.0, sz1 = sz * 2.0;
-    const xi1 = Math.floor(sx1), zi1 = Math.floor(sz1), xf1 = sx1 - xi1, zf1 = sz1 - zi1;
-    const u1 = xf1 * xf1 * (3 - 2 * xf1), v1 = zf1 * zf1 * (3 - 2 * zf1);
-    const sH0a = hash2i(xi0, zi0, worldSeed + 202), sH0b = hash2i(xi0 + 1, zi0, worldSeed + 202);
-    const sH0c = hash2i(xi0, zi0 + 1, worldSeed + 202), sH0d = hash2i(xi0 + 1, zi0 + 1, worldSeed + 202);
-    const h0 = (sH0a + (sH0b - sH0a) * u0) + ((sH0c + (sH0d - sH0c) * u0) - (sH0a + (sH0b - sH0a) * u0)) * v0;
-    const sH1a = hash2i(xi1, zi1, worldSeed + 299), sH1b = hash2i(xi1 + 1, zi1, worldSeed + 299);
-    const sH1c = hash2i(xi1, zi1 + 1, worldSeed + 299), sH1d = hash2i(xi1 + 1, zi1 + 1, worldSeed + 299);
-    const h1 = (sH1a + (sH1b - sH1a) * u1) + ((sH1c + (sH1d - sH1c) * u1) - (sH1a + (sH1b - sH1a) * u1)) * v1;
-    const humid = (h0 + h1 * 0.5) / 1.5;
-    if (coast < 0.15 && humid > 0.62) return BIOMES.MUSHROOM_ISLAND;
-    if (coast < 0.15) return BIOMES.DEEP_OCEAN;
-    if (coast < 0.23 && humid > 0.62) return BIOMES.MARSH_RUINS;
-    if (coast < 0.25) return BIOMES.DEEP_OCEAN;
-    const tA0a = hash2i(xi0, zi0, worldSeed + 101), tA0b = hash2i(xi0 + 1, zi0, worldSeed + 101);
-    const tA0c = hash2i(xi0, zi0 + 1, worldSeed + 101), tA0d = hash2i(xi0 + 1, zi0 + 1, worldSeed + 101);
-    const t0 = (tA0a + (tA0b - tA0a) * u0) + ((tA0c + (tA0d - tA0c) * u0) - (tA0a + (tA0b - tA0a) * u0)) * v0;
-    const tA1a = hash2i(xi1, zi1, worldSeed + 198), tA1b = hash2i(xi1 + 1, zi1, worldSeed + 198);
-    const tA1c = hash2i(xi1, zi1 + 1, worldSeed + 198), tA1d = hash2i(xi1 + 1, zi1 + 1, worldSeed + 198);
-    const t1 = (tA1a + (tA1b - tA1a) * u1) + ((tA1c + (tA1d - tA1c) * u1) - (tA1a + (tA1b - tA1a) * u1)) * v1;
-    const heat = (t0 + t1 * 0.5) / 1.5;
-    if (coast < 0.33 && heat > 0.62) return BIOMES.TROPICAL_COAST;
-    if (coast < 0.33 && heat > 0.36) return BIOMES.BEACH_PALM;
-    const elev = fbm2D(wx * 0.0072, wz * 0.0072, 2, 0.5, 2.0, worldSeed + 303);
-    if (elev > 0.72) return BIOMES.CLOUD_PEAKS;
-    if (heat < 0.26 && elev > 0.50) return elev > 0.60 ? BIOMES.CLOUD_PEAKS : BIOMES.ALPINE_PEAKS;
-    if (heat < 0.28) return BIOMES.SNOW;
-    if (heat < 0.35 && humid > 0.55) return BIOMES.REDWOOD_ANCIENT;
-    if (heat < 0.39) {
-      if (heat >= 0.30 && humid > 0.62) return BIOMES.GIANT_TREES;
-      if (heat >= 0.28 && humid >= 0.44 && humid <= 0.62 && elev < 0.56) return BIOMES.PINE_VALLEY;
+    const warpX = (valueNoise2D(wx * 0.0016, wz * 0.0016, worldSeed + 511) - 0.5) * 140.0;
+    const warpZ = (valueNoise2D(wx * 0.0016 + 19.7, wz * 0.0016 - 23.1, worldSeed + 523) - 0.5) * 140.0;
+    const bx = wx + warpX, bz = wz + warpZ;
+    const coast = fbm2D(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, worldSeed + 411);
+    const humid = fbm2D(bx * 0.00048 + 3.1, bz * 0.00048 - 2.7, 2, 0.5, 2.0, worldSeed + 202);
+    const heat = fbm2D(bx * 0.00045 - 4.3, bz * 0.00045 + 5.9, 2, 0.5, 2.0, worldSeed + 101);
+    const spookyBand = fbm2D(bx * 0.00095 + 11.1, bz * 0.00095 - 7.3, 2, 0.5, 2.0, worldSeed + 677);
+    if (coast < 0.14 && humid > 0.62) return BIOMES.MUSHROOM_ISLAND;
+    if (coast < 0.14) return BIOMES.DEEP_OCEAN;
+    if (coast < 0.21 && humid > 0.60) return BIOMES.MARSH_RUINS;
+    if (coast < 0.23) return BIOMES.DEEP_OCEAN;
+    if (coast < 0.30 && heat > 0.60) return BIOMES.TROPICAL_COAST;
+    if (coast < 0.30 && heat > 0.35) return BIOMES.BEACH_PALM;
+    const elev = fbm2D(bx * 0.00072, bz * 0.00072, 2, 0.5, 2.0, worldSeed + 303);
+    if (elev > 0.78) return BIOMES.MEGA_SNOW_PEAKS;
+    if (elev > 0.71) return BIOMES.CLOUD_PEAKS;
+    if (heat < 0.28 && elev > 0.50) return elev > 0.62 ? BIOMES.MEGA_SNOW_PEAKS : BIOMES.ALPINE_PEAKS;
+    if (heat < 0.29) return BIOMES.SNOW;
+    if (heat < 0.36 && humid > 0.56) return BIOMES.REDWOOD_ANCIENT;
+    if (heat < 0.40) {
+      if (heat >= 0.31 && humid > 0.62) return BIOMES.GIANT_TREES;
+      if (heat >= 0.29 && humid >= 0.44 && humid <= 0.62 && elev < 0.56) return BIOMES.PINE_VALLEY;
       return humid > 0.48 ? BIOMES.TAIGA : BIOMES.SNOW;
     }
-    if (heat > 0.72 && elev > 0.62) return BIOMES.VOLCANIC_BASALT;
-    if (heat > 0.69 && elev < 0.36 && humid < 0.37) return BIOMES.BADLANDS_CRATER;
-    if (heat > 0.67 && elev > 0.50) return BIOMES.BADLANDS_SPIRES;
-    if (heat > 0.65 && humid >= 0.36 && elev > 0.42) return BIOMES.MESA;
-    if (elev > 0.65 && humid >= 0.30 && humid <= 0.66) return BIOMES.HIGHLAND_PLATEAU;
-    if (heat > 0.68) return (humid < 0.40) ? BIOMES.DESERT : BIOMES.MESA;
-    const plainBand = fbm2D(wx * 0.0052, wz * 0.0052, 2, 0.5, 2.0, worldSeed + 641);
-    if (heat >= 0.47 && heat <= 0.63 && humid >= 0.28 && humid <= 0.43 && elev < 0.52) return BIOMES.WHEAT_VALLEY;
-    if (elev < 0.52 && heat >= 0.34 && heat <= 0.66 && (humid < 0.44 || (plainBand > 0.54 && humid < 0.62))) return BIOMES.PLAINS;
+    if (heat > 0.73 && elev > 0.62) return BIOMES.VOLCANIC_BASALT;
+    if (heat > 0.70 && elev < 0.36 && humid < 0.37) return BIOMES.BADLANDS_CRATER;
+    if (heat > 0.68 && elev > 0.50) return BIOMES.BADLANDS_SPIRES;
+    if (heat > 0.65 && humid >= 0.38 && elev > 0.42) return BIOMES.MESA;
+    if (elev > 0.64 && humid >= 0.28 && humid <= 0.66) return BIOMES.HIGHLAND_PLATEAU;
+    if (heat > 0.60 && humid < 0.44) return BIOMES.DESERT;
+    if (heat > 0.66) return (humid < 0.48) ? BIOMES.DESERT : BIOMES.MESA;
+    if (humid > 0.58 && elev > 0.44) {
+      if (spookyBand > 0.76) return BIOMES.NIGHTMARE_WOODS;
+      if (spookyBand > 0.58) return BIOMES.PALE_GARDEN;
+      if (spookyBand < 0.34 && heat >= 0.40 && heat <= 0.60) return BIOMES.DARK_FOREST;
+    }
+    const plainBand = fbm2D(bx * 0.00058, bz * 0.00058, 2, 0.5, 2.0, worldSeed + 641);
+    if (heat >= 0.47 && heat <= 0.61 && humid >= 0.30 && humid <= 0.42 && elev < 0.52) return BIOMES.WHEAT_VALLEY;
+    if (elev < 0.53 && heat >= 0.36 && heat <= 0.64 && (humid < 0.44 || (plainBand > 0.52 && humid < 0.60))) return plainBand > 0.68 ? BIOMES.LUSH_STEPPE : BIOMES.PLAINS;
     if (heat > 0.57 && humid > 0.67) return BIOMES.BAMBOO_JUNGLE;
-    if (heat > 0.51 && heat <= 0.65 && humid > 0.62 && elev < 0.56) return BIOMES.GIANT_JUNGLE;
-    if (heat > 0.60 && heat <= 0.74 && humid > 0.60) return BIOMES.DAPPLED_FOREST;
-    if (heat > 0.57 && humid >= 0.44 && humid <= 0.60) {
+    if (heat > 0.51 && heat <= 0.64 && humid > 0.62 && elev < 0.56) return BIOMES.GIANT_JUNGLE;
+    if (heat > 0.59 && heat <= 0.74 && humid > 0.60) return BIOMES.DAPPLED_FOREST;
+    if (heat > 0.56 && humid >= 0.44 && humid <= 0.60) {
       if (elev > 0.57) return BIOMES.AUTUMN_DEEP;
       if (humid > 0.52) return BIOMES.AUTUMN_GOLDEN;
       return BIOMES.AUTUMN;
     }
-    if (heat >= 0.39 && heat < 0.47 && humid > 0.55 && elev < 0.60) return BIOMES.BLUE_FOREST;
+    if (heat >= 0.40 && heat < 0.47 && humid > 0.55 && elev < 0.60) return BIOMES.BLUE_FOREST;
     if (humid > 0.70 && elev > 0.55) return BIOMES.GLOWSHROOM_GROVE;
     if (humid > 0.66 && elev >= 0.46 && elev < 0.56) return BIOMES.WEEPING_GROVE;
-    if (humid > 0.64) return elev < 0.40 ? BIOMES.MANGROVE_SWAMP : (elev < 0.47 ? BIOMES.SWAMP : (elev < 0.58 ? BIOMES.LUSH_GROVE : BIOMES.FOREST));
+    if (humid > 0.63) return elev < 0.40 ? BIOMES.MANGROVE_SWAMP : (elev < 0.47 ? BIOMES.SWAMP : (elev < 0.58 ? BIOMES.LUSH_GROVE : BIOMES.FOREST));
     if (humid > 0.48 && heat > 0.45 && heat <= 0.57) return BIOMES.SAKURA;
-    if (humid > 0.42 && humid <= 0.52 && heat >= 0.39 && heat <= 0.47) return BIOMES.BIRCH_ANCIENT;
+    if (humid > 0.42 && humid <= 0.52 && heat >= 0.40 && heat <= 0.47) return BIOMES.BIRCH_ANCIENT;
     if (elev > 0.54 && humid > 0.48) return BIOMES.LAVENDER_MEADOW;
     if (elev > 0.48 && elev <= 0.54 && humid > 0.44 && humid <= 0.53 && heat > 0.40 && heat <= 0.52) return BIOMES.MANOR_GARDEN;
     if (elev > 0.52 && humid > 0.40) return BIOMES.FLOWER_MEADOW;
@@ -487,13 +484,22 @@
     else if (biome === BIOMES.MUSHROOM_ISLAND) h = 1 + cont * 9 + detail * 1.8;
     else if (biome === BIOMES.BEACH_PALM) h = -2.5 + cont * 7.2 + detail * 1.2;
     else if (biome === BIOMES.MANGROVE_SWAMP) h = -2.0 + cont * 4.5 + detail * 0.9;
+    else if (biome === BIOMES.MEGA_SNOW_PEAKS) {
+      const mPeak = Math.pow(Math.max(0, cont * 1.24 - 0.04), 1.38);
+      const ridge = Math.abs(fbm2D(wx * 0.019, wz * 0.019, 2, 0.5, 2.0, worldSeed + 331) - 0.5) * 32;
+      h = 54 + mPeak * 68 + ridge + detail * 4.5;
+    }
     else if (biome === BIOMES.CLOUD_PEAKS) {
       const mPeak = Math.pow(Math.max(0, cont * 1.18 - 0.08), 1.32);
       const sharp = Math.abs(fbm2D(wx * 0.024, wz * 0.024, 2, 0.5, 2.0, worldSeed + 319) - 0.5) * 20;
-      h = 16 + mPeak * 44 + sharp + detail * 4.2;
+      h = 26 + mPeak * 64 + sharp + detail * 4.2;
     }
-    else if (biome === BIOMES.ALPINE_PEAKS) { const ridge = Math.pow(Math.max(0, cont * 1.15 - 0.10), 1.35); h = 10 + ridge * 40 + detail * 4.2; }
-    else if (biome === BIOMES.HIGHLAND_PLATEAU) h = 12 + cont * 18 + detail * 2.0;
+    else if (biome === BIOMES.ALPINE_PEAKS) { const ridge = Math.pow(Math.max(0, cont * 1.15 - 0.10), 1.35); h = 16 + ridge * 52 + detail * 4.2; }
+    else if (biome === BIOMES.HIGHLAND_PLATEAU) h = 14 + cont * 24 + detail * 2.4;
+    else if (biome === BIOMES.LUSH_STEPPE) h = 2.0 + cont * 8.0 + detail * 1.2;
+    else if (biome === BIOMES.DARK_FOREST) h = -1 + cont * 12 + detail * 2.0;
+    else if (biome === BIOMES.PALE_GARDEN) h = 2 + cont * 14 + detail * 2.2;
+    else if (biome === BIOMES.NIGHTMARE_WOODS) h = 3 + cont * 18 + Math.abs(detail - 0.5) * 6.0;
     else if (biome === BIOMES.VOLCANIC_BASALT) h = 1 + cont * 19 + detail * 3.0;
     else if (biome === BIOMES.BAMBOO_JUNGLE) h = -1 + cont * 15 + detail * 2.2;
     else if (biome === BIOMES.REDWOOD_ANCIENT) h = 1 + cont * 18 + detail * 2.4;
@@ -552,6 +558,22 @@
         }
         return pondD < 8.6 ? WATER_LEVEL - 2 : WATER_LEVEL - 1;
       }
+      if (biome === BIOMES.SIFT_OCEAN) {
+        return Math.floor(WATER_LEVEL - 14 + base * 5 + det * 1.4);
+      }
+      if (biome === BIOMES.SIFT_SKY_ISLANDS) {
+        return Math.floor(WATER_LEVEL - 11 + base * 4);
+      }
+      if (biome === BIOMES.SIFT_PEAKS) {
+        const peak = Math.pow(Math.max(0, base * 1.25 - 0.1), 1.25);
+        return Math.floor(WATER_LEVEL + 16 + peak * 42 + det * 3.0);
+      }
+      if (biome === BIOMES.SIFT_PLAINS) {
+        return Math.floor(WATER_LEVEL + 3 + base * 4.2 + det * 1.0);
+      }
+      if (biome === BIOMES.SIFT_GIANT_FOREST) {
+        return Math.floor(WATER_LEVEL + 4 + base * 8.5 + det * 1.8);
+      }
       if (biome === BIOMES.SIFT_ICHOR_PONDS) {
         return (det > 0.68) ? Math.floor(WATER_LEVEL + 1 + (det - 0.68) * 6) : Math.floor(WATER_LEVEL - 2);
       }
@@ -598,20 +620,24 @@
     }
     if (biome === BIOMES.ABANDONED_CITY) return 2;
     const bC = biome || getBiomeAt(wx, wz);
-    const b1 = getBiomeAt(wx + 10, wz), b2 = getBiomeAt(wx - 10, wz);
-    const b3 = getBiomeAt(wx, wz + 10), b4 = getBiomeAt(wx, wz - 10);
+    const b1 = getBiomeAt(wx + 8, wz), b2 = getBiomeAt(wx - 8, wz);
+    const b3 = getBiomeAt(wx, wz + 8), b4 = getBiomeAt(wx, wz - 8);
+    const b5 = getBiomeAt(wx + 20, wz), b6 = getBiomeAt(wx - 20, wz);
+    const b7 = getBiomeAt(wx, wz + 20), b8 = getBiomeAt(wx, wz - 20);
     let h;
-    if (b1 === bC && b2 === bC && b3 === bC && b4 === bC) {
+    if (b1 === bC && b2 === bC && b3 === bC && b4 === bC && b5 === bC && b6 === bC && b7 === bC && b8 === bC) {
       h = getRawBiomeHeight(wx, wz, bC);
     } else {
       h = (getRawBiomeHeight(wx, wz, bC) * 4.0
-        + getRawBiomeHeight(wx + 10, wz, b1) + getRawBiomeHeight(wx - 10, wz, b2)
-        + getRawBiomeHeight(wx, wz + 10, b3) + getRawBiomeHeight(wx, wz - 10, b4)) / 8.0;
+        + getRawBiomeHeight(wx + 8, wz, b1) * 1.25 + getRawBiomeHeight(wx - 8, wz, b2) * 1.25
+        + getRawBiomeHeight(wx, wz + 8, b3) * 1.25 + getRawBiomeHeight(wx, wz - 8, b4) * 1.25
+        + getRawBiomeHeight(wx + 20, wz, b5) * 0.75 + getRawBiomeHeight(wx - 20, wz, b6) * 0.75
+        + getRawBiomeHeight(wx, wz + 20, b7) * 0.75 + getRawBiomeHeight(wx, wz - 20, b8) * 0.75) / 12.0;
     }
     return Math.max(MIN_Y + 4, Math.min(MAX_Y - 8, Math.floor(h)));
   }
 
-  const CAVE_GRID_X = 5, CAVE_GRID_Y = 33, CAVE_GRID_Z = 5;
+  const CAVE_GRID_X = 5, CAVE_GRID_Y = 65, CAVE_GRID_Z = 5;
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
@@ -1013,7 +1039,7 @@
   }
   function _freeChunkData(ch) {
     if (!ch || !ch.data) return;
-    if (typeof sodiumOpts !== 'undefined' && sodiumOpts.ferriteRam && _chunkDataPool.length < 36) {
+    if (typeof sodiumOpts !== 'undefined' && sodiumOpts.ferriteRam && _chunkDataPool.length < 96) {
       _chunkDataPool.push(ch.data);
     }
     ch.data = null;
@@ -1042,7 +1068,7 @@
   }
 
 
-  const _CHUNK_MESH_KEYS = ['mesh', 'leavesMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh', 'towerMesh'];
+  const _CHUNK_MESH_KEYS = ['mesh', 'leavesMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh'];
   function disposeChunkMeshes(ch, keepInteractive = false) {
     if (!keepInteractive) clearChunkInteractiveVisuals(chunkKey(ch.cx, ch.cz));
     for (let i = 0; i < _CHUNK_MESH_KEYS.length; i++) {
@@ -1122,7 +1148,8 @@
     fog: true,            // Sodium Extra: atmospheric & deep sea fog toggle
     particles: true,      // Sodium Extra: block break & spell particles toggle
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
-    farEntities: true     // Sodium Extra: distant entity rendering toggle
+    farEntities: true,    // Sodium Extra: distant entity rendering toggle
+    frameGen: 1           // Frame Ao (1=Off, 2=x2, 4=x4 temporal interpolation)
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
@@ -2092,93 +2119,6 @@
     }
   }
 
-  function _buildSkyscraperTowerMesh(ch) {
-    const sp = ch.skyscraperSpec;
-    const tPos = [], tNorm = [], tUvs = [], tCols = [], tBL = [], tIdx = [];
-    let tc = 0;
-    const pushSlab = (x0, y0, z0, x1, y1, z1, tileIdx, shadeR = 0.88) => {
-      const u0 = TILE_U0[tileIdx], u1 = TILE_U1[tileIdx], v0 = TILE_V0[tileIdx], v1 = TILE_V1[tileIdx];
-      const faces6 = [
-        { n: [0,1,0],  c: [[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0]], s: 1.0 },
-        { n: [0,-1,0], c: [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]], s: 0.65 },
-        { n: [1,0,0],  c: [[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1]], s: 0.84 },
-        { n: [-1,0,0], c: [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]], s: 0.80 },
-        { n: [0,0,1],  c: [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], s: 0.90 },
-        { n: [0,0,-1], c: [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0]], s: 0.78 }
-      ];
-      for (let f = 0; f < 6; f++) {
-        const fc = faces6[f], cl = shadeR * fc.s;
-        for (let k = 0; k < 4; k++) { tPos.push(fc.c[k][0], fc.c[k][1], fc.c[k][2]); tNorm.push(fc.n[0], fc.n[1], fc.n[2]); tCols.push(cl, cl, cl); tBL.push(0, 0, 0); }
-        tUvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
-        tIdx.push(tc, tc + 1, tc + 2, tc, tc + 2, tc + 3); tc += 4;
-      }
-    };
-    const fk = sp.facadeKind || 0;
-    const wallTile = fk === 1 ? 22 : (fk === 2 ? 18 : 142);
-    const slabTile = fk === 1 ? 142 : 143;
-    const stepH = 12, roofBaseY = sp.topH - 1.5;
-    let lastInset = sp.topH >= 170 ? 2 : 1;
-    for (let y = sp.baseH; y < roofBaseY; y += stepH) {
-      const yTop = Math.min(roofBaseY, y + stepH);
-      const hFrac = (y - sp.baseH) / Math.max(1, sp.topH - sp.baseH);
-      const inset = hFrac > 0.78 ? 2 : (hFrac > 0.48 ? 1 : 0);
-      lastInset = inset;
-      const x0 = sp.wx0 + inset, x1 = sp.wx0 + sp.w - inset, z0 = sp.wz0 + inset, z1 = sp.wz0 + sp.d - inset;
-      const hDam = hash2i(sp.wx0 + y, sp.wz0 - y, worldSeed + 3031);
-      const slabY0 = (y === sp.baseH) ? (y + 0.015) : y;
-      const slabY1 = Math.min(yTop, y + 1.3);
-      if (slabY1 > slabY0 + 0.05) pushSlab(x0, slabY0, z0, x1, slabY1, z1, slabTile, 0.86);
-      const colY0 = slabY1 + 0.008, colY1 = yTop - 0.008;
-      if (colY1 > colY0 + 0.15) {
-        // Corner pillars + mid-facade architectural mullions
-        pushSlab(x0, colY0, z0, x0 + 1.4, colY1, z0 + 1.4, wallTile, 0.92);
-        pushSlab(x1 - 1.4, colY0, z0, x1, colY1, z0 + 1.4, wallTile, 0.92);
-        pushSlab(x0, colY0, z1 - 1.4, x0 + 1.4, colY1, z1, wallTile, 0.92);
-        pushSlab(x1 - 1.4, colY0, z1 - 1.4, x1, colY1, z1, wallTile, 0.92);
-        const mx = (x0 + x1) * 0.5, mz = (z0 + z1) * 0.5;
-        if (x1 - x0 > 6) {
-          pushSlab(mx - 0.55, colY0, z0, mx + 0.55, colY1, z0 + 1.1, wallTile, 0.88);
-          pushSlab(mx - 0.55, colY0, z1 - 1.1, mx + 0.55, colY1, z1, wallTile, 0.88);
-        }
-        if (z1 - z0 > 6) {
-          pushSlab(x0, colY0, mz - 0.55, x0 + 1.1, colY1, mz + 0.55, wallTile, 0.88);
-          pushSlab(x1 - 1.1, colY0, mz - 0.55, x1, colY1, mz + 0.55, wallTile, 0.88);
-        }
-        const wallY1 = yTop - 1.0;
-        if (wallY1 > colY0 + 0.25 && (x1 - x0) > 3.2 && (z1 - z0) > 3.2) {
-          if (hDam > 0.20) pushSlab(x0 + 1.42, colY0 + 0.01, z0 + 0.22, x1 - 1.42, wallY1, z0 + 0.85, hDam > 0.56 ? 145 : (fk === 1 ? 143 : 56), 0.78);
-          if (hDam < 0.82) pushSlab(x0 + 1.42, colY0 + 0.01, z1 - 0.85, x1 - 1.42, wallY1, z1 - 0.22, hDam < 0.44 ? 145 : wallTile, 0.78);
-          if (hDam > 0.16 && hDam < 0.86) pushSlab(x0 + 0.22, colY0 + 0.01, z0 + 1.42, x0 + 0.85, wallY1, z1 - 1.42, hDam > 0.52 ? 145 : 56, 0.76);
-          if (hDam > 0.26) pushSlab(x1 - 0.85, colY0 + 0.01, z0 + 1.42, x1 - 0.22, wallY1, z1 - 1.42, hDam > 0.64 ? 143 : 145, 0.76);
-        }
-        // Heavy diagonal overgrown greenery & moss curtains wrapping exterior skyscraper walls (Images 2 & 14!)
-        if (hDam > 0.34) {
-          const lxWrap = x0 + 0.6 + ((Math.floor(y * 0.6) % Math.max(2, Math.floor(x1 - x0 - 2.6))));
-          pushSlab(lxWrap, colY0, z1 - 0.05, Math.min(x1 - 0.5, lxWrap + 2.4), yTop, z1 + 0.65, hDam > 0.60 ? 6 : 197, 0.86);
-        }
-        if (hDam < 0.68) {
-          const lzWrap = z0 + 0.6 + ((Math.floor(y * 0.5 + 3) % Math.max(2, Math.floor(z1 - z0 - 2.6))));
-          pushSlab(x0 - 0.65, colY0, lzWrap, x0 + 0.05, yTop, Math.min(z1 - 0.5, lzWrap + 2.4), hDam < 0.36 ? 6 : 197, 0.86);
-        }
-      }
-    }
-    const rIn = lastInset;
-    pushSlab(sp.wx0 + rIn, roofBaseY, sp.wz0 + rIn, sp.wx0 + sp.w - rIn, sp.topH, sp.wz0 + sp.d - rIn, wallTile, 0.92);
-    // Overgrown green moss/leaf cap on broken skyscraper roofs + penthouse spire
-    pushSlab(sp.wx0 + rIn + 0.8, sp.topH + 0.01, sp.wz0 + rIn + 0.8, sp.wx0 + sp.w - rIn - 2.2, sp.topH + 1.4, sp.wz0 + sp.d - rIn - 2.2, 6, 0.90);
-    pushSlab(sp.wx0 + 5.5, sp.topH + 0.015, sp.wz0 + 5.5, sp.wx0 + 7.5, sp.topH + 16, sp.wz0 + 7.5, 144, 0.88);
-    const tGeo = new THREE.BufferGeometry();
-    tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tPos, 3));
-    tGeo.setAttribute('normal', new THREE.Float32BufferAttribute(tNorm, 3));
-    tGeo.setAttribute('uv', new THREE.Float32BufferAttribute(tUvs, 2));
-    tGeo.setAttribute('color', new THREE.Float32BufferAttribute(tCols, 3));
-    tGeo.setAttribute('aBlockLight', new THREE.Float32BufferAttribute(tBL, 3));
-    tGeo.setIndex(tIdx);
-    ch.towerMesh = new THREE.Mesh(tGeo, terrainMat);
-    ch.towerMesh.frustumCulled = false; ch.towerMesh.matrixAutoUpdate = false; ch.towerMesh.updateMatrix();
-    scene.add(ch.towerMesh);
-  }
-
   function rebuildChunkMesh(ch) {
     const cx = ch.cx, cz = ch.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W, data = ch.data;
     const thisChKey = chunkKey(cx, cz);
@@ -2555,7 +2495,6 @@
       ch.plantMesh.matrixAutoUpdate = false; ch.plantMesh.updateMatrix();
       scene.add(ch.plantMesh);
     }
-    if (ch.skyscraperSpec) _buildSkyscraperTowerMesh(ch);
     const wasUrgent = ch.urgentDirty;
     ch.dirty = false;
     ch.urgentDirty = false;

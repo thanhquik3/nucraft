@@ -27,7 +27,7 @@
       shadowIntervalMs: 44,
       reflW: 480,
       reflH: 270,
-      reflIntervalMs: 46,
+      reflIntervalMs: 40,
       fxIntervalMs: 50,
       shadowChunkRange: 26,
       grassCullExtra: false
@@ -35,14 +35,27 @@
     ultra: {
       id: 'ultra',
       label: 'RTX Ultra',
-      maxPixelRatio: 1.15,
+      maxPixelRatio: 1.5,
       shadowSize: 2048,
-      shadowIntervalMs: 38,
+      shadowIntervalMs: 36,
       reflW: 640,
       reflH: 360,
-      reflIntervalMs: 34,
-      fxIntervalMs: 38,
+      reflIntervalMs: 28,
+      fxIntervalMs: 36,
       shadowChunkRange: 36,
+      grassCullExtra: true
+    },
+    extreme: {
+      id: 'extreme',
+      label: 'Siêu Thực',
+      maxPixelRatio: 2.0,
+      shadowSize: 4096,
+      shadowIntervalMs: 32,
+      reflW: 800,
+      reflH: 450,
+      reflIntervalMs: 22,
+      fxIntervalMs: 28,
+      shadowChunkRange: 44,
       grassCullExtra: true
     }
   };
@@ -88,7 +101,7 @@
   }
 
   function normalizeQuality(q, fallback = 'high') {
-    if (q === 'low' || q === 'high' || q === 'ultra') return q;
+    if (q === 'low' || q === 'high' || q === 'ultra' || q === 'extreme') return q;
     if (q === 'medium') return 'high';
     return fallback;
   }
@@ -98,7 +111,7 @@
     const defaultQuality = isMaxDesktop ? 'ultra' : ((hw && (hw.isMobile || (hw.gpu && hw.gpu.isSoftware))) ? 'low' : 'high');
     const base = {
       shaderQuality: defaultQuality,
-      renderDistance: 3,
+      renderDistance: 4,
       shaderPreset: 'eclipse',
       bumpEnabled: !(hw && hw.isMobile),
       volumetricClouds: true
@@ -107,8 +120,10 @@
       const raw = JSON.parse(localStorage.getItem(GFX_PREFS_KEY) || 'null');
       if (raw && typeof raw === 'object') {
         if (raw.shaderQuality !== undefined) base.shaderQuality = normalizeQuality(raw.shaderQuality, defaultQuality);
-        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 2 && raw.renderDistance <= 4) {
+        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 3 && raw.renderDistance <= 8) {
           base.renderDistance = raw.renderDistance | 0;
+        } else if (typeof raw.renderDistance === 'number' && raw.renderDistance === 2) {
+          base.renderDistance = 3;
         }
         if (raw.shaderPreset === 'eclipse' || raw.shaderPreset === 'bsl' || raw.shaderPreset === 'bliss' || raw.shaderPreset === 'moonlit' || raw.shaderPreset === 'chill_sunset' || raw.shaderPreset === 'verdant_fresh' || raw.shaderPreset === 'dlss_ultra') {
           base.shaderPreset = raw.shaderPreset;
