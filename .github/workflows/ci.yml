@@ -1,0 +1,59 @@
+﻿name: CI Policy & Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-and-web-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build web bundle from source
+        run: node scripts/build.js --no-exe
+      - name: Policy, syntax, and security checks
+        run: node scripts/ci-check.js --with-build --git-tracked
+
+  windows-exe-security-ci:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build standalone NUCRAFT.exe from source
+        shell: pwsh
+        run: node scripts/build.js
+      - name: Policy, syntax, and launcher static security audit
+        shell: pwsh
+        run: node scripts/ci-check.js --with-build --git-tracked
+      - name: Isolated self-test in empty directory
+        shell: pwsh
+        run: |
+          $iso = Join-Path $env:RUNNER_TEMP 'ci_iso_test'
+          New-Item -ItemType Directory -Path $iso -Force | Out-Null
+          Copy-Item .\NUCRAFT.exe (Join-Path $iso 'NUCRAFT.exe') -Force
+          $rep = Join-Path $iso 'report.txt'
+          $p = Start-Process -FilePath (Join-Path $iso 'NUCRAFT.exe') -ArgumentList "--self-test=$rep" -WorkingDirectory $iso -Wait -PassThru
+          $txt = Get-Content $rep -Raw
+          Write-Host "Self-test ($($p.ExitCode)): $txt"
+          if ($p.ExitCode -ne 0 -or $txt -notmatch '^OK\|.*httpChecks=PASS\|hasBadCacheFlag=False') {
+            throw "Self-test failed: $txt"
+          }
+      - name: Microsoft Defender Antivirus scan on NUCRAFT.exe
+        shell: pwsh
+        run: |
+          $mp = 'C:\Program Files\Windows Defender\MpCmdRun.exe'
+          $exe = (Resolve-Path .\NUCRAFT.exe).Path
+          & $mp -Scan -ScanType 3 -File $exe -DisableRemediation
+          if ($LASTEXITCODE -ne 0) { throw "Defender scan exited $LASTEXITCODE" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "SHA256: $hash"

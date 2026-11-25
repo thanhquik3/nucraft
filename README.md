@@ -1,5 +1,9 @@
 # NUCRAFT (BUILD v124)
 
+[![CI Policy & Security](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/ci.yml)
+[![Deploy GitHub Pages](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/deploy.yml)
+[![Release Windows PC App](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/release-pc.yml/badge.svg)](https://github.com/quythanhdz374-spec/nucraft/actions/workflows/release-pc.yml)
+
 An open-source, non-commercial **personal hobby 3D voxel sandbox game** playable directly in web browsers (PC & Mobile) or as a standalone Windows desktop app compiled transparently from source via GitHub Actions.
 
 > **Personal Project & Compliance Statement:**  
@@ -42,11 +46,13 @@ npm run dev
 node scripts/build.js --no-exe
 ```
 
-### Build Standalone Windows `NUCRAFT.exe` + Self-Test
+### Build Standalone Windows `NUCRAFT.exe` + Self-Test + CI Verification
 ```powershell
 node scripts/build.js
 .\NUCRAFT.exe --self-test
+npm test
 ```
+Every commit and release automatically runs GitHub Actions CI (`.github/workflows/ci.yml` & `.github/workflows/release-pc.yml`) including `scripts/ci-check.js` policy/security checks, isolated `--self-test`, **Microsoft Defender Antivirus scan (`MpCmdRun.exe`)**, `SHA256SUMS.txt`, and cryptographic GitHub Build Provenance Attestation.
 
 ---
 

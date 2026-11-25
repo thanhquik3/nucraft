@@ -21,13 +21,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Verify syntax and build standalone NUCRAFT.exe
+      - name: Build standalone NUCRAFT.exe and run CI policy/security audit
         shell: pwsh
         run: |
-          node --check server.js
-          node --check scripts/build.js
-          node --check sw.js
           node scripts/build.js
+          node scripts/ci-check.js --with-build --git-tracked
       - name: Isolated self-test in empty directory
         shell: pwsh
         run: |
@@ -41,6 +39,13 @@ jobs:
           if ($p.ExitCode -ne 0 -or $txt -notmatch '^OK\|.*httpChecks=PASS\|hasBadCacheFlag=False') {
             throw "Self-test failed: $txt"
           }
+      - name: Microsoft Defender Antivirus scan on NUCRAFT.exe
+        shell: pwsh
+        run: |
+          $mp = 'C:\Program Files\Windows Defender\MpCmdRun.exe'
+          $exe = (Resolve-Path .\NUCRAFT.exe).Path
+          & $mp -Scan -ScanType 3 -File $exe -DisableRemediation
+          if ($LASTEXITCODE -ne 0) { throw "Defender scan exited $LASTEXITCODE" }
       - name: Generate SHA256SUMS.txt
         shell: pwsh
         run: |
@@ -60,7 +65,7 @@ jobs:
           $tag = $env:REL_TAG
           if (-not $tag -or $tag -eq 'main') { $tag = 'v1.0.124' }
           $hashLine = Get-Content .\SHA256SUMS.txt -Raw
-          $notes = "NUCRAFT Windows PC App ($tag) - built reproducibly from public source on GitHub Actions (windows-latest).`n`nSHA-256:`n$hashLine"
+          $notes = "NUCRAFT Windows PC App ($tag) - built reproducibly from public source on GitHub Actions (windows-latest), scanned clean with Microsoft Defender, and signed with GitHub Build Provenance Attestation.`n`nSHA-256:`n$hashLine"
           $exists = $false
           try { gh release view $tag 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { $exists = $true } } catch { $exists = $false }
           if ($exists) {
