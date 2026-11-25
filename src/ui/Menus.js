@@ -2331,7 +2331,6 @@ function updateTitleScreenLabels() {
   setT('btnTitleOptions',      tr('Cài Đặt', 'Settings'));
   setT('btnTitleMultiplayer',  tr('Chơi Chung (Co-op)', 'Multiplayer (Co-op)'));
   setT('btnDressingRoom',      tr('Phòng Thay Đồ', 'Dressing Room'));
-  setT('lblDownloadPcApp',     tr('Tải App PC', 'PC App (.EXE)'));
   setT('btnTitleQuit',         tr('Thoát trò chơi', 'Quit Game'));
   setT('btnLobbySubBack',      tr('Quay lại', 'Back'));
   const verEl = document.getElementById('lobbyVersionText');
@@ -2444,16 +2443,6 @@ function initLobbyOreUI() {
     document.getElementById('btnTitleAccess')?.classList.toggle('is-active', !!showMobileControls);
     showToast(showMobileControls ? tr('📱 Đã bật nút điều khiển cảm ứng Mobile!', '📱 Mobile touch controls enabled!') : tr('⌨️ Đã ẩn nút cảm ứng (Chế độ PC)', '⌨️ Touch controls hidden (PC mode)'));
   });
-  const dlPcBtn = document.getElementById('btnDownloadPcApp');
-  if (dlPcBtn) {
-    if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-      dlPcBtn.setAttribute('href', 'NUCRAFT.exe');
-    }
-    dlPcBtn.addEventListener('click', () => {
-      ensureAudio();
-      showToast(tr('⬇️ Đang tải NUCRAFT.exe (App PC) — tải xong nháy đúp để chơi ngay!', '⬇️ Downloading NUCRAFT.exe — double-click to play on Windows!'));
-    });
-  }
   document.getElementById('btnTitleQuit')?.addEventListener('click', () => {
     try { window.close(); } catch (_) {}
     showToast('👋 Hãy đóng cửa sổ để thoát NUCRAFT!');

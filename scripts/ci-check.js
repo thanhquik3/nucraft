@@ -22,7 +22,13 @@ const REQUIRED_FILES = [
 ];
 
 const BANNED_EXTS = new Set(['.exe', '.dll', '.msi', '.bat', '.ps1', '.zip', '.rar', '.7z']);
-const BANNED_TRACKED = new Set(['agents.md', 'assets/nucraft_app.min.js', 'nucraft.html', 'index.html']);
+const BANNED_TRACKED = new Set([
+  'agents.md',
+  'assets/nucraft_app.min.js',
+  'nucraft.html',
+  'index.html',
+  '.github/workflows/release-pc.yml'
+]);
 
 const SECRET_REGEXES = [
   new RegExp('\\b(gh' + 'o_[A-Za-z0-9_]{20,}|gh' + 'p_[A-Za-z0-9_]{20,}|github_' + 'pat_[A-Za-z0-9_]{20,}|AK' + 'IA[0-9A-Z]{16})\\b'),
@@ -126,6 +132,12 @@ function main() {
         secretsFound++;
         fail(`Potential secret/token matched in ${path.relative(ROOT, full)}`);
       }
+    }
+  }
+  for (const noExeLinkRel of ['src/body.html', 'README.md']) {
+    const content = fs.readFileSync(path.join(ROOT, noExeLinkRel), 'utf8');
+    if (/releases\/latest\/download\/[^"'\s]*\.exe/i.test(content)) {
+      fail(`Prohibited GitHub EXE release link found in ${noExeLinkRel}`);
     }
   }
 

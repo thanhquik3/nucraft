@@ -1,32 +1,21 @@
-# Security Policy & Binary Transparency / Chính Sách Bảo Mật & Minh Bạch
+# Security Policy & Source Transparency / Chính Sách Bảo Mật & Minh Bạch
 
 ## 1. Personal Open-Source Project Transparency
-NUCRAFT is a non-commercial, personal hobby voxel sandbox project maintained at [`thanhquik3/nucraft`](https://github.com/thanhquik3/nucraft). All source code — including the browser game engine (`src/`, `css/`, `shared/`, `scripts/`) and the Windows desktop launcher (`launcher/NucraftLauncher.cs`) — is published in full, human-readable form in this repository.
+NUCRAFT is a non-commercial, personal hobby voxel sandbox project maintained at [`thanhquik3/nucraft`](https://github.com/thanhquik3/nucraft). All source code — including the browser game engine (`src/`, `css/`, `shared/`, `scripts/`) and the optional local Windows wrapper source (`launcher/NucraftLauncher.cs`) — is published in full, human-readable form in this repository.
 
-## 2. How `NUCRAFT.exe` Works (Windows PC App)
-For complete transparency for users and automated security scanners:
-- **100% Built From Public Source in GitHub Actions:** Official `NUCRAFT.exe` releases are compiled directly from `launcher/NucraftLauncher.cs` and the static web bundle on GitHub's hosted `windows-latest` runner via [`.github/workflows/release-pc.yml`](.github/workflows/release-pc.yml), accompanied by `SHA256SUMS.txt` and GitHub **Build Provenance Attestation**.
-- **Pure Local Loopback Wrapper:** `NUCRAFT.exe` embeds the game's static HTML/CSS/JS/3D/audio bundle as a compressed resource, serves it strictly on loopback `127.0.0.1` (default port `4173`) without opening external listening sockets (`IPAddress.Loopback`), and opens Microsoft Edge, Google Chrome, or Brave in standalone `--app` window mode.
-- **Zero Privilege Escalation & Zero Telemetry:** Requires **no administrator/UAC rights**, installs no background services or drivers, writes no registry keys, collects no personal data, and sends zero telemetry or credentials anywhere.
-- **Local Save Storage & Clean Exit:** Player saves and browser profile data reside solely inside `%LOCALAPPDATA%\NUCRAFT\AppProfile`. The embedded loopback HTTP server terminates automatically when the game window closes.
+## 2. Source-Code-Only Distribution on GitHub
+- **No Prebuilt `.exe` Binaries on GitHub:** This repository hosts source code and the static GitHub Pages web app (`deploy.yml`) **only**. No `.exe`, `.dll`, `.msi`, or pre-packaged `.zip` binaries are hosted in git commits, GitHub Pages, or GitHub Releases.
+- **Optional Local Windows Compilation:** Users who want to run a standalone local Windows app on their own PC may inspect [`launcher/NucraftLauncher.cs`](launcher/NucraftLauncher.cs) and compile it locally via `node scripts/build.js`.
+- **Loopback-Only Design:** `launcher/NucraftLauncher.cs` binds strictly to `IPAddress.Loopback` (`127.0.0.1`), serves bundled static assets from RAM, launches Microsoft Edge/Chrome/Brave in `--app` mode, requires no administrator privileges, sends zero telemetry, and stores local saves in `%LOCALAPPDATA%\NUCRAFT\AppProfile`.
 
 *(Tiếng Việt)*  
-`NUCRAFT.exe` được biên dịch công khai trực tiếp từ mã nguồn [`launcher/NucraftLauncher.cs`](launcher/NucraftLauncher.cs) trên máy chủ GitHub Actions (`windows-latest`), chỉ chạy server nội bộ cục bộ `127.0.0.1`, không cần quyền Admin, không thu thập dữ liệu hay gửi thông tin người dùng, lưu thế giới cục bộ trong `%LOCALAPPDATA%\NUCRAFT\AppProfile` và tự tắt khi đóng cửa sổ game.
+Kho mã nguồn này **chỉ lưu mã nguồn đọc được và bản web tĩnh GitHub Pages** — không phát hành hay lưu trữ bất kỳ file `.exe` dựng sẵn nào trên GitHub. Mã nguồn [`launcher/NucraftLauncher.cs`](launcher/NucraftLauncher.cs) được công khai hoàn toàn để người dùng tự kiểm tra hoặc tự biên dịch cục bộ trên máy Windows cá nhân nếu muốn.
 
-## 3. Verifying Releases / Xác Minh Bản Tải
-After downloading `NUCRAFT.exe` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/thanhquik3/nucraft/releases/latest):
-```powershell
-Get-FileHash .\NUCRAFT.exe -Algorithm SHA256
-Get-Content .\SHA256SUMS.txt
-```
-You can also verify GitHub Build Provenance Attestation using GitHub CLI:
-```powershell
-gh attestation verify .\NUCRAFT.exe --owner thanhquik3
-```
-Or build `NUCRAFT.exe` locally yourself from source:
-```powershell
-node scripts/build.js
-```
+## 3. Automated CI Policy & Security Checks
+Every push and pull request runs `.github/workflows/ci.yml` (`ubuntu-latest`), executing `node scripts/ci-check.js --with-build --git-tracked`:
+- Rejects any binary/executable/archive files tracked in git (`.exe`, `.dll`, `.msi`, `.bat`, `.ps1`, `.zip`, `.rar`, `.7z`).
+- Validates syntax across all JS files and scans for secrets/tokens.
+- Runs a static security audit on `launcher/NucraftLauncher.cs` enforcing loopback-only networking and banning unsafe Win32/registry/shell APIs.
 
 ## 4. Reporting a Vulnerability / Báo Lỗi Bảo Mật
 If you discover a security bug or compliance concern in this repository:
