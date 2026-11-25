@@ -1164,66 +1164,66 @@
           if (IS_EMISSIVE[id] === 0) continue;
           const lwx = wx0 + lx + 0.5, lwy = MIN_Y + ly + 0.5, lwz = wz0 + lz + 0.5;
           if (id === B.LANTERN) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.52; _emBuf[emLen+4]=1.10; _emBuf[emLen+5]=0.54; _emBuf[emLen+6]=324.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffbf57, int: 2.35, r: 1.52, g: 1.10, b: 0.54, rad2: 324.0, prio: 1 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.96; _emBuf[emLen+4]=0.72; _emBuf[emLen+5]=0.42; _emBuf[emLen+6]=196.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc476, int: 0.92, r: 0.96, g: 0.72, b: 0.42, rad2: 196.0, prio: 1 });
           } else if (id === B.SOUL_LANTERN || id === B.SOUL_FIRE) {
-            const sRad = id === B.SOUL_FIRE ? 289.0 : 324.0;
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.38; _emBuf[emLen+4]=1.18; _emBuf[emLen+5]=1.40; _emBuf[emLen+6]=sRad; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x22d3ee, int: id === B.SOUL_FIRE ? 2.05 : 2.30, r: 0.38, g: 1.18, b: 1.40, rad2: sRad, prio: 1 });
+            const sRad = id === B.SOUL_FIRE ? 169.0 : 196.0;
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.30; _emBuf[emLen+4]=0.78; _emBuf[emLen+5]=0.96; _emBuf[emLen+6]=sRad; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x22d3ee, int: id === B.SOUL_FIRE ? 0.76 : 0.85, r: 0.30, g: 0.78, b: 0.96, rad2: sRad, prio: 1 });
           } else if (id === B.CANDLE) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.45; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.32; _emBuf[emLen+4]=0.94; _emBuf[emLen+5]=0.44; _emBuf[emLen+6]=225.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfbbf24, int: 1.85, r: 1.32, g: 0.94, b: 0.44, rad2: 225.0, prio: 1 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.45; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.86; _emBuf[emLen+4]=0.64; _emBuf[emLen+5]=0.34; _emBuf[emLen+6]=144.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfbbf24, int: 0.68, r: 0.86, g: 0.64, b: 0.34, rad2: 144.0, prio: 1 });
           } else if (id === B.SCULK_SENSOR || id === B.SCULK_SHRIEKER || id === B.SCULK_CATALYST || id === B.ENDER_CHEST_BLOCK) {
             if (secLen < maxEm) {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.26; _secEmBuf[secLen+4]=0.92; _secEmBuf[secLen+5]=1.08; _secEmBuf[secLen+6]=144.0; secLen+=7;
-              if (secLightNodes.length < 16) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x06b6d4, int: 1.15, r: 0.26, g: 0.92, b: 1.08, rad2: 144.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.22; _secEmBuf[secLen+4]=0.68; _secEmBuf[secLen+5]=0.82; _secEmBuf[secLen+6]=121.0; secLen+=7;
+              if (secLightNodes.length < 16) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x06b6d4, int: 0.58, r: 0.22, g: 0.68, b: 0.82, rad2: 121.0 });
             }
           } else if (id === B.TORCH_BLOCK) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.46; _emBuf[emLen+4]=1.05; _emBuf[emLen+5]=0.50; _emBuf[emLen+6]=289.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb247, int: 2.20, r: 1.46, g: 1.05, b: 0.50, rad2: 289.0, prio: 1 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.92; _emBuf[emLen+4]=0.68; _emBuf[emLen+5]=0.38; _emBuf[emLen+6]=169.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb862, int: 0.86, r: 0.92, g: 0.68, b: 0.38, rad2: 169.0, prio: 1 });
           } else if (id === B.SHROOMLIGHT) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.15; _emBuf[emLen+4]=0.76; _emBuf[emLen+5]=0.30; _emBuf[emLen+6]=225.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb338, int: 1.45, r: 1.15, g: 0.76, b: 0.30, rad2: 225.0 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.84; _emBuf[emLen+4]=0.58; _emBuf[emLen+5]=0.28; _emBuf[emLen+6]=169.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb338, int: 0.78, r: 0.84, g: 0.58, b: 0.28, rad2: 169.0 });
           } else if (id === B.CAMPFIRE || id === B.FIRE) {
-            const fRad = (id === B.FIRE) ? 196.0 : 240.0;
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.16; _emBuf[emLen+4]=0.64; _emBuf[emLen+5]=0.22; _emBuf[emLen+6]=fRad; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff8c2e, int: id === B.FIRE ? 1.32 : 1.50, r: 1.16, g: 0.64, b: 0.22, rad2: fRad });
+            const fRad = (id === B.FIRE) ? 144.0 : 169.0;
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.86; _emBuf[emLen+4]=0.50; _emBuf[emLen+5]=0.22; _emBuf[emLen+6]=fRad; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff8c2e, int: id === B.FIRE ? 0.68 : 0.78, r: 0.86, g: 0.50, b: 0.22, rad2: fRad });
           } else if (id === B.SEA_LANTERN) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.54; _emBuf[emLen+4]=1.04; _emBuf[emLen+5]=1.12; _emBuf[emLen+6]=256.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x72f5eb, int: 1.50, r: 0.54, g: 1.04, b: 1.12, rad2: 256.0 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.44; _emBuf[emLen+4]=0.82; _emBuf[emLen+5]=0.90; _emBuf[emLen+6]=196.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x72f5eb, int: 0.82, r: 0.44, g: 0.82, b: 0.90, rad2: 196.0 });
           } else if (id === B.END_CRYSTAL_BLOCK) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.00; _emBuf[emLen+4]=0.45; _emBuf[emLen+5]=1.12; _emBuf[emLen+6]=225.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xe879f9, int: 1.45, r: 1.00, g: 0.45, b: 1.12, rad2: 225.0 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.76; _emBuf[emLen+4]=0.38; _emBuf[emLen+5]=0.86; _emBuf[emLen+6]=169.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xe879f9, int: 0.76, r: 0.76, g: 0.38, b: 0.86, rad2: 169.0 });
           } else if (id === B.END_ROD) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=1.35; _emBuf[emLen+4]=1.28; _emBuf[emLen+5]=1.42; _emBuf[emLen+6]=289.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfef3ff, int: 2.05, r: 1.35, g: 1.28, b: 1.42, rad2: 289.0, prio: 1 });
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.92; _emBuf[emLen+4]=0.88; _emBuf[emLen+5]=0.96; _emBuf[emLen+6]=196.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfef3ff, int: 0.88, r: 0.92, g: 0.88, b: 0.96, rad2: 196.0, prio: 1 });
           } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL) {
-            const pR = id === B.DREAM_PORTAL ? 0.62 : (id === B.END_GATEWAY ? 0.68 : 0.96);
-            const pG = id === B.DREAM_PORTAL ? 1.04 : (id === B.END_GATEWAY ? 0.88 : 0.54);
-            const pB = id === B.END_GATEWAY ? 1.22 : 1.12;
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=pR; _emBuf[emLen+4]=pG; _emBuf[emLen+5]=pB; _emBuf[emLen+6]=256.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc), int: 1.55, r: pR, g: pG, b: pB, rad2: 256.0, prio: 1 });
+            const pR = id === B.DREAM_PORTAL ? 0.45 : (id === B.END_GATEWAY ? 0.49 : 0.69);
+            const pG = id === B.DREAM_PORTAL ? 0.75 : (id === B.END_GATEWAY ? 0.63 : 0.39);
+            const pB = id === B.END_GATEWAY ? 0.88 : 0.81;
+            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=pR; _emBuf[emLen+4]=pG; _emBuf[emLen+5]=pB; _emBuf[emLen+6]=196.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
           } else if (secLen < maxEm) {
             if (id === B.LAVA) {
               if ((lx & 3) === 0 && (lz & 3) === 0 && (ly & 1) === 0) {
-                _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=1.08; _secEmBuf[secLen+4]=0.44; _secEmBuf[secLen+5]=0.12; _secEmBuf[secLen+6]=196.0; secLen+=7;
-                if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff6b1a, int: 1.45, r: 1.08, g: 0.44, b: 0.12, rad2: 196.0 });
+                _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.82; _secEmBuf[secLen+4]=0.36; _secEmBuf[secLen+5]=0.12; _secEmBuf[secLen+6]=144.0; secLen+=7;
+                if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff6b1a, int: 0.72, r: 0.82, g: 0.36, b: 0.12, rad2: 144.0 });
               }
             } else if (id === B.GLOW_CRYSTAL) {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.45; _secEmBuf[secLen+4]=0.94; _secEmBuf[secLen+5]=1.10; _secEmBuf[secLen+6]=180.0; secLen+=7;
-              if (secLightNodes.length < 16) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x4cc9ff, int: 1.32, r: 0.45, g: 0.94, b: 1.10, rad2: 180.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.36; _secEmBuf[secLen+4]=0.72; _secEmBuf[secLen+5]=0.86; _secEmBuf[secLen+6]=144.0; secLen+=7;
+              if (secLightNodes.length < 16) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x4cc9ff, int: 0.68, r: 0.36, g: 0.72, b: 0.86, rad2: 144.0 });
             } else if (id === B.ELEVATOR_BLOCK) {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.42; _secEmBuf[secLen+4]=0.88; _secEmBuf[secLen+5]=1.08; _secEmBuf[secLen+6]=160.0; secLen+=7;
-              if (secLightNodes.length < 14) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x4fd1ff, int: 1.25, r: 0.42, g: 0.88, b: 1.08, rad2: 160.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.34; _secEmBuf[secLen+4]=0.68; _secEmBuf[secLen+5]=0.84; _secEmBuf[secLen+6]=121.0; secLen+=7;
+              if (secLightNodes.length < 14) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x4fd1ff, int: 0.62, r: 0.34, g: 0.68, b: 0.84, rad2: 121.0 });
             } else if (id === B.GLOW_VINES) {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.94; _secEmBuf[secLen+4]=0.70; _secEmBuf[secLen+5]=0.28; _secEmBuf[secLen+6]=160.0; secLen+=7;
-              if (secLightNodes.length < 14) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc44d, int: 1.25, r: 0.94, g: 0.70, b: 0.28, rad2: 160.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.74; _secEmBuf[secLen+4]=0.54; _secEmBuf[secLen+5]=0.24; _secEmBuf[secLen+6]=121.0; secLen+=7;
+              if (secLightNodes.length < 14) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc44d, int: 0.62, r: 0.74, g: 0.54, b: 0.24, rad2: 121.0 });
             } else if (id === B.MUSHROOM_GLOW || id === B.SPORE_SHROOM) {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.32; _secEmBuf[secLen+4]=0.88; _secEmBuf[secLen+5]=0.94; _secEmBuf[secLen+6]=120.0; secLen+=7;
-              if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x38f2ff, int: 1.15, r: 0.32, g: 0.88, b: 0.94, rad2: 120.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.26; _secEmBuf[secLen+4]=0.68; _secEmBuf[secLen+5]=0.74; _secEmBuf[secLen+6]=100.0; secLen+=7;
+              if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x38f2ff, int: 0.55, r: 0.26, g: 0.68, b: 0.74, rad2: 100.0 });
             } else {
-              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.98; _secEmBuf[secLen+4]=0.74; _secEmBuf[secLen+5]=0.38; _secEmBuf[secLen+6]=160.0; secLen+=7;
-              if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc864, int: 1.25, r: 0.98, g: 0.74, b: 0.38, rad2: 160.0 });
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.76; _secEmBuf[secLen+4]=0.58; _secEmBuf[secLen+5]=0.32; _secEmBuf[secLen+6]=121.0; secLen+=7;
+              if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc864, int: 0.62, r: 0.76, g: 0.58, b: 0.32, rad2: 121.0 });
             }
           }
         }
@@ -1275,7 +1275,9 @@
         r += sliceBuf[i + 3] * att2; g += sliceBuf[i + 4] * att2; b += sliceBuf[i + 5] * att2;
       }
     }
-    out[0] = r > 1.70 ? 1.70 : r; out[1] = g > 1.70 ? 1.70 : g; out[2] = b > 1.70 ? 1.70 : b;
+    out[0] = Math.min(0.98, r / (1.0 + r * 0.55));
+    out[1] = Math.min(0.98, g / (1.0 + g * 0.55));
+    out[2] = Math.min(0.98, b / (1.0 + b * 0.55));
   }
 
   function _pushSolidBox(wx, wy, wz, x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, lr, lg, lb, fitUv, st) {

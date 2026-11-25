@@ -101,19 +101,19 @@
     const sharpOn = (typeof sodiumOpts === 'undefined' || sodiumOpts.sharpness !== false);
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = !sharpOn ? 0.0 : (preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : 0.19)));
     if (preset === 'bsl') {
-      envUniforms.uExposure.value = 0.96; envUniforms.uVibrance.value = 0.34; envUniforms.uWarmth.value = 0.14; envUniforms.uContrast.value = 0.08; envUniforms.uCloudCover.value = 0.46;
+      envUniforms.uExposure.value = 0.92; envUniforms.uVibrance.value = 0.34; envUniforms.uWarmth.value = 0.11; envUniforms.uContrast.value = 0.08; envUniforms.uCloudCover.value = 0.46;
     } else if (preset === 'bliss') {
-      envUniforms.uExposure.value = 0.98; envUniforms.uVibrance.value = 0.38; envUniforms.uWarmth.value = 0.16; envUniforms.uContrast.value = 0.07; envUniforms.uCloudCover.value = 0.52;
+      envUniforms.uExposure.value = 0.93; envUniforms.uVibrance.value = 0.38; envUniforms.uWarmth.value = 0.12; envUniforms.uContrast.value = 0.07; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'moonlit') {
-      envUniforms.uExposure.value = 0.98; envUniforms.uVibrance.value = 0.26; envUniforms.uWarmth.value = -0.02; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.34;
+      envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.26; envUniforms.uWarmth.value = -0.02; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.34;
     } else if (preset === 'chill_sunset') {
-      envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.40; envUniforms.uWarmth.value = 0.22; envUniforms.uContrast.value = 0.16; envUniforms.uCloudCover.value = 0.56;
+      envUniforms.uExposure.value = 0.90; envUniforms.uVibrance.value = 0.40; envUniforms.uWarmth.value = 0.16; envUniforms.uContrast.value = 0.14; envUniforms.uCloudCover.value = 0.56;
     } else if (preset === 'verdant_fresh') {
-      envUniforms.uExposure.value = 0.89; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.04; envUniforms.uContrast.value = 0.09; envUniforms.uCloudCover.value = 0.50;
+      envUniforms.uExposure.value = 0.88; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.04; envUniforms.uContrast.value = 0.09; envUniforms.uCloudCover.value = 0.50;
     } else if (preset === 'dlss_ultra') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.46; envUniforms.uWarmth.value = 0.12; envUniforms.uContrast.value = 0.15; envUniforms.uCloudCover.value = 0.52;
+      envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.13; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 0.88; envUniforms.uVibrance.value = 0.36; envUniforms.uWarmth.value = 0.12; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.62;
+      envUniforms.uExposure.value = 0.88; envUniforms.uVibrance.value = 0.36; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.62;
       if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 20.0 : 36.0;
     }
     window._eclipseGrassDirty = true;
@@ -621,9 +621,9 @@
         : (activeGlowId === B.END_CRYSTAL_BLOCK ? 0xe879f9
         : (activeGlowId === B.FIRE_SWORD || activeGlowId === B.CAMPFIRE || activeGlowId === B.LAVA ? 0xff7b2e : 0xffb347)));
       torchLight.color.setHex(hCol);
-      torchLight.intensity = (player.eyesInWater ? 1.55 : 1.32) + Math.sin(elapsed * 10) * 0.06;
+      torchLight.intensity = (player.eyesInWater ? 0.72 : 0.62) + Math.sin(elapsed * 10) * 0.04;
     } else if (!player.eyesInWater && (player.y < -6 || depthOffset > 0)) {
-      torchLight.color.setHex(0xffd296); torchLight.intensity = 0.72;
+      torchLight.color.setHex(0xffd296); torchLight.intensity = 0.36;
     } else torchLight.intensity = 0.0;
 
     _lightAcc += dt;
@@ -637,11 +637,11 @@
           const m = mobs[i];
           if (m.isBoss || m.fusing || m.burning || m.type === 'blaze') {
             const dx = m.x - player.x, dz = m.z - player.z, d2 = dx * dx + dz * dz;
-            if (d2 <= 576) _offerDynLight(need, m.x, m.y + 1.4, m.z, m.fusing ? 0xd9f99d : 0xff7b28, 1.45, d2, 1);
+            if (d2 <= 576) _offerDynLight(need, m.x, m.y + 1.4, m.z, m.fusing ? 0xd9f99d : 0xff7b28, 0.85, d2, 1);
           }
         }
         for (let i = 0; i < primedTnts.length; i++) {
-          _offerDynLight(need, primedTnts[i].x, primedTnts[i].y + 0.8, primedTnts[i].z, 0xffaa44, 1.6, 1, 1);
+          _offerDynLight(need, primedTnts[i].x, primedTnts[i].y + 0.8, primedTnts[i].z, 0xffaa44, 0.95, 1, 1);
         }
         const px = Math.floor(player.x) >> 4, pz = Math.floor(player.z) >> 4;
         for (let cz = pz - 2; cz <= pz + 2; cz++) for (let cx = px - 2; cx <= px + 2; cx++) {
@@ -655,11 +655,12 @@
           }
         }
       }
+      const crowdDamp = _dynLightFound > 1 ? 1.0 / (1.0 + 0.36 * (_dynLightFound - 1)) : 1.0;
       for (let s = 1; s < dynamicLightPool.length; s++) {
         const pl = dynamicLightPool[s], c = (s <= _dynLightFound) ? _topLights[s - 1] : null;
         if (c) {
-          const fade = Math.max(0.55, 1.0 - Math.sqrt(c.d2) / 56.0);
-          pl.position.set(c.x, c.y, c.z); pl.color.setHex(c.col); pl.intensity = c.int * fade;
+          const fade = Math.max(0.45, 1.0 - Math.sqrt(c.d2) / 36.0);
+          pl.position.set(c.x, c.y, c.z); pl.color.setHex(c.col); pl.intensity = Math.min(0.95, c.int * fade * crowdDamp);
         } else pl.intensity = 0;
       }
     }
@@ -714,6 +715,7 @@
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
       sunLight.target.updateMatrixWorld();
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.88;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
       cloudMesh.visible = false;
@@ -742,6 +744,7 @@
       hemiLight.color.setHex(isWarped ? 0x2dd4bf : 0xc2412d);
       hemiLight.groundColor.setHex(0x3a110d);
       hemiLight.intensity = 0.62;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.0;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
@@ -763,6 +766,7 @@
       sunLight.position.set(snapX + 20, snapY + 38, snapZ + 18);
       sunLight.color.setHex(0xddd6fe); sunLight.intensity = 0.86;
       hemiLight.color.setHex(0xa855f7); hemiLight.groundColor.setHex(0x1e132b); hemiLight.intensity = 0.58;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.32;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
@@ -914,6 +918,7 @@
     const surfaceFactor = player.eyesInWater
       ? Math.max(0.06, Math.exp(-diveDepth * 0.018))
       : (depthOffset > 0 ? 0.10 : Math.max(0.12, Math.min(1, (player.y + 8) / 10)));
+    if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = surfaceFactor;
     const albedoDamp = (curBiome === BIOMES.DESERT || curBiome === BIOMES.MESA) ? 0.88 : ((curBiome === BIOMES.SNOW || curBiome === BIOMES.ALPINE_PEAKS) ? 0.90 : 1.0);
     const isNightShadow = (sunY < -0.04);
     const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
