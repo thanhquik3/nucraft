@@ -1,0 +1,1010 @@
+  :root {
+    --mc-panel: #c6c6c6;
+    --mc-slot: #8b8b8b;
+    --mc-green: #3c8527;
+    --mc-green-light: #52a535;
+    --mc-green-dark: #2a641c;
+    --font-pixel: 'Chakra Petch', 'Be Vietnam Pro', system-ui, sans-serif;
+    --font-mono: 'Be Vietnam Pro', 'JetBrains Mono', system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    image-rendering: pixelated;
+  }
+
+  html, body {
+    margin: 0; padding: 0; width: 100%; max-width: 100%; height: 100%;
+    overflow: hidden; overflow-x: clip; overflow-y: clip; background: #090e16; color: #fff;
+    font-family: var(--font-pixel); touch-action: none;
+  }
+
+  #gameStage { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; overflow-x: clip; overflow-y: clip; background: #090e16; }
+  #gameStage.rotated-landscape {
+    top: 0 !important; left: var(--rot-left, 100vw) !important;
+    width: var(--rot-w, 100vh) !important; height: var(--rot-h, 100vw) !important;
+    transform-origin: top left !important; transform: rotate(90deg) !important;
+  }
+  #gameCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  #underwaterOverlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 48%, rgba(2, 22, 40, 0.24) 100%);
+    opacity: 0; transition: opacity 0.28s ease; z-index: 4;
+  }
+  #underwaterOverlay.active { opacity: 1; }
+  #netherPortalOverlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.22) 15%, rgba(126, 34, 206, 0.62) 68%, rgba(59, 7, 100, 0.88) 100%);
+    opacity: 0; transition: opacity 0.2s ease;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #netherPortalOverlay.active { opacity: 1; animation: portalPulse 0.85s ease-in-out infinite alternate; }
+  #netherPortalOverlay .portal-msg {
+    color: #f3e8ff; font-weight: 800; font-size: 16px; letter-spacing: 0.5px;
+    text-shadow: 0 2px 10px rgba(88, 28, 135, 0.95), 0 0 18px #c084fc;
+    background: rgba(30, 8, 56, 0.62); border: 2px solid rgba(192, 132, 252, 0.7);
+    padding: 8px 16px; border-radius: 10px;
+  }
+  @keyframes portalPulse {
+    from { filter: hue-rotate(-8deg) saturate(1.1); transform: scale(1.0); }
+    to   { filter: hue-rotate(12deg) saturate(1.45); transform: scale(1.03); }
+  }
+  #dreamPortalOverlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(circle at 50% 50%, rgba(94, 234, 212, 0.25) 12%, rgba(244, 114, 182, 0.48) 54%, rgba(129, 140, 248, 0.82) 100%);
+    opacity: 0; transition: opacity 0.25s ease;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #dreamPortalOverlay.active { opacity: 1; animation: dreamHue 1.1s linear infinite alternate; }
+  #dreamPortalOverlay .portal-msg {
+    color: #fff; font-weight: 800; font-size: 16px; letter-spacing: 0.5px;
+    text-shadow: 0 2px 12px rgba(15, 23, 42, 0.85), 0 0 16px #5eead4;
+    background: linear-gradient(135deg, rgba(20, 83, 95, 0.72), rgba(131, 24, 67, 0.72));
+    border: 2px solid rgba(165, 243, 252, 0.85);
+    padding: 9px 18px; border-radius: 12px;
+  }
+  @keyframes dreamHue {
+    from { filter: hue-rotate(0deg) saturate(1.25); }
+    to   { filter: hue-rotate(38deg) saturate(1.55); }
+  }
+  #damageOverlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle, transparent 42%, rgba(220, 38, 38, 0.65) 100%);
+    opacity: 0; transition: opacity 0.14s; z-index: 5;
+  }
+  #damageOverlay.flash { opacity: 1; }
+  #fireHudOverlay {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 42%; pointer-events: none; z-index: 4;
+    background: linear-gradient(0deg, rgba(234, 88, 12, 0.72) 0%, rgba(249, 115, 22, 0.42) 48%, rgba(250, 204, 21, 0.14) 80%, rgba(249, 115, 22, 0) 100%);
+    opacity: 0; transition: opacity 0.14s ease;
+  }
+  #fireHudOverlay.active { opacity: 1; animation: fireHudFlicker 0.24s steps(2) infinite alternate; }
+  #darknessOverlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(circle, rgba(2, 5, 10, 0.14) 12%, rgba(2, 5, 10, 0.88) 52%, rgba(1, 3, 6, 0.99) 84%);
+    opacity: 0; transition: opacity 0.28s ease;
+  }
+  #totemFlash {
+    position: absolute; inset: 0; pointer-events: none; z-index: 9;
+    background: radial-gradient(circle, rgba(254, 240, 138, 0.48) 10%, rgba(16, 185, 129, 0.44) 55%, rgba(250, 204, 21, 0) 92%);
+    opacity: 0; transition: opacity 0.22s ease;
+  }
+  #totemFlash.active { opacity: 1; }
+  @keyframes fireHudFlicker {
+    from { transform: translateY(0) scaleY(1); filter: brightness(0.95); }
+    to   { transform: translateY(-4px) scaleY(1.06); filter: brightness(1.16); }
+  }
+
+  #crosshairWrap {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 30px; height: 30px; pointer-events: none; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .crosshair-plus { position: relative; width: 16px; height: 16px; }
+  .crosshair-plus::before, .crosshair-plus::after {
+    content: ''; position: absolute; background: rgba(255, 255, 255, 0.94); mix-blend-mode: difference;
+  }
+  .crosshair-plus::before { left: 7px; top: 0; width: 2px; height: 16px; }
+  .crosshair-plus::after { top: 7px; left: 0; height: 2px; width: 16px; }
+  #mineRing { position: absolute; inset: 0; transform: rotate(-90deg); opacity: 0; transition: opacity 0.08s; }
+  #mineRing.active { opacity: 1; }
+  /* Authentic Minecraft 1.9+ Crosshair Attack Cooldown Recharge Bar */
+  #atkCdWrap {
+    position: absolute; left: 50%; top: 27px; transform: translateX(-50%);
+    width: 24px; height: 4px; background: rgba(0, 0, 0, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.25); opacity: 0; pointer-events: none;
+    transition: opacity 0.08s; overflow: hidden;
+  }
+  #atkCdWrap.visible { opacity: 1; }
+  #atkCdFill { width: 0%; height: 100%; background: #e2e8f0; }
+  #atkCdWrap.ready #atkCdFill { background: #67e8f9; }
+
+  #hud { position: absolute; inset: 0; pointer-events: none; z-index: 12; }
+
+  .mc-btn {
+    pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-pixel); font-size: 10.5px; font-weight: 700; color: #fff;
+    text-shadow: 2px 2px 0 #1f1f1f; background: #7d7d7d; border: 2px solid #000;
+    box-shadow: inset 2px 2px 0 #c2c2c2, inset -2px -2px 0 #464646, 0 2px 6px rgba(0,0,0,0.4);
+    border-radius: 0; padding: 7px 10px; cursor: pointer;
+  }
+  .mc-btn:hover { background: #949494; }
+  .mc-btn:active { box-shadow: inset 2px 2px 0 #464646, inset -2px -2px 0 #c2c2c2; transform: translateY(1px); }
+  .mc-btn-green { background: var(--mc-green); box-shadow: inset 2px 2px 0 var(--mc-green-light), inset -2px -2px 0 var(--mc-green-dark), 0 2px 6px rgba(0,0,0,0.4); }
+  .mc-btn-green:hover { background: #479a2f; }
+  .mc-btn-red { background: #b02e26; box-shadow: inset 2px 2px 0 #de4f47, inset -2px -2px 0 #6e1a15, 0 2px 6px rgba(0,0,0,0.4); }
+  .mc-btn-red:hover { background: #7f1515; box-shadow: inset 2px 2px 0 #b92b27, inset -2px -2px 0 #450a0a, 0 2px 6px rgba(0,0,0,0.5); color: #ffffff; }
+  .mc-btn-red:active { background: #5c0e0e; box-shadow: inset 2px 2px 0 #3b0707, inset -2px -2px 0 #991b1b; transform: translateY(1px); }
+  .mc-btn-amber { background: #b45309; box-shadow: inset 2px 2px 0 #f59e0b, inset -2px -2px 0 #78350f, 0 2px 6px rgba(0,0,0,0.4); }
+  .mc-btn-amber:hover { background: #92400e; }
+
+  #topLeftHud {
+    position: absolute; top: max(7px, env(safe-area-inset-top)); left: max(9px, env(safe-area-inset-left));
+    display: flex; flex-direction: column; align-items: flex-start; gap: 3px; pointer-events: none;
+  }
+  .icon-row { display: flex; gap: 1px; align-items: center; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.9)); }
+  .stat-svg { width: 13.5px; height: 13.5px; }
+
+  #posBox {
+    position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(9px, env(safe-area-inset-left));
+    background: rgba(12, 16, 22, 0.62); border-left: 3px solid #52a535;
+    padding: 3px 8px; font-family: var(--font-mono); font-size: 13px; line-height: 1.24;
+    color: #f8fafc; text-shadow: 1.5px 1.5px 0 #000; letter-spacing: 0.2px;
+    display: flex; flex-direction: column; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    pointer-events: auto; z-index: 16; transform-origin: top left;
+  }
+  #posBox.hidden { display: none !important; }
+  #posBox.editing-coords { outline: 2px dashed #38bdf8; cursor: move; }
+  #posBox.editing-coords.edit-selected { outline: 3px solid #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.7); }
+
+  /* Semi-Transparent Minecraft Chat Box — Positioned cleanly below top-left Coordinates HUD */
+  #chatWrap {
+    position: absolute; left: max(9px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 74px);
+    width: min(360px, 46vw); display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+    pointer-events: none; z-index: 22;
+  }
+  #chatLog {
+    display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; max-height: 118px; overflow: hidden;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.3;
+  }
+  .chat-line {
+    background: rgba(8, 12, 18, 0.56); color: #f8fafc; padding: 2px 7px;
+    text-shadow: 1px 1px 0 #000; word-break: break-word; border-left: 2px solid rgba(255,255,255,0.22);
+    transition: opacity 0.45s ease;
+  }
+  .chat-line.sys { color: #fde68a; border-left-color: #facc15; }
+  .chat-line.faded { opacity: 0; pointer-events: none; }
+  #chatWrap.open .chat-line.faded { opacity: 0.85; }
+  #chatInputRow { display: none; gap: 4px; pointer-events: auto; }
+  #chatWrap.open #chatInputRow { display: flex; }
+  #chatInput {
+    flex: 1; height: 28px; background: rgba(10, 14, 22, 0.84); color: #fff;
+    border: 2px solid #94a3b8; font-family: var(--font-mono); font-size: 13px; padding: 0 8px; outline: none;
+  }
+  #chatInput:focus { border-color: #4ade80; }
+
+  #topCenterBar {
+    position: absolute; top: max(7px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    display: flex; gap: 3px; pointer-events: auto; z-index: 17;
+  }
+  .mc-top-icon {
+    width: 32px; height: 32px; background: rgba(145, 145, 145, 0.84);
+    border: 2px solid #121212;
+    box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.52), inset -2px -2px 0 rgba(0, 0, 0, 0.48), 0 2px 6px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; font-family: var(--font-pixel); font-size: 10.5px; color: #181818; font-weight: 700;
+  }
+  .mc-top-icon:active { background: rgba(95, 95, 95, 0.92); transform: translateY(1px); }
+  .mc-top-icon svg { width: 18px; height: 18px; }
+
+  /* 100% Pure Authentic Minecraft Boss Bar & Targeted Mob HP Bar (ZERO heavy card borders — pure floating text + thin bar!) */
+  #bossBarWrap {
+    position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+    width: min(360px, 54vw); display: none; flex-direction: column; align-items: center; gap: 2px;
+    pointer-events: none; z-index: 16; background: transparent; border: none; padding: 0;
+  }
+  #bossBarWrap.visible { display: flex; }
+  .boss-head-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #bossCrest { display: none; width: 100%; justify-content: center; align-items: center; gap: 6px; margin-bottom: -1px; --drg-head: #2d1438; --drg-horn: #a855f7; --drg-eye: #f0abfc; --drg-snout: #581c87; }
+  #bossBarWrap.is-dragon #bossCrest { display: flex; }
+  .boss-drg-svg { image-rendering: pixelated; filter: drop-shadow(0 1.5px 0 rgba(0,0,0,0.85)); }
+  .boss-drg-svg .drg-head { fill: var(--drg-head); }
+  .boss-drg-svg .drg-horn { fill: var(--drg-horn); }
+  .boss-drg-svg .drg-eye  { fill: var(--drg-eye); }
+  .boss-drg-svg .drg-snout { fill: var(--drg-snout); }
+  .mob-drg-ico { width: 14px; height: 11px; image-rendering: pixelated; vertical-align: -1px; margin-right: 4px; flex-shrink: 0; }
+  #bossName { font-family: var(--font-pixel); font-size: 13px; font-weight: 700; color: #ffffff; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000; letter-spacing: 0.4px; }
+  #bossMeta { font-family: var(--font-mono); font-size: 11px; color: #f8fafc; text-shadow: 1.5px 1.5px 0 #000; opacity: 0.92; }
+  #bossBarBg { position: relative; width: 100%; height: 8px; background: #260d29; border: 1.5px solid #09090b; box-shadow: 0 2px 4px rgba(0,0,0,0.75); overflow: hidden; }
+  #bossBarWrap.is-mob #bossBarBg { height: 7px; background: #2b0f0f; width: 72%; }
+  #bossBarFill { width: 100%; height: 100%; background: linear-gradient(180deg, #ef5aff 0%, #c026d3 55%, #86198f 100%); transition: width 0.12s ease-out; }
+  #bossBarWrap.is-mob #bossBarFill { background: linear-gradient(180deg, #ff4545 0%, #dc2626 60%, #991b1b 100%); }
+  #bossBarTicks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgba(0,0,0,0.55) calc(10% - 1px), rgba(0,0,0,0.55) 10%); pointer-events: none; }
+  #bossSkillRow { width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 10px; color: #f5d0fe; text-shadow: 1.5px 1.5px 0 #000; font-family: var(--font-mono); }
+  #bossBarWrap.is-mob #bossSkillRow { display: none; }
+
+  #topRightHud {
+    position: absolute; top: max(7px, env(safe-area-inset-top)); right: max(9px, env(safe-area-inset-right));
+    display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 4px; z-index: 19;
+  }
+  #airRow { display: none; justify-content: flex-end; }
+  #airRow.visible { display: flex; }
+
+  #minimapWrap {
+    position: relative; width: 112px; height: 112px; margin-top: 0; pointer-events: auto; cursor: pointer;
+    background: #14171f; border: 3px solid #18181b;
+    box-shadow: inset 0 0 0 1px #64748b, 0 4px 12px rgba(0,0,0,0.65);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #minimapWrap:hover { border-color: #cbd5e1; }
+  #minimapWrap.hidden { display: none; }
+  #minimapCanvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .minimap-hint { position: absolute; bottom: 2px; right: 3px; font-size: 8.5px; color: #e2e8f0; background: rgba(0,0,0,0.62); padding: 0 3px; pointer-events: none; }
+  #minimapClockBar {
+    width: 112px; box-sizing: border-box;
+    background: rgba(20, 23, 31, 0.92); border: 2px solid #18181b;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 3px 8px rgba(0,0,0,0.55);
+    padding: 3px 5px 4px; display: flex; flex-direction: column; gap: 3px;
+    pointer-events: none;
+  }
+  .mm-clock-main {
+    display: flex; align-items: center; justify-content: space-between; gap: 3px;
+    font-family: var(--font-pixel); line-height: 1; color: #f8fafc;
+    text-shadow: 1px 1px 0 #090a0d;
+  }
+  .mm-clock-ico { display: inline-flex; width: 12px; height: 12px; flex: 0 0 12px; }
+  .mm-clock-ico svg { width: 12px; height: 12px; image-rendering: pixelated; display: block; }
+  #minimapClockTime { font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fef08a; }
+  #minimapClockPeriod { font-size: 9px; font-weight: 700; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50px; text-align: right; }
+  .mm-clock-track { width: 100%; height: 3px; background: #0d1017; border: 1px solid #09090b; overflow: hidden; }
+  #minimapClockProg { width: 31%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fde047); transition: width 0.2s linear; }
+  #minimapClockBar.is-night #minimapClockProg { background: linear-gradient(90deg, #38bdf8, #818cf8); }
+
+  /* Full-Screen Minecraft Fog-of-War World Map Modal */
+  #worldMapPanel {
+    width: min(760px, 95vw); max-height: 92dvh; position: relative;
+    background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b; border-radius: 3px;
+    box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 20px 52px rgba(0,0,0,0.82);
+    padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  #worldMapViewport {
+    position: relative; width: 100%; height: min(500px, 68dvh); background: #0c0f15;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    overflow: hidden; cursor: grab;
+  }
+  #worldMapCanvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .map-legend { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-family: var(--font-pixel); font-size: 11.5px; color: #404040; }
+  .compass-dir {
+    position: absolute; font-family: var(--font-pixel); font-size: 8px; color: #fef08a;
+    text-shadow: 1px 1px 0 #000; pointer-events: none;
+  }
+  .compass-n { top: 2px; left: 50%; transform: translateX(-50%); color: #f87171; }
+  .compass-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+  .compass-w { left: 3px; top: 50%; transform: translateY(-50%); }
+  .compass-e { right: 3px; top: 50%; transform: translateY(-50%); }
+
+  #toast {
+    display: none !important;
+    position: absolute; top: 102px; left: 50%; transform: translateX(-50%);
+    background: rgba(14, 18, 24, 0.90); border: 2px solid #777; color: #fef08a;
+    font-family: var(--font-mono); font-size: 19px; padding: 3px 13px;
+    opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 30; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  #toast.show { display: none !important; opacity: 0; }
+
+  #bottomCenter {
+    position: absolute; bottom: max(4px, env(safe-area-inset-bottom)); left: 50%;
+    transform: translateX(-50%) scale(var(--hb-scale, 1)) translateX(var(--hb-shift-x, 0px));
+    transform-origin: bottom center;
+    width: 364px; display: flex; flex-direction: column; align-items: center; gap: 0; pointer-events: none;
+  }
+  #itemLabel {
+    font-family: var(--font-pixel); font-size: 13px; font-weight: 700; color: #ffffff;
+    text-shadow: 2px 2px 0 #1f1f1f; min-height: 17px; margin-bottom: 3px; text-align: center;
+  }
+  /* 100% Authentic Minecraft Java Status Bar Row (Exact 364px = 182x2px native scale: 162px Left + 40px XP Level Gap + 162px Right!) */
+  #mcStatBarRow {
+    width: 364px; display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 3px;
+  }
+  .mc-stat-col { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+  .mc-stat-col.right { align-items: flex-end; }
+  #armorRow { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 1px; height: auto; }
+  #armorRow.empty-armor { display: none; }
+  .mc-icon-row { display: flex; align-items: center; height: 18px; }
+  .mc-armor-subrow { display: flex; align-items: center; height: 18px; }
+  .mc-armor-subrow.tier-2 img { filter: sepia(1) saturate(3.2) hue-rotate(8deg) brightness(1.08); }
+  .mc-armor-subrow.tier-3 img { filter: sepia(1) saturate(3.4) hue-rotate(148deg) brightness(1.12); }
+  .mc-armor-subrow .mc-ico { margin-right: -2px; }
+  .mc-armor-subrow .mc-ico:last-child { margin-right: 0; }
+  .mc-icon-row.left .mc-ico { margin-right: -2px; }
+  .mc-icon-row.left .mc-ico:last-child { margin-right: 0; }
+  .mc-icon-row.right .mc-ico { margin-left: -2px; }
+  .mc-icon-row.right .mc-ico:first-child { margin-left: 0; }
+  .mc-ico {
+    position: relative; width: 18px; height: 18px; flex: 0 0 18px;
+    image-rendering: pixelated;
+  }
+  .mc-ico img {
+    position: absolute; inset: 0; width: 18px; height: 18px;
+    image-rendering: pixelated; display: block; pointer-events: none;
+  }
+  @keyframes mcHeartLow { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  .mc-ico.low-hp { animation: mcHeartLow 0.22s steps(2) infinite; }
+  @keyframes mcHeartHeal { 0% { transform: translateY(0) scale(1); filter: brightness(1); } 40% { transform: translateY(-4px) scale(1.16); filter: brightness(1.38); } 100% { transform: translateY(0) scale(1); filter: brightness(1); } }
+  @keyframes mcHeartHurt { 0%,100% { transform: translate(0,0) scale(1); filter: brightness(1); } 25% { transform: translate(-2px,-2px) scale(1.12); filter: brightness(1.85); } 65% { transform: translate(2px,1px) scale(0.95); filter: brightness(1.35); } }
+  @keyframes mcBubblePop { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.32); opacity: 0.92; } 100% { transform: scale(0.45); opacity: 0; } }
+  @keyframes mcBubbleRefill { 0% { transform: scale(0.55); opacity: 0.2; } 65% { transform: scale(1.16); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes mcAirRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .mc-ico.heart-heal { animation: mcHeartHeal 0.42s cubic-bezier(0.22,1,0.36,1) both; }
+  .mc-ico.heart-hurt { animation: mcHeartHurt 0.34s ease-out both; }
+  .mc-ico.bubble-pop { animation: mcBubblePop 0.36s ease-out forwards; }
+  .mc-ico.bubble-refill { animation: mcBubbleRefill 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+  #airRow.visible { animation: mcAirRowIn 0.2s ease-out; }
+
+  /* Minecraft-Style Player Locator Bar directly above XP Bar (GPU-smooth dot, scales big when close, tiny when far) */
+  #locatorBar {
+    position: relative; width: 364px; height: 12px; display: none; margin-bottom: 2px;
+    background: rgba(11, 16, 24, 0.78); border: 2px solid #090d14;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 6px rgba(0,0,0,0.5);
+    overflow: visible;
+  }
+  #locatorBar.visible { display: block; }
+  #locatorBar::before {
+    content: ''; position: absolute; left: 50%; top: 1px; bottom: 1px; width: 2px;
+    transform: translateX(-50%); background: rgba(255,255,255,0.22);
+  }
+  .loc-dot {
+    position: absolute; left: 0; top: 50%; will-change: transform; pointer-events: none;
+    border: 1.5px solid #000; box-shadow: 0 0 6px rgba(0,0,0,0.85);
+    transition: width 0.12s ease, height 0.12s ease;
+  }
+  .loc-dot.behind-l::after { content: '‹'; position: absolute; left: -8px; top: -5px; font-size: 11px; color: #fff; text-shadow: 1px 1px 0 #000; }
+  .loc-dot.behind-r::after { content: '›'; position: absolute; right: -8px; top: -5px; font-size: 11px; color: #fff; text-shadow: 1px 1px 0 #000; }
+  .loc-elev { position: absolute; left: 50%; transform: translateX(-50%); font-size: 7px; line-height: 1; color: #fef08a; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+  .loc-elev.up { top: -8px; }
+  .loc-elev.dn { bottom: -8px; }
+
+  #roomBadge {
+    display: none; margin-top: 0;
+    background: rgba(16, 20, 24, 0.78);
+    border: 2px solid #161616;
+    border-left: 3px solid #52a535;
+    box-shadow: inset 1.5px 1.5px 0 rgba(255,255,255,0.22), inset -1.5px -1.5px 0 rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.45);
+    padding: 2px 7px; font-family: var(--font-pixel); font-size: 9.5px; line-height: 1.25;
+    color: #e2e8f0; text-shadow: 1.5px 1.5px 0 #000; letter-spacing: 0.2px;
+    pointer-events: auto; cursor: pointer; z-index: 19;
+  }
+  #roomBadge b { color: #55ff55; font-weight: 700; }
+  #roomBadge.visible { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+  /* 100% Authentic Minecraft Java 18-Segment Experience Bar (Exact 182x5 -> 364x10px!) */
+  #xpWrap {
+    position: relative; width: 364px; height: 10px; margin-bottom: 4px;
+    background-color: #161f12; background-size: 364px 10px; background-repeat: no-repeat;
+    image-rendering: pixelated;
+  }
+  #xpFill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%; overflow: hidden;
+    transition: width 0.18s linear;
+  }
+  #xpFillImg {
+    display: block; width: 364px; height: 10px; max-width: none;
+    image-rendering: pixelated; pointer-events: none;
+  }
+  #xpLevel {
+    position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-pixel); font-size: 15px; line-height: 1; font-weight: 800; color: #80ff20;
+    text-shadow: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000;
+    pointer-events: none; white-space: nowrap;
+  }
+  #locatorBar.visible ~ #xpWrap #xpLevel { top: -29px; }
+
+  /* 100% Authentic Minecraft Java 9-Slot Hotbar (Exact 182x22 -> 364x44px!) + Docked Bag Slot */
+  #hotbarDock { position: relative; width: 364px; height: 44px; pointer-events: none; }
+  #hotbar {
+    pointer-events: auto; position: relative; width: 364px; height: 44px;
+    display: flex; align-items: center; padding: 0 2px;
+    background-color: rgba(20, 20, 20, 0.56);
+    background-size: 364px 44px; background-repeat: no-repeat;
+    image-rendering: pixelated;
+  }
+  .hb-slot {
+    position: relative; width: 40px; height: 44px; flex: 0 0 40px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .hb-slot .hb-sel {
+    display: none; position: absolute; left: -4px; top: -1px; width: 48px; height: 46px;
+    background-size: 48px 46px; background-repeat: no-repeat; image-rendering: pixelated;
+    pointer-events: none; z-index: 4;
+  }
+  .hb-slot.active .hb-sel { display: block; }
+  .hb-slot canvas { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; z-index: 2; }
+  .hb-slot .slot-count {
+    position: absolute; bottom: 3px; right: 3px; z-index: 3;
+    font-family: var(--font-pixel); font-size: 13px; font-weight: 800; line-height: 1; color: #ffffff;
+    text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none;
+  }
+  .hb-slot .slot-dur {
+    position: absolute; bottom: 6px; left: 7px; width: 26px; height: 4px; z-index: 3;
+    background: #000000; pointer-events: none;
+  }
+  .hb-slot .slot-dur-fill { height: 2px; background: #00ff00; width: 100%; }
+  /* Ô "..." chỉ dành cho Mobile (bản PC/Java không có — mở balo bằng phím E).
+     Khi bật nút cảm ứng, body có class .touch-ui thì ô này mới hiện & bám sát mép hotbar. */
+  #btnBag {
+    pointer-events: auto; position: absolute; left: calc(100% + 4px); top: 0;
+    width: 44px; height: 44px; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(28, 32, 40, 0.78); border: 2px solid #0e1014;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(8, 10, 14, 0.68), 0 2px 8px rgba(0,0,0,0.45);
+  }
+  body.touch-ui #btnBag { display: flex; }
+  #btnBag:hover { background: rgba(46, 52, 64, 0.86); }
+  #btnBag:active { background: rgba(60, 133, 39, 0.86); box-shadow: inset 0 2px 0 rgba(134, 239, 172, 0.65), inset 0 -2px 0 rgba(26, 74, 18, 0.85); }
+  #btnBag .slot-dots { font-family: var(--font-pixel); font-size: 15px; font-weight: 800; color: #f8fafc; text-shadow: 2px 2px 0 #14171c; letter-spacing: 1px; }
+
+  /* Inventory / Crafting / Furnace / Chest Slots (keep exact Minecraft GUI style!) */
+  .slot {
+    position: relative; width: 40px; height: 40px; box-sizing: border-box; background: #8b8b8b;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    contain: layout style;
+  }
+  .slot.active { border: 3px solid #fff; box-shadow: 0 0 0 2px #000, inset 0 0 0 1px #c6c6c6; z-index: 2; }
+  .slot.selected-swap, .equip-slot.selected-swap { outline: 2px solid #ffffff; outline-offset: -2px; background: #a8a8a8; z-index: 2; }
+  .slot canvas { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; position: relative; z-index: 1; }
+  .slot-count { position: absolute; bottom: 1px; right: 2px; z-index: 4; font-family: var(--font-pixel); font-size: 12px; font-weight: 800; line-height: 1; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none; }
+  .slot-dur { position: absolute; bottom: 3px; left: 5px; right: 5px; height: 4px; background: #000; pointer-events: none; z-index: 4; }
+  .slot-dur-fill { height: 2px; background: #00ff00; width: 100%; }
+  .slot-dots { font-family: var(--font-pixel); font-size: 15px; font-weight: 700; color: #ececec; text-shadow: 1.5px 1.5px 0 #1f1f1f; letter-spacing: 1px; }
+  .eq-ghost img { width: 28px; height: 28px; image-rendering: pixelated; opacity: 0.9; display: block; }
+  #invModal .slot:hover::before,
+  #invModal .equip-slot:hover::before,
+  #furnaceModal .slot:hover::before,
+  #chestModal .slot:hover::before,
+  #smithingModal .slot:hover::before {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255, 255, 255, 0.36); pointer-events: none; z-index: 2;
+  }
+  .slot.mc-ghost-miss::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(215, 50, 50, 0.42); pointer-events: none; z-index: 2;
+  }
+
+  #mobileControls { position: absolute; inset: 0; width: 100%; max-width: 100%; overflow: hidden; pointer-events: none; z-index: 15; display: none; }
+  #mobileControls.visible { display: block; }
+  .hud-widget { position: absolute; pointer-events: auto; transform-origin: center center; touch-action: none; }
+
+  /* MCPE Classic Touch D-Pad & Hold-to-Mine Ring */
+  #dpadZone {
+    display: none;
+    left: max(18px, env(safe-area-inset-left));
+    bottom: max(52px, env(safe-area-inset-bottom));
+    width: 156px; height: 156px;
+    pointer-events: auto;
+  }
+  #mobileControls.mode-classic #joyZone { display: none !important; }
+  #mobileControls.mode-classic #dpadZone { display: block !important; }
+  #mobileControls.mode-classic #btnAttack,
+  #mobileControls.mode-classic #btnPlace { display: none !important; }
+  /* Mode 3: Direct Touch (No Crosshair) + Square Translucent Joystick + ONLY Jump & Sneak on Right */
+  #mobileControls.mode-direct #joyZone { display: flex !important; }
+  #mobileControls.mode-direct #joyKnob {
+    background: rgba(206, 212, 222, 0.66);
+    border: 2px solid rgba(14, 16, 20, 0.85);
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.65), inset 0 -3px 0 rgba(68, 74, 86, 0.62);
+  }
+  #mobileControls.mode-direct #dpadZone,
+  #mobileControls.mode-direct #btnAttack,
+  #mobileControls.mode-direct #btnPlace,
+  #mobileControls.mode-direct #btnSprint { display: none !important; }
+  #btnContextPet {
+    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
+    height: 38px; padding: 0 16px; border-radius: 0;
+    background: rgba(28, 32, 40, 0.86); color: #fef08a;
+    border: 2px solid #0e1014;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(8, 10, 14, 0.68), 0 3px 10px rgba(0,0,0,0.55);
+    font-family: var(--font-pixel); font-size: 12.5px; font-weight: 700;
+    display: none; align-items: center; justify-content: center; gap: 6px;
+    pointer-events: auto; cursor: pointer; z-index: 32; white-space: nowrap;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  }
+  #btnContextPet.visible { display: flex; }
+  #btnContextPet:active { transform: translateX(-50%) scale(0.95); background: rgba(60, 133, 39, 0.88); color: #fff; }
+  #btnDragonMount {
+    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
+    height: 36px; padding: 0 18px; border-radius: 0;
+    background: linear-gradient(180deg, #4b9b34 0%, #347222 100%); color: #ffffff;
+    border: 2px solid #0e1014;
+    box-shadow: inset 2px 2px 0 rgba(163, 245, 107, 0.45), inset -2px -2px 0 rgba(20, 62, 12, 0.85), 0 3px 0 rgba(0,0,0,0.45);
+    font-family: var(--font-pixel); font-size: 13px; font-weight: 700; text-shadow: 1px 1px 0 #0b1b06;
+    display: none; align-items: center; justify-content: center; gap: 6px;
+    pointer-events: auto; cursor: pointer; z-index: 34; white-space: nowrap;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  }
+  #btnDragonMount.visible { display: flex; }
+  #btnDragonMount:active { transform: translateX(-50%) scale(0.95); }
+  #dragonGrowthWrap {
+    position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%);
+    min-width: 210px; max-width: min(280px, calc(100vw - 24px));
+    padding: 6px 10px; border-radius: 0;
+    background: rgba(28, 30, 34, 0.90); border: 2px solid #0e1014;
+    box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.16), inset -2px -2px 0 rgba(0, 0, 0, 0.62), 0 3px 0 rgba(0, 0, 0, 0.45);
+    color: #f8fafc; font-family: var(--font-pixel); font-size: 11px;
+    display: none; flex-direction: column; gap: 4px;
+    pointer-events: none; z-index: 33;
+  }
+  #dragonGrowthWrap.visible { display: flex; }
+  .dg-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700; color: #ffffff; text-shadow: 1px 1px 0 #000; }
+  .dg-head #dgPct { color: #80ff20; }
+  .dg-bar { width: 100%; height: 10px; background: #14161a; border: 2px solid #000; border-radius: 0; overflow: hidden; position: relative; }
+  .dg-bar::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(0, 0, 0, 0.55) calc(10% - 1px) 10%); }
+  #dragonGrowthFill { height: 100%; width: 0%; background: #62c432; box-shadow: inset 0 2px 0 #a3f56b, inset 0 -2px 0 #347a16; transition: width 0.2s ease; }
+  .dg-sub { font-size: 10px; color: #d0d4dc; display: flex; justify-content: flex-start; text-shadow: 1px 1px 0 #000; }
+  #dragonFlightHud {
+    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
+    display: none; align-items: center; gap: 6px; z-index: 35; pointer-events: auto;
+  }
+  #dragonFlightHud.visible { display: flex; }
+  .df-btn {
+    height: 36px; padding: 0 11px; border-radius: 0;
+    background: rgba(28, 32, 40, 0.86); color: #f8fafc;
+    border: 2px solid #0e1014;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(8, 10, 14, 0.7), 0 3px 10px rgba(0,0,0,0.5);
+    font-family: var(--font-pixel); font-size: 11.5px; font-weight: 700;
+    cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .df-btn:active, .df-btn.active { background: rgba(60, 133, 39, 0.88); box-shadow: inset 0 2px 0 rgba(134, 239, 172, 0.65), inset 0 -3px 0 rgba(26, 74, 18, 0.85); }
+  .df-btn.df-exit { background: rgba(153, 27, 27, 0.90); box-shadow: inset 0 2px 0 rgba(252, 165, 165, 0.45), inset 0 -3px 0 rgba(69, 10, 10, 0.85); }
+  body.touch-direct-no-crosshair #crosshairWrap { display: none !important; }
+  .dpad-btn {
+    position: absolute;
+    width: 48px; height: 48px;
+    background: rgba(28, 32, 40, 0.68);
+    border: 2px solid rgba(14, 16, 20, 0.92);
+    border-radius: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #f8fafc;
+    user-select: none; -webkit-user-select: none; touch-action: none;
+    contain: layout style;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.26), inset 0 -3px 0 rgba(8, 10, 14, 0.68), 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .dpad-btn svg { width: 20px; height: 20px; pointer-events: none; filter: drop-shadow(1px 1px 0 #000); }
+  .dpad-btn.active {
+    background: rgba(60, 133, 39, 0.88);
+    color: #ffffff;
+    box-shadow: inset 0 2px 0 rgba(134, 239, 172, 0.68), inset 0 -2px 0 rgba(26, 74, 18, 0.88);
+  }
+  .dpad-btn.active svg { transform: translateY(1px) scale(0.94); }
+  .dpad-up    { left: 54px; top: 2px; }
+  .dpad-down  { left: 54px; top: 106px; }
+  .dpad-left  { left: 2px;  top: 54px; }
+  .dpad-right { left: 106px; top: 54px; }
+  .dpad-mid   { left: 54px; top: 54px; background: rgba(22, 26, 33, 0.56); }
+  .dpad-mid.active { background: rgba(180, 83, 9, 0.88); box-shadow: inset 0 2px 0 rgba(253, 224, 71, 0.65), inset 0 -2px 0 rgba(120, 53, 15, 0.88); }
+  #mcTouchRing {
+    position: fixed; pointer-events: none; z-index: 60;
+    width: 66px; height: 66px; margin-left: -33px; margin-top: -33px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.82);
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.45);
+    display: none;
+    transform: scale(0.85);
+    transition: transform 0.08s ease;
+  }
+  #mcTouchRing.active { display: block; transform: scale(1.0); }
+  #eatProgressWrap {
+    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%);
+    width: 148px; height: 10px; background: rgba(15, 23, 42, 0.86);
+    border: 2px solid #000; border-radius: 3px; overflow: hidden;
+    display: none; pointer-events: none; z-index: 45;
+  }
+  #eatProgressWrap.active { display: block; }
+  #eatProgressFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #f59e0b, #fbbf24, #4ade80);
+    transition: width 0.05s linear;
+  }
+  .join-feedback-box {
+    margin-top: 6px; padding: 7px 10px; border-radius: 4px;
+    font-family: var(--font-mono); font-size: 12px; line-height: 1.35;
+    background: rgba(15, 23, 42, 0.75); border: 1px solid #475569; color: #e2e8f0;
+    display: none;
+  }
+  .join-feedback-box.visible { display: block; }
+  .join-feedback-box.err { border-color: #ef4444; background: rgba(127, 29, 29, 0.55); color: #fecaca; }
+  .join-feedback-box.ok  { border-color: #22c55e; background: rgba(20, 83, 45, 0.55); color: #bbf7d0; }
+  .join-feedback-box.wait{ border-color: #38bdf8; background: rgba(12, 74, 110, 0.55); color: #bae6fd; }
+  #joyZone {
+    width: 128px; height: 128px; background: rgba(18, 22, 28, 0.44);
+    border: 2px solid rgba(14, 16, 20, 0.90);
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.16), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.14);
+    display: flex; align-items: center; justify-content: center;
+    contain: layout style;
+  }
+  #joyZone.active {
+    background: rgba(22, 28, 36, 0.58);
+    border-color: rgba(134, 239, 172, 0.82);
+    box-shadow: inset 0 2px 0 rgba(134, 239, 172, 0.25), inset 0 -2px 0 rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(60, 133, 39, 0.65);
+  }
+  .joy-ticks {
+    position: absolute; inset: 10px; pointer-events: none; opacity: 0.34;
+    background:
+      linear-gradient(#f8fafc, #f8fafc) 50% 0 / 2px 8px no-repeat,
+      linear-gradient(#f8fafc, #f8fafc) 50% 100% / 2px 8px no-repeat,
+      linear-gradient(#f8fafc, #f8fafc) 0 50% / 8px 2px no-repeat,
+      linear-gradient(#f8fafc, #f8fafc) 100% 50% / 8px 2px no-repeat;
+  }
+  #joyKnob {
+    width: 54px; height: 54px;
+    background: linear-gradient(180deg, rgba(226, 229, 235, 0.92), rgba(168, 174, 184, 0.88));
+    border: 2px solid #0e1014;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.78), inset 0 -3px 0 rgba(78, 84, 96, 0.75), 0 2px 8px rgba(0,0,0,0.45);
+    pointer-events: none; will-change: transform;
+  }
+  #joyKnob.returning { transition: transform 0.09s ease-out; }
+
+  .mc-touch-btn {
+    width: 56px; height: 56px; border-radius: 0; padding: 0;
+    background: rgba(28, 32, 40, 0.68); color: #f8fafc;
+    border: 2px solid rgba(14, 16, 20, 0.92);
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28), inset 0 -3px 0 rgba(8, 10, 14, 0.68), 0 2px 8px rgba(0,0,0,0.42);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    contain: layout style;
+  }
+  .mc-touch-btn svg {
+    width: 28px; height: 28px; pointer-events: none;
+    filter: drop-shadow(1px 1px 0 #000);
+    transition: transform 0.06s ease-out;
+  }
+  .mc-touch-btn.pressed svg, .mc-touch-btn.toggled svg { transform: translateY(1.5px) scale(0.93); }
+  .mc-touch-btn.pressed, .mc-touch-btn.toggled {
+    background: rgba(60, 133, 39, 0.88);
+    border-color: #0e1014; color: #ffffff;
+    box-shadow: inset 0 2px 0 rgba(134, 239, 172, 0.68), inset 0 -2px 0 rgba(26, 74, 18, 0.88);
+  }
+  .mc-touch-btn.toggled { outline: 2px solid rgba(253, 224, 71, 0.92); outline-offset: -2px; }
+  #btnSneak.toggled, #btnSneak.pressed {
+    background: rgba(180, 83, 9, 0.88);
+    box-shadow: inset 0 2px 0 rgba(253, 224, 71, 0.65), inset 0 -2px 0 rgba(120, 53, 15, 0.88);
+  }
+  #btnAttack.pressed {
+    background: rgba(185, 28, 28, 0.88);
+    box-shadow: inset 0 2px 0 rgba(252, 165, 165, 0.62), inset 0 -2px 0 rgba(127, 29, 29, 0.88);
+  }
+  #btnPlace.pressed {
+    background: rgba(2, 132, 199, 0.88);
+    box-shadow: inset 0 2px 0 rgba(125, 211, 252, 0.65), inset 0 -2px 0 rgba(12, 74, 110, 0.88);
+  }
+
+  #mobileControls.editing .hud-widget { outline: 2px dashed #38bdf8; outline-offset: 2px; cursor: move; }
+  #mobileControls.editing .hud-widget.edit-selected { outline: 3px solid #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.7); }
+
+  #hudEditorBar {
+    position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    background: rgba(24, 24, 24, 0.94); border: 2px solid #fff; box-shadow: 0 6px 24px rgba(0,0,0,0.75);
+    padding: 8px 12px; z-index: 45; display: flex; flex-direction: column; gap: 7px;
+    width: min(460px, 94%); pointer-events: auto;
+  }
+  #hudEditorBar.hidden { display: none; }
+  .editor-head { font-size: 11px; color: #fde047; }
+  .editor-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-family: var(--font-mono); font-size: 16px; }
+  .editor-slider-box { display: flex; flex-direction: column; gap: 2px; }
+  .editor-slider-box input[type="range"] { width: 100%; accent-color: #52a535; }
+  .editor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .editor-actions .mc-btn { flex: 1; padding: 6px 8px; font-size: 10.5px; }
+
+  .modal-backdrop {
+    position: absolute; inset: 0; background: rgba(6, 10, 18, 0.76); backdrop-filter: none;
+    display: flex; align-items: center; justify-content: center; z-index: 40; padding: 10px;
+  }
+  #chestModal.modal-backdrop { background: rgba(6, 10, 18, 0.34); }
+  .modal-backdrop.hidden { display: none; }
+
+  /* Always-visible custom pixel scrollbar — prevents layout/scale shifting on hover */
+  .mc-panel::-webkit-scrollbar, #recipeGrid::-webkit-scrollbar, #tradeList::-webkit-scrollbar { width: 10px; height: 10px; }
+  .mc-panel::-webkit-scrollbar-track, #recipeGrid::-webkit-scrollbar-track, #tradeList::-webkit-scrollbar-track { background: #1e2430; border-left: 2px solid #0f131a; }
+  .mc-panel::-webkit-scrollbar-thumb, #recipeGrid::-webkit-scrollbar-thumb, #tradeList::-webkit-scrollbar-thumb { background: #64748b; border: 2px solid #1e2430; box-shadow: inset 1px 1px 0 #94a3b8; }
+  .mc-panel::-webkit-scrollbar-thumb:hover, #recipeGrid::-webkit-scrollbar-thumb:hover, #tradeList::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  .mc-panel {
+    width: min(620px, 96%); max-height: 94%; overflow-y: auto; scrollbar-gutter: stable;
+    background: linear-gradient(180deg, #273040 0%, #1d2430 100%); color: #e2e8f0; border: 3px solid #0b0f17;
+    box-shadow: inset 2px 2px 0 rgba(255,255,255,0.14), inset -2px -2px 0 rgba(0,0,0,0.45), 0 18px 50px rgba(0, 0, 0, 0.78);
+    padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; border-radius: 4px;
+  }
+  .mc-title { margin: 0; font-family: var(--font-pixel); font-size: 16px; letter-spacing: 0.3px; color: #f8fafc; text-shadow: 2px 2px 0 #090d14; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .mc-sub { margin: -2px 0 0; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: #eef2f7; }
+  /* Authentic Clean Vanilla Minecraft Inventory, Crafting Table, Furnace, Chest & Trade GUI */
+  .mc-gui-panel, #mainInvPanel {
+    width: 390px; box-sizing: border-box; position: relative;
+    background: #c6c6c6; color: #404040; border: 3px solid #1b1b1b;
+    box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 18px 48px rgba(0,0,0,0.78);
+    padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 0; border-radius: 3px;
+  }
+  #mainInvPanel { align-self: flex-start; }
+  .mc-gui-label {
+    font-family: var(--font-pixel); font-size: 13px; font-weight: 700;
+    color: #404040; line-height: 1.2; letter-spacing: 0.2px; text-shadow: none; user-select: none;
+  }
+  .mc-gui-center { text-align: center; }
+  .mc-inv-lbl { margin: 8px 0 4px 0; }
+  .mc-gui-close {
+    position: absolute; top: 5px; right: 6px; z-index: 6;
+    width: 22px; height: 22px; padding: 0;
+    background: transparent; border: 2px solid transparent;
+    color: #555555; font-family: var(--font-pixel); font-size: 13px; font-weight: 800; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .mc-gui-close:hover { background: #b2b2b2; border-color: #555555; color: #1b1b1b; }
+  .mc-gui-close:active { background: #9a9a9a; }
+  .mc-arrow-svg { display: block; flex-shrink: 0; image-rendering: pixelated; }
+
+  #equipRow { display: flex; align-items: stretch; gap: 0; padding: 0; margin-bottom: 12px; background: transparent; border: none; }
+  #armorCol { display: flex; flex-direction: column; gap: 0; }
+  .equip-slot {
+    position: relative; width: 40px; height: 40px; box-sizing: border-box; background: #8b8b8b;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .equip-slot .eq-ghost { font-size: 14px; opacity: 0.88; pointer-events: none; }
+  .equip-slot canvas { position: absolute; width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; z-index: 1; }
+  .equip-slot .slot-dur { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; background: #111; border-radius: 1px; overflow: hidden; pointer-events: none; z-index: 4; }
+  .equip-slot .slot-dur-fill { height: 100%; background: #22c55e; }
+  .equip-slot.shield-disabled::after { content: ''; position: absolute; inset: 0; background: rgba(239, 68, 68, 0.38); pointer-events: none; z-index: 5; }
+  #charPreviewBox {
+    width: 110px; height: 160px; margin-left: 2px; box-sizing: border-box; background: #000000;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  }
+  #charPreviewCanvas { width: 106px; height: 156px; display: block; cursor: grab; }
+  #equipRightCol { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-left: 2px; }
+  .mc-craft2-block { margin-left: 16px; margin-top: 2px; display: flex; flex-direction: column; gap: 4px; }
+  #craft2x2Wrap { display: flex; align-items: center; gap: 8px; }
+  #craftGrid2x2 { display: grid; grid-template-columns: repeat(2, 40px); grid-template-rows: repeat(2, 40px); gap: 0; }
+  #craftGrid2x2 .slot { width: 40px; height: 40px; }
+  #craftGrid2x2 .slot canvas { width: 30px; height: 30px; }
+  #craftOutputSlot2x2 { width: 40px; height: 40px; }
+  #craftOutputSlot2x2 canvas { width: 30px; height: 30px; }
+  #equipOffhandRow { display: flex; align-items: flex-end; gap: 16px; margin-top: auto; }
+  #invModal.mode-table #equipRow { display: none; }
+  #invModal.mode-backpack #craftArea { display: none; }
+  #invModal.mode-backpack #invTitleText,
+  #invModal.mode-backpack #invBagLabel { display: none; }
+  #invModal.mode-table #invTitleText { display: block; margin: 0 0 4px 58px; }
+  #invModal.mode-table #invBagLabel { display: block; margin: 8px 0 4px 0; }
+
+  /* Furnace / Blast Furnace / Smoker & Chest Modals */
+  #furnaceWorkArea { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 6px 0 4px; background: transparent; border: none; }
+  .furn-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .furn-slot { width: 40px; height: 40px; }
+  .furn-slot canvas { width: 32px; height: 32px; }
+  #furnOutputSlot { width: 52px; height: 52px; }
+  #furnOutputSlot canvas { width: 34px; height: 34px; }
+  .furn-slot.selected-furn { outline: 2px solid #ffffff; outline-offset: -2px; }
+  #furnFlameTrack { position: relative; width: 28px; height: 28px; background: transparent; border: none; }
+  #furnFlameTrack svg { display: block; width: 28px; height: 28px; image-rendering: pixelated; }
+  #furnFlameFill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; overflow: hidden; pointer-events: none; transition: none; }
+  #furnFlameFill svg { position: absolute; left: 0; bottom: 0; width: 28px; height: 28px; display: block; }
+  #furnArrowTrack { position: relative; width: 46px; height: 32px; background: transparent; border: none; }
+  #furnArrowTrack svg { display: block; width: 46px; height: 32px; image-rendering: pixelated; }
+  #furnArrowFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; overflow: hidden; pointer-events: none; transition: none; }
+  #furnArrowFill svg { position: absolute; left: 0; top: 0; width: 46px; height: 32px; display: block; }
+  #chestModalTitle { margin-bottom: 5px; }
+  #chestGrid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 0; width: 360px; max-height: 240px; overflow-y: auto; overflow-x: hidden; }
+  #chestGrid .slot { width: 100%; height: auto; aspect-ratio: 1; }
+  #chestGrid .slot canvas { width: 78%; height: 78%; }
+
+  /* Authentic 100% Minecraft Java Recipe Book Tabs & Controls */
+  #invModal, #furnaceModal, #chestModal, #tradeModal, #smithingModal { overflow: hidden; overflow-x: clip; overflow-y: clip; }
+  #invDualWrap { display: flex; align-items: flex-start; gap: 10px; flex-shrink: 0; transform-origin: center center; will-change: transform; }
+  #furnaceModal .mc-gui-panel, #chestModal .mc-gui-panel, #tradeModal .mc-gui-panel, #smithingModal .mc-gui-panel { flex-shrink: 0; transform-origin: center center; will-change: transform; }
+  #recipeBookWrap { display: flex; align-items: stretch; }
+  #recipeTabs { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin-top: 10px; margin-right: -4px; z-index: 3; }
+  .rc-tab {
+    position: relative; width: 50px; height: 42px;
+    background-color: transparent; background-image: var(--rb-tab-bg, none);
+    background-size: 56px 42px; background-position: left center; background-repeat: no-repeat;
+    border: none; padding: 0 2px 0 6px; margin: 0;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    image-rendering: pixelated; transition: width 0.08s steps(2);
+  }
+  .rc-tab.active {
+    width: 56px; z-index: 4; padding: 0 4px 0 4px;
+    background-image: var(--rb-tab-sel-bg, none);
+    background-size: 56px 42px;
+  }
+  .rc-tab .rc-ico-single { width: 26px; height: 26px; image-rendering: pixelated; display: block; pointer-events: none; }
+  .rc-tab .rc-ico-dual { position: relative; width: 32px; height: 28px; display: block; pointer-events: none; }
+  .rc-tab .rc-ico-dual img { position: absolute; width: 22px; height: 22px; image-rendering: pixelated; }
+  .rc-tab .rc-ico-dual .ico-a { left: 0; top: 1px; z-index: 1; }
+  .rc-tab .rc-ico-dual .ico-b { right: 0; bottom: 0; z-index: 2; }
+  .rc-tab canvas.rc-ico-block { width: 28px; height: 28px; image-rendering: pixelated; display: block; pointer-events: none; }
+
+  #recipePanel {
+    width: 294px; box-sizing: border-box;
+    background: #c6c6c6; border: 3px solid #1b1b1b;
+    box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555;
+    padding: 9px; display: flex; flex-direction: column; border-radius: 3px;
+  }
+  #recipeInner {
+    background: #373737; border: 2px solid #1b1b1b;
+    box-shadow: inset 2px 2px 0 #1f1f1f, inset -2px -2px 0 #5a5a5a;
+    padding: 7px 6px 7px 7px; display: flex; flex-direction: column; gap: 7px; height: 100%; box-sizing: border-box;
+  }
+  #recipeTopBar { display: flex; gap: 6px; align-items: center; padding-right: 4px; }
+  #recipeSearchWrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+  #recipeSearchIco { position: absolute; left: 6px; width: 16px; height: 16px; image-rendering: pixelated; pointer-events: none; }
+  #recipeSearch {
+    width: 100%; height: 28px; background: #141414; color: #f8fafc;
+    border: 2px solid #7a7a7a; box-shadow: inset 2px 2px 0 #090909;
+    font-family: var(--font-mono); font-size: 14px; font-style: italic; padding: 0 7px 0 26px; outline: none;
+  }
+  #recipeSearch:focus { border-color: #ffffff; font-style: normal; }
+  #btnFilterCraftable {
+    width: 46px; height: 28px; padding: 0; border: none; background-color: transparent;
+    background-image: var(--rb-filt-off, none);
+    background-size: 46px 28px; background-repeat: no-repeat; image-rendering: pixelated;
+    cursor: pointer; flex: 0 0 46px;
+  }
+  #btnFilterCraftable.active { background-image: var(--rb-filt-on, none); }
+  #btnFilterCraftable:hover { filter: brightness(1.12); }
+
+  #recipeGrid {
+    display: grid; grid-template-columns: repeat(5, 42px); justify-content: start; gap: 4px;
+    flex: 1; min-height: 190px; max-height: 430px; overflow-y: scroll; overflow-x: hidden; align-content: start;
+    padding: 4px 14px 6px 4px; box-sizing: border-box;
+  }
+  #recipeGrid::-webkit-scrollbar { width: 10px; }
+  #recipeGrid::-webkit-scrollbar-track { background: #262626; border-left: 2px solid #171717; }
+  #recipeGrid::-webkit-scrollbar-thumb { background: #9e9e9e; border: 1.5px solid #262626; box-shadow: inset 1.5px 1.5px 0 #dcdcdc; }
+  #recipeGrid::-webkit-scrollbar-thumb:hover { background: #bdbdbd; }
+  .rc-slot {
+    position: relative; width: 42px; height: 42px; box-sizing: border-box;
+    background: #5b2222; border: 2.5px solid #c53030;
+    box-shadow: inset 2px 2px 0 #3d1212, inset -2px -2px 0 #8a2c2c, 0 0 0 1px #180808;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .rc-slot.craftable {
+    background: #8f8f8f; border: 2.5px solid #ffffff;
+    box-shadow: inset 2px 2px 0 #5c5c5c, inset -2px -2px 0 #d8d8d8, 0 0 0 1px #181818;
+  }
+  .rc-slot.selected { outline: 2.5px solid #facc15; outline-offset: -1px; z-index: 2; }
+  .rc-slot:hover { filter: brightness(1.12); }
+  .rc-slot canvas { width: 30px; height: 30px; image-rendering: pixelated; pointer-events: none; }
+
+  #craftArea { display: flex; align-items: center; justify-content: flex-start; gap: 0; padding: 2px 0 4px; background: transparent; border: none; }
+  #btnToggleBook, #btnToggleBook2x2 {
+    width: 40px; height: 36px; background-color: transparent; border: none; padding: 0;
+    background-image: var(--rb-btn-bg, none);
+    background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+  }
+  #btnToggleBook { margin-left: 4px; margin-right: 14px; }
+  #btnToggleBook2x2 { width: 38px; height: 34px; margin-bottom: 2px; }
+  #btnToggleBook:hover, #btnToggleBook2x2:hover { background-image: var(--rb-btn-hi, var(--rb-btn-bg, none)); }
+  #craftGrid3x3 { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 40px); gap: 0; }
+  #craftGrid3x3 .slot { width: 40px; height: 40px; }
+  #craftGrid3x3 .slot canvas { width: 30px; height: 30px; }
+  #craftArea .mc-arrow-svg { margin: 0 22px; }
+  #craftOutputSlot { width: 52px; height: 52px; }
+  #craftOutputSlot canvas { width: 34px; height: 34px; }
+
+  .inv-grid-9 { display: grid; grid-template-columns: repeat(9, 40px); gap: 0; contain: layout style paint; }
+  .inv-grid-9 .slot { width: 40px; height: 40px; touch-action: none; }
+  .inv-grid-9 .slot canvas { width: 32px; height: 32px; }
+  #recipeGrid, #backpackGrid, #invHotbarGrid, #chestGrid { contain: layout style paint; }
+  .inv-gap { height: 8px; }
+  .slot.drop-hover, .equip-slot.drop-hover, #furnInputSlot.drop-hover, #furnFuelSlot.drop-hover { outline: 2px solid #86efac !important; outline-offset: -2px; background: #9db8a2 !important; z-index: 3; }
+  .slot.dragging-src, .equip-slot.dragging-src { opacity: 0.42; }
+  #charPreviewBox.drop-hover { border-color: #86efac !important; }
+  #recipeBookWrap.creative-trash-hover { outline: 3px solid #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.65); filter: brightness(1.08); }
+  .rc-slot { contain: layout style; touch-action: pan-y; }
+  .rc-slot.selected { outline: 2.5px solid #facc15; background: #8c7a3e !important; box-shadow: 0 0 8px rgba(250, 204, 21, 0.6); }
+  .inv-slot-touch, #invModal .slot, #invModal .equip-slot, #chestModal .slot, #furnaceModal .slot, #smithingModal .slot { touch-action: none; user-select: none; -webkit-user-select: none; }
+  #invDragGhost {
+    position: fixed; left: 0; top: 0; pointer-events: none; z-index: 9999; display: none;
+    flex-direction: column; align-items: center; will-change: transform; transition: none; transform: translate3d(-999px, -999px, 0);
+  }
+  #invDragGhost canvas { width: 42px; height: 42px; image-rendering: pixelated; }
+  #invDragGhost .ghost-cnt { position: absolute; right: 0; top: 24px; font-family: var(--font-pixel); font-size: 11px; color: #fff; text-shadow: 1.5px 1.5px 0 #000; }
+  #invDragGhost .ghost-drop-tag { display: none !important; }
+
+  /* Authentic Minecraft Dark-Purple Item Hover Tooltip */
+  #mcItemTooltip {
+    position: fixed; z-index: 10000; pointer-events: none; display: none;
+    padding: 4px 8px; background: rgba(16, 0, 16, 0.94);
+    border: 2px solid #2b0666;
+    box-shadow: 0 0 0 2px #100010, inset 0 1px 0 rgba(112, 40, 255, 0.55);
+    color: #ffffff; font-family: var(--font-pixel); font-size: 12.5px; font-weight: 700;
+    text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap; line-height: 1.25;
+  }
+
+  /* Villager Trade Modal */
+  #tradeModal .mc-gui-panel { gap: 6px; }
+  #tradeList {
+    display: flex; flex-direction: column; gap: 4px; max-height: 312px; overflow-y: auto;
+    background: #8b8b8b; padding: 4px;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+  }
+  .trade-row {
+    width: 100%; display: grid; grid-template-columns: 42px 34px 42px minmax(110px, 1fr); align-items: center; gap: 6px;
+    background: #c6c6c6; border: 2px solid #1b1b1b; padding: 4px 10px;
+    box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #555555; cursor: pointer;
+  }
+  .trade-row:hover:not(:disabled) { background: #d8d8d8; border-color: #ffffff; }
+  .trade-row:disabled { opacity: 0.65; cursor: not-allowed; }
+  .trade-slot {
+    position: relative; width: 36px; height: 36px; flex-shrink: 0; background: #8b8b8b; justify-self: center;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .trade-slot canvas { width: 28px; height: 28px; image-rendering: pixelated; pointer-events: none; }
+  .trade-name { font-family: var(--font-pixel); font-size: 11.5px; font-weight: 700; color: #404040; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 175px; }
+  .trade-arrow-wrap { position: relative; display: flex; align-items: center; justify-content: center; justify-self: center; flex-shrink: 0; }
+  .trade-cross { position: absolute; width: 18px; height: 18px; pointer-events: none; }
+
+  /* Smithing Table Modal (Matches Minecraft Upgrade Gear UI) */
+  #smithingModal .mc-gui-panel { gap: 4px; min-width: 392px; }
+  #smithHeaderRow { display: flex; align-items: center; gap: 10px; padding: 2px 24px 0 4px; }
+  #smithHammerBadge { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  #smithTopArea { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 6px; }
+  #smithControlsCol { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  #smithSlotRow { display: flex; align-items: center; gap: 6px; }
+  #smithArrowWrap { position: relative; width: 34px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  #smithArrowCross { position: absolute; width: 20px; height: 20px; pointer-events: none; display: none; }
+  #smithArrowCross.show { display: block; }
+  .smith-slot { position: relative; }
+  .smith-slot canvas { width: 30px; height: 30px; }
+  .smith-ghost-hint { position: absolute; inset: 4px; opacity: 0.34; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .smith-ghost-hint svg { width: 24px; height: 24px; image-rendering: pixelated; }
+  #smithRuleHint { font-family: var(--font-pixel); font-size: 10.5px; color: #404040; min-height: 14px; }
+  #smithPreviewBox {
+    width: 96px; height: 124px; flex-shrink: 0;
+    background: #0b0b0c; border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; cursor: ew-resize;
+  }
+  #smithPreviewCanvas { width: 92px; height: 120px; display: block; image-rendering: pixelated; }
+
+  .setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .setting-box { background: rgba(15, 23, 42, 0.55); border: 2px solid #0f172a; box-shadow: inset 1px 1px 0 rgba(255,255,255,0.08); padding: 7px 9px; display: flex; flex-direction: column; gap: 5px; border-radius: 3px; }
+  .setting-label { font-size: 11px; color: #bae6fd; font-weight: 700; letter-spacing: 0.4px; }
+  .seg-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg-btn {
+    flex: 1; min-width: 58px; padding: 5px 4px; background: #334155; border: 2px solid #0b0f17;
+    box-shadow: inset 1.5px 1.5px 0 #475569, inset -1.5px -1.5px 0 #1e293b;
+    color: #f1f5f9; text-shadow: 1px 1px 0 #000; font-family: var(--font-pixel); font-size: 8.5px; cursor: pointer;
+  }
+  .seg-btn:hover { background: #475569; }
+  .seg-btn.active { background: var(--mc-green); box-shadow: inset 2px 2px 0 var(--mc-green-light), inset -2px -2px 0 var(--mc-green-dark); }
+  .spawn-btn {
+    flex: 1; min-width: 78px; padding: 4.5px 5px; background: #334155; border: 2px solid #0b0f17;
+    box-shadow: inset 1.5px 1.5px 0 #64748b, inset -1.5px -1.5px 0 #1e293b;
+    color: #f8fafc; text-shadow: 1px 1px 0 #000; font-family: var(--font-pixel); font-size: 8px; cursor: pointer;
+  }
+  .spawn-btn:hover { background: #475569; border-color: #38bdf8; }
+  .modal-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .modal-actions .mc-btn { flex: 1; padding: 8px 9px; font-size: 10px; }
+
+  /* Hide in-game HUD cleanly while on the Minecraft Java Title Screen or Pause / Death Menu */
+  body.in-lobby #hud, body.in-lobby #crosshairWrap, body.in-lobby #mobileControls,
+  body.in-lobby #btnDragonMount, body.in-lobby #dragonGrowthWrap, body.in-lobby #dragonFlightHud,
+  body.in-menu #hud, body.in-menu #crosshairWrap, body.in-menu #mobileControls,
+  body.in-menu #btnDragonMount, body.in-menu #dragonGrowthWrap, body.in-menu #dragonFlightHud,
+  body.hud-hidden #hud, body.hud-hidden #crosshairWrap, body.hud-hidden #mobileControls,
+  body.hud-hidden #toast, body.hud-hidden #hudEditorBar, body.hud-hidden #friendReqBanner,
+  body.hud-hidden #btnDragonMount, body.hud-hidden #dragonGrowthWrap, body.hud-hidden #dragonFlightHud { display: none !important; }
+

@@ -1,0 +1,12 @@
+{
+  "name": "nucraft",
+  "version": "1.0.124",
+  "private": true,
+  "license": "MIT",
+  "description": "NUCRAFT Voxel Sandbox Multiplayer",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "node scripts/build.js",
+    "preview": "node server.js"
+  }
+}

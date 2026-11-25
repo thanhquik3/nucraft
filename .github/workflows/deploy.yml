@@ -1,4 +1,4 @@
-﻿name: Deploy NUCRAFT to GitHub Pages
+﻿name: Build and Deploy NUCRAFT to GitHub Pages
 on:
   push:
     branches: [main]
@@ -18,11 +18,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p _site && unzip -oq NUCRAFT_Web_Host.zip -d _site && touch _site/.nojekyll
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build web bundle from source
+        run: node scripts/build.js --no-exe
+      - name: Stage static web files
+        run: |
+          mkdir -p _site/css _site/shared _site/src/world _site/assets
+          cp index.html NUCRAFT.html manifest.json sw.js _site/
+          cp -r css/. _site/css/
+          cp -r shared/. _site/shared/
+          cp src/config.js _site/src/
+          cp src/world/chunkWorker.js _site/src/world/
+          cp -r assets/. _site/assets/
+          touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - run: sleep 15
       - id: deployment
         uses: actions/deploy-pages@v4
