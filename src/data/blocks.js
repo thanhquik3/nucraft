@@ -136,8 +136,8 @@ const {
     [B.GUNPOWDER]:     { name: 'Thuốc Súng',          hard: 0,    solid: false, itemOnly: true, voxelItem: true, tiles: [61, 61, 61], mapColor: '#6b7280' },
     [B.VOID_PEARL]:    { name: 'Ngọc Hư Không',       hard: 0,    solid: false, itemOnly: true, voxelItem: true, pearl: true, tiles: [62, 62, 62], mapColor: '#c026d3' },
     [B.MAGMA_CORE]:    { name: 'Lõi Dung Nham',       hard: 0,    solid: false, itemOnly: true, voxelItem: true, tiles: [63, 63, 63], mapColor: '#f97316' },
-    [B.BOW]:           { name: 'Cung Tên',            hard: 0,    solid: false, tool: 'bow', voxelItem: true, dmg: 6.5, maxDur: 200, tiles: [64, 64, 64], mapColor: '#a16207' },
-    [B.ARROW]:         { name: 'Mũi Tên Sắt',         hard: 0,    solid: false, itemOnly: true, voxelItem: true, tiles: [65, 65, 65], mapColor: '#e2e8f0' },
+    [B.BOW]:           { name: 'Cung Tên',            hard: 0,    solid: false, tool: 'bow', voxelItem: true, customAtlasTex: true, dmg: 6.5, maxDur: 200, tiles: [64, 64, 64], mapColor: '#a16207' },
+    [B.ARROW]:         { name: 'Mũi Tên Sắt',         hard: 0,    solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [65, 65, 65], mapColor: '#e2e8f0' },
     [B.IRON_ARMOR]:    { name: 'Áo Giáp Sắt (+6)',    hard: 0,    solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 6, armorTier: 'iron', tiles: [66, 66, 66], mapColor: '#cbd5e1' },
     [B.DIAMOND_ARMOR]: { name: 'Áo Giáp Kim Cương (+8)',hard: 0,  solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 8, toughness: 2, maxDur: 528, armorTier: 'diamond', tiles: [67, 67, 67], mapColor: '#22d3ee' },
     [B.FIRE_SWORD]:    { name: 'Kiếm Lửa Dung Nham',  hard: 0,    solid: false, tool: 'sword', voxelItem: true, mineMul: 1.8, dmg: 8.5, fireDmg: true, maxDur: 450, tiles: [68, 68, 68], mapColor: '#fb923c' },
@@ -562,7 +562,7 @@ const {
     [B.DRAGON_BONE_SWORD]:   { name: 'Kiếm Xương Rồng',                    hard: 0, solid: false, tool: 'sword', voxelItem: true, mineMul: 2.8,  dmg: 14.0, fireDmg: true, maxDur: 2600, tiles: [500, 500, 500], mapColor: '#f5f5f4' },
     [B.DRAGON_BONE_AXE]:     { name: 'Rìu Chiến Xương Rồng',               hard: 0, solid: false, tool: 'axe',   voxelItem: true, mineMul: 14.5, dmg: 12.5, maxDur: 2600, tiles: [501, 501, 501], mapColor: '#f5f5f4' },
     [B.DRAGON_BONE_PICK]:    { name: 'Cuốc Xương Rồng (Cấp 6)',            hard: 0, solid: false, tool: 'pick',  pickTier: 6, voxelItem: true, mineMul: 15.0, dmg: 7.0, maxDur: 2600, tiles: [502, 502, 502], mapColor: '#f5f5f4' },
-    [B.DRAGON_BONE_BOW]:     { name: 'Cung Xương Rồng',                    hard: 0, solid: false, tool: 'bow',   voxelItem: true, dmg: 11.5, maxDur: 1800, tiles: [503, 503, 503], mapColor: '#f5f5f4' }
+    [B.DRAGON_BONE_BOW]:     { name: 'Cung Xương Rồng',                    hard: 0, solid: false, tool: 'bow',   voxelItem: true, customAtlasTex: true, dmg: 11.5, maxDur: 1800, tiles: [503, 503, 503], mapColor: '#f5f5f4' }
   };
 
   // Register 15 new colored Wools, 15 colored Beds (+ hidden foots) & all Wood/Stone/Earth Building Slabs!
@@ -610,7 +610,7 @@ const {
   BLOCK_DEF[B.PURPUR_PILLAR]    = { name: 'Cột Purpur', nameEn: 'Purpur Pillar', hard: 1.6, solid: true, reqTool: 'pick', tiles: [512, 513, 512], mapColor: '#a878a8' };
   BLOCK_DEF[B.END_ROD]          = { name: 'Đèn Thanh End Rod', nameEn: 'End Rod', hard: 0.2, solid: false, subBlock: true, endRod: true, trans: true, emissive: 0.95, light: 14, tiles: [514, 514, 515], mapColor: '#f8fafc' };
   BLOCK_DEF[B.DRAGON_HEAD]      = { name: 'Đầu Rồng End', nameEn: 'Dragon Head', hard: 1.0, solid: true, dragonHead: true, armorSlot: 'helmet', armorVal: 3, equipTier: 'dragon_head', customAtlasTex: true, tiles: [516, 516, 516], mapColor: '#1f1b24' };
-  BLOCK_DEF[B.ELYTRA]           = { name: 'Cánh Cứng Elytra', nameEn: 'Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, armorSlot: 'chest', armorVal: 0, equipTier: 'elytra', isElytra: true, maxDur: 432, tiles: [517, 517, 517], mapColor: '#7c7b96' };
+  BLOCK_DEF[B.ELYTRA]           = { name: 'Cánh Cứng Elytra', nameEn: 'Elytra', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, armorSlot: 'chest', armorVal: 0, equipTier: 'elytra', isElytra: true, maxDur: 432, tiles: [517, 517, 517], mapColor: '#7c7b96' };
   BLOCK_DEF[B.ENDER_DRAGON_EGG] = { name: 'Trứng Rồng End', nameEn: 'Dragon Egg', hard: 3.0, solid: true, dragonEgg: 'ender', eggPal: { base: 0x0b0812, shell: 0x181024, band: 0x3b1254, spot: 0xc026d3 }, light: 5, emissive: 0.35, tiles: [447, 447, 447], mapColor: '#110b19' };
   BLOCK_DEF[B.WINDMILL_HUB]     = { name: 'Trục Cối Xoay Gió', nameEn: 'Windmill Hub', hard: 2.0, solid: true, windmillHub: true, customAtlasTex: true, tiles: [518, 518, 518], mapColor: '#7c5332' };
   BLOCK_DEF[B.RED_SAND]            = { name: 'Cát Đỏ (Red Sand)',           nameEn: 'Red Sand',           hard: 0.45, solid: true,  dirt: true, customAtlasTex: true, drop: B.RED_SAND, tiles: [519, 519, 519], mapColor: '#be5b24' };
@@ -661,6 +661,56 @@ const {
         armorSlot: sl, armorVal: val, toughness: 4.0, kbResist: 0.12, maxDur: dur,
         armorTier: tierKey, dragonElemSet: elKey.toLowerCase(), customAtlasTex: true,
         tiles: [tile, tile, tile], mapColor: elHex
+      };
+    }
+  }
+
+  // v129: 5th Dimension ('warden') Blocks, Tier-6+ Ores, Materials, Mob Drops, Bows, Tools & 3 Armor Sets
+  BLOCK_DEF[B.SOUL_FLINT_AND_STEEL] = { name: 'Bật Lửa Linh Hồn (Kích Hoạt Cổng Warden)', nameEn: 'Soul Flint & Steel', hard: 0, solid: false, tool: 'flint_steel', soulSteel: true, voxelItem: true, customAtlasTex: true, maxDur: 96, tiles: [545, 545, 545], mapColor: '#22d3ee' };
+  BLOCK_DEF[B.WARDEN_PORTAL]        = { name: 'Cổng Không Gian Warden', nameEn: 'Warden Portal', hard: 99, solid: false, trans: true, portal: true, wardenPortal: true, emissive: 0.94, light: 12, unbreakable: true, customAtlasTex: true, tiles: [546, 546, 546], mapColor: '#0e7490' };
+  BLOCK_DEF[B.WARDEN_SCULK_STONE]   = { name: 'Đá Sculk Cổ Thành (Warden Stone)', nameEn: 'Warden Sculk Stone', hard: 3.4, solid: true, rock: true, blastResist: true, reqTier: 4, customAtlasTex: true, drop: B.WARDEN_SCULK_STONE, tiles: [547, 547, 547], mapColor: '#0f252e' };
+  BLOCK_DEF[B.SCULK_LOG]            = { name: 'Thân Cây Sculk Cổ Đại', nameEn: 'Sculk Log', hard: 1.45, solid: true, wood: true, isLog: true, customAtlasTex: true, drop: B.SCULK_LOG, tiles: [548, 549, 548], mapColor: '#13323e' };
+  BLOCK_DEF[B.SCULK_PLANKS]         = { name: 'Ván Gỗ Sculk', nameEn: 'Sculk Planks', hard: 1.0, solid: true, wood: true, isPlanks: true, customAtlasTex: true, drop: B.SCULK_PLANKS, tiles: [550, 550, 550], mapColor: '#1a4250' };
+  BLOCK_DEF[B.SCULK_LEAVES]         = { name: 'Lá Cây Phát Sáng Sculk', nameEn: 'Sculk Leaves', hard: 0.30, solid: true, foliage: true, leaves: true, neutralLeaf: true, trans: true, shearsOnly: true, light: 3, customAtlasTex: true, drop: B.SCULK_LEAVES, tiles: [551, 551, 551], mapColor: '#0d7485' };
+  BLOCK_DEF[B.UMBRA_ORE]            = { name: 'Quặng Umbra Warden (Cúp Cấp 6+)', nameEn: 'Umbra Ore', hard: 28.0, solid: true, rock: true, oreBlock: true, reqTier: 6, siftOre: true, xp: 18, light: 6, customAtlasTex: true, drop: B.UMBRA_INGOT, tiles: [552, 552, 552], mapColor: '#6d28d9' };
+  BLOCK_DEF[B.RESONANT_ORE]         = { name: 'Quặng Cộng Hưởng Sculk (Cúp Cấp 6+)', nameEn: 'Resonant Sculk Ore', hard: 32.0, solid: true, rock: true, oreBlock: true, reqTier: 6, siftOre: true, xp: 22, light: 8, customAtlasTex: true, drop: B.SCULK_RESONANT_GEM, tiles: [553, 553, 553], mapColor: '#06b6d4' };
+  BLOCK_DEF[B.SOULFORGED_ORE]       = { name: 'Quặng Soulforged Cổ Thành (Cúp Cấp 6+)', nameEn: 'Soulforged Ore', hard: 36.0, solid: true, rock: true, oreBlock: true, reqTier: 6, siftOre: true, xp: 28, light: 10, fireImmune: true, customAtlasTex: true, drop: B.SOULFORGED_ORE, tiles: [554, 554, 554], mapColor: '#38bdf8' };
+  BLOCK_DEF[B.UMBRA_INGOT]          = { name: 'Thỏi Umbra Warden', nameEn: 'Umbra Ingot', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [555, 555, 555], mapColor: '#7c3aed' };
+  BLOCK_DEF[B.SCULK_RESONANT_GEM]   = { name: 'Ngọc Cộng Hưởng Sculk', nameEn: 'Resonant Gem', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [556, 556, 556], mapColor: '#22d3ee' };
+  BLOCK_DEF[B.SOULFORGED_INGOT]     = { name: 'Thỏi Soulforged Bất Diệt', nameEn: 'Soulforged Ingot', hard: 0, solid: false, itemOnly: true, voxelItem: true, fireImmune: true, customAtlasTex: true, tiles: [557, 557, 557], mapColor: '#0ea5e9' };
+  BLOCK_DEF[B.WARDEN_CHITIN]        = { name: 'Giáp Vỏ Sculk Chitin', nameEn: 'Warden Chitin', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [558, 558, 558], mapColor: '#0e7490' };
+  BLOCK_DEF[B.SOUL_RESONATOR]       = { name: 'Lõi Sóng Âm Sentinel', nameEn: 'Soul Resonator', hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [559, 559, 559], mapColor: '#67e8f9' };
+  BLOCK_DEF[B.SCULK_HEART]          = { name: 'Trái Tim Linh Hồn Warden', nameEn: 'Sculk Heart', hard: 0, solid: false, itemOnly: true, voxelItem: true, fireImmune: true, customAtlasTex: true, tiles: [560, 560, 560], mapColor: '#22d3ee' };
+
+  BLOCK_DEF[B.SCULK_CHITIN_SWORD]   = { name: 'Kiếm Sculk Chitin', nameEn: 'Sculk Chitin Sword', hard: 0, solid: false, tool: 'sword', voxelItem: true, customAtlasTex: true, mineMul: 3.4, dmg: 14.5, maxDur: 2800, tiles: [561, 561, 561], mapColor: '#0e7490' };
+  BLOCK_DEF[B.SCULK_CHITIN_PICK]    = { name: 'Cúp Sculk Chitin (Cấp 7)', nameEn: 'Sculk Chitin Pickaxe', hard: 0, solid: false, tool: 'pick', pickTier: 7, voxelItem: true, customAtlasTex: true, mineMul: 16.5, dmg: 7.5, maxDur: 2800, tiles: [562, 562, 562], mapColor: '#0e7490' };
+  BLOCK_DEF[B.SCULK_CHITIN_AXE]     = { name: 'Rìu Sculk Chitin', nameEn: 'Sculk Chitin Axe', hard: 0, solid: false, tool: 'axe', voxelItem: true, customAtlasTex: true, mineMul: 16.0, dmg: 13.0, maxDur: 2800, tiles: [563, 563, 563], mapColor: '#0e7490' };
+  BLOCK_DEF[B.SCULK_ECHO_BOW]       = { name: 'Cung Vang Sculk Echo', nameEn: 'Sculk Echo Bow', hard: 0, solid: false, tool: 'bow', voxelItem: true, customAtlasTex: true, dmg: 11.5, maxDur: 2400, tiles: [564, 564, 564], mapColor: '#22d3ee' };
+
+  BLOCK_DEF[B.RESONANT_SWORD]       = { name: 'Kiếm Cộng Hưởng Sculk', nameEn: 'Resonant Sword', hard: 0, solid: false, tool: 'sword', voxelItem: true, customAtlasTex: true, mineMul: 3.8, dmg: 17.5, maxDur: 3600, tiles: [565, 565, 565], mapColor: '#22d3ee' };
+  BLOCK_DEF[B.RESONANT_PICK]        = { name: 'Cúp Cộng Hưởng Sculk (Cấp 7)', nameEn: 'Resonant Pickaxe', hard: 0, solid: false, tool: 'pick', pickTier: 7, voxelItem: true, customAtlasTex: true, mineMul: 20.5, dmg: 8.5, maxDur: 3600, tiles: [566, 566, 566], mapColor: '#22d3ee' };
+  BLOCK_DEF[B.RESONANT_AXE]         = { name: 'Rìu Cộng Hưởng Sculk', nameEn: 'Resonant Axe', hard: 0, solid: false, tool: 'axe', voxelItem: true, customAtlasTex: true, mineMul: 19.5, dmg: 15.5, maxDur: 3600, tiles: [567, 567, 567], mapColor: '#22d3ee' };
+  BLOCK_DEF[B.DEEP_SONIC_BOW]       = { name: 'Cung Sóng Âm Deep Sonic', nameEn: 'Deep Sonic Bow', hard: 0, solid: false, tool: 'bow', voxelItem: true, customAtlasTex: true, dmg: 14.0, maxDur: 3200, tiles: [568, 568, 568], mapColor: '#67e8f9' };
+
+  BLOCK_DEF[B.SOULFORGED_SWORD]     = { name: 'Kiếm Soulforged Warden', nameEn: 'Soulforged Sword', hard: 0, solid: false, tool: 'sword', voxelItem: true, fireImmune: true, customAtlasTex: true, mineMul: 4.5, dmg: 21.5, maxDur: 4800, tiles: [569, 569, 569], mapColor: '#38bdf8' };
+  BLOCK_DEF[B.SOULFORGED_PICK]      = { name: 'Cúp Soulforged Warden (Cấp 8)', nameEn: 'Soulforged Pickaxe', hard: 0, solid: false, tool: 'pick', pickTier: 8, voxelItem: true, fireImmune: true, customAtlasTex: true, mineMul: 25.5, dmg: 10.0, maxDur: 4800, tiles: [570, 570, 570], mapColor: '#38bdf8' };
+  BLOCK_DEF[B.SOULFORGED_AXE]       = { name: 'Rìu Chiến Soulforged Warden', nameEn: 'Soulforged Axe', hard: 0, solid: false, tool: 'axe', voxelItem: true, fireImmune: true, customAtlasTex: true, mineMul: 23.5, dmg: 18.0, maxDur: 4800, tiles: [571, 571, 571], mapColor: '#38bdf8' };
+  BLOCK_DEF[B.SOUL_HARBINGER_BOW]   = { name: 'Cung Hồn Phán Quyết Harbinger', nameEn: 'Soul Harbinger Bow', hard: 0, solid: false, tool: 'bow', voxelItem: true, fireImmune: true, customAtlasTex: true, dmg: 17.0, maxDur: 4200, tiles: [572, 572, 572], mapColor: '#c084fc' };
+
+  for (const [wKey, wVi, wEn, wTier, wHex, wTough, wKb, wDur, wFire, wVals] of [
+    ['WARDEN_CHITIN', 'Vỏ Sculk',    'Warden Chitin', 'warden_chitin',     '#0e7490', 4.0, 0.08, 2800, false, [5, 9, 7, 4]],
+    ['RESONANT',      'Cộng Hưởng',  'Resonant',      'warden_resonant',   '#22d3ee', 4.5, 0.10, 3600, false, [5, 10, 8, 5]],
+    ['SOULFORGED',    'Soulforged',  'Soulforged',    'warden_soulforged', '#38bdf8', 5.0, 0.14, 4800, true,  [6, 12, 9, 5]]
+  ]) {
+    for (const [si, slotKey, slotVi, slotEn] of [[0, 'HELMET', 'Mũ', 'Helmet'], [1, 'CHEST', 'Áo', 'Chestplate'], [2, 'LEGS', 'Quần', 'Leggings'], [3, 'BOOTS', 'Giày', 'Boots']]) {
+      const sl = slotKey === 'CHEST' ? 'chest' : (slotKey === 'HELMET' ? 'helmet' : (slotKey === 'LEGS' ? 'legs' : 'boots'));
+      const tile = 573 + si;
+      BLOCK_DEF[B[`${wKey}_${slotKey}`]] = {
+        name: `${slotVi} Giáp ${wVi} (+${wVals[si]})`, nameEn: `${wEn} ${slotEn}`,
+        hard: 0, solid: false, itemOnly: true, voxelItem: true, fireImmune: wFire,
+        armorSlot: sl, armorVal: wVals[si], toughness: wTough, kbResist: wKb, maxDur: wDur,
+        armorTier: wTier, wardenSet: wKey.toLowerCase(), customAtlasTex: true,
+        tiles: [tile, tile, tile], mapColor: wHex
       };
     }
   }

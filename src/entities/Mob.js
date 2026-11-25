@@ -254,7 +254,7 @@
     if (_coreGlbsPreloaded || window.BLENDER_MOB_GLBS) return;
     if (!(location.protocol === 'http:' || location.protocol === 'https:')) return;
     _coreGlbsPreloaded = true;
-    const keys = ['pig', 'cow', 'sheep', 'wolf', 'creeper', 'spider', 'enderman', 'iron_golem'];
+    const keys = ['pig', 'cow', 'sheep', 'wolf', 'creeper', 'spider', 'enderman', 'iron_golem', 'ender_dragon', 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager'];
     let idx = 0;
     const scheduleIdle = (typeof requestIdleCallback === 'function')
       ? (cb) => requestIdleCallback(cb, { timeout: 500 })
@@ -3274,7 +3274,7 @@
       hopper: sp[10].includes('h'), glow: sp[10].includes('g')
     });
   }
-  const FIRE_IMMUNE_MOBS = new Set(['magma_golem', 'redstone_monstrosity', 'blaze', 'wildfire', 'ghast', 'baby_ghast', 'hoglin', 'piglin', 'piglin_brute', 'zombified_piglin', 'wither_skeleton', 'wither_knight', 'wither', 'ender_dragon', 'fire_dragon', 'water_dragon', 'strider', 'magma_cube', 'zoglin', 'soul_wisp', 'copper_golem', 'cave_warden']);
+  const FIRE_IMMUNE_MOBS = new Set(['magma_golem', 'redstone_monstrosity', 'blaze', 'wildfire', 'ghast', 'baby_ghast', 'hoglin', 'piglin', 'piglin_brute', 'zombified_piglin', 'wither_skeleton', 'wither_knight', 'wither', 'ender_dragon', 'fire_dragon', 'water_dragon', 'strider', 'magma_cube', 'zoglin', 'soul_wisp', 'copper_golem', 'cave_warden', 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager']);
   const IS_DRAGON_MOB = new Set(['ender_dragon', 'ice_dragon', 'fire_dragon', 'earth_dragon', 'water_dragon', 'leaf_dragon', 'tree_dragon']);
 
   // Tameable Cute Pets (Birds, Cats, Dogs/Wolves, Foxes, Sheep & Special Companions!)
@@ -3500,6 +3500,10 @@
     leaf_dragon:     { displayName: 'Rồng Lá',       hostile: true, hp: 410, speed: 6.90, r: 2.35, h: 2.9, dmg: 7.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ',       bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
     tree_dragon:     { displayName: 'Rồng Cổ Thụ',   hostile: true, hp: 460, speed: 6.50, r: 2.40, h: 3.0, dmg: 8.0, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CỔ THỤ',   bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
     cave_warden:     { hostile: true,  hp: 500, speed: 2.85, r: 0.72, h: 2.85, dmg: 16.0, isBoss: true, noSunBurn: true, displayName: 'Warden', bossLabel: '💀 WARDEN — QUÁI THÚ DEEP DARK', bossGrad: 'linear-gradient(90deg, #064e63, #0891b2, #22d3ee)' },
+    sculk_stalker:      { hostile: true, hp: 200, speed: 3.45, r: 0.56, h: 2.05, dmg: 14.0, noSunBurn: true, displayName: 'Thợ Săn Sculk Stalker' },
+    sculk_brute:        { hostile: true, hp: 450, speed: 2.55, r: 0.85, h: 2.65, dmg: 20.0, noSunBurn: true, chargeKnock: true, displayName: 'Khổng Lồ Sculk Brute' },
+    sculk_sentinel:     { hostile: true, hp: 320, speed: 2.35, r: 0.72, h: 2.55, dmg: 16.0, noSunBurn: true, ranged: 'sonic_boom', displayName: 'Vệ Binh Sculk Sentinel' },
+    sculk_soul_ravager: { hostile: true, hp: 1000, speed: 2.80, r: 1.05, h: 3.10, dmg: 26.0, isBoss: true, chargeKnock: true, ranged: 'sonic_boom', noSunBurn: true, bossLabel: '👁️ SCULK SOUL RAVAGER • CHÚA TỂ CỔ THÀNH', bossGrad: 'linear-gradient(90deg, #064e63, #0e7490, #22d3ee)', displayName: 'Sculk Soul Ravager' },
     // v22 4 Brand-New Nether Mobs + 4 Brand-New End City Mobs (Cute Project-Verdant Blender Voxel Style!)
     strider:         { hostile: false, hp: 20,  speed: 2.15, r: 0.58, h: 1.45, dmg: 0,   noSunBurn: true, displayName: 'Strider Dung Nham' },
     magma_cube:      { hostile: true,  hp: 24,  speed: 2.20, r: 0.68, h: 1.05, dmg: 4.5, noSunBurn: true, hopper: true, displayName: 'Khối Magma Cube' },
@@ -4308,6 +4312,12 @@
         else if (r < 0.90) type = 'void_golem';
         else { type = 'end_phantom'; spawnY += 6.0; }
       }
+    } else if (currentDimension === 'warden') {
+      if (hostileCnt >= hostileCap) return;
+      if (!hasBoss && r > 0.90) type = 'sculk_soul_ravager';
+      else if (r < 0.36) type = 'sculk_stalker';
+      else if (r < 0.70) type = 'sculk_sentinel';
+      else type = 'sculk_brute';
     } else if (biome === BIOMES.ABANDONED_CITY) {
       if (hostileCnt >= hostileCap) return;
       if (r < 0.40) type = 'ruin_stalker';
@@ -4920,6 +4930,16 @@
         spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 50);
         spawnParticles(mob.x, mob.y + 1.5, mob.z, mob.type === 'dream_warden' ? 0xe879f9 : 0x22d3ee, 24, true);
         showToast(mob.type === 'dream_warden' ? '🏆 ĐÃ HẠ GỤC VỆ THẦN GIẤC MƠ!' : '🏆 ĐÃ HẠ GỤC WARDEN THÀNH PHỐ CỔ!');
+      }
+      else if (mob.type === 'sculk_stalker' || mob.type === 'sculk_brute' || mob.type === 'sculk_sentinel' || mob.type === 'sculk_soul_ravager') {
+        const isRav = (mob.type === 'sculk_soul_ravager');
+        const dropId = (mob.type === 'sculk_stalker') ? (B.WARDEN_CHITIN || B.ECHO_SHARD)
+          : ((mob.type === 'sculk_sentinel') ? (B.SOUL_RESONATOR || B.ECHO_SHARD) : (B.SCULK_HEART || B.ECHO_SHARD));
+        spawnDroppedItem(bx, by, bz, dropId, { count: isRav ? 3 : (1 + ((Math.random() * 2) | 0)) });
+        if (isRav && B.SCULK_RESONANT_GEM) spawnDroppedItem(bx, by, bz, B.SCULK_RESONANT_GEM, { count: 2 });
+        spawnDroppedItem(bx, by, bz, B.ECHO_SHARD, { count: isRav ? 6 : 2 });
+        spawnParticles(mob.x, mob.y + 1.4, mob.z, 0x22d3ee, isRav ? 28 : 12, true);
+        if (isRav) { spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 90); showToast('🏆 ĐÃ HẠ GỤC BOSS SCULK SOUL RAVAGER!'); }
       }
       else if (mob.type === 'magma_golem') { spawnDroppedItem(bx, by, bz, B.MAGMA_CORE); spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); spawnDroppedItem(bx, by, bz, B.DIAMOND); showToast('🏆 ĐÃ HẠ GỤC BOSS GOLEM DUNG NHAM!'); }
       else if (mob.type === 'redstone_monstrosity') { spawnDroppedItem(bx, by, bz, B.REDSTONE, { count: 6 }); spawnDroppedItem(bx, by, bz, B.DIAMOND, { count: 2 }); spawnDroppedItem(bx, by, bz, B.MAGMA_CORE); spawnXpOrbs(mob.x, mob.y + 1.2, mob.z, 45); showToast('🏆 ĐÃ HẠ GỤC BOSS REDSTONE MONSTROSITY!'); }
@@ -6648,7 +6668,7 @@
           } else if (dist3D < 17.5 && (!isSJ || dist >= 2.2) && m.atkCd <= 0) {
             m.atkCd = m.type === 'shulker' ? 2.4 : (m.type === 'witch' || m.type === 'evoker' || m.type === 'iceologer' ? 2.1 : 1.85);
             m.atkAnimT = 0.45;
-            const isOrb = (m.ranged === 'shulker_bolt' || m.ranged === 'evoker_fang' || m.ranged === 'witch_potion' || m.ranged === 'ice_shard' || m.ranged === 'trident' || m.ranged === 'blaze_fire' || m.ranged === 'poison_arrow');
+            const isOrb = (m.ranged === 'shulker_bolt' || m.ranged === 'evoker_fang' || m.ranged === 'witch_potion' || m.ranged === 'ice_shard' || m.ranged === 'trident' || m.ranged === 'blaze_fire' || m.ranged === 'poison_arrow' || m.ranged === 'sonic_boom');
             const pSpd = isOrb ? 16.5 : 20.0;
             const fireY = m.y + (isSJ ? 1.55 : (isOrb ? 1.15 : 1.35));
             const aimSpread = worldDifficulty === 'hard' ? 0.008 : (worldDifficulty === 'easy' ? 0.032 : 0.015);

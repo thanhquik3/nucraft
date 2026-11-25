@@ -761,7 +761,9 @@
         startScreenPointer('mouse', e.clientX, e.clientY);
       } else if (e.button === 2) {
         e.preventDefault();
-        handlePlaceOrEat(e.clientX, e.clientY);
+        const _hs = inventory[player.selectedSlot], _hd = (_hs && _hs.count > 0) ? BLOCK_DEF[_hs.id] : null;
+        if (_hd && _hd.tool === 'bow' && typeof startBowDraw === 'function') startBowDraw(e.clientX, e.clientY);
+        else handlePlaceOrEat(e.clientX, e.clientY);
       }
       return;
     }
@@ -774,13 +776,21 @@
       e.preventDefault();
     } else if (e.button === 2) {
       e.preventDefault();
-      handlePlaceOrEat();
+      const _hs = inventory[player.selectedSlot], _hd = (_hs && _hs.count > 0) ? BLOCK_DEF[_hs.id] : null;
+      if (_hd && _hd.tool === 'bow' && typeof startBowDraw === 'function') startBowDraw();
+      else handlePlaceOrEat();
     }
   });
   window.addEventListener('mouseup', (e) => {
     if (_mouseTouchSimActive && e.button === 0) {
       _mouseTouchSimActive = false;
       endScreenPointer('mouse', e.clientX, e.clientY);
+      return;
+    }
+    if (e.button === 2) {
+      if (player.bowDrawing && typeof releaseBowDraw === 'function') {
+        releaseBowDraw(showMobileControls ? e.clientX : null, showMobileControls ? e.clientY : null);
+      }
       return;
     }
     if (e.button === 0) {
@@ -867,6 +877,7 @@
     if (classicMiningActive) { classicMiningActive = false; mining.active = false; }
     mining.touchX = null; mining.touchY = null;
     if (touchEatingActive) { touchEatingActive = false; eatState.active = false; syncEatBarUI(); }
+    if (touchBowActive && typeof player !== 'undefined' && player.bowDrawing && typeof cancelBowDraw === 'function') cancelBowDraw();
     touchBowActive = false; touchBowCd = 0;
     if (mcTouchRing) mcTouchRing.classList.remove('active');
   }
@@ -874,15 +885,14 @@
   function updateTouchBow(dt) {
     if (!touchBowActive) return;
     if (!isPlaying || player.dead || lookTouchId === null || mobileCtrlMode !== 'touch_direct') {
+      if (typeof cancelBowDraw === 'function') cancelBowDraw();
       touchBowActive = false; return;
     }
     const slot = inventory[player.selectedSlot];
     const def = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
-    if (!def || def.tool !== 'bow') { touchBowActive = false; return; }
-    touchBowCd -= dt;
-    if (touchBowCd <= 0) {
-      touchBowCd = 0.58;
-      handlePlaceOrEat(lastTouchX, lastTouchY);
+    if (!def || def.tool !== 'bow') {
+      if (typeof cancelBowDraw === 'function') cancelBowDraw();
+      touchBowActive = false; return;
     }
   }
 
@@ -965,9 +975,7 @@
           }
           if (isDir && hDef && hDef.tool === 'bow') {
             touchBowActive = true;
-            touchBowCd = 0;
-            handlePlaceOrEat(lastTouchX, lastTouchY);
-            touchBowCd = 0.58;
+            if (typeof startBowDraw === 'function') startBowDraw(lastTouchX, lastTouchY);
           } else if (isDir && hDef && hDef.food && !player.sneaking && (player.hp < player.maxHp || player.hunger < player.maxHunger)) {
             touchEatingActive = true;
             eatState.active = true; eatState.slotIdx = player.selectedSlot; eatState.itemId = hSlot.id;
@@ -1005,7 +1013,12 @@
     if (lookTouchId !== id) return;
     const dur = performance.now() - touchStartAt;
     const tapX = cx, tapY = cy;
+    const heldBowShot = touchBowActive && typeof player !== 'undefined' && player.bowDrawing;
     const wasTap = ((mobileCtrlMode === 'classic' || mobileCtrlMode === 'touch_direct') && !classicMiningActive && !touchEatingActive && !touchBowActive && touchMovedDist < 16 && dur < 260 && isPlaying && !player.dead && !hudEditMode);
+    if (heldBowShot) {
+      touchBowActive = false;
+      if (typeof releaseBowDraw === 'function') releaseBowDraw(tapX, tapY);
+    }
     clearClassicHold();
     lookTouchId = null;
     if (!wasTap) return;
@@ -1015,7 +1028,7 @@
       const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
       const hit = raycastBlock(5.4, false, false, tapX, tapY);
       if (mobHit) {
-        if ((slot && slot.id === B.FLINT_AND_STEEL)
+        if ((slot && (slot.id === B.FLINT_AND_STEEL || slot.id === B.SOUL_FLINT_AND_STEEL))
           || (mobHit.tamed && mobHit.elemDragon && (slot?.id === B.DRAGON_CRYSTAL || slot?.id === B.DRAGON_SADDLE || !selDef || !selDef.dmg))
           || (mobHit.type === 'villager' && (!selDef || !selDef.dmg))
           || (mobHit.tamed && TAMEABLE_PETS.has(mobHit.type) && (!selDef || selDef.food || !selDef.dmg))) {
@@ -1026,7 +1039,8 @@
       } else if (hit && !player.sneaking && isInteractiveContainerBlock(hit.id)) {
         handlePlaceOrEat(tapX, tapY);
       } else if (selDef && selDef.tool === 'bow') {
-        attackTargetMob(tapX, tapY);
+        if (typeof quickFireBow === 'function') quickFireBow(tapX, tapY);
+        else attackTargetMob(tapX, tapY);
       } else if (selDef && !selDef.food && (!selDef.tool || selDef.tool === 'rod' || selDef.tool === 'flint_steel' || selDef.shield)) {
         if (hit || selDef.spyglass || selDef.waterBreath || selDef.pearl || (slot && (slot.id === B.ENDER_EYE || slot.id === B.NIGHT_VISION_POTION || slot.id === B.SWIFT_SNEAK_BOOK || slot.id === B.SNOWBALL || slot.id === B.MUSIC_DISC_5 || slot.id === B.MUSIC_DISC_OTHERSIDE)) || selDef.armorSlot || selDef.shield || selDef.boat) {
           handlePlaceOrEat(tapX, tapY);
@@ -1291,7 +1305,13 @@
     touchState.jump = true;
   }, () => { touchState.jump = false; });
   bindMultiTouchButton('btnAttack', () => { handlePrimaryActionDown(); }, () => { mining.active = false; });
-  bindMultiTouchButton('btnPlace', () => { handlePlaceOrEat(); }, null);
+  bindMultiTouchButton('btnPlace', () => {
+    const _hs = inventory[player.selectedSlot], _hd = (_hs && _hs.count > 0) ? BLOCK_DEF[_hs.id] : null;
+    if (_hd && _hd.tool === 'bow' && typeof startBowDraw === 'function') startBowDraw();
+    else handlePlaceOrEat();
+  }, () => {
+    if (player.bowDrawing && typeof releaseBowDraw === 'function') releaseBowDraw();
+  });
   bindMultiTouchButton('btnSprint', () => { touchState.sprint = !touchState.sprint; if (touchState.sprint) { _sneakLocked = false; touchState.sneak = false; document.getElementById('btnSneak').classList.remove('toggled'); _dpadBtnsMap?.mid?.classList.remove('active'); } document.getElementById('btnSprint').classList.toggle('toggled', touchState.sprint); }, null);
   bindMultiTouchButton('btnSneak', () => {
     const nowMs = performance.now();
@@ -2109,10 +2129,28 @@
       c2d.drawImage(atlasCanvas, tx, ty, TILE_PX, TILE_PX, pad, pad, W - pad * 2, H - pad * 2);
       return;
     }
-    if (blockId === B.ELYTRA) {
-      const tx = (517 & 7) * TILE_PX, ty = (517 >> 3) * TILE_PX;
+    if (blockId === B.ELYTRA || blockId === B.ELYTRA_PHOENIX) {
+      const eTile = (blockId === B.ELYTRA_PHOENIX) ? 537 : 517;
+      const tx = (eTile & 7) * TILE_PX, ty = (eTile >> 3) * TILE_PX;
       const pad = Math.max(1, Math.round(W * 0.06));
       c2d.drawImage(atlasCanvas, tx, ty, TILE_PX, TILE_PX, pad, pad, W - pad * 2, H - pad * 2);
+      return;
+    }
+    if (def.tool === 'bow' && typeof window.getBowStageSprite === 'function') {
+      const sp = window.getBowStageSprite(blockId, (meta && typeof meta.bowStage === 'number') ? meta.bowStage : 0);
+      const pad = Math.max(1, Math.round(W * 0.04));
+      const pw = (W - pad * 2) / 16, ph = (H - pad * 2) / 16;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const ch = sp.rows[y][x];
+        if (ch !== '.' && sp.pal[ch]) {
+          c2d.fillStyle = sp.pal[ch];
+          c2d.fillRect(Math.floor(pad + x * pw), Math.floor(pad + y * ph), Math.ceil(pw), Math.ceil(ph));
+        }
+      }
+      if (meta && meta.ench) {
+        c2d.fillStyle = '#d8b4fe';
+        c2d.fillRect(Math.round(W * 0.72), Math.round(H * 0.14), Math.max(2, Math.round(W * 0.11)), Math.max(2, Math.round(H * 0.11)));
+      }
       return;
     }
     if (blockId === B.END_ROD) {
@@ -2403,7 +2441,7 @@
       if (invMode === 'backpack' && !r.is2x2) continue;
       const totalReq = r.req.reduce((s, q) => s + q.qty, 0);
       if (totalReq !== pts.length) continue;
-      if (!(r.shapeless || totalReq === 1 || r.out === B.ENDER_EYE || r.out === B.FLINT_AND_STEEL || r.out === B.MOSS_BLOCK)) continue;
+      if (!(r.shapeless || totalReq === 1 || r.out === B.ENDER_EYE || r.out === B.FLINT_AND_STEEL || r.out === B.SOUL_FLINT_AND_STEEL || r.out === B.MOSS_BLOCK)) continue;
       const bag = new Map();
       let logs = 0, coals = 0, planks = 0;
       for (const [, , pb] of pts) {

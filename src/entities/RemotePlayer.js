@@ -30,13 +30,19 @@
     rp.sprintSwimming = !!st.sprintSwimming; rp.lowSprintSwim = !!st.lowSprintSwim;
     rp.onGround = st.onGround !== false; rp.flying = !!st.flying; rp.gliding = !!st.gliding; rp.swing = st.swing || 0;
     rp.swingActive = !!st.swingActive; rp.swingU = st.swingU || 0;
+    rp.bowDrawing = !!st.bowDrawing; rp.bowCharge = st.bowCharge || 0; rp.bowStage = st.bowStage || 0;
     rp.actionType = st.actionType || rp.actionType || 'attack';
     if (st.swSeq) { rp.swordAtkSeq = st.swSeq; rp.swordAtkHit = st.swHit || 1; } else if (!rp.swing) rp.swordAtkSeq = 0;
     if (equip) {
       const eqSig = `${equip.helmet||0}_${equip.chest||0}_${equip.legs||0}_${equip.boots||0}_${equip.offhand||0}`;
       if (eqSig !== rp._eqSig) { rp._eqSig = eqSig; applyArmorToPlayerRig(rp.rig, equip); }
     }
-    if (st.held !== undefined && st.held !== rp._heldId) { rp._heldId = st.held; setRigHeldItem(rp.rig, st.held); }
+    const heldMeta = rp.bowDrawing && rp.bowStage > 0 ? { bowStage: rp.bowStage } : null;
+    const heldKeyNet = st.held !== undefined ? `${st.held}:${rp.bowStage}` : '';
+    if (st.held !== undefined && heldKeyNet !== rp._heldNetKey) {
+      rp._heldId = st.held; rp._heldNetKey = heldKeyNet;
+      setRigHeldItem(rp.rig, st.held, heldMeta);
+    }
   }
 
 
@@ -97,6 +103,7 @@
               lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying, gliding: !!player.gliding,
               hurtT: q2(player.hurtAnimT || 0), swing: q2(player.curSwing || 0),
               swingActive: !!player.swingActive, swingU: q3(player.swingU || 0), actionType: player.actionType || 'mine',
+              bowDrawing: !!player.bowDrawing, bowCharge: q2(player.bowCharge || 0), bowStage: player.bowStage || 0,
               swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
               held: heldId
             }

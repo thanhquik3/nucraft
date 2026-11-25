@@ -77,6 +77,34 @@
     if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? '✨ Bump PBR: Bật' : '🧱 Pixel Phẳng'; }
   }
 
+  function setRayTracingEnabled(on, notify = false) {
+    if (typeof sodiumOpts !== 'undefined') {
+      sodiumOpts.rayTracing = !!on;
+      saveSodiumOpts();
+    }
+    if (typeof envUniforms !== 'undefined' && envUniforms.uRayTracing) {
+      envUniforms.uRayTracing.value = on ? 1.0 : 0.0;
+    }
+    const hudBtn = document.getElementById('btnHudRayTracing');
+    const hudFrame = document.getElementById('rtHudFrame');
+    const menuBtn = document.getElementById('btnMenuRayTracing');
+    const menuFrame = menuBtn ? menuBtn.closest('.rt-btn-frame') : null;
+    if (hudBtn) hudBtn.classList.toggle('active', !!on);
+    if (hudFrame) hudFrame.classList.toggle('off', !on);
+    if (menuBtn) {
+      menuBtn.classList.toggle('active', !!on);
+      menuBtn.textContent = on
+        ? tr('✦ Ray Tracing: BẬT', '✦ Ray Tracing: ON')
+        : tr('✦ Ray Tracing: TẮT', '✦ Ray Tracing: OFF');
+    }
+    if (menuFrame) menuFrame.classList.toggle('off', !on);
+    if (notify) {
+      showToast(on
+        ? tr('✦ Ray Tracing Dò Tia: ĐÃ BẬT (Phản chiếu & GI)', '✦ Real-Time Ray Tracing: ON (Reflections & GI)')
+        : tr('✦ Ray Tracing Dò Tia: ĐÃ TẮT', '✦ Real-Time Ray Tracing: OFF'));
+    }
+  }
+
   function teleportToScenicBiome(targetKey, opts = null) {
     if ((targetKey === 'dim_sift' || String(targetKey).startsWith('sift_')) && !isAdminUnlocked) {
       showToast('🔒 Khu Giấc Mơ chỉ mở khi bạn đánh bại hết quái tại Khu Tàn Tích!');
@@ -93,6 +121,7 @@
     if (targetKey === 'dim_overworld') { _wrapDimLoad('Đang tải thế giới', 'Đang dựng lại khu vực Thế Giới Chính...', 'OVERWORLD', () => switchDimension('overworld')); return; }
     if (targetKey === 'dim_nether') { _wrapDimLoad('Đang tải Địa Ngục', 'Đang kiến tạo dung nham & thành trì The Nether...', 'THE NETHER', () => switchDimension('nether')); return; }
     if (targetKey === 'dim_end') { _wrapDimLoad('Đang tải Khu Kết Thúc', 'Đang dựng đảo Ender & Đấu Trường Rồng...', 'THE END', () => switchDimension('end')); return; }
+    if (targetKey === 'dim_warden') { _wrapDimLoad('Đang tải Thế Giới Warden', 'Đang dựng Cổ Thành Sculk, Rừng Linh Hồn & Quặng Tier 6...', 'WARDEN REALM', () => switchDimension('warden')); return; }
     if (targetKey === 'dim_sift') { _wrapDimLoad('Đang tải The Sift', 'Đang dệt vùng đất Giấc Mơ & ao Ichor cầu vồng...', 'THE SIFT', () => switchDimension('sift')); return; }
     if (targetKey === 'sift_meadow' || targetKey === 'sift_huskland' || targetKey === 'sift_lullaby' || targetKey === 'sift_fungal' || targetKey === 'sift_burrows') {
       const siftMeta = {
@@ -692,6 +721,15 @@
     if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ bumpEnabled });
     showToast(bumpEnabled ? tr('Bump Relief PBR: Đã bật', 'Bump Relief PBR: On') : tr('Pixel-Art Phẳng Cổ Điển', 'Classic Flat Pixel-Art'));
   });
+  setRayTracingEnabled(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false, false);
+  document.getElementById('btnMenuRayTracing')?.addEventListener('click', () => {
+    const next = !(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false);
+    setRayTracingEnabled(next, true);
+  });
+  document.getElementById('btnHudRayTracing')?.addEventListener('click', () => {
+    const next = !(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false);
+    setRayTracingEnabled(next, true);
+  });
   document.querySelectorAll('#scenicSeg .spawn-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!document.getElementById('menuModal').classList.contains('hidden')) {
@@ -1246,7 +1284,8 @@
     nightmare_woods:{ label: '🕸️ Nightmare Woods',  desc: 'Cursed twilight forest cloaked in heavy crimson mist that restricts far visibility.' },
     dim_sift:       { label: '✨ Dream Realm',      desc: 'The Sift dimension shimmering with emerald aurora skies, Lullaby Hills, Ichor pools, and cute mobs.' },
     dim_nether:     { label: '🔥 The Nether',       desc: 'Molten lava dimension filled with Crimson fungus forests and glowing Netherrack caverns.' },
-    dim_end:        { label: '🐉 The End City',     desc: 'Deep violet void with floating End Stone islands, obsidian pillars, and glowing Purpur towers.' }
+    dim_end:        { label: '🐉 The End City',     desc: 'Deep violet void with floating End Stone islands, obsidian pillars, and glowing Purpur towers.' },
+    dim_warden:     { label: '👁️ Warden Realm',     desc: 'Abyssal Sculk citadel dimension with Soul Fire forests, 4 Sculk guardians (200-1000HP), and Tier-6 ores.' }
   };
   const DIFF_EN_MAP = {
     peaceful: { label: 'Peaceful', desc: 'Hostile mobs do not spawn. Hunger does not drain and health regenerates quickly.' },
@@ -1314,6 +1353,11 @@
     if (cloudBtn && typeof volumetricClouds !== 'undefined') cloudBtn.textContent = volumetricClouds ? tr('☁️ Mây Volumetric', '☁️ Volumetric Clouds') : tr('🧊 Mây Khối Luanti', '🧊 Luanti Block Clouds');
     const texBtn = document.getElementById('btnTexFilter');
     if (texBtn && typeof bumpEnabled !== 'undefined') texBtn.textContent = bumpEnabled ? tr('Bump PBR: Bật', 'Bump PBR: On') : tr('Bump PBR: Tắt', 'Bump PBR: Off');
+    const rtMenuBtn = document.getElementById('btnMenuRayTracing');
+    if (rtMenuBtn && typeof sodiumOpts !== 'undefined') {
+      const rtOn = sodiumOpts.rayTracing !== false;
+      rtMenuBtn.textContent = rtOn ? tr('✦ Ray Tracing: BẬT', '✦ Ray Tracing: ON') : tr('✦ Ray Tracing: TẮT', '✦ Ray Tracing: OFF');
+    }
   }
 
   function _applyAllI18n(lang) {
@@ -1487,7 +1531,8 @@ const ORE_BIOME_PREVIEWS = {
   nightmare_woods:{ label: '🕸️ Rừng Ác Mộng',      desc: 'Khu rừng ma quái chìm trong màn sương tím sẫm đặc quánh làm hạn chế tầm nhìn ở xa!',                        sky1: '#09030b', sky2: '#3b0724', grass: '#3b152a', dirt: '#1f0b18', water: '#581c87', tree: '#4c0519', trunk: '#1c1917', accent: '#f43f5e', kind: 'sift' },
   dim_sift:       { label: '✨ Khu Giấc Mơ',       desc: 'Chiều không gian mộng mơ The Sift với cực quang ngọc lục bảo, hồ Ichor phát sáng và tán cây huyền ảo.',               sky1: '#16284c', sky2: '#5eead4', grass: '#c084fc', dirt: '#6d28d9', water: '#2dd4bf', tree: '#f0abfc', trunk: '#312e81', accent: '#fef08a', kind: 'sift' },
   dim_nether:     { label: '🔥 Địa Ngục',         desc: 'Thế giới dung nham đỏ rực với rừng nấm Crimson và đá Netherrack rực lửa.',                                            sky1: '#450a0a', sky2: '#991b1b', grass: '#7f1d1d', dirt: '#450a0a', water: '#f97316', tree: '#b91c1c', trunk: '#292524', accent: '#facc15', kind: 'nether' },
-  dim_end:        { label: '🐉 Thành Phố End',    desc: 'Hư không tím thẫm với đảo End Stone lơ lửng, trụ Hắc Diện Thạch và tháp Purpur phát sáng.',                           sky1: '#090514', sky2: '#2e1065', grass: '#e9d594', dirt: '#c2ad6b', water: '#1e1b4b', tree: '#18181b', trunk: '#09090b', accent: '#e879f9', kind: 'end' }
+  dim_end:        { label: '🐉 Thành Phố End',    desc: 'Hư không tím thẫm với đảo End Stone lơ lửng, trụ Hắc Diện Thạch và tháp Purpur phát sáng.',                           sky1: '#090514', sky2: '#2e1065', grass: '#e9d594', dirt: '#c2ad6b', water: '#1e1b4b', tree: '#18181b', trunk: '#09090b', accent: '#e879f9', kind: 'end' },
+  dim_warden:     { label: '👁️ Thế Giới Warden',  desc: 'Chiều không gian Cổ Thành Sculk huyền bí với Rừng Linh Hồn, Boss 1000HP và Quặng Tier 6.',                            sky1: '#030b14', sky2: '#082635', grass: '#0a2a36', dirt: '#151b24', water: '#06b6d4', tree: '#0ea5e9', trunk: '#111827', accent: '#22d3ee', kind: 'sift' }
 };
 
 const _oreThumb3DCache = new Map();
@@ -3140,7 +3185,8 @@ function _buildBiomeDioramaScene(biomeKey) {
     nightmare_woods:{ skyTop: '#07020a', skyMid: '#26061b', skyBot: '#4a0b2c', fog: 0x240718, sun: 0xf43f5e, amb: 0x9d174d, gnd: 0x1a0612, fluid: 0x581c87, fluidSpec: 0xf43f5e, fluidAlpha: 0.84, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(244,63,94,0.22)', mistRgba: 'rgba(76,5,25,0.40)' },
     dim_sift:       { skyTop: '#111d42', skyMid: '#2a6f82', skyBot: '#7ef5dc', fog: 0x4dbeb8, sun: 0xd8b4fe, amb: 0xa78bfa, gnd: 0x3b1d5e, fluid: 0x2dd4bf, fluidSpec: 0xfef08a, fluidAlpha: 0.82, clouds: false, aurora: true, noSunRays: true, sunX: 0.50, sunY: 0.18, rayTint: 'rgba(110,245,220,0.25)', mistRgba: 'rgba(130,245,225,0.22)' },
     dim_nether:     { skyTop: '#240404', skyMid: '#6e100a', skyBot: '#c93818', fog: 0x7d180e, sun: 0xff9b54, amb: 0xd9461f, gnd: 0x290707, fluid: 0xff6200, fluidSpec: 0xfef08a, fluidAlpha: 0.96, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.35, rayTint: 'rgba(255,120,40,0.24)', mistRgba: 'rgba(180,45,15,0.22)' },
-    dim_end:        { skyTop: '#060312', skyMid: '#180833', skyBot: '#3b156b', fog: 0x240b47, sun: 0xe9d5ff, amb: 0x8b5cf6, gnd: 0x140826, fluid: null, fluidSpec: 0xe9d5ff, fluidAlpha: 0, clouds: false, stars: true, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(216,180,254,0.22)', mistRgba: 'rgba(90,30,150,0.20)' }
+    dim_end:        { skyTop: '#060312', skyMid: '#180833', skyBot: '#3b156b', fog: 0x240b47, sun: 0xe9d5ff, amb: 0x8b5cf6, gnd: 0x140826, fluid: null, fluidSpec: 0xe9d5ff, fluidAlpha: 0, clouds: false, stars: true, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(216,180,254,0.22)', mistRgba: 'rgba(90,30,150,0.20)' },
+    dim_warden:     { skyTop: '#030b14', skyMid: '#07222f', skyBot: '#0e3c4d', fog: 0x071d29, sun: 0x67e8f9, amb: 0x22d3ee, gnd: 0x06131c, fluid: 0x06b6d4, fluidSpec: 0xa5f3fc, fluidAlpha: 0.80, clouds: false, noSunRays: true, caveRays: true, sunX: 0.50, sunY: 0.16, rayTint: 'rgba(34,211,238,0.22)', mistRgba: 'rgba(8,145,178,0.22)' }
   };
   const cfg = presets[biomeKey] || presets.sakura;
 
@@ -3194,6 +3240,20 @@ function _buildBiomeDioramaScene(biomeKey) {
     placeTree(10, 6, 4, B_.SIFT_LOG || B_.BIRCH_LOG, B_.SIFT_LEAVES || B_.OAK_LEAVES, 5);
     setB(6, 5, 16, B_.SIFT_FLOWER || B_.FLOWER_LAVENDER);
     setB(17, 5, 15, B_.SIFT_FLOWER || B_.FLOWER_LAVENDER);
+  } else if (biomeKey === 'dim_warden') {
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      setB(x, 0, z, B_.DEEPSLATE); setB(x, 1, z, B_.WARDEN_SCULK_STONE || B_.DEEPSLATE);
+      const h = (z < 6 || x < 4 || x > 19) ? 5 : 4;
+      for (let y = 2; y <= h; y++) setB(x, y, z, y === h ? ((x + z) % 3 === 0 ? B_.SCULK : (B_.WARDEN_SCULK_STONE || B_.DEEPSLATE)) : B_.DEEPSLATE);
+    }
+    fillBox(8, 5, 4, 15, 5, 5, B_.REINFORCED_DEEPSLATE || B_.DEEPSLATE_BRICKS);
+    fillBox(8, 12, 4, 15, 12, 5, B_.REINFORCED_DEEPSLATE || B_.DEEPSLATE_BRICKS);
+    fillBox(8, 6, 4, 8, 11, 5, B_.REINFORCED_DEEPSLATE || B_.DEEPSLATE_BRICKS);
+    fillBox(15, 6, 4, 15, 11, 5, B_.REINFORCED_DEEPSLATE || B_.DEEPSLATE_BRICKS);
+    fillBox(9, 6, 4, 14, 11, 4, B_.WARDEN_PORTAL || B_.SEA_LANTERN);
+    placeTree(4, 6, 15, B_.SCULK_LOG || B_.DEEPSLATE, B_.SCULK_LEAVES || B_.BLUE_LEAVES, 5);
+    placeTree(19, 6, 14, B_.SCULK_LOG || B_.DEEPSLATE, B_.SCULK_LEAVES || B_.BLUE_LEAVES, 5);
+    setB(6, 5, 7, B_.SOUL_FIRE || B_.SOUL_LANTERN); setB(17, 5, 7, B_.SOUL_FIRE || B_.SOUL_LANTERN);
   } else if (biomeKey === 'mangrove') {
     for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
       setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.MUD || B_.DIRT); setB(x, 2, z, B_.MUD || B_.DIRT);
@@ -3693,7 +3753,7 @@ function _buildBiomeDioramaScene(biomeKey) {
       sakura: 0x4b9e38, meadow: 0x4ea83b, mangrove: 0x3b6e35, bamboo: 0x3e9134,
       pine_valley: 0x438731, giant_jungle: 0x37852e, castle_city: 0x458e33,
       abandoned_city: 0x485058, blue_forest: 0x1e8f85, dim_sift: 0x4b2a7b,
-      dim_nether: 0x5c180c, beach_palm: 0x1a7fc4, seaport: 0x1b4db8
+      dim_warden: 0x08232e, dim_nether: 0x5c180c, beach_palm: 0x1a7fc4, seaport: 0x1b4db8
     };
     const skGeo = new THREE.PlaneGeometry(220, 220);
     skGeo.rotateX(-Math.PI / 2);

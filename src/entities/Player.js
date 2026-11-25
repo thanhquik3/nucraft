@@ -24,7 +24,7 @@
     player.swingT = dur;
     player.swingDur = dur;
     player.swingAct = act || 'attack';
-    player.swingStep = ((player.swingStep || 0) + 1) & 1;
+    player.swingStep = ((player.swingStep || 0) + 1) % 6;
     player._mineHitFired = false;
   }
 
@@ -372,6 +372,8 @@
     }
     if (rig.armor.elytra) {
       rig.armor.elytra.visible = isEly;
+      rig.armor.elyPhxFlag = isPhoenixEly;
+      rig.armor.elyStatePrev = -1;
       if (rig.armor.elyNormGroups) for (const grp of rig.armor.elyNormGroups) grp.visible = !isPhoenixEly;
       if (rig.armor.elyPhxGroups) for (const grp of rig.armor.elyPhxGroups) grp.visible = isPhoenixEly;
     }
@@ -716,7 +718,7 @@
     addRelief(armorChest, 0.13, 0.095, 0.055, 0, -0.26, 0.175, armChestAccMat, true);
     armorChest.visible = false;
 
-    const elytraGrp = new THREE.Group(); elytraGrp.position.set(0, 0.28, -0.15); torso.add(elytraGrp);
+    const elytraGrp = new THREE.Group(); elytraGrp.position.set(0, 0.28, -0.155); torso.add(elytraGrp);
     const elyNormMats = [
       new THREE.MeshStandardMaterial({ color: 0x3b3a50, roughness: 0.56, metalness: 0.30 }),
       new THREE.MeshStandardMaterial({ color: 0x7e7d99, roughness: 0.44, metalness: 0.24 }),
@@ -727,39 +729,71 @@
       new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.36, metalness: 0.25, emissive: 0x9a3412, emissiveIntensity: 0.28 }),
       new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.24, metalness: 0.15, emissive: 0xf97316, emissiveIntensity: 0.85 })
     ];
-    const elyNormGroups = [], elyPhxGroups = [], elyFanL = [], elyFanR = [];
+    const elyNormGroups = [], elyPhxGroups = [];
+    const elyStateObjs = { norm: [[], [], []], phx: [[], [], []] };
+    // Shoulder hinge collar connecting left & right wings seamlessly
+    const elyCollarN = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.055, 0.068), elyNormMats[0]);
+    elyCollarN.position.set(0, -0.02, 0.005); elyNormGroups.push(elyCollarN); elytraGrp.add(elyCollarN);
+    const elyCollarP = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.055, 0.068), elyPhxMats[0]);
+    elyCollarP.position.set(0, -0.02, 0.005); elyCollarP.visible = false; elyPhxGroups.push(elyCollarP); elytraGrp.add(elyCollarP);
+
     const mkWingPivot = (sideSign) => {
-      const p = new THREE.Group(); p.position.set(sideSign * 0.08, 0, 0);
-      const fanOut = new THREE.Group(); p.add(fanOut);
-      if (sideSign > 0) elyFanL.push(fanOut); else elyFanR.push(fanOut);
-      const buildStepped = (mats, targetList, isPhx) => {
-        const gInner = new THREE.Group(), gOuter = new THREE.Group();
-        const strips = [
-          [0.035, -0.02, 0.68, 0, 0.004, gInner],
-          [0.092,  0.00, 0.78, 1, 0.002, gInner],
-          [0.148, -0.02, 0.84, 1, 0.000, gInner],
-          [0.204, -0.06, 0.86, 2, -0.002, gOuter],
-          [0.260, -0.11, 0.84, 2, -0.004, gOuter],
-          [0.316, -0.18, 0.76, 1, -0.006, gOuter],
-          [0.372, -0.25, 0.62, 0, -0.008, gOuter],
-          [0.420, -0.32, 0.44, 0, -0.010, gOuter]
-        ];
-        for (const [xl, yt, h, mi, zo, par] of strips) {
-          const sl = new THREE.Mesh(new THREE.BoxGeometry(0.060, h, 0.056), mats[mi]);
-          sl.position.set(sideSign * xl, yt - h * 0.5, zo); sl.castShadow = true; par.add(sl);
-          if (isPhx && mi >= 1) {
-            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.11, 0.060), mats[2]);
-            tip.position.set(sideSign * xl, yt - h + 0.055, zo); par.add(tip);
+      const p = new THREE.Group(); p.position.set(sideSign * 0.065, 0, 0);
+      const buildSteppedStates = (mats, targetList, bucketKey, isPhx) => {
+        const wingWrap = new THREE.Group();
+        wingWrap.visible = !isPhx;
+        targetList.push(wingWrap);
+        const addSlats = (parent, slats) => {
+          for (const [xl, yt, h, mi, zo, w] of slats) {
+            // Overlap horizontally by >=0.016m and in Z cleanly so ZERO V-gap ever forms
+            const sl = new THREE.Mesh(new THREE.BoxGeometry(w || 0.072, h, 0.058), mats[mi]);
+            sl.position.set(sideSign * xl, yt - h * 0.5, zo); sl.castShadow = true; parent.add(sl);
+            if (isPhx && mi >= 1) {
+              const tip = new THREE.Mesh(new THREE.BoxGeometry((w || 0.072) * 0.88, 0.11, 0.062), mats[2]);
+              tip.position.set(sideSign * xl, yt - h + 0.055, zo); parent.add(tip);
+            }
           }
-        }
-        const wrapI = new THREE.Group(); wrapI.add(gInner);
-        const wrapO = new THREE.Group(); wrapO.add(gOuter);
-        wrapO.visible = !isPhx; wrapI.visible = !isPhx;
-        p.add(wrapI); fanOut.add(wrapO);
-        targetList.push(wrapI, wrapO);
+        };
+        // Shared cohesive inner wing carapace (columns 0..3)
+        addSlats(wingWrap, [
+          [0.030,  0.00, 0.72, 0,  0.004, 0.076],
+          [0.086,  0.00, 0.82, 1,  0.002, 0.076],
+          [0.142, -0.02, 0.88, 1,  0.000, 0.076],
+          [0.198, -0.05, 0.90, 2, -0.002, 0.076]
+        ]);
+        // State 0 (Folded Carapace — compact swept cloak down back)
+        const s0 = new THREE.Group();
+        addSlats(s0, [
+          [0.248, -0.09, 0.84, 2, -0.003, 0.070],
+          [0.294, -0.15, 0.72, 1, -0.005, 0.066],
+          [0.336, -0.22, 0.54, 0, -0.007, 0.060]
+        ]);
+        // State 1 (Ready-to-Open / Sneak / Falling Prep — flared medium stepped wings)
+        const s1 = new THREE.Group(); s1.visible = false;
+        addSlats(s1, [
+          [0.252, -0.06, 0.88, 2, -0.003, 0.074],
+          [0.308, -0.10, 0.82, 2, -0.005, 0.074],
+          [0.362, -0.15, 0.70, 1, -0.007, 0.072],
+          [0.412, -0.22, 0.52, 0, -0.009, 0.068]
+        ]);
+        // State 2 (Full Gliding — broad stepped Minecraft delta wings matching 2c092d26 / 08241693)
+        const s2 = new THREE.Group(); s2.visible = false;
+        addSlats(s2, [
+          [0.254, -0.03, 0.92, 2, -0.003, 0.078],
+          [0.312, -0.05, 0.90, 2, -0.004, 0.078],
+          [0.370, -0.09, 0.84, 2, -0.005, 0.076],
+          [0.426, -0.15, 0.74, 1, -0.006, 0.074],
+          [0.480, -0.22, 0.58, 0, -0.007, 0.070],
+          [0.528, -0.30, 0.38, 0, -0.008, 0.064]
+        ]);
+        wingWrap.add(s0, s1, s2);
+        elyStateObjs[bucketKey][0].push(s0);
+        elyStateObjs[bucketKey][1].push(s1);
+        elyStateObjs[bucketKey][2].push(s2);
+        p.add(wingWrap);
       };
-      buildStepped(elyNormMats, elyNormGroups, false);
-      buildStepped(elyPhxMats, elyPhxGroups, true);
+      buildSteppedStates(elyNormMats, elyNormGroups, 'norm', false);
+      buildSteppedStates(elyPhxMats, elyPhxGroups, 'phx', true);
       elytraGrp.add(p);
       return p;
     };
@@ -847,7 +881,7 @@
         legL: [0.25, -0.375, 0],
         legR: [-0.25, -0.375, 0]
       },
-      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyFanL, elyFanR, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern },
+      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyStateObjs, elyPhxFlag: false, elyStatePrev: -1, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern },
       animPhase: Math.random() * 6,
       moveBlend: 0, sprintBlend: 0, airBlend: 0, jumpFlip: 1
     };
@@ -1368,14 +1402,30 @@
     }
 
     // Active combat / bow / blocking overrides ONLY (anchor arm cleanly on R6 shoulder!)
+    if (isBow && typeof setRigHeldItem === 'function') {
+      const wantSt = (st.bowDrawing && (st.bowStage || 0) > 0) ? (st.bowStage | 0) : 0;
+      setRigHeldItem(rig, heldId, wantSt > 0 ? { bowStage: wantSt } : null);
+    }
     if (!swimming && !flying && swing <= 0.01 && isBow) {
-      setJointEuler(_r6TargetBuf.armR, -1.24, 0, 0.14);
-      _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
-      if (!blocking) {
-        setJointEuler(_r6TargetBuf.armL, -1.16, 0, -0.38);
-        _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = 0;
+      const pitchOff = (st.pitch || 0) * 0.65;
+      if (st.bowDrawing) {
+        const bCh = Math.max(0.05, Math.min(1, st.bowCharge || 0.25));
+        setJointEuler(_r6TargetBuf.armR, -1.48 + pitchOff, 0.08, 0.10);
+        _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
+        if (!blocking) {
+          setJointEuler(_r6TargetBuf.armL, -1.42 + pitchOff * 0.9, -0.35 - bCh * 0.34, -0.44 - bCh * 0.28);
+          _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = -bCh * 0.08;
+        }
+        mulJointEuler(_r6TargetBuf.torso, 0, 0.34, 0);
+      } else {
+        setJointEuler(_r6TargetBuf.armR, -1.24, 0, 0.14);
+        _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
+        if (!blocking) {
+          setJointEuler(_r6TargetBuf.armL, -1.16, 0, -0.38);
+          _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = 0;
+        }
+        mulJointEuler(_r6TargetBuf.torso, 0, 0.24, 0);
       }
-      mulJointEuler(_r6TargetBuf.torso, 0, 0.24, 0);
     }
     const bT = Math.max(0, Math.min(1, st.shieldRaiseT !== undefined ? st.shieldRaiseT : (blocking ? 1 : 0)));
     const shHand = st.shieldHand || (blocking ? 'offhand' : null);
@@ -1470,14 +1520,17 @@
           slerpQ4(jt.q, [0, 0, 0, 1], swW, jt.q);
         });
       }
-      const arc = Math.sin(Math.pow(u, 0.68) * Math.PI) * rig.actionBlend;
+      const arc = Math.sin(Math.pow(u, 0.62) * Math.PI) * rig.actionBlend;
       if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
         if (actType === 'chop') {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.42, -arc * 0.36, -arc * 0.26);
+          // Afterswing+ heavy diagonal cleave (wider arc)
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.56, -arc * 0.42, -arc * 0.30);
         } else if (actType === 'attack') {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.38, arc * 0.30, arc * 0.16);
+          // Afterswing+ wide horizontal sweep
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.44, arc * 0.42, arc * 0.22);
         } else {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.50, -arc * 0.14, arc * 0.08);
+          // Afterswing+ overhead strike (pick/mine)
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.65, -arc * 0.18, arc * 0.10);
         }
       }
     }
@@ -1518,25 +1571,30 @@
     rig.hips.scale.lerp(_r6V1, damp);
 
     if (rig.armor.elytra && rig.armor.elytra.visible) {
-      // 3-State Stepped Elytra Animation: 0 = Folded Back | 1 = Ready (Sneak / Midair Prep) | 2 = Full Gliding
+      // 3-State Zero-Gap Stepped Elytra Animation: 0 = Folded Carapace | 1 = Ready (Sneak / Midair Prep) | 2 = Full Gliding
       const readyAir = (!onGround && !st.gliding && !sitting && !inWater) || sneaking;
-      const tgtSpread = st.gliding ? (1.06 + Math.sin(tNow * 6.5) * 0.05) : (readyAir ? 0.44 : (0.12 + Math.min(0.14, speed * 0.018)));
-      const tgtPitchE = st.gliding ? 0.06 : (readyAir ? 0.36 : 0.14);
-      const tgtYawE   = st.gliding ? 0.14 : (readyAir ? 0.22 : 0.06);
-      const tgtFanZ   = st.gliding ? 0.32 : (readyAir ? 0.16 : 0.0);
-      const tgtSpanX  = st.gliding ? 1.16 : (readyAir ? 1.03 : 0.90);
-      const ek = rig._r6Init ? (1 - Math.exp(-12.5 * dtClamped)) : 1.0;
+      const elyState = st.gliding ? 2 : (readyAir ? 1 : 0);
+      if (rig.armor.elyStateObjs && rig.armor.elyStatePrev !== elyState) {
+        rig.armor.elyStatePrev = elyState;
+        const bKey = rig.armor.elyPhxFlag ? 'phx' : 'norm';
+        const states = rig.armor.elyStateObjs[bKey];
+        for (let si = 0; si < 3; si++) {
+          for (const gObj of states[si]) gObj.visible = (si === elyState);
+        }
+      }
+      const tgtSpread = elyState === 2 ? (1.12 + Math.sin(tNow * 6.5) * 0.04) : (elyState === 1 ? 0.46 : (0.10 + Math.min(0.10, speed * 0.014)));
+      const tgtPitchE = elyState === 2 ? 0.05 : (elyState === 1 ? 0.32 : 0.08);
+      const tgtYawE   = elyState === 2 ? 0.14 : (elyState === 1 ? 0.18 : 0.05);
+      const tgtSpanX  = elyState === 2 ? 1.15 : (elyState === 1 ? 1.04 : 0.94);
+      const ek = rig._r6Init ? (1 - Math.exp(-14.0 * dtClamped)) : 1.0;
       rig._elySp = (rig._elySp ?? tgtSpread) + (tgtSpread - (rig._elySp ?? tgtSpread)) * ek;
       rig._elyPt = (rig._elyPt ?? tgtPitchE) + (tgtPitchE - (rig._elyPt ?? tgtPitchE)) * ek;
       rig._elyYw = (rig._elyYw ?? tgtYawE) + (tgtYawE - (rig._elyYw ?? tgtYawE)) * ek;
-      rig._elyFn = (rig._elyFn ?? tgtFanZ) + (tgtFanZ - (rig._elyFn ?? tgtFanZ)) * ek;
       rig._elySx = (rig._elySx ?? tgtSpanX) + (tgtSpanX - (rig._elySx ?? tgtSpanX)) * ek;
       rig.armor.elytraL.rotation.set(rig._elyPt, -rig._elyYw,  rig._elySp);
       rig.armor.elytraR.rotation.set(rig._elyPt,  rig._elyYw, -rig._elySp);
       rig.armor.elytraL.scale.set(rig._elySx, 1, 1);
       rig.armor.elytraR.scale.set(rig._elySx, 1, 1);
-      if (rig.armor.elyFanL) for (const fn of rig.armor.elyFanL) fn.rotation.z = rig._elyFn;
-      if (rig.armor.elyFanR) for (const fn of rig.armor.elyFanR) fn.rotation.z = -rig._elyFn;
     }
     if (rig.armor.dragonHelmet && rig.armor.dragonHelmet.visible && rig.armor.dragonHelmet.userData.jawPivot) {
       rig.armor.dragonHelmet.userData.jawPivot.rotation.x = Math.max(0, Math.sin(tNow * 4.5) * Math.min(0.28, speed * 0.04));
@@ -3526,6 +3584,92 @@
     return true;
   }
 
+  function startBowDraw(screenX = null, screenY = null) {
+    if (player.dead || eatState.active) return false;
+    const slot = inventory[player.selectedSlot];
+    const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
+    if (!selDef || selDef.tool !== 'bow') return false;
+    if (gameMode !== 'creative' && countItem(B.ARROW) <= 0) {
+      if (!player._bowEmptyToastT || performance.now() - player._bowEmptyToastT > 1200) {
+        player._bowEmptyToastT = performance.now();
+        showToast('Hết Mũi Tên! Hãy chế thêm trong Balo (E)');
+      }
+      return false;
+    }
+    if (!player.bowDrawing) playSfx('equip');
+    player.bowDrawing = true;
+    player.bowCharge = Math.max(player.bowCharge || 0, 0.08);
+    player.bowStage = 1;
+    player._bowAimPos = (screenX !== null && screenY !== null) ? { x: screenX, y: screenY } : null;
+    player._lastFpBowStage = 1;
+    if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: 1 });
+    return true;
+  }
+
+  function cancelBowDraw() {
+    if (!player.bowDrawing && !player.bowCharge && !player.bowStage) return;
+    player.bowDrawing = false;
+    player.bowCharge = 0;
+    player.bowStage = 0;
+    player._bowAimPos = null;
+    if ((player._lastFpBowStage || 0) !== 0) {
+      player._lastFpBowStage = 0;
+      const slot = inventory[player.selectedSlot];
+      if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot && slot.count > 0 ? slot.id : B.AIR, slot && slot.count > 0 ? slot : null);
+    }
+  }
+
+  function updateBowDrawState(dt) {
+    if (!player.bowDrawing) {
+      if ((player._lastFpBowStage || 0) !== 0) cancelBowDraw();
+      return;
+    }
+    if (!isPlaying || player.dead || eatState.active) { cancelBowDraw(); return; }
+    const slot = inventory[player.selectedSlot];
+    const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
+    if (!selDef || selDef.tool !== 'bow') { cancelBowDraw(); return; }
+    player.bowCharge = Math.min(1.0, (player.bowCharge || 0) + dt / 0.82);
+    const nextSt = player.bowCharge >= 0.86 ? 3 : (player.bowCharge >= 0.40 ? 2 : 1);
+    if (nextSt !== player.bowStage) {
+      player.bowStage = nextSt;
+      if (nextSt === 3) playSfx('pickup');
+    }
+    if ((player._lastFpBowStage || 0) !== nextSt) {
+      player._lastFpBowStage = nextSt;
+      if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: nextSt });
+    }
+  }
+
+  function releaseBowDraw(screenX = null, screenY = null) {
+    if (!player.bowDrawing) return false;
+    const charge = Math.max(0.18, Math.min(1.0, player.bowCharge || 0.25));
+    const isFull = charge >= 0.86;
+    const ax = (screenX !== null && screenX !== undefined) ? screenX : (player._bowAimPos ? player._bowAimPos.x : null);
+    const ay = (screenY !== null && screenY !== undefined) ? screenY : (player._bowAimPos ? player._bowAimPos.y : null);
+    cancelBowDraw();
+    const slot = inventory[player.selectedSlot];
+    const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
+    if (!selDef || selDef.tool !== 'bow') return false;
+    if (gameMode !== 'creative' && countItem(B.ARROW) <= 0) { showToast('Hết Mũi Tên! Hãy chế thêm trong Balo (E)'); return false; }
+    if (gameMode !== 'creative') consumeItem(B.ARROW, 1);
+    if (ax !== null && ay !== null) getRayDirFromScreen(ax, ay);
+    else { _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ'); _rayDir.set(0, 0, -1).applyEuler(_rayEuler); }
+    const eyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
+    const arrowSpd = 12.0 + 24.0 * charge;
+    const arrowDmg = (selDef.dmg || 6.5) * (0.45 + 0.85 * charge);
+    fireArrow(player.x + _rayDir.x * 0.5, eyeY - 0.05 + _rayDir.y * 0.5, player.z + _rayDir.z * 0.5, _rayDir.x, _rayDir.y, _rayDir.z, arrowSpd, true, arrowDmg);
+    if (isFull) spawnParticles(player.x + _rayDir.x * 0.9, eyeY - 0.05 + _rayDir.y * 0.9, player.z + _rayDir.z * 0.9, (slot.id >= B.SCULK_ECHO_BOW ? 0x22d3ee : 0xfef08a), 6, true);
+    if (gameMode !== 'creative') damageHeldTool(1);
+    player.swingT = 0.22; renderHotbar();
+    return true;
+  }
+
+  function quickFireBow(screenX = null, screenY = null) {
+    if (!startBowDraw(screenX, screenY)) return false;
+    player.bowCharge = 0.50;
+    return releaseBowDraw(screenX, screenY);
+  }
+
   function handlePlaceOrEat(screenX = null, screenY = null) {
     if (player.dead) { syncSpyglassZoomState(); return; }
     syncSpyglassZoomState();
@@ -3533,16 +3677,17 @@
     const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
     const mobHit = raycastMob(4.8, screenX, screenY);
 
-    // Flint & Steel ignites ANY targeted mob/animal immediately (takes priority over taming!)
-    if (mobHit && slot && slot.id === B.FLINT_AND_STEEL) {
+    // Flint & Steel / Soul Flint & Steel ignites ANY targeted mob/animal immediately!
+    if (mobHit && slot && (slot.id === B.FLINT_AND_STEEL || slot.id === B.SOUL_FLINT_AND_STEEL)) {
+      const isSoul = (slot.id === B.SOUL_FLINT_AND_STEEL);
       player.swingT = 0.22;
       playSfx('burn');
-      spawnParticles(mobHit.x, mobHit.y + 0.9, mobHit.z, 0xf97316, 14, true);
+      spawnParticles(mobHit.x, mobHit.y + 0.9, mobHit.z, isSoul ? 0x22d3ee : 0xf97316, 14, true);
       if (!FIRE_IMMUNE_MOBS.has(mobHit.type)) {
         mobHit.burning = true;
-        mobHit.burnTime = 6.5;
+        mobHit.burnTime = isSoul ? 8.5 : 6.5;
         mobHit.burnTick = 0.25;
-        hurtMob(mobHit, 1.5, mobHit.x - player.x, mobHit.z - player.z, 3.0, true, true);
+        hurtMob(mobHit, isSoul ? 3.5 : 1.5, mobHit.x - player.x, mobHit.z - player.z, 3.0, true, true);
       } else {
         showToast('🔥 Quái vật này miễn nhiễm với lửa!');
       }
@@ -3579,7 +3724,8 @@
       if (srcHit && (srcHit.id === B.WATER || srcHit.id === B.LAVA)) hit = srcHit;
     }
 
-    if (hit && slot && slot.id === B.FLINT_AND_STEEL) {
+    if (hit && slot && (slot.id === B.FLINT_AND_STEEL || slot.id === B.SOUL_FLINT_AND_STEEL)) {
+      const isSoulSteel = (slot.id === B.SOUL_FLINT_AND_STEEL);
       player.swingT = 0.22;
       if (hit.id === B.TNT) {
         setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
@@ -3591,8 +3737,19 @@
         return;
       }
       const ix = hit.px, iy = hit.py, iz = hit.pz;
-      spawnParticles(ix + 0.5, iy + 0.35, iz + 0.5, 0xf97316, 12, true);
-      if (tryIgniteNetherPortal(ix, iy, iz)) {
+      spawnParticles(ix + 0.5, iy + 0.35, iz + 0.5, isSoulSteel ? 0x22d3ee : 0xf97316, 14, true);
+      if (isSoulSteel && typeof tryIgniteWardenPortal === 'function' && tryIgniteWardenPortal(hit.x, hit.y, hit.z, ix, iy, iz)) {
+        flushUrgentChunks(48);
+        if (gameMode !== 'creative') damageHeldTool(1);
+        renderHotbar();
+        return;
+      }
+      if (!isSoulSteel && hit.id === B.REINFORCED_DEEPSLATE) {
+        playSfx('equip');
+        showToast('🩵 Cổng Thành Phố Cổ cần Bật Lửa Linh Hồn (Sắt + Mảnh Vang Echo + Đá Lửa) để kích hoạt!');
+        return;
+      }
+      if (!isSoulSteel && tryIgniteNetherPortal(ix, iy, iz)) {
         flushUrgentChunks(32);
         if (gameMode !== 'creative') damageHeldTool(1);
         renderHotbar();
@@ -3601,7 +3758,7 @@
       if (iy > MIN_Y && iy <= MAX_Y) {
         const exId = getBlockWorld(ix, iy, iz), exDef = BLOCK_DEF[exId];
         if (exId === B.AIR || (exDef && exDef.cross && exId !== B.FIRE && exId !== B.SOUL_FIRE)) {
-          const fireBlockId = (getBlockWorld(ix, iy - 1, iz) === B.SOUL_SAND) ? B.SOUL_FIRE : B.FIRE;
+          const fireBlockId = (isSoulSteel || getBlockWorld(ix, iy - 1, iz) === B.SOUL_SAND) ? B.SOUL_FIRE : B.FIRE;
           setBlockWorld(ix, iy, iz, fireBlockId, true);
           igniteAdjacentTnt(ix, iy, iz);
           flushUrgentChunks(32);
@@ -3930,16 +4087,9 @@
       return;
     }
 
-    // Shoot Bow! (Sword/Pickaxe/Axe/Shovel/Shears have NO right-click action in modern Minecraft!)
+    // Shoot / Draw Bow! (Hold-to-draw tension stages 0..3 matching 100% Minecraft behavior)
     if (selDef.tool === 'bow') {
-      if (gameMode !== 'creative' && countItem(B.ARROW) <= 0) { showToast('Hết Mũi Tên! Hãy chế thêm trong Balo (E)'); return; }
-      if (gameMode !== 'creative') consumeItem(B.ARROW, 1);
-      if (screenX !== null && screenY !== null) getRayDirFromScreen(screenX, screenY);
-      else { _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ'); _rayDir.set(0, 0, -1).applyEuler(_rayEuler); }
-      const eyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
-      fireArrow(player.x + _rayDir.x * 0.5, eyeY - 0.05 + _rayDir.y * 0.5, player.z + _rayDir.z * 0.5, _rayDir.x, _rayDir.y, _rayDir.z, 26.0, true, selDef.dmg || 6.5);
-      if (gameMode !== 'creative') damageHeldTool(1);
-      player.swingT = 0.22; renderHotbar();
+      startBowDraw(screenX, screenY);
       return;
     }
 
@@ -4544,7 +4694,26 @@
     const inEndPortal = (feetBlock === B.END_PORTAL || bodyBlock === B.END_PORTAL || underFeetBlock === B.END_PORTAL);
     const inEndGateway = (feetBlock === B.END_GATEWAY || bodyBlock === B.END_GATEWAY || underFeetBlock === B.END_GATEWAY);
     const inDreamPortal = (feetBlock === B.DREAM_PORTAL || bodyBlock === B.DREAM_PORTAL);
-    if (inEndGateway && _portalCooldown <= 0 && !isWorldLoading && currentDimension === 'end' && typeof teleportViaEndGateway === 'function') {
+    const inWardenPortal = (feetBlock === B.WARDEN_PORTAL || bodyBlock === B.WARDEN_PORTAL);
+    if (inWardenPortal && _portalCooldown <= 0 && !isWorldLoading) {
+      _portalCooldown = 4.5;
+      if (currentDimension === 'warden') {
+        showWorldLoadingOverlay(
+          'Đang tải thế giới',
+          'Đang rời Thế Giới Warden trở về Overworld...',
+          () => switchDimension('overworld', '🌿 Đã quay về Overworld qua Cổng Cổ Thành!', { returnFromWarden: true }),
+          { badge: 'OVERWORLD' }
+        );
+      } else {
+        window.lastWardenOverworldPos = { x: Math.floor(player.x), y: Math.floor(player.y), z: Math.floor(player.z) };
+        showWorldLoadingOverlay(
+          'Đang tải thế giới',
+          'Đang tiến vào Thế Giới Cổ Thành Warden...',
+          () => switchDimension('warden', '🩵 ĐÃ BƯỚC VÀO THẾ GIỚI WARDEN CỔ ĐẠI!'),
+          { badge: 'WARDEN REALM' }
+        );
+      }
+    } else if (inEndGateway && _portalCooldown <= 0 && !isWorldLoading && currentDimension === 'end' && typeof teleportViaEndGateway === 'function') {
       teleportViaEndGateway(Math.hypot(player.x, player.z) < 180);
     } else if (inDreamPortal && _portalCooldown <= 0 && !isWorldLoading) {
       _portalCooldown = 4.5;
@@ -4623,7 +4792,7 @@
       }
     }
     const canCtrl = !!(isPlaying && !player.dead);
-    if (canCtrl) updateTouchBow(dt);
+    if (canCtrl) { updateTouchBow(dt); updateBowDrawState(dt); } else cancelBowDraw();
     updateContextPetBtn(false, dt);
 
     let f = canCtrl ? touchState.joyY : 0, s = canCtrl ? touchState.joyX : 0;
@@ -5272,7 +5441,8 @@
     const bobY = Math.sin(player.walkBob) * (player.sneaking ? 0.02 : 0.045) * player._groundBobW;
     const eyeY = player.y + EYE_HEIGHT + (player.sneakEyeOff || 0) + (player.sitEyeOff || 0) + (player.swimEyeOff || 0) + bobY + (player._stepCamOff || 0);
     if (!player.spyglassZoom) {
-      const targetFov = player.lowSprintSwim ? 84 : (player.sprintSwimming ? 80 : 74);
+      const bowZoom = player.bowDrawing ? (11.5 * Math.min(1, player.bowCharge || 0)) : 0;
+      const targetFov = (player.lowSprintSwim ? 84 : (player.sprintSwimming ? 80 : 74)) - bowZoom;
       if (Math.abs(camera.fov - targetFov) > 0.02) {
         camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-10.0 * dt));
         if (Math.abs(camera.fov - targetFov) <= 0.04) camera.fov = targetFov;
@@ -5424,6 +5594,9 @@
         swingU,
         minePhase: swingU,
         heldId: (heldSel && heldSel.count > 0) ? heldSel.id : 0,
+        bowDrawing: !!player.bowDrawing,
+        bowCharge: player.bowCharge || 0,
+        bowStage: player.bowStage || 0,
         blocking: player.blockingT > 0,
         shieldRaiseT: player.shieldRaiseT || 0,
         shieldHand: (typeof getActiveShieldHand === 'function') ? getActiveShieldHand() : null,
@@ -5461,8 +5634,8 @@
     const idleBreathX = Math.cos(elapsed * 1.45) * 0.009;
     const idleBreathY = Math.sin(elapsed * 2.9) * 0.013;
     const moveOn = (len > 0.1 && !player.flying) ? 1 : 0;
-    const swayX = moveOn * Math.cos(player.walkBob * 0.5) * (0.026 + fpSp * 0.032);
-    const fig8Y = moveOn * Math.abs(Math.sin(player.walkBob * 0.5)) * (-0.024 - fpSp * 0.032);
+    const swayX = moveOn * Math.cos(player.walkBob * 0.5) * (0.018 + fpSp * 0.024);
+    const fig8Y = moveOn * Math.abs(Math.sin(player.walkBob * 0.5)) * (-0.016 - fpSp * 0.022);
     player._fpSwimB = (player._fpSwimB || 0) + (((player.deepWater && !player.flying) ? 1 : 0) - (player._fpSwimB || 0)) * Math.min(1, dt * 8.0);
     const fpSw = player._fpSwimB * (swing > 0.01 || player.swordAtkActive ? 0.25 : 1.0);
     if (player.inWater) player._fpSwimPhase = ((player._fpSwimPhase || 0) + dt * (sprinting ? 5.2 : 3.8)) % (Math.PI * 2048);
@@ -5480,7 +5653,11 @@
     const eqY = -eqPop * eqPop * 0.34 + Math.sin(eqPop * Math.PI) * 0.035;
     const eqRx = -eqPop * 0.55;
 
-    // Afterswing+ 1P Hand+Tool Attack & Mining Swing Curves (Sword L<->R sweep, Pick overhead strike, Axe cleave, Shovel scoop, Hoe snap, Trident thrust, steady punch)
+    // Afterswing+ 1P Hand+Tool Attack & Mining Swing Curves — Authentic @cizphrax Afterswing+ Multi-Directional Arcs
+    // Sword: wide horizontal R→L sweep + cross-slash afterswing + forward thrust follow-through
+    // Pick: fan-shaped diagonal downward strike + rebound   Axe: heavy alternating diagonal cleave
+    // Shovel: upward scoop + forward flick   Hoe: sharp forward/downward chop at 45°
+    // Trident: wide overhead diagonal slash + horizontal sweep   Fist: clean forward jab
     let swX = 0, swY = 0, swZ = 0, swRx = 0, swRy = 0, swRz = 0;
     if (heldToolKind === 'sword' && (player.swordAtkActive || swing > 0.005)) {
       if (player.swordAtkActive && sampleR6Clip('rig2_sword_' + Math.max(1, Math.min(6, player.swordAtkHit || 1)), Math.min(player.swordAtkT, player.swordAtkDur || 0.5), _r6FpBuf)) {
@@ -5525,53 +5702,75 @@
         player._fpSwCur[0] = swX; player._fpSwCur[1] = swY; player._fpSwCur[2] = swZ;
         player._fpSwCur[3] = swRx; player._fpSwCur[4] = swRy; player._fpSwCur[5] = swRz;
       } else if (swing > 0.005) {
-        const pPow = Math.pow(swing, 0.65);
+        // Afterswing+ Sword: wide horizontal R→L sweep + cross-slash afterswing (alternating directions)
+        const pPow = Math.pow(swing, 0.58);
+        const pArc = Math.sin(swingU * Math.PI);
         const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
-        swX = -pPow * (dirS > 0 ? 0.34 : 0.16); swY = pPow * 0.08; swZ = -pPow * 0.22;
-        swRx = -pPow * 0.42; swRy = pPow * 0.85 * dirS; swRz = pPow * 0.58 * dirS;
+        const phase3 = (player.swingStep || 0) % 3;
+        if (phase3 === 0) {
+          // Wide horizontal right-to-left sweep (blade flat, sweeping across center)
+          swX = -pPow * 0.42 * dirS; swY = pArc * 0.06 - pPow * 0.02; swZ = -pPow * 0.18;
+          swRx = -pPow * 0.28; swRy = pPow * 1.12 * dirS; swRz = pPow * 0.72 * dirS;
+        } else if (phase3 === 1) {
+          // Cross-slash: whip back opposite direction with forward lunge
+          swX = pPow * 0.28 * dirS; swY = -pPow * 0.14 + pArc * 0.10; swZ = -pPow * 0.32;
+          swRx = -pPow * 0.56; swRy = -pPow * 0.95 * dirS; swRz = -pPow * 0.48 * dirS;
+        } else {
+          // Forward thrust / low follow-through (lunge toward crosshair)
+          swX = -pPow * 0.16; swY = -pPow * 0.08 + pArc * 0.04; swZ = -pPow * 0.48;
+          swRx = -pPow * 1.22; swRy = pPow * 0.14; swRz = pPow * 0.10;
+        }
       }
     } else if (swing > 0.005) {
-      const pPow = Math.pow(swing, 0.66);
+      const pPow = Math.pow(swing, 0.58);
       const pArc = Math.sin(swingU * Math.PI);
       const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
       if (heldDef && heldDef.id === B.TRIDENT) {
-        // Afterswing+ Trident crisp forward spear thrust
-        swX = -pPow * 0.18; swY = pArc * 0.08 - pPow * 0.06; swZ = -pPow * 0.44;
-        swRx = -pPow * 1.15; swRy = pPow * 0.12; swRz = pPow * 0.08;
+        // Afterswing+ Trident: wide overhead diagonal slash + horizontal sweep (alternating)
+        const phase2 = (player.swingStep || 0) & 1;
+        if (phase2 === 0) {
+          // Wide overhead diagonal slash from top-right down across center-left
+          swX = pPow * 0.32; swY = pArc * 0.22 - pPow * 0.18; swZ = -pPow * 0.28;
+          swRx = -pPow * 1.65 - pArc * 0.28; swRy = -pPow * 0.52; swRz = -pPow * 0.38;
+        } else {
+          // Horizontal sweep: spear flat pointing left, trailing ribbon
+          swX = -pPow * 0.38; swY = pArc * 0.06 - pPow * 0.04; swZ = -pPow * 0.22;
+          swRx = -pPow * 0.32; swRy = pPow * 1.08; swRz = pPow * 0.65;
+        }
       } else if (heldToolKind === 'pick') {
-        // Afterswing+ Overhead Pickaxe Strike + clean rebound
-        swX = -pPow * 0.18; swY = pArc * 0.14 - pPow * 0.22; swZ = -pPow * 0.34;
-        swRx = -pPow * 1.54 - pArc * 0.22; swRy = pPow * 0.16; swRz = pPow * 0.08;
+        // Afterswing+ Pickaxe: fan-shaped diagonal downward strike with vertical trail
+        swX = -pPow * 0.14 - pArc * 0.08; swY = pArc * 0.18 - pPow * 0.28; swZ = -pPow * 0.32;
+        swRx = -pPow * 1.72 - pArc * 0.32; swRy = pPow * 0.22 * dirS; swRz = pPow * 0.14 * dirS;
       } else if (heldToolKind === 'axe') {
-        // Afterswing+ Alternating Diagonal Axe Chop
-        swX = -pPow * (0.28 + 0.08 * dirS); swY = -pPow * 0.10 + pArc * 0.12; swZ = -pPow * 0.28;
-        swRx = -pPow * 1.24 - pArc * 0.20; swRy = pPow * 0.72 * (dirS > 0 ? 1 : 0.55); swRz = pPow * 0.52 * (dirS > 0 ? 1 : 0.45);
+        // Afterswing+ Axe: heavy alternating diagonal cleave with follow-through
+        swX = -pPow * (0.32 + 0.10 * dirS); swY = pArc * 0.16 - pPow * 0.24; swZ = -pPow * 0.30;
+        swRx = -pPow * 1.48 - pArc * 0.28; swRy = pPow * 0.78 * (dirS > 0 ? 1 : 0.50); swRz = pPow * 0.56 * (dirS > 0 ? 1 : 0.42);
       } else if (heldToolKind === 'shovel') {
-        // Afterswing+ Shovel Scoop & Flick
-        swX = -pPow * 0.20; swY = -pPow * 0.14 + pArc * 0.11; swZ = -pPow * 0.28;
-        swRx = -pPow * 1.16 + pArc * 0.22; swRy = pPow * 0.34; swRz = pPow * 0.20;
+        // Afterswing+ Shovel: upward scoop then forward flick
+        swX = -pPow * 0.18; swY = -pPow * 0.08 + pArc * 0.22; swZ = -pPow * 0.34;
+        swRx = -pPow * 1.08 + pArc * 0.38; swRy = pPow * 0.28; swRz = pPow * 0.16;
       } else if (heldToolKind === 'hoe') {
-        // Afterswing+ Quick Hoe Snap
-        swX = -pPow * 0.22; swY = -pPow * 0.12 + pArc * 0.10; swZ = -pPow * 0.26;
-        swRx = -pPow * 1.38; swRy = pPow * 0.24; swRz = pPow * 0.18;
+        // Afterswing+ Hoe: sharp forward/downward 45° chop toward crosshair
+        swX = -pPow * 0.20; swY = -pPow * 0.18 + pArc * 0.08; swZ = -pPow * 0.38;
+        swRx = -pPow * 1.56; swRy = pPow * 0.18; swRz = pPow * 0.12;
       } else if (!heldDef) {
-        // Afterswing+ Clean Forward Fist Jab (camera stays steady)
-        swX = -pPow * 0.20; swY = pArc * 0.05 - pPow * 0.03; swZ = -pPow * 0.38;
-        swRx = -pPow * 0.94; swRy = pPow * 0.38; swRz = pPow * 0.42;
+        // Afterswing+ Fist: clean forward jab (steady camera)
+        swX = -pPow * 0.22; swY = pArc * 0.06 - pPow * 0.03; swZ = -pPow * 0.44;
+        swRx = -pPow * 0.98; swRy = pPow * 0.34; swRz = pPow * 0.38;
       } else {
-        // Crisp Block / Item Tap
-        swX = -pPow * 0.24; swY = -pPow * 0.10 + pArc * 0.05; swZ = -pPow * 0.22;
-        swRx = -pPow * 1.15 - pArc * 0.18; swRy = pPow * 0.48; swRz = pPow * 0.26;
+        // Afterswing+ Block / Item Tap
+        swX = -pPow * 0.22; swY = -pPow * 0.08 + pArc * 0.06; swZ = -pPow * 0.24;
+        swRx = -pPow * 1.18 - pArc * 0.22; swRy = pPow * 0.44; swRz = pPow * 0.22;
       }
     }
 
-    // Move Those Hands Sprint Carry (angles tool dynamically across view & pumps with stride!)
-    const spX = -fpSp * 0.075;
-    const spY = -fpSp * 0.035;
-    const spZ = fpSp * 0.035;
-    const spRx = -fpSp * 0.28 - (player.landSquash || 0) * 0.22;
-    const spRy = fpSp * 0.34;
-    const spRz = fpSp * 0.24 + (player.sneaking ? 0.16 : 0);
+    // Afterswing+ Sprint Carry (angles tool dynamically across view & pumps with stride!)
+    const spX = -fpSp * 0.065;
+    const spY = -fpSp * 0.030;
+    const spZ = fpSp * 0.028;
+    const spRx = -fpSp * 0.24 - (player.landSquash || 0) * 0.18;
+    const spRy = fpSp * 0.28;
+    const spRz = fpSp * 0.20 + (player.sneaking ? 0.14 : 0);
 
     const cdDip = 0;
 
@@ -5604,15 +5803,52 @@
         (0.05 - lagX * 0.6) * (1 - bT) + (-0.06) * bT
       );
     } else {
+      // Afterswing+ Per-Tool Idle Rest Poses (each tool type has distinct resting angle matching @cizphrax reference)
+      // Sword: tilted outward/rightward near-horizontal   Pick: tilted backward toward right edge
+      // Shovel: straight vertical upright   Hoe: upright with slight forward-left tilt
+      // Trident: straight vertical upright   Empty/block: standard
+      let idleOffX = 0, idleOffY = 0, idleOffZ = 0, idleRx = 0, idleRy = 0, idleRz = 0;
+      if (heldToolKind === 'sword') {
+        // Sword rests low, tilted outward/rightward (near-horizontal/shallow angle)
+        idleOffX = 0.04; idleOffY = -0.06; idleOffZ = 0.02;
+        idleRx = 0.08; idleRy = -0.32; idleRz = -0.18;
+      } else if (heldToolKind === 'pick') {
+        // Pickaxe rests tilted backward toward right edge (head pointing outward-right)
+        idleOffX = 0.03; idleOffY = -0.02; idleOffZ = 0.01;
+        idleRx = -0.06; idleRy = -0.22; idleRz = -0.14;
+      } else if (heldToolKind === 'axe') {
+        // Axe similar to pick but slightly more upright
+        idleOffX = 0.02; idleOffY = -0.03; idleOffZ = 0.01;
+        idleRx = -0.04; idleRy = -0.18; idleRz = -0.12;
+      } else if (heldToolKind === 'shovel') {
+        // Shovel held straight vertical upright on the right side
+        idleOffX = 0.02; idleOffY = 0.03; idleOffZ = 0.0;
+        idleRx = 0.06; idleRy = -0.08; idleRz = 0.04;
+      } else if (heldToolKind === 'hoe') {
+        // Hoe upright with slight forward-left tilt (head facing toward center crosshair)
+        idleOffX = -0.01; idleOffY = 0.02; idleOffZ = -0.02;
+        idleRx = 0.04; idleRy = 0.06; idleRz = 0.08;
+      } else if (heldToolKind === 'bow') {
+        if (player.bowDrawing) {
+          const bowC = Math.max(0.05, Math.min(1, player.bowCharge || 0.1));
+          const tremor = bowC >= 0.98 ? Math.sin(elapsed * 42.0) * 0.004 : 0;
+          idleOffX = -0.16 * bowC + tremor; idleOffY = 0.08 * bowC + tremor * 0.7; idleOffZ = 0.05 * bowC;
+          idleRx = 0.08 * bowC; idleRy = 0.36 * bowC; idleRz = -0.22 * bowC;
+        }
+      } else if (heldDef && heldDef.id === B.TRIDENT) {
+        // Trident/spear held straight vertical upright
+        idleOffX = 0.01; idleOffY = 0.04; idleOffZ = 0.0;
+        idleRx = 0.08; idleRy = -0.06; idleRz = 0.02;
+      }
       heldPivot.position.set(
-        0.46 * _vmX + idleBreathX + swayX + swimSwayX + lagX + spX + swX + eatX,
-        -0.37 + fig8Y + idleBreathY + swimSwayY + sneakDip + airDip + landDip + cdDip + eqY + lagY + spY + swY + eatY,
-        -0.63 + _vmZAdd + spZ + swZ + eatZ + swimStrokeZ
+        0.46 * _vmX + idleBreathX + swayX + swimSwayX + lagX + spX + swX + eatX + idleOffX,
+        -0.37 + fig8Y + idleBreathY + swimSwayY + sneakDip + airDip + landDip + cdDip + eqY + lagY + spY + swY + eatY + idleOffY,
+        -0.63 + _vmZAdd + spZ + swZ + eatZ + swimStrokeZ + idleOffZ
       );
       heldPivot.rotation.set(
-        swRx + spRx + eqRx + lagY * 1.7 + (airDip * 1.1) + eatRx + swimStrokeRx,
-        swRy + spRy + swayX * 2.1 - lagX * 2.2 + eatRy,
-        swRz + spRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz
+        swRx + spRx + eqRx + lagY * 1.7 + (airDip * 1.1) + eatRx + swimStrokeRx + idleRx,
+        swRy + spRy + swayX * 2.1 - lagX * 2.2 + eatRy + idleRy,
+        swRz + spRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz + idleRz
       );
     }
     if (offhandPivot) {

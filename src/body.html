@@ -35,6 +35,11 @@
     </div>
 
     <div id="topCenterBar">
+      <div class="rt-btn-frame" id="rtHudFrame">
+        <button class="mc-top-icon rt-hud-btn active" id="btnHudRayTracing" title="Bật / Tắt Ray Tracing Dò Tia (RT)">
+          <span class="rt-ico">✦</span><span class="rt-lbl">RT</span>
+        </button>
+      </div>
       <button class="mc-top-icon" id="btnCamMode" title="Góc nhìn Thứ 1 / Thứ 3 (F5)">F5</button>
       <button class="mc-top-icon" id="btnChatOpen" title="Mở Khung Chat (T / Enter)"><svg viewBox="0 0 12 12" width="14" height="14" shape-rendering="crispEdges" style="display:block;image-rendering:pixelated;"><path fill="#fff" d="M1 1h10v7H6l-3 3V8H1z"/><path fill="#1e293b" d="M3 4h6v1H3zm0 2h4v1H3z"/></svg></button>
       <button class="mc-top-icon" id="btnMinimap" title="Mở Bản Đồ Thế Giới Sương Mù (M)">
@@ -1259,6 +1264,9 @@
                 <div class="seg-group">
                   <button class="seg-btn active" id="btnCloudMode">Mây 3D</button>
                   <button class="seg-btn active" id="btnTexFilter">Bump PBR: Bật</button>
+                  <div class="rt-btn-frame menu-rt-frame">
+                    <button class="seg-btn active" id="btnMenuRayTracing" title="Dò tia ánh sáng thực: Phản chiếu mặt nước/kính, khúc xạ xuyên lá &amp; tán xạ hang tối">✦ Ray Tracing: BẬT</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1341,6 +1349,7 @@
                 <button class="spawn-btn" data-scenic="dim_overworld">🌿 Thế Giới Chính</button>
                 <button class="spawn-btn" data-scenic="dim_nether">🔥 Địa Ngục (Nether)</button>
                 <button class="spawn-btn" data-scenic="dim_end">🌌 Khu Kết Thúc (End)</button>
+                <button class="spawn-btn" id="btnTpWardenDim" data-scenic="dim_warden" style="border-color:#22d3ee;color:#a5f3fc;background:rgba(6,36,48,0.92);">👁️ Thế Giới Warden (Cổ Thành)</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="dim_sift">✨ Khu Giấc Mơ (The Sift)</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="sift_meadow">🌸 Sift: Singer's Meadow</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="sift_huskland">🏜️ Sift: Humbler Huskland</button>

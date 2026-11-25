@@ -14,7 +14,10 @@ NUCRAFT includes or interacts with open-source components under their respective
    Sourced from open-source Luanti / Minetest community sound packs under permissive / CC-BY-SA open-source licenses.
 
 4. **3D Voxel Mob Models (`assets/models/`)**  
-   Custom / procedural `.glb` voxel models created for NUCRAFT.
+   Original clean-room procedural `.glb` voxel models generated via Blender Python scripts specifically for NUCRAFT.
+
+5. **Visual & Shader Design Inspirations**  
+   Bushy-leaf foliage silhouettes and real-time ray-traced lighting concepts are inspired by community voxel shader/resource-pack conventions (e.g., Motschen's Better Leaves concept) and implemented 100% from scratch in clean-room JavaScript/GLSL without copying any third-party files or textures.
 
 ## Trademark & Non-Affiliation Disclaimer
 

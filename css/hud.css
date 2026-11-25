@@ -200,6 +200,30 @@
   }
   .mc-top-icon:active { background: rgba(95, 95, 95, 0.92); transform: translateY(1px); }
   .mc-top-icon svg { width: 18px; height: 18px; }
+  .rt-btn-frame {
+    display: inline-flex; align-items: center; padding: 2px;
+    background: linear-gradient(135deg, rgba(14, 116, 144, 0.55), rgba(30, 41, 59, 0.9));
+    border: 2px solid #22d3ee;
+    box-shadow: inset 1px 1px 0 rgba(165, 243, 252, 0.55), 0 0 8px rgba(34, 211, 238, 0.35);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .rt-btn-frame.off {
+    border-color: #475569; background: rgba(15, 23, 42, 0.72);
+    box-shadow: inset 1px 1px 0 rgba(148, 163, 184, 0.25);
+  }
+  .rt-hud-btn {
+    width: auto; min-width: 38px; height: 28px; padding: 0 5px; gap: 2px;
+    background: #0b2230; color: #a5f3fc; border: 1px solid rgba(34, 211, 238, 0.6);
+    box-shadow: none; font-size: 10px; letter-spacing: 0.3px;
+  }
+  .rt-btn-frame.off .rt-hud-btn {
+    background: #1e293b; color: #94a3b8; border-color: rgba(100, 116, 139, 0.45);
+  }
+  .rt-ico { color: #67e8f9; font-size: 11px; line-height: 1; }
+  .rt-btn-frame.off .rt-ico { color: #64748b; }
+  .menu-rt-frame { border-radius: 0; }
+  .menu-rt-frame .seg-btn { border: none; background: rgba(11, 34, 48, 0.92); color: #a5f3fc; font-weight: 700; }
+  .menu-rt-frame.off .seg-btn { background: rgba(30, 41, 59, 0.85); color: #94a3b8; }
 
   /* 100% Pure Authentic Minecraft Boss Bar & Targeted Mob HP Bar (ZERO heavy card borders — pure floating text + thin bar!) */
   #bossBarWrap {

@@ -18,6 +18,9 @@
     [B.NEBULA_ORE]:     { out: B.NEBULA_INGOT,    kind: 'ore',  xp: 18, cookTime: 14.0 },
     [B.AETHERIUM_ORE]:  { out: B.AETHERIUM_INGOT, kind: 'ore',  xp: 20, cookTime: 15.0 },
     [B.DREAM_PRISM_ORE]:{ out: B.DREAM_PRISM_GEM, kind: 'ore',  xp: 24, cookTime: 16.0 },
+    [B.UMBRA_ORE]:      { out: B.UMBRA_INGOT,     kind: 'ore',  xp: 20, cookTime: 14.0 },
+    [B.RESONANT_ORE]:   { out: B.SCULK_RESONANT_GEM, kind: 'ore', xp: 24, cookTime: 15.0 },
+    [B.SOULFORGED_ORE]: { out: B.SOULFORGED_INGOT,kind: 'ore',  xp: 28, cookTime: 16.0 },
     [B.STONE]:          { out: B.SMOOTH_STONE,    kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.SAND]:           { out: B.GLASS,           kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.RAW_FISH]:       { out: B.COOKED_FISH,     kind: 'food', xp: 3,  cookTime: 10.0 },
@@ -36,7 +39,8 @@
     [B.ACACIA_LOG]:     { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.PALM_LOG]:       { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.MANGROVE_LOG]:   { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
-    [B.AZURE_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 }
+    [B.AZURE_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
+    [B.SCULK_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 }
   };
   // Exact Minecraft Wiki Fuel Burn Seconds (10s = 1 item in standard Furnace; Blast/Smoker burns 2x faster)
   const FUEL_VALUES = {
@@ -369,7 +373,32 @@
         { cat: 'tools', out: B[`DRAGON_${el}_LEGS`],   qty: 1, req: [{ id: sc, qty: 7 }], grid: [sc,sc,sc, sc,0,sc, sc,0,sc] },
         { cat: 'tools', out: B[`DRAGON_${el}_BOOTS`],  qty: 1, req: [{ id: sc, qty: 4 }], grid: [0,0,0, sc,0,sc, sc,0,sc] }
       ];
-    })
+    }),
+    // v129 Warden Dimension Ignition & 3 Progression Tier Gear Sets
+    { cat: 'tools',  is2x2: true, out: B.SOUL_FLINT_AND_STEEL, qty: 1, req: [{ id: B.IRON_INGOT, qty: 1 }, { id: B.ECHO_SHARD, qty: 1 }, { id: B.FLINT, qty: 1 }], grid: [B.IRON_INGOT,B.ECHO_SHARD,0, B.FLINT,0,0, 0,0,0] },
+    { cat: 'blocks', is2x2: true, out: B.SCULK_PLANKS,         qty: 4, req: [{ id: B.SCULK_LOG, qty: 1 }], grid: [B.SCULK_LOG,0,0, 0,0,0, 0,0,0] },
+    { cat: 'tools',  out: B.SCULK_CHITIN_SWORD, qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 2 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.UMBRA_INGOT,0, 0,B.UMBRA_INGOT,B.WARDEN_CHITIN, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SCULK_CHITIN_PICK,  qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 3 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.UMBRA_INGOT,B.UMBRA_INGOT,B.UMBRA_INGOT, 0,B.STICK,B.WARDEN_CHITIN, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SCULK_CHITIN_AXE,   qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 3 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.UMBRA_INGOT,B.UMBRA_INGOT,0, B.UMBRA_INGOT,B.STICK,B.WARDEN_CHITIN, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SCULK_ECHO_BOW,     qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 2 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.ECHO_SHARD, qty: 2 }], grid: [0,B.UMBRA_INGOT,B.ECHO_SHARD, B.WARDEN_CHITIN,0,B.ECHO_SHARD, 0,B.UMBRA_INGOT,0] },
+    { cat: 'tools',  out: B.RESONANT_SWORD,     qty: 1, req: [{ id: B.SCULK_RESONANT_GEM, qty: 2 }, { id: B.SOUL_RESONATOR, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.SCULK_RESONANT_GEM,0, 0,B.SCULK_RESONANT_GEM,B.SOUL_RESONATOR, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.RESONANT_PICK,      qty: 1, req: [{ id: B.SCULK_RESONANT_GEM, qty: 3 }, { id: B.SOUL_RESONATOR, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.SCULK_RESONANT_GEM,B.SCULK_RESONANT_GEM,B.SCULK_RESONANT_GEM, 0,B.STICK,B.SOUL_RESONATOR, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.RESONANT_AXE,       qty: 1, req: [{ id: B.SCULK_RESONANT_GEM, qty: 3 }, { id: B.SOUL_RESONATOR, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.SCULK_RESONANT_GEM,B.SCULK_RESONANT_GEM,0, B.SCULK_RESONANT_GEM,B.STICK,B.SOUL_RESONATOR, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.DEEP_SONIC_BOW,     qty: 1, req: [{ id: B.SCULK_RESONANT_GEM, qty: 2 }, { id: B.SOUL_RESONATOR, qty: 2 }, { id: B.ECHO_SHARD, qty: 1 }], grid: [0,B.SCULK_RESONANT_GEM,B.SOUL_RESONATOR, B.ECHO_SHARD,0,B.SOUL_RESONATOR, 0,B.SCULK_RESONANT_GEM,0] },
+    { cat: 'tools',  out: B.SOULFORGED_SWORD,   qty: 1, req: [{ id: B.SOULFORGED_INGOT, qty: 2 }, { id: B.SCULK_HEART, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.SOULFORGED_INGOT,0, 0,B.SOULFORGED_INGOT,B.SCULK_HEART, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SOULFORGED_PICK,    qty: 1, req: [{ id: B.SOULFORGED_INGOT, qty: 3 }, { id: B.SCULK_HEART, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.SOULFORGED_INGOT,B.SOULFORGED_INGOT,B.SOULFORGED_INGOT, 0,B.STICK,B.SCULK_HEART, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SOULFORGED_AXE,     qty: 1, req: [{ id: B.SOULFORGED_INGOT, qty: 3 }, { id: B.SCULK_HEART, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.SOULFORGED_INGOT,B.SOULFORGED_INGOT,0, B.SOULFORGED_INGOT,B.STICK,B.SCULK_HEART, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.SOUL_HARBINGER_BOW, qty: 1, req: [{ id: B.SOULFORGED_INGOT, qty: 2 }, { id: B.SCULK_HEART, qty: 1 }, { id: B.SOUL_RESONATOR, qty: 2 }], grid: [0,B.SOULFORGED_INGOT,B.SOUL_RESONATOR, B.SCULK_HEART,0,B.SOUL_RESONATOR, 0,B.SOULFORGED_INGOT,0] },
+    ...[
+      ['WARDEN_CHITIN', B.UMBRA_INGOT, B.WARDEN_CHITIN],
+      ['RESONANT',      B.SCULK_RESONANT_GEM, B.SOUL_RESONATOR],
+      ['SOULFORGED',    B.SOULFORGED_INGOT, B.SCULK_HEART]
+    ].flatMap(([k, mat, drop]) => [
+      { cat: 'tools', out: B[`${k}_HELMET`], qty: 1, req: [{ id: mat, qty: 4 }, { id: drop, qty: 1 }], grid: [mat,drop,mat, mat,0,mat, 0,0,0] },
+      { cat: 'tools', out: B[`${k}_CHEST`],  qty: 1, req: [{ id: mat, qty: 7 }, { id: drop, qty: 1 }], grid: [mat,0,mat, mat,drop,mat, mat,mat,mat] },
+      { cat: 'tools', out: B[`${k}_LEGS`],   qty: 1, req: [{ id: mat, qty: 6 }, { id: drop, qty: 1 }], grid: [mat,drop,mat, mat,0,mat, mat,0,mat] },
+      { cat: 'tools', out: B[`${k}_BOOTS`],  qty: 1, req: [{ id: mat, qty: 4 }], grid: [0,0,0, mat,0,mat, mat,0,mat] }
+    ])
   ];
 
   const BIOMES = {
@@ -437,7 +466,10 @@
     SIFT_GIANT_FOREST:{ id: 61, name: 'The Sift • Rừng Đại Thụ Giấc Mơ' },
     SIFT_SKY_ISLANDS: { id: 62, name: 'The Sift • Đảo Bay Bầu Trời' },
     SIFT_PEAKS:       { id: 63, name: 'The Sift • Núi Đá Cao Giấc Mơ' },
-    SIFT_OCEAN:       { id: 64, name: 'The Sift • Biển Giấc Mơ' }
+    SIFT_OCEAN:       { id: 64, name: 'The Sift • Biển Giấc Mơ' },
+    WARDEN_REALM:     { id: 65, name: 'Thế Giới Cổ Thành Warden' },
+    WARDEN_FOREST:    { id: 66, name: 'Rừng Linh Hồn Sculk' },
+    WARDEN_CITADEL:   { id: 67, name: 'Thung Lũng Pháo Đài Cổ' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -475,7 +507,10 @@
     dragon_head:   { main: '#1e1b24', hi: '#4b4558', dark: '#09080c', glint: '#d946ef', trim: '#c026d3', hex: 0x262130, rough: 0.55, metal: 0.18, emit: 0.12 },
     elytra:        { main: '#7e7d99', hi: '#abaac7', dark: '#424156', glint: '#c7d2fe', trim: '#52516b', hex: 0x7e7d99, rough: 0.50, metal: 0.25 },
     elytra_phoenix:{ main: '#ea580c', hi: '#fbbf24', dark: '#450a0a', glint: '#fef08a', trim: '#f97316', hex: 0xf97316, rough: 0.35, metal: 0.38, emit: 0.26 },
-    dream_prism:   { main: '#38e8e1', hi: '#ffffff', dark: '#3b0764', glint: '#ffffff', trim: '#f8fafc', hex: 0x69b8ff, rough: 0.16, metal: 0.68, emit: 0.28, rainbow: true, waterSeed: 5.1, style: 'prism' }
+    dream_prism:   { main: '#38e8e1', hi: '#ffffff', dark: '#3b0764', glint: '#ffffff', trim: '#f8fafc', hex: 0x69b8ff, rough: 0.16, metal: 0.68, emit: 0.28, rainbow: true, waterSeed: 5.1, style: 'prism' },
+    warden_chitin:     { main: '#0f5c6e', hi: '#22d3ee', dark: '#071b24', glint: '#a5f3fc', trim: '#14b8a6', hex: 0x0e7490, rough: 0.32, metal: 0.45, emit: 0.18 },
+    warden_resonant:   { main: '#0891b2', hi: '#a5f3fc', dark: '#082633', glint: '#ecfeff', trim: '#38bdf8', hex: 0x22d3ee, rough: 0.24, metal: 0.52, emit: 0.26 },
+    warden_soulforged: { main: '#1d4ed8', hi: '#67e8f9', dark: '#0f0c29', glint: '#f5d0fe', trim: '#c084fc', hex: 0x38bdf8, rough: 0.20, metal: 0.60, emit: 0.34 }
   };
   const TRIM_MATERIALS = {
     [B.QUARTZ_ORE]:      { id: 'quartz',    label: 'Thạch Anh',  hex: '#e3d4c4', hi: '#fff8f0', dark: '#b4a595' },
@@ -892,9 +927,175 @@
   }
 
   /* ============================================================================
-   * 2. CRISP 16x16 PBR PIXEL-ART TEXTURE ATLAS + BUMP MAP (8x52 = 416 TILES)
+   * 2. CRISP 16x16 PBR PIXEL-ART TEXTURE ATLAS + BUMP MAP (8x80 = 640 TILES)
    * ============================================================================ */
-  const ATLAS_COLS = 8, ATLAS_ROWS = 74, TILE_PX = 16;
+  const ATLAS_COLS = 8, ATLAS_ROWS = 80, TILE_PX = 16;
+
+  // Shared 4-Stage Bow Pixel Sprites (100% Icon == 1P == 3P Parity across rest + 3 hold-to-draw tension stages)
+  const _STD_BOW_STAGES = [
+    [
+      '................',
+      '........DDDDD...',
+      '.......DMMWWMD..',
+      '......DMWD..SD..',
+      '.....DMWD....SD.',
+      '....DMGD......SD',
+      '...DWGD........S',
+      '...DGD.........S',
+      '...DWD.........S',
+      '....DMD......SD.',
+      '.....DMD....SD..',
+      '......DMD..SD...',
+      '.......DMMMD....',
+      '........DDD.....',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '.......DDDDD....',
+      '......DMMWWMD...',
+      '.....DMWD...SD..',
+      '....DMWD...SS...',
+      '...DMGD...SA....',
+      '..DWGD...aA.....',
+      '..DGD...aA.SD...',
+      '..DWD..fA...S...',
+      '...DMDfA....SD..',
+      '....DMf......SD.',
+      '.....DMD.....SD.',
+      '......DMMMD..SD.',
+      '.......DDDDDDD..',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '......DDDDD.....',
+      '.....DMMWWMD....',
+      '....DMWD..SD....',
+      '...DMWD..S......',
+      '..DMGD..S...HH..',
+      '..DWGD.S...HAA..',
+      '..DGD.S...aA....',
+      '..DWDS...aA.....',
+      '...DMf..aA......',
+      '...DfA.aA....SD.',
+      '....ffMD....SD..',
+      '.....DMfMMD.SD..',
+      '......DDDDDDD...',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '.....DDDDD......',
+      '....DMMWWMD.....',
+      '...DMWD..SD.....',
+      '..DMWD..S.......',
+      '..DMGD.S..HHHH..',
+      '.DWGD.S..HAAAA..',
+      '.DGD.S..aA......',
+      '.DWDS..aA.......',
+      '..DMf.aA...SD...',
+      '..DfAaA...SD....',
+      '...ffMD..SD.....',
+      '....DMfMMMD.....',
+      '.....DDDDDD.....',
+      '................',
+      '................'
+    ]
+  ];
+  const _HORNED_BOW_STAGES = [
+    [
+      '................',
+      '........DDDDXX..',
+      '.......DMMWWHXD.',
+      '......DMWD..SSD.',
+      '.....DMWX....SS.',
+      '....DMGD......SD',
+      '...DWGD........S',
+      '...DGD.........S',
+      '...DWD.........S',
+      '....DMX......SD.',
+      '.....DMD....SD..',
+      '......DMWD.SD...',
+      '.......DMMHHD...',
+      '........DDXX....',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '.......DDDDXX...',
+      '......DMMWWHXD..',
+      '.....DMWD...SSD.',
+      '....DMWX...SS...',
+      '...DMGD...SA....',
+      '..DWGD...aA.....',
+      '..DGD...aA.SSD..',
+      '..DWD..fA...S...',
+      '...DMXfA....SD..',
+      '....DMf......SD.',
+      '.....DMWD....SD.',
+      '......DMMHHD.SD.',
+      '.......DDDXXXX..',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '......DDDDXX....',
+      '.....DMMWWHXD...',
+      '....DMWD..SSD...',
+      '...DMWX..S......',
+      '..DMGD..S...HH..',
+      '..DWGD.S...HAA..',
+      '..DGD.S...aA....',
+      '..DWDS...aA.....',
+      '...DMf..aA......',
+      '...DfA.aA....SSD',
+      '....ffMD....SD..',
+      '.....DMWfHHD.SD.',
+      '......DDDDXXXD..',
+      '................',
+      '................'
+    ],
+    [
+      '................',
+      '.....DDDDXX.....',
+      '....DMMWWHXD....',
+      '...DMWD..SSD....',
+      '..DMWX..S.......',
+      '..DMGD.S..HHHH..',
+      '.DWGD.S..HAAAA..',
+      '.DGD.S..aA......',
+      '.DWDS..aA.......',
+      '..DMf.aA...SSD..',
+      '..DfAaA...SD....',
+      '...ffMD..SD.....',
+      '....DMWfHHXD....',
+      '.....DDDDXX.....',
+      '................',
+      '................'
+    ]
+  ];
+  const BOW_PALETTES = {
+    bow:              { D: '#422610', W: '#6b3e19', M: '#965b26', G: '#c9924c', H: '#e2e8f0', X: '#c9924c', S: '#cbd5e1', A: '#85532a', a: '#a16207', f: '#f1f5f9' },
+    dragon_bone_bow:  { D: '#2a0808', W: '#7f1d1d', M: '#dc2626', G: '#e7e5e4', H: '#fef08a', X: '#f5f5f4', S: '#22d3ee', A: '#67e8f9', a: '#e7e5e4', f: '#fde047' },
+    sculk_echo_bow:   { D: '#041c24', W: '#0c4a6e', M: '#0e7490', G: '#22d3ee', H: '#a5f3fc', X: '#14b8a6', S: '#67e8f9', A: '#22d3ee', a: '#0891b2', f: '#cffafe' },
+    deep_sonic_bow:   { D: '#021826', W: '#0e7490', M: '#22d3ee', G: '#a5f3fc', H: '#ffffff', X: '#38bdf8', S: '#bae6fd', A: '#38bdf8', a: '#22d3ee', f: '#ecfeff' },
+    soul_harbinger_bow:{ D: '#09071a', W: '#312e81', M: '#7c3aed', G: '#22d3ee', H: '#f5d0fe', X: '#67e8f9', S: '#c084fc', A: '#e879f9', a: '#38bdf8', f: '#fef08a' }
+  };
+  function getBowStageSprite(blockId, stage = 0) {
+    const st = Math.max(0, Math.min(3, stage | 0));
+    if (blockId === B.DRAGON_BONE_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.dragon_bone_bow };
+    if (blockId === B.SCULK_ECHO_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.sculk_echo_bow };
+    if (blockId === B.DEEP_SONIC_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.deep_sonic_bow };
+    if (blockId === B.SOUL_HARBINGER_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.soul_harbinger_bow };
+    return { rows: _STD_BOW_STAGES[st], pal: BOW_PALETTES.bow };
+  }
+  window.getBowStageSprite = getBowStageSprite;
 
   function buildTextureAtlas() {
     const canvas = document.createElement('canvas');
@@ -1204,6 +1405,7 @@
     const SHOVEL_SPRITE = ['................','..........DDDD..','.........DHHHMD.','.........DHMMMD.','........DHMMMD..','........DMMMD...','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','...DWD..........','..DWD...........','.DWD............','.DD.............','................'];
     const BOW_SPRITE = ['................','.......DDD......','......DMMMD.....','.....DMD..SD....','....DMD....SD...','...DMD......SD..','..DWD........SD.','..DWD........SD.','..DWD........SD.','...DMD......SD..','....DMD....SD...','.....DMD..SD....','......DMMMD.....','.......DDD......','................','................'];
     const ARROW_SPRITE = ['................','...........DDD..','..........DHHMD.','..........DHMMMD','.........DWD.DD.','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','...DWD..........','..RWD...........','.RRD............','.RR.............','................','................'];
+    const STD_ARROW_SPRITE = ['................','............HHH.','...........DHHMD','...........DHMMD','..........DWD.D.','.........DWD....','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','..FFD...........','.FFFD...........','.FFF............','..F.............','................'];
     const ARMOR_SPRITE = ['................','...DDD....DDD...','..DHHMD..DHHMD..','.DHHHHMDDHHHHMD.','.DHMMMMMMMMMMHD.','.DDDMMMMMMMMDDD.','...DMMMMHHMMMD..','...DMMMMHHMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DMMDDDDMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DDDDDDDDDDD..','................','................'];
     const TALL_GRASS_SPRITE = ['....g......g....','..g.g..g...g..g.','..g.G.gG..gG..g.','.gG.G.gG..gG.gG.','.gG.GG.G.gGG.gG.','.GG.GG.GG.GG.GG.','gGG.GGgGG.GGgGG.','GGg.GGGGGGgGGGG.','GGGGGGGGGGGGGGGg','GGGGGGGGGGGGGGGG','.GGGGGGGGGGGGGG.','.gGGGGdGGGGdGGG.','..GGGdGGGdGGGG..','..dGGddGGdGGGg..','..ddd.dddd.ddd..','...dd..ddd..dd..'];
     const POPPY_SPRITE = ['................','......RRRR......','....RRHHHHHR....','....RHHRRRHR....','....RRRRRRRR....','.....RRRRRR.....','......RRRR......','.......GG.......','.....gGGGG......','....gGGGGGg.....','......gGGg......','....g..GG..g....','....Gg.GG.gG....','.....GGGGGG.....','......dGGd......','......dddd......'];
@@ -1497,8 +1699,8 @@
     tilePixels(61, (x, y, r) => { const d = Math.hypot(x - 7.5, y - 10.5); return (d > 5.2 || y < 5) ? null : shade(d < 2.5 ? '#94a3b8' : '#52525b', (r - 0.5) * 26); });
     tilePixels(62, (x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d > 5.5 ? null : (d < 2.0 ? '#fdf4ff' : (d > 4.2 ? '#4c1d95' : '#9333ea')); });
     tilePixels(63, (x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d > 5.5 ? null : (d < 2.5 ? '#fef08a' : (d > 4.2 ? '#7c2d12' : '#ea580c')); });
-    drawSpriteMap(64, BOW_SPRITE, { D:'#451a03', W:'#92400e', M:'#b45309', S:'#e2e8f0' });
-    drawSpriteMap(65, ARROW_SPRITE, { D:'#334155', H:'#ffffff', M:'#cbd5e1', W:'#a16207', R:'#dc2626' });
+    { const _sb0 = getBowStageSprite(B.BOW, 0); drawSpriteMap(64, _sb0.rows, _sb0.pal); }
+    drawSpriteMap(65, STD_ARROW_SPRITE, { D:'#422610', H:'#cbd5e1', M:'#64748b', W:'#965b26', F:'#e2e8f0' });
     drawSpriteMap(66, ARMOR_SPRITE, palIron); drawSpriteMap(67, ARMOR_SPRITE, palDiamond);
     drawSpriteMap(68, SWORD_SPRITE, palFire);
     drawSpriteMap(69, MUSHROOM_GLOW_SPRITE, { C:'#2dd4bf', H:'#ccfbf1', c:'#14b8a6', S:'#e2e8f0', s:'#94a3b8', d:'#475569' });
@@ -4011,7 +4213,7 @@
     drawSpriteMap(500, SWORD_SPRITE, palDragon);
     drawSpriteMap(501, AXE_SPRITE,   palDragon);
     drawSpriteMap(502, PICK_SPRITE,  palDragon);
-    drawSpriteMap(503, BOW_SPRITE,   { D:'#450a0a', W:'#e7e5e4', M:'#b91c1c', S:'#22d3ee' });
+    { const _db0 = getBowStageSprite(B.DRAGON_BONE_BOW, 0); drawSpriteMap(503, _db0.rows, _db0.pal); }
     // 504..509: Canonical 16x16 Minecraft Farming Hoes (Wood, Stone, Iron, Gold, Diamond, Netherite)
     const HOE_SPRITE = [
       '................','......DDDDDD....','.....DHHHHHHD...','.....DMMMMMMHD..',
@@ -4217,6 +4419,83 @@
     drawScaleTile(542, '#042f2e', '#99f6e4', '#06b6d4', '#155e75');
     drawScaleTile(543, '#052e16', '#bef264', '#22c55e', '#15803d');
     drawScaleTile(544, '#1e0b36', '#f5d0fe', '#c026d3', '#6b21a8');
+
+    // v129 Tiles 545..576: Warden Dimension Blocks, Tier-6+ Ores, Materials, Bows, Tools & Armors
+    // 545: Soul Flint & Steel
+    drawSpriteMap(545, [
+      '................','.........CCC....','........CHHHC...','.......CHc..C...','......DDD.......','....DDMMMD......','...DHHMMMD......','...DMDDDD.......','....DDD.........','......DDDD......','.....DMMMMD.....','....DMMSSMMD....','....DMMMMMMD....','.....DDDDDD.....','................','................'
+    ], { C: '#0e7490', H: '#a5f3fc', c: '#22d3ee', D: '#1e293b', M: '#64748b', S: '#cbd5e1' });
+    // 546: Warden Portal Swirl
+    tilePixels(546, (x, y, r) => {
+      const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy);
+      const sw = Math.sin(d * 0.9 + Math.atan2(dy, dx) * 3.0);
+      if (d < 3.0) return sw > 0 ? '#a5f3fc' : '#22d3ee';
+      if (sw > 0.35) return r > 0.5 ? '#22d3ee' : '#0891b2';
+      return r > 0.65 ? '#0c4a6e' : '#04121b';
+    });
+    // 547: Warden Sculk Stone
+    tilePixels(547, (x, y, r) => {
+      if ((x + y * 3) % 7 === 0 || (x * 5 - y + 16) % 11 === 0) return r > 0.4 ? '#0e7490' : '#063340';
+      return shade(((x ^ y) & 1) ? '#101824' : '#182230', (r - 0.5) * 10);
+    });
+    // 548/549: Sculk Log top/side
+    tilePixels(548, (x, y, r) => logTopColor(x, y, r, '#081b24', '#164e63', '#0e3746', '#155e75', '#22d3ee'));
+    tilePixels(549, (x, y, r) => {
+      if ((x === 3 || x === 12) && ((y + x) % 5 === 0)) return '#22d3ee';
+      return barkColor(x, y, r, { c: '#164e63', a: '#0f2d3a', b: '#091d26', d: '#040e14' });
+    });
+    // 550: Sculk Planks
+    tilePixels(550, (x, y, r) => {
+      const pPal = { d: '#09202b', b: '#0e3442', B: '#114152', m: '#155166', M: '#13495c', h: '#1a657e', H: '#227c99' };
+      return shade(pPal[OAK_PLANK_MAP[y][x]] || '#13495c', (r - 0.5) * 8);
+    });
+    // 551: Sculk Bioluminescent Leaves
+    drawFancyLeaf(551, { H: '#22d3ee', M: '#0e7490', S: '#0b495c', D: '#062633' }, BOTANICAL_LEAF_MASK);
+    // 552..554: 3 Tier-6 Warden Ores (Umbra, Resonant, Soulforged)
+    tilePixels(552, (x, y, r) => {
+      const g = ((x >= 3 && x <= 6 && y >= 3 && y <= 6) || (x >= 10 && x <= 13 && y >= 9 && y <= 12) || (x >= 2 && x <= 5 && y >= 10 && y <= 13));
+      if (g) return ((x + y) & 1) ? '#a78bfa' : '#6d28d9';
+      return shade(((x + y) & 1) ? '#141a24' : '#1b2430', (r - 0.5) * 8);
+    });
+    tilePixels(553, (x, y, r) => {
+      const g = ((x >= 2 && x <= 5 && y >= 2 && y <= 5) || (x >= 9 && x <= 13 && y >= 5 && y <= 9) || (x >= 4 && x <= 8 && y >= 10 && y <= 13));
+      if (g) return ((x ^ y) & 1) ? '#a5f3fc' : '#06b6d4';
+      return shade(((x * 2 + y) & 1) ? '#0e1924' : '#152433', (r - 0.5) * 8);
+    });
+    tilePixels(554, (x, y, r) => {
+      const g = ((x >= 3 && x <= 6 && y >= 2 && y <= 6) || (x >= 9 && x <= 12 && y >= 3 && y <= 6) || (x >= 5 && x <= 10 && y >= 9 && y <= 13));
+      if (g) return ((x + y) % 3 === 0) ? '#f5d0fe' : (((x + y) & 1) ? '#38bdf8' : '#0284c7');
+      return shade('#0b1521', (r - 0.5) * 10);
+    });
+    // 555..557: Warden Refined Ingots/Gems
+    drawSpriteMap(555, INGOT_SPRITE, { d: '#3b0764', M: '#7c3aed', H: '#c4b5fd' });
+    drawGemTile(556, '#cffafe', '#22d3ee', '#0e7490');
+    drawSpriteMap(557, NETHERITE_INGOT_SPRITE, { d: '#0c0824', M: '#0ea5e9', H: '#67e8f9', S: '#7c3aed' });
+    // 558..560: Warden Mob Drops (Chitin, Resonator, Sculk Heart)
+    drawScaleTile(558, '#041c24', '#22d3ee', '#0e7490', '#083344');
+    drawGemTile(559, '#ecfeff', '#67e8f9', '#0891b2');
+    tilePixels(560, (x, y) => {
+      const d = Math.hypot((x - 7.5) * 1.1, (y - 7.5) * 1.0);
+      if (d > 5.8) return null;
+      if (d > 4.6) return '#042f2e';
+      if (d < 2.2) return '#ecfeff';
+      return ((x + y) & 1) ? '#22d3ee' : '#0e7490';
+    });
+    // 561..572: 3 Warden Tool + Bow Sets
+    const palW1 = { D: '#041c24', W: '#0f2d3a', M: '#0e7490', H: '#67e8f9', G: '#14b8a6' };
+    const palW2 = { D: '#082f49', W: '#155e75', M: '#22d3ee', H: '#ecfeff', G: '#06b6d4' };
+    const palW3 = { D: '#0f0c29', W: '#312e81', M: '#38bdf8', H: '#f5d0fe', G: '#c084fc' };
+    drawSpriteMap(561, SWORD_SPRITE, palW1); drawSpriteMap(562, PICK_SPRITE, palW1); drawSpriteMap(563, AXE_SPRITE, palW1);
+    { const b1 = getBowStageSprite(B.SCULK_ECHO_BOW, 0); drawSpriteMap(564, b1.rows, b1.pal); }
+    drawSpriteMap(565, SWORD_SPRITE, palW2); drawSpriteMap(566, PICK_SPRITE, palW2); drawSpriteMap(567, AXE_SPRITE, palW2);
+    { const b2 = getBowStageSprite(B.DEEP_SONIC_BOW, 0); drawSpriteMap(568, b2.rows, b2.pal); }
+    drawSpriteMap(569, SWORD_SPRITE, palW3); drawSpriteMap(570, PICK_SPRITE, palW3); drawSpriteMap(571, AXE_SPRITE, palW3);
+    { const b3 = getBowStageSprite(B.SOUL_HARBINGER_BOW, 0); drawSpriteMap(572, b3.rows, b3.pal); }
+    // 573..576: Warden Armor Atlas Icons
+    drawSpriteMap(573, ARMOR_SPRITE, palW2);
+    drawSpriteMap(574, ARMOR_SPRITE, palW2);
+    drawSpriteMap(575, ARMOR_SPRITE, palW2);
+    drawSpriteMap(576, ARMOR_SPRITE, palW2);
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
     const bumpCanvas = document.createElement('canvas');

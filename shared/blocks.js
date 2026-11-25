@@ -327,6 +327,47 @@
   B.DRAGON_ENDER_LEGS   = _dynBlockId++;
   B.DRAGON_ENDER_BOOTS  = _dynBlockId++;
 
+  // v129: Warden 5th Dimension Blocks, Tier-6+ Ores, Materials, Mob Drops, Bows, Tools & 3 Armor Sets
+  B.SOUL_FLINT_AND_STEEL = _dynBlockId++;
+  B.WARDEN_PORTAL        = _dynBlockId++;
+  B.WARDEN_SCULK_STONE   = _dynBlockId++;
+  B.SCULK_LOG            = _dynBlockId++;
+  B.SCULK_PLANKS         = _dynBlockId++;
+  B.SCULK_LEAVES         = _dynBlockId++;
+  B.UMBRA_ORE            = _dynBlockId++;
+  B.RESONANT_ORE         = _dynBlockId++;
+  B.SOULFORGED_ORE       = _dynBlockId++;
+  B.UMBRA_INGOT          = _dynBlockId++;
+  B.SCULK_RESONANT_GEM   = _dynBlockId++;
+  B.SOULFORGED_INGOT     = _dynBlockId++;
+  B.WARDEN_CHITIN        = _dynBlockId++;
+  B.SOUL_RESONATOR       = _dynBlockId++;
+  B.SCULK_HEART          = _dynBlockId++;
+  B.SCULK_CHITIN_SWORD   = _dynBlockId++;
+  B.SCULK_CHITIN_PICK    = _dynBlockId++;
+  B.SCULK_CHITIN_AXE     = _dynBlockId++;
+  B.SCULK_ECHO_BOW       = _dynBlockId++;
+  B.RESONANT_SWORD       = _dynBlockId++;
+  B.RESONANT_PICK        = _dynBlockId++;
+  B.RESONANT_AXE         = _dynBlockId++;
+  B.DEEP_SONIC_BOW       = _dynBlockId++;
+  B.SOULFORGED_SWORD     = _dynBlockId++;
+  B.SOULFORGED_PICK      = _dynBlockId++;
+  B.SOULFORGED_AXE       = _dynBlockId++;
+  B.SOUL_HARBINGER_BOW   = _dynBlockId++;
+  B.WARDEN_CHITIN_HELMET = _dynBlockId++;
+  B.WARDEN_CHITIN_CHEST  = _dynBlockId++;
+  B.WARDEN_CHITIN_LEGS   = _dynBlockId++;
+  B.WARDEN_CHITIN_BOOTS  = _dynBlockId++;
+  B.RESONANT_HELMET      = _dynBlockId++;
+  B.RESONANT_CHEST       = _dynBlockId++;
+  B.RESONANT_LEGS        = _dynBlockId++;
+  B.RESONANT_BOOTS       = _dynBlockId++;
+  B.SOULFORGED_HELMET    = _dynBlockId++;
+  B.SOULFORGED_CHEST     = _dynBlockId++;
+  B.SOULFORGED_LEGS      = _dynBlockId++;
+  B.SOULFORGED_BOOTS     = _dynBlockId++;
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS

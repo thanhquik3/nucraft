@@ -109,7 +109,7 @@
     } else if (preset === 'dlss_ultra') {
       envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.13; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 0.88; envUniforms.uVibrance.value = 0.36; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.12; envUniforms.uCloudCover.value = 0.62;
+      envUniforms.uExposure.value = 0.91; envUniforms.uVibrance.value = 0.34; envUniforms.uWarmth.value = 0.02; envUniforms.uContrast.value = 0.06; envUniforms.uCloudCover.value = 0.60;
       if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 20.0 : 36.0;
     }
     window._eclipseGrassDirty = true;
@@ -272,7 +272,7 @@
   const _colDlssTop = new THREE.Color(0x1b62d8), _colDlssHor = new THREE.Color(0x9ad8ff), _colDlssSun = new THREE.Color(0xfff2d6);
   const _colEclipseTop = new THREE.Color(0x3a6aa4), _colEclipseHor = new THREE.Color(0xc9d7e3);
   const _colEclipseNightTop = new THREE.Color(0x050914), _colEclipseNightHor = new THREE.Color(0x111d33);
-  const _colEclipseSun = new THREE.Color(0xffe8bf);
+  const _colEclipseSun = new THREE.Color(0xf4f8ff);
 
   let _wakeIdx = 0, _wakeCooldown = 0, _wasInWaterWake = false, _lastWakeX = 1e9, _lastWakeZ = 1e9;
   function updateWaterWakes(dt) {
@@ -691,7 +691,39 @@
   let _lastAtkCdVis = false, _lastAtkCdReady = false, _lastAtkCdPct = -1;
   const _tmpFog = new THREE.Color(0xc8f2ef);
   function updateAtmosphere(dt) {
-    envUniforms.uDimension.value = currentDimension === 'sift' ? 3.0 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0));
+    envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0)));
+
+    // ===================== DIMENSION 5: WARDEN REALM ATMOSPHERE =====================
+    if (currentDimension === 'warden') {
+      _tmpTop.setHex(0x030b14);
+      _tmpHor.setHex(0x082635);
+      _tmpFog.setHex(0x071d29);
+      envUniforms.uSkyTop.value.copy(_tmpTop);
+      envUniforms.uSkyHorizon.value.copy(_tmpHor);
+      envUniforms.uFogColor.value.copy(_tmpFog);
+      scene.fog.color.copy(_tmpFog);
+      scene.fog.near = 20; scene.fog.far = Math.max(64, renderDistance * 17);
+      envUniforms.uFogStart.value = 20; envUniforms.uFogEnd.value = Math.max(64, renderDistance * 17);
+      renderer.setClearColor(_tmpFog, 1);
+      sunLight.color.setHex(0x67e8f9);
+      sunLight.intensity = 0.78;
+      hemiLight.color.setHex(0x22d3ee);
+      hemiLight.groundColor.setHex(0x06131c);
+      hemiLight.intensity = 0.56;
+      envUniforms.uSunColor.value.setHex(0x67e8f9);
+      envUniforms.uSunDir.value.set(0.32, 0.86, 0.36).normalize();
+      const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
+      sunLight.target.position.set(snapX, snapY, snapZ);
+      sunLight.position.set(snapX + 22, snapY + 46, snapZ + 22);
+      sunLight.target.updateMatrixWorld();
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.25;
+      envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
+      envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
+      cloudMesh.visible = false;
+      updateShootingStars(dt, 1, false);
+      updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');
+      return;
+    }
 
     // ===================== DIMENSION 4: THE SIFT (MOODY TWILIGHT AURORA ATMOSPHERE — MATCHING REF) =====================
     if (currentDimension === 'sift') {
@@ -939,11 +971,11 @@
       if (sunsetWeight > 0.18) envUniforms.uSunColor.value.lerp(_colSunsetSun, Math.min(0.85, sunsetWeight * 0.95));
     } else if (shaderPreset === 'eclipse') {
       envUniforms.uSunColor.value.copy(_colEclipseSun);
-      if (sunsetWeight > 0.16) envUniforms.uSunColor.value.lerp(_colSunsetSun, Math.min(0.88, sunsetWeight * 0.92));
+      if (sunsetWeight > 0.16) envUniforms.uSunColor.value.lerp(_colSunsetSun, Math.min(0.55, sunsetWeight * 0.65));
     } else if (sunsetWeight > 0.18) {
       envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.10));
     } else {
-      envUniforms.uSunColor.value.setHex(0xffe9c4);
+      envUniforms.uSunColor.value.setHex(0xf7faff);
     }
 
     const surfaceFactor = player.eyesInWater
@@ -1496,10 +1528,11 @@
       const _locB = (b) => (typeof getLocalizedBiomeName === 'function' ? getLocalizedBiomeName(b) : (b && b.name) || '');
       const _tr = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
       const area = currentDimension === 'end' ? _tr('Khu Kết Thúc (The End)', 'The End')
+        : (currentDimension === 'warden' ? _locB(curBio)
         : (currentDimension === 'sift' ? _locB(curBio)
         : (currentDimension === 'nether' ? _locB(curBio)
         : (player.eyesInWater ? (trueY <= -450 ? _tr('🌊 Vực Hadal -700m', '🌊 Hadal Trench -700m') : (trueY <= -200 ? _tr('🌊 Vực Đêm Sâu', '🌊 Midnight Zone') : (trueY <= -60 ? _tr('🌊 Tầng Chạng Vạng', '🌊 Twilight Zone') : _tr('🌊 Đại Dương Rộng Lớn', '🌊 Deep Ocean'))))
-        : _locB(ugBioHud || curBio))));
+        : _locB(ugBioHud || curBio)))));
       const fpsTag = (sodiumOpts.fpsHud && window._nucraftFps)
         ? ` • ${window._nucraftFps} FPS (E:${mobs.length - _culledEntitiesCount}/${mobs.length} C:${chunks.size})`
         : '';
@@ -1519,6 +1552,7 @@
               ? `⛏️ Depth: ${trueY} / -1000m (${Math.max(0, 1000 + trueY)}m → The Nether)`
               : `⛏️ Độ sâu: ${trueY} / -1000m (Còn ${Math.max(0, 1000 + trueY)}m → Địa Ngục)`);
         }
+        else if (currentDimension === 'warden') nextDepth = _tr('🩵 Thế Giới Warden • Quặng T6 & Boss 1000HP', '🩵 Warden Realm • Tier-6 Ores & Boss');
         else if (currentDimension === 'sift') nextDepth = _tr('✨ Khu Giấc Mơ (The Sift) • Ao Ichor Cầu Vồng & Quặng Aetherium', '✨ The Sift • Rainbow Ichor & Aetherium Ore');
         else if (currentDimension === 'nether') nextDepth = currentLang === 'en'
           ? `🔥 The Nether: ${trueY} / -1000m (${Math.max(0, 1000 + trueY)}m → The End)`
@@ -1536,10 +1570,21 @@
     if (!worldPaused) {
       if (renderer.shadowMap.enabled) {
         _shadowAcc += rawDt;
+        let _hasActiveFlyingBoss = false;
+        if (typeof mobs !== 'undefined' && typeof IS_DRAGON_MOB !== 'undefined') {
+          for (let mi = 0; mi < mobs.length; mi++) {
+            const mb = mobs[mi];
+            if (mb && !mb._dead && (IS_DRAGON_MOB.has(mb.type) || (mb.isBoss && mb.flying)) && Math.hypot(mb.x - player.x, mb.z - player.z) < 150) {
+              _hasActiveFlyingBoss = true; break;
+            }
+          }
+        }
         const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
         const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
-        const shInterval = ((inLobby || isWorldLoading) ? 0.05 : (!camMoved ? 0.22 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.4 : 1.0);
-        if (_shadowAcc >= shInterval && (!window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
+        const shInterval = (_hasActiveFlyingBoss || (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing && sodiumOpts.smoothShadows))
+          ? 0.0
+          : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.16 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0));
+        if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
           _shadowAcc = 0;
           renderer.shadowMap.needsUpdate = true;
           _lastShX = player.x; _lastShZ = player.z; _lastShTime = dayTime;

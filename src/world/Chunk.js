@@ -365,6 +365,14 @@
     return Math.max(-700, Math.min(-2, floorY));
   }
   function getBiomeAt(wx, wz) {
+    if (currentDimension === 'warden') {
+      if (Math.hypot(wx, wz) < 38) return BIOMES.WARDEN_CITADEL;
+      const wn1 = fbm2D(wx * 0.0022, wz * 0.0022, 2, 0.5, 2.0, worldSeed + 7101);
+      const wn2 = fbm2D(wx * 0.0026 + 17.3, wz * 0.0026 - 11.7, 2, 0.5, 2.0, worldSeed + 7202);
+      if (wn1 > 0.58) return BIOMES.WARDEN_FOREST;
+      if (wn2 > 0.62) return BIOMES.WARDEN_CITADEL;
+      return BIOMES.WARDEN_REALM;
+    }
     if (currentDimension === 'sift') {
       const swx = wx + (valueNoise2D(wx * 0.0018, wz * 0.0018, worldSeed + 4199) - 0.5) * 90.0;
       const swz = wz + (valueNoise2D(wx * 0.0018 + 31.3, wz * 0.0018 - 17.7, worldSeed + 4211) - 0.5) * 90.0;
@@ -545,6 +553,21 @@
     return h;
   }
   function getTerrainHeight(wx, wz, biome) {
+    if (currentDimension === 'warden') {
+      const dist0 = Math.hypot(wx, wz);
+      if (dist0 < 19) return WATER_LEVEL + 4;
+      const wb = fbm2D(wx * 0.015, wz * 0.015, 2, 0.5, 2.0, worldSeed + 7404);
+      const wd = valueNoise2D(wx * 0.055, wz * 0.055, worldSeed + 7505);
+      const wr = valueNoise2D(wx * 0.028, wz * 0.028, worldSeed + 7606);
+      if (biome === BIOMES.WARDEN_CITADEL) {
+        return Math.floor(WATER_LEVEL + 4 + (wr > 0.68 ? Math.floor((wr - 0.68) * 18) : wb * 4.5) + wd * 1.4);
+      }
+      if (biome === BIOMES.WARDEN_FOREST) {
+        return Math.floor(WATER_LEVEL + 4 + wb * 10 + wd * 2.0);
+      }
+      const ridge = Math.pow(Math.max(0, wr - 0.35), 1.35) * 24;
+      return Math.floor(WATER_LEVEL + 3 + wb * 12 + ridge + wd * 2.2);
+    }
     if (currentDimension === 'sift') {
       // v59: Địa hình The Sift chuẩn ảnh mẫu (trụ đá đỏ Terracotta Mesa bậc thang, hồ Ichor cầu vồng + đảo đá bước chân, đồng cỏ xanh ngọc & Lullaby hồng)
       const base = fbm2D(wx * 0.016, wz * 0.016, 2, 0.5, 2.0, worldSeed + 4404);
@@ -569,7 +592,7 @@
         return Math.floor(WATER_LEVEL + 16 + peak * 42 + det * 3.0);
       }
       if (biome === BIOMES.SIFT_PLAINS) {
-        return Math.floor(WATER_LEVEL + 3 + base * 4.2 + det * 1.0);
+        return Math.floor(WATER_LEVEL + 2 + base * 2.8 + det * 0.8);
       }
       if (biome === BIOMES.SIFT_GIANT_FOREST) {
         return Math.floor(WATER_LEVEL + 4 + base * 8.5 + det * 1.8);
@@ -1149,12 +1172,14 @@
     particles: true,      // Sodium Extra: block break & spell particles toggle
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
     farEntities: true,    // Sodium Extra: distant entity rendering toggle
+    rayTracing: true,     // Real-Time Ray Tracing toggle (water/glass reflections, leaf light transmission, cave scatter)
     frameGen: 1           // Frame Ao (1=Off, 2=x2, 4=x4 temporal interpolation)
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
     if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;
     if (envUniforms.uWaterQuality) envUniforms.uWaterQuality.value = sodiumOpts.waterQuality !== false ? 1.0 : 0.0;
+    if (envUniforms.uRayTracing) envUniforms.uRayTracing.value = sodiumOpts.rayTracing !== false ? 1.0 : 0.0;
   }
   function saveSodiumOpts() {
     try { localStorage.setItem(SODIUM_OPTS_KEY, JSON.stringify(sodiumOpts)); } catch (_) {}
@@ -2004,18 +2029,21 @@
     const tint = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
       ? (0.94 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.015)
       : (0.84 + ((wx * 11 + wy * 13 + wz * 17) & 7) * 0.036));
+    let anyExposed = false, tuftR = 0, tuftG = 0, tuftB = 0, tuftLr = 0, tuftLg = 0, tuftLb = 0;
     for (let f = 0; f < 6; f++) {
       const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
       const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
       const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx, nly, nlz);
       if (IS_OPAQUE[nb] === 1 || (cullSame && nb === id)) continue;
+      if (IS_SOLID[nb] === 0) anyExposed = true;
       if (st.lCount + 4 > _lCap) _growLeafScratch(st.lCount + 4);
       const isInner = (nb === id);
       const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
-        ? ((f === 0 ? 1.08 : (f === 1 ? 0.78 : 0.96)) * (isInner ? 0.86 : 1.0))
-        : ((f === 0 ? 1.10 : (f === 1 ? 0.62 : 0.88)) * (isInner ? 0.72 : 1.0)));
+        ? ((f === 0 ? 1.08 : (f === 1 ? 0.84 : 0.98)) * (isInner ? 0.90 : 1.0))
+        : ((f === 0 ? 1.08 : (f === 1 ? 0.74 : 0.94)) * (isInner ? 0.82 : 1.0)));
       let lr = 0, lg = 0, lb = 0;
       if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
+      if (IS_SOLID[nb] === 0 && (lr + lg + lb) > (tuftLr + tuftLg + tuftLb)) { tuftLr = lr; tuftLg = lg; tuftLb = lb; }
       let vp = st.lCount * 3, up = st.lCount * 2;
       const uxA = face.uAxis[0], uyA = face.uAxis[1], uzA = face.uAxis[2];
       const vxA = face.vAxis[0], vyA = face.vAxis[1], vzA = face.vAxis[2];
@@ -2032,18 +2060,19 @@
           const s1 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux, nly + uy, nlz + uz)];
           const s2 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + vx, nly + vy, nlz + vz)];
           const cn = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux + vx, nly + uy + vy, nlz + uz + vz)];
-          ao = (s1 && s2) ? ((isSakura || isBlue || isNeutral) ? 0.76 : 0.56) : ((isSakura || isBlue || isNeutral) ? Math.max(0.78, AO_LUT[s1 + s2 + cn]) : AO_LUT[s1 + s2 + cn]);
+          ao = (s1 && s2) ? ((isSakura || isBlue || isNeutral) ? 0.80 : 0.68) : ((isSakura || isBlue || isNeutral) ? Math.max(0.82, AO_LUT[s1 + s2 + cn]) : Math.max(0.70, AO_LUT[s1 + s2 + cn]));
         }
-        const crTint = Math.min(1.14, tint * shadeMul * ao);
+        const crTint = Math.min(1.12, tint * shadeMul * ao);
         if (isSakura) {
-          _lCols[vp] = Math.min(1.18, crTint * 1.10); _lCols[vp+1] = crTint * 0.99; _lCols[vp+2] = Math.min(1.16, crTint * 1.06);
+          _lCols[vp] = Math.min(1.16, crTint * 1.08); _lCols[vp+1] = crTint * 0.99; _lCols[vp+2] = Math.min(1.14, crTint * 1.06);
         } else if (isBlue) {
-          _lCols[vp] = crTint * 0.94; _lCols[vp+1] = crTint * 1.00; _lCols[vp+2] = Math.min(1.14, crTint * 1.09);
+          _lCols[vp] = crTint * 0.95; _lCols[vp+1] = crTint * 1.00; _lCols[vp+2] = Math.min(1.14, crTint * 1.08);
         } else if (isNeutral) {
           _lCols[vp] = crTint; _lCols[vp+1] = crTint; _lCols[vp+2] = crTint;
         } else {
-          _lCols[vp] = crTint * 0.96; _lCols[vp+1] = Math.min(1.14, crTint * (isGlass ? 1.0 : 1.04)); _lCols[vp+2] = crTint * (isGlass ? 1.0 : 0.92);
+          _lCols[vp] = crTint * 0.94; _lCols[vp+1] = Math.min(1.12, crTint * (isGlass ? 1.0 : 1.04)); _lCols[vp+2] = crTint * (isGlass ? 1.0 : 0.94);
         }
+        if (c === 0) { tuftR = _lCols[vp]; tuftG = _lCols[vp+1]; tuftB = _lCols[vp+2]; }
         _lBL[vp] = lr; _lBL[vp+1] = lg; _lBL[vp+2] = lb;
         vp += 3;
       }
@@ -2051,6 +2080,36 @@
       const ip = st.liCount, lc = st.lCount;
       _lIdx[ip]=lc; _lIdx[ip+1]=lc+1; _lIdx[ip+2]=lc+2; _lIdx[ip+3]=lc; _lIdx[ip+4]=lc+2; _lIdx[ip+5]=lc+3;
       st.lCount = lc + 4; st.liCount = ip + 6;
+    }
+    // Motschen's Better Leaves: fluffy crossed outer-silhouette leaf cards on exposed non-glass canopy blocks across ALL shaders
+    if (!isGlass && anyExposed) {
+      if (st.lCount + 8 > _lCap) _growLeafScratch(st.lCount + 8);
+      const hJ = hash3i(wx, wy, wz, 731);
+      const ang = (hJ - 0.5) * 0.55;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const ext = 0.66, yLo = -0.14, yHi = 1.16;
+      const jx = (hash3i(wx + 3, wy, wz, 911) - 0.5) * 0.08;
+      const jz = (hash3i(wx, wy, wz + 5, 919) - 0.5) * 0.08;
+      const cxB = wx + 0.5 + jx, czB = wz + 0.5 + jz;
+      const r0 = Math.min(1.14, tuftR * 1.03), g0 = Math.min(1.14, tuftG * 1.03), b0 = Math.min(1.14, tuftB * 1.03);
+      for (let q = 0; q < 2; q++) {
+        const dx1 = (q === 0 ? (ca - sa) : (ca + sa)) * ext * 0.72;
+        const dz1 = (q === 0 ? (sa + ca) : (sa - ca)) * ext * 0.72;
+        const xA = cxB - dx1, zA = czB - dz1, xB = cxB + dx1, zB = czB + dz1;
+        let vp = st.lCount * 3, up = st.lCount * 2;
+        const corners = [[xA, wy + yLo, zA], [xB, wy + yLo, zB], [xB, wy + yHi, zB], [xA, wy + yHi, zA]];
+        for (let c = 0; c < 4; c++) {
+          _lPos[vp] = corners[c][0]; _lPos[vp+1] = corners[c][1]; _lPos[vp+2] = corners[c][2];
+          _lNorm[vp] = 0; _lNorm[vp+1] = 0.92; _lNorm[vp+2] = 0.38;
+          _lCols[vp] = r0; _lCols[vp+1] = g0; _lCols[vp+2] = b0;
+          _lBL[vp] = tuftLr; _lBL[vp+1] = tuftLg; _lBL[vp+2] = tuftLb;
+          vp += 3;
+        }
+        _lUvs[up]=u0; _lUvs[up+1]=v1; _lUvs[up+2]=u1; _lUvs[up+3]=v1; _lUvs[up+4]=u1; _lUvs[up+5]=v0; _lUvs[up+6]=u0; _lUvs[up+7]=v0;
+        const ip = st.liCount, lc = st.lCount;
+        _lIdx[ip]=lc; _lIdx[ip+1]=lc+1; _lIdx[ip+2]=lc+2; _lIdx[ip+3]=lc; _lIdx[ip+4]=lc+2; _lIdx[ip+5]=lc+3;
+        st.lCount = lc + 4; st.liCount = ip + 6;
+      }
     }
   }
 
@@ -2110,8 +2169,8 @@
         emitPortalBox(alongZ ? 0.45 : 0.0, 0.0, alongZ ? 0.0 : 0.45, alongZ ? 0.55 : 1.0, 1.0, alongZ ? 1.0 : 0.55, 2.0);
       }
     } else {
-      const fId = (id === B.DREAM_PORTAL) ? B.DREAM_PORTAL_FRAME : B.OBSIDIAN;
-      const pKind = (id === B.DREAM_PORTAL) ? 1.0 : 0.0;
+      const fId = (id === B.DREAM_PORTAL) ? B.DREAM_PORTAL_FRAME : (id === B.WARDEN_PORTAL ? B.REINFORCED_DEEPSLATE : B.OBSIDIAN);
+      const pKind = (id === B.WARDEN_PORTAL) ? 3.0 : (id === B.DREAM_PORTAL ? 1.0 : 0.0);
       const hasX = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === fId || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === fId);
       const hasZ = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === fId || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === fId);
       const alongZ = hasZ && !hasX;

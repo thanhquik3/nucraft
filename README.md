@@ -1,18 +1,21 @@
-# NUCRAFT (BUILD v126)
+# NUCRAFT (BUILD v129)
 
 [![CI Policy & Security](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml)
 [![Deploy GitHub Pages](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml)
 
 An open-source, non-commercial **personal hobby 3D voxel sandbox game** playable directly in web browsers (PC & Mobile).
 
-> **Source-Only GitHub Repository & Compliance Statement:**  
+> **Compliance, Intellectual Property & Source-Only Repository Statement:**  
 > This GitHub repository hosts **readable source code and the static GitHub Pages web app only — no prebuilt `.exe` or archive binaries are hosted or distributed on GitHub** (`main`, Pages, or Releases).  
 > This is an independent, non-commercial personal educational/hobby project by `thanhquik3`, published under the [MIT License](LICENSE) in full compliance with [GitHub Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service), [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies), and [Community Guidelines](https://docs.github.com/en/site-policy/github-terms/github-community-guidelines).
 >
-> *(Tiếng Việt: Kho lưu trữ này chỉ chứa mã nguồn mở dễ đọc và ứng dụng web tĩnh trên GitHub Pages — **không chứa hoặc phát hành file `.exe` dựng sẵn trên GitHub**.)*
+> - **Zero Proprietary Assets Redistributed:** 100% of block/item textures (`src/data/items.js`), synthesized sound effects (`src/audio/AudioEngine.js`), WebGL/ray-tracing shaders (`src/render/RtxEngine.js`), and `.glb` models (`assets/models/`) are original procedural or clean-room assets created specifically for NUCRAFT. Zero copyrighted Mojang/Microsoft assets, binaries, or decompiled code are included.
+> - **Clean Security Posture:** Zero secrets, passwords, API keys, tracking beacons, or obfuscated executables exist in the repository.
+>
+> *(Tiếng Việt: Kho lưu trữ này chỉ chứa mã nguồn mở dễ đọc và ứng dụng web tĩnh trên GitHub Pages — **không chứa file `.exe` hay tài nguyên bản quyền nào từ bên thứ ba**.)*
 >
 > **Non-Affiliation Disclaimer:**  
-> NUCRAFT is an independent fanmade project. It is **not** affiliated with, endorsed by, sponsored by, or associated with Mojang AB or Microsoft Corporation.
+> NUCRAFT is an independent fanmade project. It is **not** an official Minecraft product, not affiliated with, endorsed by, sponsored by, or associated with Mojang AB or Microsoft Corporation.
 
 ---
 
