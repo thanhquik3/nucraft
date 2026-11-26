@@ -704,14 +704,14 @@
       envUniforms.uInLava.value = inLv ? 1.0 : 0.0;
       if (!inLv) return;
       envUniforms.uUnderwater.value = 0.0;
-      envUniforms.uFogColor.value.setHex(0x8e1e04);
-      envUniforms.uSkyTop.value.setHex(0x6c1202);
-      envUniforms.uSkyHorizon.value.setHex(0x9c2405);
+      envUniforms.uFogColor.value.setHex(0x9c2606);
+      envUniforms.uSkyTop.value.setHex(0x741602);
+      envUniforms.uSkyHorizon.value.setHex(0xa82a06);
       envUniforms.uFogStart.value = 0.35;
-      envUniforms.uFogEnd.value = 3.0;
+      envUniforms.uFogEnd.value = 2.95;
       scene.fog.color.copy(envUniforms.uFogColor.value);
       scene.fog.near = 0.35;
-      scene.fog.far = 3.0;
+      scene.fog.far = 2.95;
       renderer.setClearColor(envUniforms.uFogColor.value, 1);
       envUniforms.uShaftStrength.value = 0.0;
       envUniforms.uSunVis.value = 0.0;
@@ -2155,6 +2155,17 @@
     playerCollides: (x, y, z) => playerCollides(x, y, z),
     getFenceWallBoxes: (wx, wy, wz) => getFenceWallBoxes(wx, wy, wz, getBlockWorld(wx, wy, wz)),
     setBlockWorld: (x, y, z, id) => { setBlockWorld(x, y, z, id, true); flushUrgentChunks(32, true); },
+    getLavaFxDebug: () => ({
+      inLava: !!player.inLava,
+      eyesInLava: !!player.eyesInLava,
+      lavaOverlayActive: !!(_elLava && _elLava.classList.contains('active')),
+      fireHudActive: !!(_elFireHud && _elFireHud.classList.contains('active')),
+      nearbyLavaProx: +(window._nearbyLavaProx || 0).toFixed(3),
+      nearLavaCells: (typeof _nearLavaCells !== 'undefined' ? _nearLavaCells.length : 0),
+      lavaParticleSpawns: window._lavaParticleSpawns || 0,
+      lavaSplashCount: window._lavaSplashSfxCount || 0,
+      lavaPopSfxCount: window._lavaPopSfxCount || 0
+    }),
     getRayTracingStats: () => (typeof _getRtStats === 'function' ? _getRtStats() : { enabled: false }),
     setRayTracing: (on) => {
       const target = !!on;

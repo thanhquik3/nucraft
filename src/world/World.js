@@ -4807,6 +4807,8 @@
     }
   }
 
+  const _nearLavaCells = [];
+  let _lavaScanAcc = 0, _lavaFxAcc = 0, _lavaLastDim = '';
   function updateInteractiveBlocksAndWorldTicks(dt) {
     if (_hingesAnimating && interactiveVisuals.size > 0) {
       updateInteractiveHinges(dt);
@@ -4904,6 +4906,80 @@
 
     // 4) Tick Active Voxel Fires (Animation-synced spread, burnout & rain extinguish)
     if (activeFires.size > 0) tickActiveFires(dt);
+
+    // 5) Lava Surface Fire/Ember/Bubble Particle Emitter + Proximity Audio Signal
+    _lavaScanAcc += dt;
+    if (window._rtVolDirty || currentDimension !== _lavaLastDim || _lavaScanAcc >= 0.25) {
+      _lavaScanAcc = 0;
+      _lavaLastDim = currentDimension;
+      _nearLavaCells.length = 0;
+      const pFx = Math.floor(player.x), pFy = Math.floor(player.y), pFz = Math.floor(player.z);
+      const pcxL = pFx >> 4, pczL = pFz >> 4;
+      let minD2 = 1e9, seenL = 0;
+      const yLo = Math.max(MIN_Y + 1, pFy - 9), yHi = Math.min(MAX_Y - 1, pFy + 9);
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const ch = chunks.get(chunkKey(pcxL + dx, pczL + dz));
+          if (!ch || !ch.lavaMesh || !ch.data) continue;
+          const d = ch.data, wx0 = ch.cx * CHUNK_W, wz0 = ch.cz * CHUNK_W;
+          const chTop = Math.min(yHi, MIN_Y + (ch.maxLy || (WORLD_H - 1)) - 1);
+          for (let wy = yLo; wy <= chTop; wy++) {
+            const ly = wy - MIN_Y, dyL = wy - pFy;
+            const rowOff = ly << 8, aboveOff = (ly + 1) << 8;
+            for (let lz = 0; lz < 16; lz++) {
+              const wz = wz0 + lz, dzL = wz + 0.5 - player.z;
+              if (dzL < -18 || dzL > 18) continue;
+              const zOff = lz << 4;
+              for (let lx = 0; lx < 16; lx++) {
+                const idxL = rowOff | zOff | lx;
+                if (d[idxL] !== B.LAVA || d[aboveOff | zOff | lx] !== B.AIR) continue;
+                const wx = wx0 + lx, dxL = wx + 0.5 - player.x;
+                const d2 = dxL * dxL + dyL * dyL + dzL * dzL;
+                if (d2 > 324) continue;
+                if (d2 < minD2) minD2 = d2;
+                seenL++;
+                if (_nearLavaCells.length < 48) {
+                  _nearLavaCells.push({ x: wx, y: wy, z: wz });
+                } else if (Math.random() < 48 / seenL) {
+                  _nearLavaCells[(Math.random() * 48) | 0] = { x: wx, y: wy, z: wz };
+                }
+              }
+            }
+          }
+        }
+      }
+      const minDist = minD2 < 1e8 ? Math.sqrt(minD2) : 99;
+      window._nearbyLavaProx = (player.inLava || player.eyesInLava)
+        ? 1.0
+        : (minDist < 16.0 ? Math.pow(Math.max(0, 1.0 - minDist / 16.0), 1.35) : 0.0);
+    }
+
+    _lavaFxAcc += dt;
+    const _lavaEmitInterval = _isMobilePerf ? 0.14 : 0.09;
+    if (_lavaFxAcc >= _lavaEmitInterval) {
+      _lavaFxAcc = 0;
+      if (_nearLavaCells.length > 0 && !player.eyesInLava && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false)) {
+        const nEmit = _isMobilePerf ? 1 : Math.min(3, Math.max(1, Math.ceil(_nearLavaCells.length / 8)));
+        for (let ei = 0; ei < nEmit; ei++) {
+          const cell = _nearLavaCells[(Math.random() * _nearLavaCells.length) | 0];
+          const fx = cell.x + 0.15 + Math.random() * 0.70;
+          const fy = cell.y + 0.90;
+          const fz = cell.z + 0.15 + Math.random() * 0.70;
+          const roll = Math.random();
+          if (roll < 0.50) {
+            if (typeof spawnVoxelFx === 'function') spawnVoxelFx('ember', fx, fy, fz, 2);
+          } else if (roll < 0.72) {
+            if (typeof spawnPixelFx === 'function') spawnPixelFx('fire_flame', fx, fy + 0.04, fz, { count: 1, scale: 0.62 + Math.random() * 0.25, life: 0.36 + Math.random() * 0.16, riseV: 1.05, randV: 0.35, spread: 0.22 });
+          } else if (roll < 0.90) {
+            if (typeof spawnVoxelFx === 'function') spawnVoxelFx('lava_pop', fx, fy, fz, 1);
+            if (typeof _spawnOneParticle === 'function') _spawnOneParticle(fx, fy + 0.05, fz, 0xff6b00, { kind: 'lava_drop', rise: false, scale: 0.48, vx: (Math.random() - 0.5) * 1.4, vy: 2.8 + Math.random() * 1.5, vz: (Math.random() - 0.5) * 1.4, life: 0.65, grav: 11.5 });
+          } else {
+            if (typeof spawnPixelFx === 'function') spawnPixelFx('smoke_puff', fx, fy + 0.08, fz, { count: 1, scale: 0.68, life: 0.58, riseV: 0.72, randV: 0.22, spread: 0.20 });
+          }
+          window._lavaParticleSpawns = (window._lavaParticleSpawns || 0) + 1;
+        }
+      }
+    }
   }
 
 

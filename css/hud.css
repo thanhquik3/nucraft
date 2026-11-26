@@ -40,10 +40,10 @@
   #underwaterOverlay.active { opacity: 1; }
   #lavaOverlay {
     position: absolute; inset: 0; pointer-events: none; z-index: 4;
-    background: radial-gradient(ellipse at 50% 46%, rgba(182, 46, 8, 0.34) 0%, rgba(145, 28, 4, 0.56) 58%, rgba(92, 14, 0, 0.80) 100%);
-    backdrop-filter: blur(2.6px) saturate(1.16);
-    -webkit-backdrop-filter: blur(2.6px) saturate(1.16);
-    opacity: 0; transition: opacity 0.14s ease;
+    background: radial-gradient(ellipse at 50% 46%, rgba(196, 56, 10, 0.36) 0%, rgba(162, 34, 4, 0.58) 58%, rgba(110, 18, 2, 0.78) 100%);
+    backdrop-filter: blur(3.0px) saturate(1.12);
+    -webkit-backdrop-filter: blur(3.0px) saturate(1.12);
+    opacity: 0; transition: opacity 0.18s ease;
   }
   #lavaOverlay.active { opacity: 1; }
   #netherPortalOverlay {

@@ -258,9 +258,92 @@
     osc.start(now); osc.stop(now + dur + 0.02);
   }
 
+  function playLavaSplashSfx(intensity = 1.0) {
+    const nowMs = performance.now();
+    if (nowMs - (sfxCooldowns.lava_spl || 0) < 220) return;
+    sfxCooldowns.lava_spl = nowMs;
+    window._lavaSplashSfxCount = (window._lavaSplashSfxCount || 0) + 1;
+    if (!audioCtx || audioCtx.state !== 'running' || !masterGain || sfxVolume <= 0.01) return;
+    try {
+      const now = audioCtx.currentTime;
+      const dest = sfxGain || masterGain;
+      const vol = Math.max(0.2, Math.min(1.2, intensity));
+      // 1) Heavy viscous molten plop
+      const subOsc = audioCtx.createOscillator(), subLp = audioCtx.createBiquadFilter(), subG = audioCtx.createGain();
+      subOsc.type = 'triangle';
+      subOsc.frequency.setValueAtTime(145, now);
+      subOsc.frequency.exponentialRampToValueAtTime(46, now + 0.26);
+      subLp.type = 'lowpass'; subLp.frequency.setValueAtTime(320, now);
+      subG.gain.setValueAtTime(0.001, now);
+      subG.gain.linearRampToValueAtTime(0.32 * vol, now + 0.015);
+      subG.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      subOsc.connect(subLp); subLp.connect(subG); subG.connect(dest);
+      subOsc.start(now); subOsc.stop(now + 0.30);
+      // 2) Thick lava bubble bounce
+      const bOsc = audioCtx.createOscillator(), bG = audioCtx.createGain();
+      bOsc.type = 'sine';
+      bOsc.frequency.setValueAtTime(88, now + 0.055);
+      bOsc.frequency.exponentialRampToValueAtTime(215, now + 0.13);
+      bOsc.frequency.exponentialRampToValueAtTime(72, now + 0.235);
+      bG.gain.setValueAtTime(0.001, now + 0.055);
+      bG.gain.linearRampToValueAtTime(0.22 * vol, now + 0.075);
+      bG.gain.exponentialRampToValueAtTime(0.001, now + 0.245);
+      bOsc.connect(bG); bG.connect(dest);
+      bOsc.start(now + 0.055); bOsc.stop(now + 0.26);
+      // 3) Hot sizzle steam burst
+      if (noiseBuf) {
+        const nSrc = audioCtx.createBufferSource(), bp = audioCtx.createBiquadFilter(), nG = audioCtx.createGain();
+        nSrc.buffer = noiseBuf;
+        bp.type = 'bandpass'; bp.Q.value = 1.8;
+        bp.frequency.setValueAtTime(2500, now);
+        bp.frequency.exponentialRampToValueAtTime(850, now + 0.36);
+        nG.gain.setValueAtTime(0.001, now);
+        nG.gain.linearRampToValueAtTime(0.24 * vol, now + 0.02);
+        nG.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+        nSrc.connect(bp); bp.connect(nG); nG.connect(dest);
+        nSrc.start(now); nSrc.stop(now + 0.38);
+      }
+      playLuantiClip('default_cool_lava.1', 0.34 * vol, 0.60, 0.74, 0, '', 'sfx');
+    } catch (_) {}
+  }
+
+  function playLavaPopSfx(prox = 1.0) {
+    const nowMs = performance.now();
+    if (nowMs - (sfxCooldowns.lava_pop || 0) < 380) return;
+    sfxCooldowns.lava_pop = nowMs;
+    window._lavaPopSfxCount = (window._lavaPopSfxCount || 0) + 1;
+    if (!audioCtx || audioCtx.state !== 'running' || !masterGain || sfxVolume <= 0.01) return;
+    try {
+      const now = audioCtx.currentTime;
+      const dest = sfxGain || masterGain;
+      const gainScale = Math.max(0.05, Math.min(1.0, prox));
+      const pOsc = audioCtx.createOscillator(), pG = audioCtx.createGain();
+      const baseF = 95 + Math.random() * 28;
+      pOsc.type = 'sine';
+      pOsc.frequency.setValueAtTime(baseF, now);
+      pOsc.frequency.exponentialRampToValueAtTime(baseF * 3.1, now + 0.06);
+      pG.gain.setValueAtTime(0.001, now);
+      pG.gain.linearRampToValueAtTime(0.18 * gainScale, now + 0.008);
+      pG.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      pOsc.connect(pG); pG.connect(dest);
+      pOsc.start(now); pOsc.stop(now + 0.08);
+      if (noiseBuf) {
+        const cSrc = audioCtx.createBufferSource(), cBp = audioCtx.createBiquadFilter(), cG = audioCtx.createGain();
+        cSrc.buffer = noiseBuf;
+        cBp.type = 'bandpass'; cBp.frequency.value = 1950; cBp.Q.value = 3.2;
+        cG.gain.setValueAtTime(0.001, now);
+        cG.gain.linearRampToValueAtTime(0.08 * gainScale, now + 0.005);
+        cG.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+        cSrc.connect(cBp); cBp.connect(cG); cG.connect(dest);
+        cSrc.start(now); cSrc.stop(now + 0.05);
+      }
+    } catch (_) {}
+  }
+
   function getMaterialSoundClass(blockId) {
     const d = BLOCK_DEF[blockId]; if (!d) return 'grass';
-    if (blockId === B.WATER || blockId === B.LAVA) return 'water';
+    if (blockId === B.LAVA) return 'lava';
+    if (blockId === B.WATER) return 'water';
     if (blockId === B.GLASS || blockId === B.BROKEN_GLASS || blockId === B.ICE || blockId === B.PACKED_ICE || blockId === B.GLOW_CRYSTAL) return 'glass';
     if (blockId === B.SNOW) return 'snow';
     if (blockId === B.SAND || blockId === B.SOUL_SAND) return 'sand';
@@ -273,6 +356,7 @@
 
   function playFootstep(blockId, isLand = false) {
     const cls = getMaterialSoundClass(blockId);
+    if (cls === 'lava') { playLavaSplashSfx(isLand ? 0.85 : 0.42); return; }
     const v = isLand ? 0.56 : 0.34;
     const map = {
       grass: ['default_grass_footstep.1', 'default_grass_footstep.2'],
@@ -509,7 +593,7 @@
     } catch (_) {}
   }
 
-  let _ambientAudioReady = false, _cicadaGain = null, _windGain = null, _windFilter = null;
+  let _ambientAudioReady = false, _cicadaGain = null, _windGain = null, _windFilter = null, _lavaGain = null, _lavaFilter = null, _nextLavaPopAudioAt = 0;
   function _ensureAmbientSoundRig() {
     if (_ambientAudioReady || !audioCtx || !masterGain || !noiseBuf) return;
     _ambientAudioReady = true;
@@ -547,6 +631,26 @@
       _windGain.gain.value = 0.0001;
       wSrc.connect(_windFilter); _windFilter.connect(_windGain); _windGain.connect(dest);
       wSrc.start();
+
+      // 3. Subterranean Molten Lava Ambient Rumble
+      const lSrc = audioCtx.createBufferSource();
+      lSrc.buffer = noiseBuf;
+      lSrc.loop = true;
+      _lavaFilter = audioCtx.createBiquadFilter();
+      _lavaFilter.type = 'lowpass';
+      _lavaFilter.frequency.value = 165;
+      _lavaFilter.Q.value = 1.35;
+      const lOsc = audioCtx.createOscillator();
+      lOsc.type = 'triangle';
+      lOsc.frequency.value = 56;
+      const lOscGain = audioCtx.createGain();
+      lOscGain.gain.value = 0.16;
+      _lavaGain = audioCtx.createGain();
+      _lavaGain.gain.value = 0.0001;
+      lSrc.connect(_lavaFilter);
+      lOsc.connect(lOscGain); lOscGain.connect(_lavaFilter);
+      _lavaFilter.connect(_lavaGain); _lavaGain.connect(dest);
+      lSrc.start(); lOsc.start();
     } catch (_) {}
   }
 
@@ -582,6 +686,18 @@
       }
       _windFilter.frequency.setTargetAtTime(freqW, now, 0.35);
       _windGain.gain.setTargetAtTime(targetW, now, 0.35);
+    }
+    const lvProx = playingNow ? Math.max(0, Math.min(1, Number(window._nearbyLavaProx) || 0)) : 0;
+    const inLavaEyes = !!(typeof player !== 'undefined' && player.eyesInLava);
+    if (_lavaGain && _lavaFilter) {
+      const targetL = lvProx > 0.01 ? (inLavaEyes ? 0.145 : (0.095 * lvProx * (0.82 + 0.18 * Math.sin(now * 0.85)))) : 0.0001;
+      const freqL = inLavaEyes ? 115 : (155 + 65 * lvProx + 25 * Math.sin(now * 1.1));
+      _lavaFilter.frequency.setTargetAtTime(freqL, now, 0.22);
+      _lavaGain.gain.setTargetAtTime(targetL, now, 0.22);
+    }
+    if (lvProx > 0.08 && !inLavaEyes && now >= _nextLavaPopAudioAt) {
+      playLavaPopSfx(lvProx);
+      _nextLavaPopAudioAt = now + (0.55 + Math.random() * 1.35) / (0.65 + lvProx * 0.75);
     }
   }
 
@@ -914,6 +1030,8 @@
     if (type === 'crit') { playLuantiClip('mobs_punch', 0.46, 1.12, 1.26, 120, 'crit', 'sfx'); return; }
     if (type === 'eat') { playLuantiClip('default_dig_crumbly', 0.36, 1.15, 1.35, 120, 'eat', 'sfx'); return; }
     if (type === 'splash') { playLuantiClip(['default_water_footstep.1', 'default_water_footstep.2'], 0.46, 0.85, 1.05, 180, 'spl', 'sfx'); return; }
+    if (type === 'lava_splash') { playLavaSplashSfx(1.0); return; }
+    if (type === 'lava_pop') { playLavaPopSfx(0.8); return; }
     if (type === 'burn') { playLuantiClip(['default_cool_lava.1', 'fire_flint_and_steel'], 0.25, 0.90, 1.10, 350, 'brn', 'sfx'); return; }
     if (type === 'bow_draw') { playBowDrawSfx(); return; }
     if (type === 'bow_full') { playBowFullSfx(); return; }

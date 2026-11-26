@@ -4143,7 +4143,7 @@
             slot.id = filledId;
             slot.count = 1;
           }
-          player.swingT = 0.24; playSfx('splash'); renderHotbar();
+          player.swingT = 0.24; playSfx(isL ? 'lava_splash' : 'splash'); renderHotbar();
           showToast(isL ? '🪣 Đã múc nguồn Dung Nham — dòng chảy đang rút hết!' : (isExactPoured ? '🪣 Đã múc đúng vị trí đổ nước — nước đang rút hết!' : '🪣 Đã múc đầy Xô Nước (không làm hụt nguồn nước)!'));
           return;
         }
@@ -4173,7 +4173,7 @@
         scheduleFluid(tx, ty, tz, liqId === B.LAVA ? 0.22 : 0.09);
         if (liqId === B.LAVA) igniteAdjacentTnt(tx, ty, tz);
         if (gameMode !== 'creative') slot.id = B.BUCKET;
-        player.swingT = 0.24; playSfx('splash'); renderHotbar();
+        player.swingT = 0.24; playSfx(liqId === B.LAVA ? 'lava_splash' : 'splash'); renderHotbar();
         showToast(liqId === B.LAVA ? '🌋 Đã đổ Dung Nham chảy lan (múc lại ô này để thu hết)!' : '💧 Đã đổ Nước chảy lan (múc đúng ô này để thu hết)!');
         return;
       }
@@ -4868,6 +4868,7 @@
     const eyeWorldY = player.y + EYE_HEIGHT + (player.swimEyeOff || 0);
     const eyeBlock = getBlockWorld(Math.floor(player.x), Math.floor(eyeWorldY), Math.floor(player.z));
     const wasInWater = player.inWater;
+    const wasInLava = player.inLava;
     player.waterDepth = wCol.depth;
     player.waterSurfaceY = wCol.surfaceY;
     player.waterBotY = wCol.botY;
@@ -4884,6 +4885,14 @@
       spawnPixelFx('water_splash', player.x, player.y + 0.45, player.z, { count: 2, scale: 1.15, life: 0.42, riseV: 0.6, spread: 0.5 });
     } else if (player.deepWater && player.curSpeed > 1.6 && (frameCounter % (player.lowSprintSwim ? 4 : 7)) === 0) {
       spawnParticles(player.x, player.y + (player.lowSprintSwim ? 0.35 : 0.72), player.z, 0xbae6fd, player.lowSprintSwim ? 3 : 2, true);
+    }
+    if (player.inLava && !wasInLava) {
+      playSfx('lava_splash');
+      spawnVoxelFx('lava_pop', player.x, player.y + 0.45, player.z, 2);
+      spawnVoxelFx('ember', player.x, player.y + 0.55, player.z, 5);
+      spawnVoxelFx('smoke', player.x, player.y + 0.65, player.z, 2);
+    } else if (player.inLava && !player.eyesInLava && player.curSpeed > 0.5 && (frameCounter % 16) === 0) {
+      spawnVoxelFx('ember', player.x, player.y + 0.35, player.z, 2);
     }
     if (player.eyesInWater !== _lastEyesInWater) {
       _lastEyesInWater = player.eyesInWater;
@@ -4923,7 +4932,7 @@
         }
       } else { player._burnSoul = false; fireTick = 0; }
     }
-    const fireHudOn = ((player.eyesInLava || ((player.burnTime || 0) > 0 && gameMode !== 'creative')) && !player.dead);
+    const fireHudOn = (!player.inLava && !player.eyesInLava && (player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
     if (_elFireHud && fireHudOn !== _lastFireHudOn) {
       _lastFireHudOn = fireHudOn;
       _elFireHud.classList.toggle('active', fireHudOn);
