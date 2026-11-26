@@ -45,7 +45,7 @@
   renderer.localClippingEnabled = (shaderQuality !== 'low');
   const _useDirectRender = () => (shaderQuality === 'low' && !(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-  renderer.toneMappingExposure = 0.96;
+  renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.96 : 0.74;
   renderer.setClearColor(0x9bc4e8, 1);
 
   const scene = new THREE.Scene();
@@ -493,7 +493,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v72';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v74';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -545,7 +545,10 @@
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
         float greenDom = max(0.0, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
         float orangeDom = max(0.0, diffuseColor.r - diffuseColor.b) * smoothstep(0.14, 0.58, diffuseColor.g) * step(diffuseColor.g, diffuseColor.r);
-        diffuseColor.rgb += vec3(0.012, 0.068, 0.004) * greenDom;
+        diffuseColor.rgb += vec3(0.012, 0.068, 0.004) * greenDom * uEclipseMode;
+        if (uEclipseMode < 0.5 && greenDom > 0.02) {
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(diffuseColor.r * 0.86, diffuseColor.g * 0.74, diffuseColor.b * 0.90), clamp(greenDom * 1.6, 0.0, 0.52));
+        }
         if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && (greenDom > 0.03 || orangeDom > 0.08)) {
           float gDistFade = smoothstep(-30.0, 25.0, length(vWPos - cameraPosition));
           float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.58, length(vWPos.xz - uPlayerPos.xz));
@@ -576,7 +579,9 @@
         float albLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
         float whiteDamp = 1.0 - smoothstep(0.58, 0.94, albLum) * 0.30 * sunUpB;
         float shadeCool = pow(1.0 - dirWrap, 1.35) * (0.06 + 0.11 * sunUpB);
-        vec3 shadowTint = mix(isUltraQ ? vec3(0.83, 0.90, 1.07) : vec3(0.88, 0.93, 1.04), vec3(0.64, 0.70, 1.04), uChillMode);
+        vec3 baseShTint = isUltraQ ? vec3(0.83, 0.90, 1.07) : vec3(0.88, 0.93, 1.04);
+        vec3 calmRegShTint = isUltraQ ? vec3(0.66, 0.75, 1.02) : vec3(0.70, 0.79, 1.01);
+        vec3 shadowTint = mix(mix(calmRegShTint, baseShTint, uEclipseMode), vec3(0.64, 0.70, 1.04), uChillMode);
         shadowTint = mix(shadowTint, vec3(0.70, 0.80, 1.10), uDlssMode * 0.60);
         shadowTint = mix(shadowTint, vec3(0.58, 0.69, 1.08), uEclipseMode * 0.78);
         outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.38 : 1.12) * (1.0 + uDlssMode * 0.14 + uEclipseMode * 0.16));
@@ -722,7 +727,7 @@
     map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v38';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v39';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -778,7 +783,7 @@
         float sssFwd = pow(max(dot(vDirL, sDirL), 0.0), 3.0);
         float sssBroad = max(dot(vDirL, sDirL) * 0.5 + 0.5, 0.0) * 0.24;
         float topSun = smoothstep(-0.30, 0.85, dot(nDirL, sDirL));
-        outgoingLight *= mix(0.58, mix(0.92, 1.02, topSun), sUp);
+        outgoingLight *= mix(0.58, mix(mix(0.80, 0.92, uEclipseMode), mix(0.90, 1.02, uEclipseMode), topSun), sUp);
         outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.18 + vec3(0.32), 0.34, 1.0), rtFadeL * 0.84);
         vec3 leafShTint = mix(isUltraL ? vec3(0.90, 0.95, 1.06) : vec3(0.92, 0.96, 1.04), vec3(0.84, 0.88, 1.06), max(uChillMode, uEclipseMode * 0.65));
         outgoingLight = mix(outgoingLight, outgoingLight * leafShTint, (1.0 - topSun) * (isUltraL ? 0.16 : 0.11) * sUp);
@@ -852,7 +857,7 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v37';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v39';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -898,9 +903,9 @@
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(0.99));
         float dayPlant = smoothstep(-0.08, 0.25, normalize(uSunDir).y);
         float isGoldCrop = clamp((diffuseColor.r - diffuseColor.b) * 2.2, 0.0, 1.0);
-        float baseRootShade = mix(mix(0.84, 0.56, uChillMode), 0.52, uEclipseMode);
+        float baseRootShade = mix(mix(0.56, 0.52, uChillMode), 0.52, uEclipseMode);
         float rootShade = mix(baseRootShade, 0.86, isGoldCrop * 0.75);
-        diffuseColor.rgb *= vSkyShade * mix(rootShade, mix(0.98, 1.12, dayPlant), smoothstep(0.0, 0.84, vPlantTip));`)
+        diffuseColor.rgb *= vSkyShade * mix(rootShade, mix(0.96, mix(0.94, 1.12, uEclipseMode), dayPlant), smoothstep(0.0, 0.84, vPlantTip));`)
       .replace('#include <opaque_fragment>', `
         vec3 vDirP = normalize(vWPos - cameraPosition);
         vec3 sDirP = normalize(uSunDir);
@@ -922,7 +927,7 @@
         float chillPlantMul = 1.0 + uChillMode * 0.55 + uDlssMode * 0.28 + uEclipseMode * 0.45 + rtFadeP * 0.42;
         float pSSS = (pow(max(dot(vDirP, sDirP), 0.0), 3.0) * (uQuality > 1.5 ? 0.40 : 0.28) + 0.03 * (1.0 - uChillMode)) * chillPlantMul * smoothstep(0.15, 1.0, vPlantTip) * sUpP * vSkyShade * mix(1.0, rtShLumP, rtFadeP * 0.92);
         float tipRimP = pow(1.0 - abs(vDirP.y), 2.4) * smoothstep(0.32, 1.0, vPlantTip) * (0.06 + 0.24 * uChillMode + 0.14 * uDlssMode + 0.20 * uEclipseMode + rtFadeP * 0.14) * sUpP * mix(1.0, rtShLumP, rtFadeP * 0.90);
-        outgoingLight *= mix(0.46, mix(1.0, 0.84, uChillMode), sUpP);
+        outgoingLight *= mix(0.46, mix(mix(0.88, 1.0, uEclipseMode), 0.84, uChillMode), sUpP);
         outgoingLight *= mix(vec3(1.0), clamp(rtShP * 1.15 + vec3(0.32), 0.34, 1.0), rtFadeP * 0.85);
         vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.76, 0.78, 0.96), max(uChillMode, uEclipseMode * 0.55));
         outgoingLight = mix(outgoingLight * plantShTint, outgoingLight, vSkyShade);
@@ -2047,10 +2052,6 @@
       uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uSunVis, uRayTracing;
       uniform vec2 uTexelSize, uLightScreen;
       varying vec2 vUv;
-      // Narkowicz ACES Filmic Tonemap (BSL / Complementary / ShaderLABS standard)
-      vec3 acesFilmic(vec3 x) {
-        return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-      }
       // Authentic Merlin1809 Eclipse-Shader AgX Minimal Tonemap & Vignette (color_transforms.glsl / final.fsh)
       vec3 agxDefaultContrastApprox(vec3 x) {
         vec3 x2 = x * x;
@@ -2147,8 +2148,9 @@
         }
         // Subtle crisp Bloom, Atmospheric Golden Halo & Volumetric God-Rays
         float bloomBoost = max(uChillMode, max(uDlssMode * 0.72, uEclipseMode * 0.64));
-        float bloomMix1 = mix(isUltraC ? 0.055 : 0.040, isUltraC ? 0.078 : 0.062, bloomBoost) * mix(1.0, 1.38, uRayTracing);
-        float bloomMix2 = mix(isUltraC ? 0.028 : 0.016, isUltraC ? 0.044 : 0.030, bloomBoost) * mix(1.0, 1.45, uRayTracing);
+        float bloomCalm = mix(0.68, 1.0, uEclipseMode);
+        float bloomMix1 = mix(isUltraC ? 0.055 : 0.040, isUltraC ? 0.078 : 0.062, bloomBoost) * mix(1.0, 1.38, uRayTracing) * bloomCalm;
+        float bloomMix2 = mix(isUltraC ? 0.028 : 0.016, isUltraC ? 0.044 : 0.030, bloomBoost) * mix(1.0, 1.45, uRayTracing) * bloomCalm;
         col += texture2D(tBloom, uv).rgb * bloomMix1 + texture2D(tBloomWide, uv).rgb * bloomMix2;
         if (uUnderwater > 0.5) {
           float abyssT = clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0);
@@ -2165,7 +2167,7 @@
         }
         if (uUnderwater < 0.5 && (uChillMode > 0.5 || uEclipseMode > 0.5) && uSunVis > 0.02) {
           float sunRad = exp(-length((uv - uLightScreen) * vec2(1.45, 1.0)) * mix(3.1, 2.7, uEclipseMode));
-          col += vec3(1.0, 0.76, 0.42) * sunRad * clamp(uSunVis * 2.0, 0.0, 1.0) * mix(0.11, 0.11, uEclipseMode);
+          col += vec3(1.0, 0.76, 0.42) * sunRad * clamp(uSunVis * 2.0, 0.0, 1.0) * mix(0.065, 0.11, uEclipseMode);
         }
         if (uRayTracing > 0.5 && uUnderwater < 0.5 && uInLava < 0.5) {
           float rtxLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -2191,9 +2193,11 @@
           float uwVig = uUnderwater > 0.5 ? (1.0 - dot(vUv - 0.5, vUv - 0.5) * mix(0.22, 0.45, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0))) : 1.0;
           col *= eclipseVignette(vUv, ignV) * uwVig;
         } else {
-          col = acesFilmic(max(col, vec3(0.0)) * expUse);
+          vec3 linR = pow(max(col, vec3(1e-5)), vec3(2.2));
+          vec3 agxReg = ToneMap_AgX_minimal_merlin(linR * expUse * 0.92);
+          col = pow(max(agxReg, vec3(0.0)), vec3(1.0 / 2.2));
           float hiLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          float hiDesat = smoothstep(0.74, 1.0, hiLum) * 0.06 * (1.0 - uUnderwater);
+          float hiDesat = smoothstep(0.68, 0.98, hiLum) * 0.08 * (1.0 - uUnderwater);
           col = mix(col, vec3(hiLum) * vec3(1.01, 0.99, 0.96), hiDesat);
           float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
           vec3 baseCool = mix(vec3(0.96, 0.97, 1.02), vec3(0.84, 0.90, 1.07), uMoonBoost * 0.72);
@@ -2204,7 +2208,7 @@
           else if (uDimension > 1.5) coolShadows = vec3(0.96, 0.88, 1.08);
           else if (uDimension > 0.5) coolShadows = vec3(1.03, 0.90, 0.86);
           col = mix(col * coolShadows, col, smoothstep(0.06, 0.44, lum));
-          vec3 warmHigh = vec3(1.0 + uWarmth * 0.22, 1.0 + uWarmth * 0.08, 1.0 - uWarmth * 0.14);
+          vec3 warmHigh = vec3(1.0 + uWarmth * 0.09, 1.0 - abs(uWarmth) * 0.02, 1.0 - uWarmth * 0.11);
           if (uDimension > 3.5) warmHigh = vec3(0.92, 1.04, 1.08);
           else if (uDimension > 2.5) warmHigh = vec3(1.05, 0.97, 0.99);
           else if (uDimension > 1.5) warmHigh = vec3(1.06, 0.95, 1.12);
@@ -2216,7 +2220,7 @@
           float minCh = min(col.r, min(col.g, col.b));
           float satBoost = uVibrance * (1.0 - (maxCh - minCh) * 0.72);
           float lumaV = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          col = mix(vec3(lumaV), col, 1.06 + satBoost);
+          col = mix(vec3(lumaV), col, 1.0 + satBoost);
           float vigAmt = uUnderwater > 0.5 ? mix(0.22, 0.48, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0)) : mix(0.14, 0.19, uChillMode);
           float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * vigAmt;
           col *= vig;
