@@ -459,16 +459,23 @@
       h: Math.max(0.75, +(1.85 * s).toFixed(2))
     };
   }
-  function _getDragonGroundSurfaceY(wx, refY, wz) {
-    const ix = Math.floor(wx), iz = Math.floor(wz);
-    const startY = Math.min(MAX_Y - 1, Math.max(1, Math.floor((typeof refY === 'number' ? refY : MAX_Y - 2) + 1.5)));
-    for (let y = startY; y >= MIN_Y + 1; y--) {
-      const b = getBlockWorld(ix, y, iz), d = BLOCK_DEF[b];
-      if (b !== B.AIR && b !== B.WATER && b !== B.LAVA && d && d.solid && !(d.foliage || d.isLog || d.cross || d.hangingFruit)) {
-        return y + 1;
+  function _getDragonGroundSurfaceY(wx, refY, wz, sc = 1.0) {
+    const startY = Math.min(MAX_Y - 1, Math.max(1, Math.floor((typeof refY === 'number' ? refY : MAX_Y - 2) + 2.2)));
+    const off = Math.min(2.2, Math.max(0.4, (sc || 1) * 0.42));
+    const pts = [[wx, wz], [wx + off, wz], [wx - off, wz], [wx, wz + off], [wx, wz - off]];
+    let bestY = WATER_LEVEL + 1;
+    let found = false;
+    for (let pi = 0; pi < 5; pi++) {
+      const ix = Math.floor(pts[pi][0]), iz = Math.floor(pts[pi][1]);
+      for (let y = startY; y >= MIN_Y + 1; y--) {
+        const b = getBlockWorld(ix, y, iz), d = BLOCK_DEF[b];
+        if (b !== B.AIR && b !== B.WATER && b !== B.LAVA && d && d.solid && !(d.foliage || d.isLog || d.cross || d.hangingFruit)) {
+          if (!found || y + 1 > bestY) { bestY = y + 1; found = true; }
+          break;
+        }
       }
     }
-    return WATER_LEVEL + 1;
+    return bestY;
   }
   function _syncDragonOverlayMetrics(m) {
     if (!m) return;
@@ -558,16 +565,29 @@
       eye: 0xfde047
     },
     ender_dragon: {
-      body: [0x2c2834, 0x443e4e, 0x685f74, 0x867c94],
-      belly: [0x4b4454, 0x867e90, 0xa8a0b4],
-      dark: [0x2a2534, 0x3e384c],
-      under: [0x1c1824, 0x282334],
-      mem: [0x26222e, 0x3c3648, 0x524864],
-      horn: [0x908a98, 0xb4aebc, 0x4a4652, 0x16141b],
-      eye: 0xe879f9
+      body: [0x12071d, 0x240f3a, 0x411b69, 0x6b2fa4],
+      belly: [0x2a1244, 0x52257e, 0x8b4cc8],
+      dark: [0x150822, 0x2c1248],
+      under: [0x0c0416, 0x1a092c],
+      mem: [0x1a0a2a, 0x3b1760, 0x622699],
+      horn: [0x4c1d95, 0xa855f7, 0xd8b4fe, 0x2e1065],
+      eye: 0xf0abfc
     }
   };
   DRAGON_COLOR_PALETTES.baby_dragon = DRAGON_COLOR_PALETTES.leaf_dragon;
+
+  const _enderSpineMatCache = new Map();
+  function _getEnderSpineMat(isSkinned) {
+    const k = isSkinned ? '1' : '0';
+    if (_enderSpineMatCache.has(k)) return _enderSpineMatCache.get(k);
+    const m = new THREE.MeshStandardMaterial({
+      color: 0xf5d0fe, emissive: 0xd946ef, emissiveIntensity: 2.8,
+      roughness: 0.25, metalness: 0.15, skinning: !!isSkinned
+    });
+    m.userData = { sharedMat: true, baseEmissive: m.emissive.clone(), baseEmissiveInt: m.emissiveIntensity };
+    _enderSpineMatCache.set(k, m);
+    return m;
+  }
 
   const _dragonVariantTexCache = new Map();
   const _dragonVariantMatCache = new Map();
@@ -700,6 +720,15 @@
     gold:    { head: 3, neck: 3, body: 5, tail: 3 },
     diamond: { head: 4, neck: 4, body: 8, tail: 4 }
   };
+  function calcDragonArmorPts(m) {
+    if (!m || !m.dragonArmor) return 0;
+    let pts = 0;
+    for (let i = 0; i < DRAGON_ARMOR_SLOTS.length; i++) {
+      const sk = DRAGON_ARMOR_SLOTS[i], tier = m.dragonArmor[sk];
+      if (tier && DRAGON_ARMOR_DEF_PTS[tier]) pts += DRAGON_ARMOR_DEF_PTS[tier][sk] || 0;
+    }
+    return pts;
+  }
 
   function _getDragonArmorAtlas(tier, baseTex) {
     if (!tier || tier === 'iron' || !baseTex || !baseTex.image) return baseTex;
@@ -819,7 +848,7 @@
       torso: null, neck1: null, head: null, jaw: null, core: null,
       legs: [], arms: [], wings: [], tail: null, tail2: null, tail3: null,
       saddleGroup: null, saddleSeat: null, armorMeshes: { head: [], neck: [], body: [], tail: [] },
-      bodyBone: null, headBone: null, jawBone: null,
+      bodyBone: null, headBone: null, jawBone: null, wingTipL: null, wingTipR: null,
       mixer: null, armRoot: null, actions: null, activeClip: ''
     };
     const wingMap = {};
@@ -848,8 +877,9 @@
             o.receiveShadow = true;
             return;
           }
-          let mat = _getDragonVariantMat(type, origMat, !!o.isSkinnedMesh);
-          if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.immFast) {
+          const isEnderSpike = (type === 'ender_dragon' && nodeTag.startsWith('spikes_'));
+          let mat = isEnderSpike ? _getEnderSpineMat(!!o.isSkinnedMesh) : _getDragonVariantMat(type, origMat, !!o.isSkinnedMesh);
+          if (!isEnderSpike && typeof sodiumOpts !== 'undefined' && !sodiumOpts.immFast) {
             mat = mat.clone();
             mat.userData = {
               sharedMat: false,
@@ -859,7 +889,7 @@
           }
           if (!mat.map && o.geometry && o.geometry.attributes && o.geometry.attributes.color) mat.vertexColors = true;
           o.material = mat;
-          const isGlow = (origMatName === 'Eye_Orange');
+          const isGlow = (origMatName === 'Eye_Orange') || isEnderSpike;
           o.castShadow = !isGlow && castSh;
           o.receiveShadow = !isGlow;
           if (!isGlow) parts.push(o);
@@ -871,6 +901,8 @@
           if (clean === 'Body') anim.bodyBone = o;
           else if (clean === 'Head') anim.headBone = o;
           else if (clean === 'Jaw') anim.jawBone = o;
+          else if (clean === 'Wing_Near_Finger_01') anim.wingTipL = o;
+          else if (clean === 'Wing_Far_Finger_01') anim.wingTipR = o;
         }
         return;
       }
@@ -929,7 +961,7 @@
     if (isSkinnedDragon) {
       if (anim.bodyBone) {
         const saddleSeat = new THREE.Group();
-        saddleSeat.position.set(0, 18.8 * 0.0625, 1.3 * 0.0625);
+        saddleSeat.position.set(0, 16.94 * 0.0625, 3.2 * 0.0625);
         g.add(saddleSeat);
         g.updateMatrixWorld(true);
         anim.bodyBone.attach(saddleSeat);
@@ -4122,13 +4154,13 @@
   }
 
   const MOB_STATS = {
-    ender_dragon:    { hostile: true,  hp: 600, speed: 7.40, r: 2.50, h: 3.1, dmg: 9.0, isBoss: true, flying: true, bossLabel: 'RỒNG ENDER', bossGrad: 'linear-gradient(90deg, #7e22ce, #d946ef, #f0abfc)' },
-    ice_dragon:      { displayName: 'Rồng Băng',     hostile: true, hp: 420, speed: 6.80, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'ice',   bossLabel: 'RỒNG BĂNG',     bossGrad: 'linear-gradient(180deg, #38bdf8, #0284c7, #075985)' },
-    fire_dragon:     { displayName: 'Rồng Lửa',      hostile: true, hp: 450, speed: 7.20, r: 2.35, h: 2.9, dmg: 8.5, isBoss: true, flying: true, elementalDragon: 'fire',  noSunBurn: true, bossLabel: 'RỒNG LỬA', bossGrad: 'linear-gradient(180deg, #facc15, #f97316, #991b1b)' },
-    earth_dragon:    { displayName: 'Rồng Đất',      hostile: true, hp: 500, speed: 6.20, r: 2.50, h: 3.0, dmg: 9.0, isBoss: true, flying: true, elementalDragon: 'earth', bossLabel: 'RỒNG ĐẤT',      bossGrad: 'linear-gradient(180deg, #f59e0b, #a16207, #44403c)' },
-    water_dragon:    { displayName: 'Rồng Nước',     hostile: true, hp: 430, speed: 7.00, r: 2.35, h: 2.9, dmg: 7.5, isBoss: true, flying: true, elementalDragon: 'water', noSunBurn: true, bossLabel: 'RỒNG NƯỚC', bossGrad: 'linear-gradient(180deg, #67e8f9, #06b6d4, #1e40af)' },
-    leaf_dragon:     { displayName: 'Rồng Lá',       hostile: true, hp: 410, speed: 6.90, r: 2.35, h: 2.9, dmg: 7.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ',       bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
-    tree_dragon:     { displayName: 'Rồng Cổ Thụ',   hostile: true, hp: 460, speed: 6.50, r: 2.40, h: 3.0, dmg: 8.0, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CỔ THỤ',   bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
+    ender_dragon:    { hostile: true,  hp: 750, speed: 7.80, r: 2.65, h: 3.3, dmg: 18.0, isBoss: true, flying: true, bossLabel: 'RỒNG ENDER', bossGrad: 'linear-gradient(90deg, #7e22ce, #d946ef, #f0abfc)' },
+    ice_dragon:      { displayName: 'Rồng Băng',     hostile: true, hp: 460, speed: 7.00, r: 2.35, h: 2.9, dmg: 14.0, isBoss: true, flying: true, elementalDragon: 'ice',   bossLabel: 'RỒNG BĂNG',     bossGrad: 'linear-gradient(180deg, #38bdf8, #0284c7, #075985)' },
+    fire_dragon:     { displayName: 'Rồng Lửa',      hostile: true, hp: 490, speed: 7.40, r: 2.35, h: 2.9, dmg: 15.0, isBoss: true, flying: true, elementalDragon: 'fire',  noSunBurn: true, bossLabel: 'RỒNG LỬA', bossGrad: 'linear-gradient(180deg, #facc15, #f97316, #991b1b)' },
+    earth_dragon:    { displayName: 'Rồng Đất',      hostile: true, hp: 540, speed: 6.40, r: 2.50, h: 3.0, dmg: 16.0, isBoss: true, flying: true, elementalDragon: 'earth', bossLabel: 'RỒNG ĐẤT',      bossGrad: 'linear-gradient(180deg, #f59e0b, #a16207, #44403c)' },
+    water_dragon:    { displayName: 'Rồng Nước',     hostile: true, hp: 470, speed: 7.20, r: 2.35, h: 2.9, dmg: 14.0, isBoss: true, flying: true, elementalDragon: 'water', noSunBurn: true, bossLabel: 'RỒNG NƯỚC', bossGrad: 'linear-gradient(180deg, #67e8f9, #06b6d4, #1e40af)' },
+    leaf_dragon:     { displayName: 'Rồng Lá',       hostile: true, hp: 440, speed: 7.10, r: 2.35, h: 2.9, dmg: 13.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ',       bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
+    tree_dragon:     { displayName: 'Rồng Cổ Thụ',   hostile: true, hp: 500, speed: 6.70, r: 2.40, h: 3.0, dmg: 14.5, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CỔ THỤ',   bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
     cave_warden:     { hostile: true,  hp: 500, speed: 2.85, r: 0.72, h: 2.85, dmg: 16.0, isBoss: true, noSunBurn: true, displayName: 'Warden', bossLabel: '💀 WARDEN — QUÁI THÚ DEEP DARK', bossGrad: 'linear-gradient(90deg, #064e63, #0891b2, #22d3ee)' },
     sculk_stalker:      { hostile: true, hp: 200, speed: 3.45, r: 0.56, h: 2.05, dmg: 14.0, noSunBurn: true, displayName: 'Thợ Săn Sculk Stalker' },
     sculk_brute:        { hostile: true, hp: 450, speed: 2.55, r: 0.85, h: 2.65, dmg: 20.0, noSunBurn: true, chargeKnock: true, displayName: 'Khổng Lồ Sculk Brute' },
@@ -4285,6 +4317,7 @@
       dragonModeTimer: st.elementalDragon ? (8.5 + Math.random() * 2.5) : 0,
       dragonScale: _isDrgType ? _drgScInit : undefined,
       dragonArmor: (_isDrgType && opts && opts.dragonArmor) ? { ...opts.dragonArmor } : null,
+      gender: _isDrgType ? ((opts && opts.gender) || (Math.random() < 0.5 ? 'M' : 'F')) : undefined,
       homeX: (opts && typeof opts.homeX === 'number') ? opts.homeX : undefined,
       homeY: (opts && typeof opts.homeY === 'number') ? opts.homeY : undefined,
       homeZ: (opts && typeof opts.homeZ === 'number') ? opts.homeZ : undefined,
@@ -4368,21 +4401,23 @@
   // === v111 Dragon Nest Guardians, Incubation, Ore UI HUD, Rigid Saddle Rider & Mouth Breath ===
   const incubatingEggs = new Map();
   const spawnedDragonNests = new Set();
-  const dragonFlyCtrl = { up: false, down: false };
   let _playerCombatTarget = null, _playerCombatTargetT = 0;
   let _dragonGrowthUiTimer = 0, _activeGrowthDragon = null, _lastMountBtnVis = false, _lastFlightHudVis = false;
-  let _lastMountBtnTxt = '', _lastDragonUiLang = '';
+  let _lastMountBtnTxt = '';
   const _elDgWrap = document.getElementById('dragonGrowthWrap');
   const _elDgName = document.getElementById('dgName');
   const _elDgPct = document.getElementById('dgPct');
   const _elDgFill = document.getElementById('dragonGrowthFill');
   const _elDgStage = document.getElementById('dgStage');
   const _elDragonMount = document.getElementById('btnDragonMount');
+  const _elDragonEquip = document.getElementById('btnDragonEquip');
   const _elDragonFlight = document.getElementById('dragonFlightHud');
-  const _elDrgUp = document.getElementById('btnDragonUp');
-  const _elDrgDown = document.getElementById('btnDragonDown');
   const _elDrgBreath = document.getElementById('btnDragonBreath');
+  const _elDrgSk2 = document.getElementById('btnDragonSk2');
+  const _elDrgSk3 = document.getElementById('btnDragonSk3');
+  const _elDrgSk4 = document.getElementById('btnDragonSk4');
   const _elDrgExit = document.getElementById('btnDragonExit');
+  let _lastEquipBtnVis = false, _lastFlightElKey = '';
   const _mouthPos = new THREE.Vector3();
   const _saddleWorldPos = new THREE.Vector3();
 
@@ -4435,7 +4470,7 @@
     const parent = t.parent || m.group;
     if (playerAvatar.g.parent !== parent) parent.add(playerAvatar.g);
     const invS = 1 / Math.max(0.12, m.group.scale.x || 1);
-    playerAvatar.g.position.set(t.lx, t.ly - 0.44 * invS, t.lz);
+    playerAvatar.g.position.set(t.lx, t.ly - 0.08 * invS, t.lz);
     playerAvatar.g.rotation.set(0, 0, 0);
     playerAvatar.g.scale.setScalar(invS);
   }
@@ -4488,7 +4523,8 @@
     const stage = growthToDragonStage(growth);
     const saddled = !!(saved && saved.saddled && growth >= 100);
     const dragonArmor = (saved && saved.dragonArmor && typeof saved.dragonArmor === 'object') ? { ...saved.dragonArmor } : null;
-    const m = spawnMobOfType(type, wx, wy, wz, { dragonStage: stage, saddled, tamed: true, dragonArmor });
+    const gender = (saved && saved.gender) || (Math.random() < 0.5 ? 'M' : 'F');
+    const m = spawnMobOfType(type, wx, wy, wz, { dragonStage: stage, saddled, tamed: true, dragonArmor, gender });
     if (!m) return null;
     m.tamed = true;
     m.hostile = false;
@@ -4498,6 +4534,7 @@
     m.dragonStage = stage;
     m.saddled = saddled;
     m.dragonArmor = dragonArmor;
+    m.gender = gender;
     m.sitting = !!(saved && saved.sitting);
     m.flying = false;
     m._landedIdle = true;
@@ -4543,6 +4580,18 @@
     return best;
   }
 
+  function findNearestTamedDragon(maxD = 10.5) {
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < mobs.length; i++) {
+      const mb = mobs[i];
+      if (!mb || mb._dead || !mb.tamed || !mb.elemDragon) continue;
+      const effMax = maxD + Math.max(0, (mb.dragonScale || 1) - 1) * 3.0;
+      const d = Math.hypot(mb.x - player.x, mb.y + Math.min(3.5, (mb.hitboxH || 1.6) * 0.35) - player.y, mb.z - player.z);
+      if (d < effMax && d < bestD) { bestD = d; best = mb; }
+    }
+    return best;
+  }
+
   function mountDragon(m) {
     if (!m || m._dead || !m.tamed || !m.elemDragon || !m.saddled || (m.growth || 0) < 100) return false;
     player.ridingDragon = m;
@@ -4552,8 +4601,11 @@
     player.smoothMoveZ = 0;
     player.vy = 0;
     m.sitting = false;
-    m.flying = true;
-    m._landedIdle = false;
+    const gSurf = _getDragonGroundSurfaceY(m.x, m.y + 2.0, m.z, m.dragonScale);
+    m.flying = (m.y - gSurf) > 1.8;
+    m._landedIdle = !m.flying;
+    m._diveBoost = 0;
+    m._drgDiving = false;
     m.vx = 0; m.vy = 0; m.vz = 0;
     m._bankRoll = 0; m._flyPitch = 0; m._roarT = 0.9;
     attachRiderToDragon(m);
@@ -4568,11 +4620,12 @@
     const sw = getDragonSaddleWorldPos(m, _saddleWorldPos);
     player.x = sw.x; player.y = sw.y; player.z = sw.z;
     playSfx('roar');
-    showToast(tr(`🐉 Đã cưỡi ${m.displayName}! Space/Lên • Shift/Xuống • Đánh để Phun!`, `🐉 Mounted ${m.displayName}! Space/Ascend • Shift/Descend • Attack to Breathe!`));
     _dragonGrowthUiTimer = 0;
     _activeGrowthDragon = null;
     if (_elDgWrap) _elDgWrap.classList.remove('visible');
+    _lastFlightElKey = '';
     updateDragonUiControls(0);
+    if (typeof renderStatusBars === 'function') renderStatusBars();
     return true;
   }
 
@@ -4580,8 +4633,6 @@
     const m = player.ridingDragon;
     player.ridingDragon = null;
     player.sitting = false;
-    dragonFlyCtrl.up = false;
-    dragonFlyCtrl.down = false;
     detachRiderFromDragon();
     if (player._preDragonThirdPerson !== undefined) {
       thirdPerson = player._preDragonThirdPerson;
@@ -4591,9 +4642,10 @@
       if (typeof offhandPivot !== 'undefined') offhandPivot.visible = (thirdPerson === 0 && !hudHidden && !!activeOffhandObj);
     }
     if (m && !m._dead) {
-      if (m.group) m.group.rotation.z = 0;
+      m._diveBoost = 0; m._drgDiving = false; m._bankRoll = 0; m._flyPitch = 0;
+      if (m.group) { m.group.rotation.z = 0; m.group.rotation.x = 0; }
       if (m.anim && m.anim.torso) m.anim.torso.rotation.x = 0;
-      const dismOff = Math.max(1.6, (m.dragonScale || 1) * 1.1);
+      const dismOff = Math.max(1.8, (m.dragonScale || 1) * 1.1);
       player.x = m.x + Math.cos(player.yaw) * dismOff;
       player.z = m.z - Math.sin(player.yaw) * dismOff;
       const gy = colGroundY(Math.floor(player.x), Math.floor(player.z));
@@ -4603,66 +4655,164 @@
       player.fallStartY = player.y;
     }
     updateDragonUiControls(0);
+    if (typeof renderStatusBars === 'function') renderStatusBars();
     playSfx('equip');
   }
+
+  const DRAGON_SKILL_DEFS = {
+    fire:  { vi: ['🔥 Phun Cầu Lửa', '[G] Mưa Thiên Thạch', '[V] Hỏa Bão Xung Kích', '[B] Siêu Tân Tinh'], en: ['🔥 Fireball', '[G] Meteor Shower', '[V] Blazing Dash', '[B] Supernova'], col: 0xf97316, kind: 'drg_fire' },
+    ice:   { vi: ['❄️ Thương Băng Lớn', '[G] Bão Tuyết Hàn', '[V] Đóng Băng Nova', '[B] Sao Chổi Băng'], en: ['❄️ Ice Lance', '[G] Blizzard Volley', '[V] Glacial Nova', '[B] Frost Comets'], col: 0x38bdf8, kind: 'drg_ice' },
+    water: { vi: ['🌊 Đại Bác Thủy Áp', '[G] Xoáy Nước Biển', '[V] Sóng Thần Hồi Máu', '[B] Đại Hồng Thủy'], en: ['🌊 Hydro Cannon', '[G] Tidal Vortex', '[V] Healing Surge', '[B] Deluge Tempest'], col: 0x22d3ee, kind: 'drg_water' },
+    earth: { vi: ['🪨 Đá Tảng Khổng Lồ', '[G] Gai Đá Trồi Đất', '[V] Địa Chấn Nghiền', '[B] Mưa Đá Cổ Đại'], en: ['🪨 Giant Boulder', '[G] Earth Spikes', '[V] Seismic Slam', '[B] Boulder Rain'], col: 0xf59e0b, kind: 'drg_earth' },
+    leaf:  { vi: ['🌿 Bão Phi Tiêu Lá', '[G] Mưa Bào Tử Độc', '[V] Lốc Xoáy Rừng', '[B] Vạn Hoa Bão'], en: ['🌿 Razor Leaves', '[G] Venom Spores', '[V] Forest Cyclone', '[B] Blossom Storm'], col: 0x4ade80, kind: 'drg_leaf' },
+    tree:  { vi: ['🌳 Giáo Gỗ Cổ Thụ', '[G] Rễ Cây Trói Buộc', '[V] Hào Quang Thế Giới', '[B] Thịnh Nộ Rừng Già'], en: ['🌳 Timber Lance', '[G] World Roots', '[V] Elder Bloom Heal', '[B] Ancient Wrath'], col: 0xa3e635, kind: 'drg_tree' }
+  };
 
   function castRiddenDragonSkill(skillIdx = 1) {
     const m = player.ridingDragon;
     if (!m || m._dead) return false;
     const el = m.elemDragon || 'fire';
-    const kindMap = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
-    const kind = kindMap[el] || 'drg_fire';
-    const pCol = el === 'ice' ? 0x38bdf8 : (el === 'earth' ? 0xf59e0b : (el === 'water' ? 0x22d3ee : (el === 'leaf' || el === 'tree' ? 0x4ade80 : 0xf97316)));
+    const def = DRAGON_SKILL_DEFS[el] || DRAGON_SKILL_DEFS.fire;
+    const kind = def.kind, pCol = def.col;
     _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ');
     _rayDir.set(0, 0, -1).applyEuler(_rayEuler);
     const mp = getDragonMouthWorldPos(m, _mouthPos);
 
-    if (skillIdx === 2) {
-      if ((m._sk2Cd || 0) > 0) return false;
-      m._sk2Cd = 3.5; m.atkAnimT = 0.50; playSfx('roar');
-      const rainKind = (el === 'fire') ? 'drg_fire_meteor' : kind;
-      for (let i = -1; i <= 1; i++) {
-        const sp = i * 0.14;
-        const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
-        const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
-        fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y - 0.04, sz, 29.0, m.dmg * 1.45, rainKind, { friendlyDragon: true, ownerDragon: m });
+    if (skillIdx === 1) {
+      if ((m.atkCd || 0) > 0) return false;
+      m.atkCd = 0.60; m.atkAnimT = 0.45; m._roarT = 0.90; playSfx('roar');
+      if (el === 'leaf') {
+        for (let i = -2; i <= 2; i++) {
+          const sp = i * 0.11;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y, sz, 35.0, m.dmg * 0.85, kind, { friendlyDragon: true, ownerDragon: m, scale: 2.5, splashR: 4.5 });
+        }
+      } else if (el === 'earth') {
+        fireEnergyOrb(mp.x, mp.y, mp.z, _rayDir.x, Math.min(0.65, _rayDir.y + 0.16), _rayDir.z, 26.0, m.dmg * 1.85, kind, { friendlyDragon: true, ownerDragon: m, scale: 3.6, splashR: 6.8, gravity: 13.0, effect: 'quake' });
+      } else {
+        const sp1 = (el === 'ice' || el === 'water') ? 37.0 : 31.0;
+        const eff1 = el === 'ice' ? 'freeze' : (el === 'fire' ? 'fire' : (el === 'water' ? 'knock' : 'poison'));
+        fireEnergyOrb(mp.x, mp.y, mp.z, _rayDir.x, _rayDir.y, _rayDir.z, sp1, m.dmg * 1.65, kind, { friendlyDragon: true, ownerDragon: m, scale: 3.2, splashR: 6.0, effect: eff1 });
       }
       spawnParticles(mp.x, mp.y, mp.z, pCol, 14, true);
-      showToast('🌠 Chiêu 2: Mưa Năng Lượng Rồng!');
       return true;
     }
+
+    if (skillIdx === 2) {
+      if ((m._sk2Cd || 0) > 0) return false;
+      m._sk2Cd = 3.5; m.atkAnimT = 0.55; playSfx('roar');
+      if (el === 'fire') {
+        for (let i = -2; i <= 2; i++) {
+          const sp = i * 0.14;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, Math.min(0.65, _rayDir.y + 0.18), sz, 27.0, m.dmg * 1.65, 'drg_fire_meteor', { friendlyDragon: true, ownerDragon: m, scale: 3.4, splashR: 6.4, gravity: 11.0, effect: 'fire' });
+        }
+      } else if (el === 'ice') {
+        for (let i = 0; i < 6; i++) {
+          const sp = (i - 2.5) * 0.12;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y - 0.03 + (i & 1) * 0.05, sz, 32.0, m.dmg * 1.25, kind, { friendlyDragon: true, ownerDragon: m, scale: 2.9, splashR: 5.5, effect: 'freeze' });
+        }
+      } else if (el === 'water') {
+        for (let i = -2; i <= 2; i++) {
+          const sp = i * 0.13;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y, sz, 28.0, m.dmg * 1.40, kind, { friendlyDragon: true, ownerDragon: m, scale: 3.3, splashR: 7.2, effect: 'vortex' });
+        }
+      } else if (el === 'earth' || el === 'tree') {
+        const horiz = Math.hypot(_rayDir.x, _rayDir.z) || 1;
+        const hx = _rayDir.x / horiz, hz = _rayDir.z / horiz;
+        for (let k = 1; k <= 6; k++) {
+          const rx = mp.x + hx * (k * 4.5), rz = mp.z + hz * (k * 4.5);
+          const ry = colGroundY(Math.floor(rx), Math.floor(rz)) + 1.0;
+          spawnPixelFx(el === 'earth' ? 'smoke_puff' : 'magic_poison', rx, ry + 1.2, rz, { count: 4, scale: 3.2, life: 0.65, spread: 1.4 });
+          if (el === 'earth') _placeSafeDragonBlock(Math.floor(rx), Math.floor(ry), Math.floor(rz), B.STONE);
+          else _placeSafeDragonBlock(Math.floor(rx), Math.floor(ry), Math.floor(rz), B.OAK_LOG);
+          for (let mi = mobs.length - 1; mi >= 0; mi--) {
+            const mb = mobs[mi];
+            if (!mb || mb._dead || mb.tamed || mb === m) continue;
+            if (Math.hypot(mb.x - rx, mb.z - rz) < 4.5 && Math.abs(mb.y - ry) < 6.0) {
+              hurtMob(mb, m.dmg * 1.75, hx, hz, 10.5, false, false);
+            }
+          }
+        }
+        flushUrgentChunks(8);
+        cameraShake = Math.max(cameraShake, 0.35);
+      } else {
+        for (let i = 0; i < 4; i++) {
+          const sp = (i - 1.5) * 0.16;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y, sz, 25.0, m.dmg * 1.50, 'drg_leaf_seed', { friendlyDragon: true, ownerDragon: m, scale: 3.4, splashR: 6.5, effect: 'poison' });
+        }
+      }
+      spawnParticles(mp.x, mp.y, mp.z, pCol, 22, true);
+      return true;
+    }
+
     if (skillIdx === 3) {
       if ((m._sk3Cd || 0) > 0) return false;
-      m._sk3Cd = 5.0; m.atkAnimT = 0.50; playSfx('roar');
-      player.smoothMoveX = _rayDir.x * 28.0; player.smoothMoveZ = _rayDir.z * 28.0; player.vy = _rayDir.y * 22.0 + 4.0;
-      for (let mi = 0; mi < mobs.length; mi++) {
+      m._sk3Cd = 5.0; m.atkAnimT = 0.55; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.36);
+      if (el === 'fire' || el === 'water' || el === 'leaf') {
+        player.smoothMoveX = _rayDir.x * 34.0; player.smoothMoveZ = _rayDir.z * 34.0; player.vy = _rayDir.y * 24.0 + 4.5;
+      }
+      if (el === 'water' || el === 'tree') {
+        const healAmt = Math.round(m.maxHp * (el === 'tree' ? 0.22 : 0.12));
+        m.hp = Math.min(m.maxHp, m.hp + healAmt);
+        if (!player.dead) player.hp = Math.min(player.maxHp, player.hp + (el === 'tree' ? 6 : 4));
+        if (el === 'water') player.burnTime = 0;
+        if (typeof renderStatusBars === 'function') renderStatusBars();
+      }
+      const novaR = el === 'earth' ? 18.0 : 15.5;
+      const fxK = el === 'ice' ? 'ice_shatter' : (el === 'fire' ? 'explosion_fire' : (el === 'water' ? 'water_splash' : (el === 'earth' ? 'smoke_puff' : 'magic_poison')));
+      spawnPixelFx(fxK, m.x, m.y + 1.4, m.z, { count: 6, scale: 4.2, life: 0.65, spread: 3.8 });
+      for (let mi = mobs.length - 1; mi >= 0; mi--) {
         const mb = mobs[mi];
         if (!mb || mb._dead || mb === m || mb.tamed) continue;
         const d = Math.hypot(mb.x - m.x, mb.y - m.y, mb.z - m.z);
-        if (d < 9.5) hurtMob(mb, m.dmg * 1.6, mb.x - m.x, mb.z - m.z, 9.5, el === 'fire', false);
+        if (d < novaR) {
+          hurtMob(mb, m.dmg * 1.95, el === 'leaf' ? (m.x - mb.x) : (mb.x - m.x), el === 'leaf' ? (m.z - mb.z) : (mb.z - m.z), el === 'earth' ? 12.0 : 8.5, el === 'fire', false);
+          if (el === 'ice') mb._chilledT = 5.0;
+        }
       }
-      spawnParticles(m.x, m.y + 0.8, m.z, pCol, 22, true);
-      showToast('🌪️ Chiêu 3: Lướt Cánh Xung Kích!');
+      spawnParticles(m.x, m.y + 1.2, m.z, pCol, 32, true);
       return true;
     }
+
     if (skillIdx === 4) {
       if ((m._sk4Cd || 0) > 0) return false;
-      m._sk4Cd = 9.0; m.atkAnimT = 0.65; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.36);
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.10, Math.sin(a), 24.0, m.dmg * 1.85, kind, { friendlyDragon: true, ownerDragon: m });
+      m._sk4Cd = 8.5; m.atkAnimT = 0.70; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.48);
+      if (el === 'ice') {
+        for (let k = -1; k <= 1; k++) {
+          const sp = k * 0.22;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, _rayDir.y - 0.04, sz, 30.0, m.dmg * 2.40, kind, { friendlyDragon: true, ownerDragon: m, scale: 4.2, splashR: 8.5, effect: 'freeze' });
+        }
+      } else if (el === 'earth' || el === 'tree') {
+        const cnt = el === 'earth' ? 7 : 8;
+        const kBomb = el === 'earth' ? 'drg_earth' : 'drg_tree_root';
+        for (let k = 0; k < cnt; k++) {
+          const sp = (k - (cnt - 1) * 0.5) * 0.17;
+          const sx = _rayDir.x * Math.cos(sp) - _rayDir.z * Math.sin(sp);
+          const sz = _rayDir.x * Math.sin(sp) + _rayDir.z * Math.cos(sp);
+          fireEnergyOrb(mp.x, mp.y, mp.z, sx, Math.min(0.68, _rayDir.y + 0.22), sz, 25.0 + (k & 1) * 3, m.dmg * 1.95, kBomb, { friendlyDragon: true, ownerDragon: m, scale: 3.6, splashR: 7.5, gravity: 11.5, effect: el === 'earth' ? 'quake' : 'poison' });
+        }
+      } else {
+        const cnt = (el === 'fire' || el === 'leaf') ? 12 : 10;
+        for (let k = 0; k < cnt; k++) {
+          const a = (k / cnt) * Math.PI * 2;
+          fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.10 + (k & 1) * 0.08, Math.sin(a), 27.0, m.dmg * 2.15, kind, { friendlyDragon: true, ownerDragon: m, scale: 3.4, splashR: 6.8, effect: el === 'water' ? 'vortex' : (el === 'fire' ? 'fire' : 'poison') });
+        }
       }
-      spawnParticles(m.x, m.y + 1.0, m.z, pCol, 28, true);
-      showToast('💥 Chiêu 4: Đại Hồng Thủy Nguyên Tố!');
+      spawnParticles(m.x, m.y + 1.2, m.z, pCol, 38, true);
       return true;
     }
-    if ((m.atkCd || 0) > 0) return false;
-    m.atkCd = 0.65;
-    m.atkAnimT = 0.45;
-    m._roarT = 0.95;
-    spawnParticles(mp.x, mp.y, mp.z, pCol, 7, true);
-    fireEnergyOrb(mp.x, mp.y, mp.z, _rayDir.x, _rayDir.y, _rayDir.z, 28.0, m.dmg * 1.5, kind, { friendlyDragon: true, ownerDragon: m });
-    return true;
+    return false;
   }
   function fireRiddenDragonBreath() { return castRiddenDragonSkill(1); }
 
@@ -4745,7 +4895,11 @@
     m.sitting = !m.sitting;
     m.flying = false;
     m._landedIdle = true;
-    if (m.sitting) { m.vx = 0; m.vy = 0; m.vz = 0; m.flyVx = 0; m.flyVy = 0; m.flyVz = 0; }
+    if (m.sitting) {
+      m.vx = 0; m.vy = 0; m.vz = 0; m.flyVx = 0; m.flyVy = 0; m.flyVz = 0;
+      const gSit = _getDragonGroundSurfaceY(m.x, m.y + 3.0, m.z, m.dragonScale);
+      if (m.y < gSit) m.y = gSit;
+    }
     spawnParticles(m.x, m.y + 0.9, m.z, m.sitting ? 0x38bdf8 : 0x4ade80, 12, true);
     playSfx('equip');
     showDragonGrowthHud(m, 3.2);
@@ -4758,24 +4912,35 @@
       _playerCombatTargetT = Math.max(0, _playerCombatTargetT - dt);
       if (_playerCombatTargetT <= 0 || !_playerCombatTarget || _playerCombatTarget._dead) _playerCombatTarget = null;
     }
-    const langNow = typeof currentLang === 'string' ? currentLang : 'vi';
-    if (langNow !== _lastDragonUiLang) {
-      _lastDragonUiLang = langNow;
-      if (_elDrgUp) _elDrgUp.textContent = tr('▲ Lên', '▲ Ascend');
-      if (_elDrgDown) _elDrgDown.textContent = tr('▼ Xuống', '▼ Descend');
-      if (_elDrgBreath) _elDrgBreath.textContent = tr('Phun Lửa', 'Breathe');
-      if (_elDrgExit) _elDrgExit.textContent = tr('Xuống (R)', 'Dismount (R)');
-    }
     const riding = !!(isPlaying && !player.dead && player.ridingDragon && !player.ridingDragon._dead);
+    const rideEl = riding ? (player.ridingDragon.elemDragon || 'fire') : '';
+    const langNow = typeof currentLang === 'string' ? currentLang : 'vi';
+    const flightKey = `${langNow}|${rideEl}`;
+    if (flightKey !== _lastFlightElKey) {
+      _lastFlightElKey = flightKey;
+      const skSet = (DRAGON_SKILL_DEFS[rideEl] || DRAGON_SKILL_DEFS.fire)[langNow === 'en' ? 'en' : 'vi'];
+      if (_elDrgBreath) _elDrgBreath.textContent = skSet[0];
+      if (_elDrgSk2) _elDrgSk2.textContent = skSet[1];
+      if (_elDrgSk3) _elDrgSk3.textContent = skSet[2];
+      if (_elDrgSk4) _elDrgSk4.textContent = skSet[3];
+      if (_elDrgExit) _elDrgExit.textContent = tr('Xuống (R)', 'Dismount (R)');
+      if (_elDragonEquip) _elDragonEquip.textContent = tr('🛡️ Trang Bị Rồng', '🛡️ Dragon Gear');
+    }
     if (_elDragonFlight && (riding !== _lastFlightHudVis || _elDragonFlight.classList.contains('visible') !== riding)) {
       _lastFlightHudVis = riding;
       _elDragonFlight.classList.toggle('visible', riding);
     }
     const nearSaddled = (!riding && isPlaying && !player.dead) ? findNearestSaddledDragon(9.0) : null;
+    const nearTamed = (!riding && isPlaying && !player.dead) ? findNearestTamedDragon(10.5) : null;
     const wantMountBtn = !!nearSaddled;
+    const wantEquipBtn = !!nearTamed;
     if (_elDragonMount && (wantMountBtn !== _lastMountBtnVis || _elDragonMount.classList.contains('visible') !== wantMountBtn)) {
       _lastMountBtnVis = wantMountBtn;
       _elDragonMount.classList.toggle('visible', wantMountBtn);
+    }
+    if (_elDragonEquip && (wantEquipBtn !== _lastEquipBtnVis || _elDragonEquip.classList.contains('visible') !== wantEquipBtn)) {
+      _lastEquipBtnVis = wantEquipBtn;
+      _elDragonEquip.classList.toggle('visible', wantEquipBtn);
     }
     if (_elDragonMount && nearSaddled) {
       const locName = (typeof getLocalizedMobName === 'function')
@@ -4787,6 +4952,9 @@
         _elDragonMount.textContent = nxtTxt;
       }
       _elDragonMount._targetDragon = nearSaddled;
+    }
+    if (_elDragonEquip && nearTamed) {
+      _elDragonEquip._targetDragon = nearTamed;
     }
     if (_dragonGrowthUiTimer > 0) {
       _dragonGrowthUiTimer = Math.max(0, _dragonGrowthUiTimer - dt);
@@ -4802,18 +4970,16 @@
       mBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); mountDragon(mBtn._targetDragon || findNearestSaddledDragon(9.0)); }, { passive: false });
       mBtn.addEventListener('click', (e) => { e.stopPropagation(); mountDragon(mBtn._targetDragon || findNearestSaddledDragon(9.0)); });
     }
-    const bindHoldBtn = (id, key) => {
-      const el = document.getElementById(id); if (!el) return;
-      const setV = (v, e) => { if (e) { e.preventDefault(); e.stopPropagation(); } dragonFlyCtrl[key] = v; el.classList.toggle('active', v); };
-      el.addEventListener('touchstart', (e) => setV(true, e), { passive: false });
-      el.addEventListener('touchend', (e) => setV(false, e), { passive: false });
-      el.addEventListener('touchcancel', (e) => setV(false, e), { passive: false });
-      el.addEventListener('mousedown', (e) => setV(true, e));
-      el.addEventListener('mouseup', (e) => setV(false, e));
-      el.addEventListener('mouseleave', () => setV(false, null));
-    };
-    bindHoldBtn('btnDragonUp', 'up');
-    bindHoldBtn('btnDragonDown', 'down');
+    const eqBtn = document.getElementById('btnDragonEquip');
+    if (eqBtn) {
+      const doOpenEq = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        const tgt = eqBtn._targetDragon || findNearestTamedDragon(10.5);
+        if (tgt && typeof openDragonModal === 'function') openDragonModal(tgt);
+      };
+      eqBtn.addEventListener('touchstart', doOpenEq, { passive: false });
+      eqBtn.addEventListener('click', doOpenEq);
+    }
     const bBr = document.getElementById('btnDragonBreath');
     if (bBr) {
       bBr.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); castRiddenDragonSkill(1); }, { passive: false });
@@ -5174,15 +5340,24 @@
     drg_tree: 'magic_poison', drg_tree_root: 'magic_poison'
   };
   function fireEnergyOrb(ox, oy, oz, dirX, dirY, dirZ, speed, dmg, kind = 'dragon_ball', opts = null) {
-    if (projectiles.length >= 48) { const oldP = projectiles.shift(); scene.remove(oldP.mesh); }
-    const pfxKey = _orbSheetMap[kind] || 'magic_ender';
+    if (projectiles.length >= 72) { const oldP = projectiles.shift(); scene.remove(oldP.mesh); }
+    const pfxKey = (opts && opts.pfxKey) || _orbSheetMap[kind] || 'magic_ender';
     const sheet = getPixelFxSheet(pfxKey);
     const mesh = new THREE.Sprite(sheet.mats[0]);
-    const sc = (kind === 'ghast_fire') ? 1.15 : ((kind === 'dragon_ball' || kind === 'sonic_boom') ? 0.88 : 0.72);
+    const defSc = (kind === 'ghast_fire') ? 1.15 : (kind === 'dragon_ball' ? 3.0 : (kind && kind.startsWith('drg_') ? 2.8 : (kind === 'sonic_boom' ? 0.88 : 0.72)));
+    const sc = (opts && opts.scale) || defSc;
     mesh.scale.setScalar(sc);
     mesh.position.set(ox, oy, oz);
     scene.add(mesh);
-    projectiles.push({ kind, pfxKey, pfxSheet: sheet, pfxT: 0, x: ox, y: oy, z: oz, vx: dirX * speed, vy: dirY * speed, vz: dirZ * speed, fromPlayer: false, friendlyDragon: !!(opts && opts.friendlyDragon), ownerDragon: (opts && opts.ownerDragon) || null, dmg, stuck: false, life: 4.0, mesh });
+    projectiles.push({
+      kind, pfxKey, pfxSheet: sheet, pfxT: 0, x: ox, y: oy, z: oz,
+      vx: dirX * speed, vy: dirY * speed, vz: dirZ * speed,
+      fromPlayer: false, friendlyDragon: !!(opts && opts.friendlyDragon), ownerDragon: (opts && opts.ownerDragon) || null,
+      dmg, scale: sc, splashR: (opts && opts.splashR) || (sc >= 2.0 ? sc * 1.9 : 3.2),
+      gravity: (opts && opts.gravity) || 0, effect: (opts && opts.effect) || null,
+      vfxScale: (opts && opts.vfxScale) || Math.max(1.2, sc * 0.95), trailScale: Math.max(0.44, sc * 0.42),
+      stuck: false, life: 4.2, mesh
+    });
     playSfx(kind === 'ghast_fire' || kind === 'dragon_ball' ? 'roar' : 'burn');
   }
 
@@ -5563,12 +5738,7 @@
     const kd = Math.hypot(kx, kz) + 0.01;
     mob.vx = (kx / kd) * 6.5; mob.vz = (kz / kd) * 6.5; mob.vy = Math.max(mob.vy, ky);
     if (mob.dragonArmor) {
-      let armorPts = 0;
-      for (let ai = 0; ai < DRAGON_ARMOR_SLOTS.length; ai++) {
-        const sk = DRAGON_ARMOR_SLOTS[ai];
-        const tier = mob.dragonArmor[sk];
-        if (tier && DRAGON_ARMOR_DEF_PTS[tier]) armorPts += DRAGON_ARMOR_DEF_PTS[tier][sk] || 0;
-      }
+      const armorPts = calcDragonArmorPts(mob);
       if (armorPts > 0) dmg = Math.max(0.5, dmg * (1 - Math.min(0.75, armorPts * 0.035)));
     }
     mob.hp -= dmg; mob.hurtFlash = 0.24; mob.hpBarTimer = 4.5;
@@ -5978,14 +6148,110 @@
   const dragonHealBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1, 6), dragonHealBeamMat);
   dragonHealBeam.visible = false; dragonHealBeam.frustumCulled = false; scene.add(dragonHealBeam);
   const dragonClouds = [];
-  const _cloudGeo = new THREE.CylinderGeometry(2.6, 2.8, 0.35, 10);
-  const _cloudMat = new THREE.MeshBasicMaterial({ color: 0xc026d3, transparent: true, opacity: 0.34, depthWrite: false });
-  function spawnDragonBreathCloud(wx, wy, wz) {
-    if (dragonClouds.length >= 5) { const old = dragonClouds.shift(); scene.remove(old.mesh); }
+  const _cloudGeo = new THREE.CylinderGeometry(3.8, 4.1, 0.45, 12);
+  const _cloudMat = new THREE.MeshBasicMaterial({ color: 0xc026d3, transparent: true, opacity: 0.36, depthWrite: false });
+  function spawnDragonBreathCloud(wx, wy, wz, radScale = 1.15) {
+    if (dragonClouds.length >= 6) { const old = dragonClouds.shift(); scene.remove(old.mesh); }
     const mesh = new THREE.Mesh(_cloudGeo, _cloudMat);
     mesh.position.set(wx, wy + 0.25, wz);
+    mesh.scale.set(radScale, 1, radScale);
     scene.add(mesh);
-    dragonClouds.push({ x: wx, y: wy, z: wz, life: 6.5, tick: 0, mesh });
+    dragonClouds.push({ x: wx, y: wy, z: wz, r: 3.9 * radScale, life: 7.5, tick: 0, mesh });
+  }
+  const _enderVortexes = [];
+  function spawnEnderVortex(wx, wy, wz, dmg = 16) {
+    if (_enderVortexes.length >= 3) _enderVortexes.shift();
+    _enderVortexes.push({ x: wx, y: wy, z: wz, life: 2.3, tick: 0, dmg });
+    spawnPixelFx('end_crystal_burst', wx, wy + 0.8, wz, { count: 4, scale: 3.4, life: 0.60, spread: 1.8 });
+  }
+  const _wtL = new THREE.Vector3(), _wtR = new THREE.Vector3(), _wtFwd = new THREE.Vector3();
+  const _dragonWingTrails = (() => {
+    const N = 16, VERTS = (N + 1) * 2;
+    const mkRibbon = () => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(VERTS * 3), 3));
+      const idx = [];
+      for (let i = 0; i < N; i++) {
+        const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+        idx.push(a, b, c, b, d, c);
+      }
+      g.setIndex(idx);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+        vertexColors: true, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.AdditiveBlending
+      }));
+      m.frustumCulled = false;
+      m.visible = false;
+      scene.add(m);
+      return { mesh: m, pos: g.attributes.position, col: g.attributes.color, pts: Array.from({ length: N + 1 }, () => ({ x: 0, y: 0, z: 0 })) };
+    };
+    return { L: mkRibbon(), R: mkRibbon(), active: false, N };
+  })();
+  function _updateDragonWingTrails(dm, spd3D, dt) {
+    const show = !!(dm && !dm._dead && dm.flying && ((dm._diveBoost || 0) > 0.10 || spd3D > 20.5));
+    if (!show) {
+      if (_dragonWingTrails.active) {
+        _dragonWingTrails.active = false;
+        _dragonWingTrails.L.mesh.visible = false;
+        _dragonWingTrails.R.mesh.visible = false;
+      }
+      return;
+    }
+    dm.group.updateMatrixWorld(true);
+    const sc = dm.dragonScale || 4.6;
+    if (dm.anim && dm.anim.wingTipL && dm.anim.wingTipR) {
+      dm.anim.wingTipL.localToWorld(_wtL.set(0, 1.55, 0));
+      dm.anim.wingTipR.localToWorld(_wtR.set(0, 1.55, 0));
+    } else {
+      const rx = Math.cos(dm.yaw) * (2.3 * sc), rz = -Math.sin(dm.yaw) * (2.3 * sc);
+      _wtL.set(dm.x + rx, dm.y + 1.2 * sc, dm.z + rz);
+      _wtR.set(dm.x - rx, dm.y + 1.2 * sc, dm.z - rz);
+    }
+    const N = _dragonWingTrails.N;
+    const boost = Math.max(0.25, dm._diveBoost || 0.35);
+    const el = dm.elemDragon || 'fire';
+    const tint = el === 'fire' ? [1.0, 0.62, 0.25] : (el === 'ice' ? [0.55, 0.90, 1.0] : (el === 'water' ? [0.35, 0.85, 1.0] : (el === 'earth' ? [0.98, 0.78, 0.28] : [0.58, 0.96, 0.50])));
+    if (!_dragonWingTrails.active) {
+      _dragonWingTrails.active = true;
+      for (let i = 0; i <= N; i++) {
+        _dragonWingTrails.L.pts[i].x = _wtL.x; _dragonWingTrails.L.pts[i].y = _wtL.y; _dragonWingTrails.L.pts[i].z = _wtL.z;
+        _dragonWingTrails.R.pts[i].x = _wtR.x; _dragonWingTrails.R.pts[i].y = _wtR.y; _dragonWingTrails.R.pts[i].z = _wtR.z;
+      }
+    } else {
+      for (let i = N; i >= 1; i--) {
+        const pL = _dragonWingTrails.L.pts[i - 1], pR = _dragonWingTrails.R.pts[i - 1];
+        _dragonWingTrails.L.pts[i].x = pL.x; _dragonWingTrails.L.pts[i].y = pL.y; _dragonWingTrails.L.pts[i].z = pL.z;
+        _dragonWingTrails.R.pts[i].x = pR.x; _dragonWingTrails.R.pts[i].y = pR.y; _dragonWingTrails.R.pts[i].z = pR.z;
+      }
+      _dragonWingTrails.L.pts[0].x = _wtL.x; _dragonWingTrails.L.pts[0].y = _wtL.y; _dragonWingTrails.L.pts[0].z = _wtL.z;
+      _dragonWingTrails.R.pts[0].x = _wtR.x; _dragonWingTrails.R.pts[0].y = _wtR.y; _dragonWingTrails.R.pts[0].z = _wtR.z;
+    }
+    const spanX = Math.cos(dm.yaw), spanZ = -Math.sin(dm.yaw);
+    const fillRibbon = (rb) => {
+      rb.mesh.visible = true;
+      const pArr = rb.pos.array, cArr = rb.col.array;
+      for (let i = 0; i <= N; i++) {
+        const pt = rb.pts[i], t = i / N;
+        const w = (1 - t) * (0.28 + 0.34 * boost);
+        const fade = Math.pow(1 - t, 1.45) * Math.min(1, 0.55 + boost * 0.6);
+        const sx = spanX * w, sz = spanZ * w, sy = w * 0.25;
+        const vi = i * 6;
+        pArr[vi] = pt.x + sx; pArr[vi + 1] = pt.y + sy; pArr[vi + 2] = pt.z + sz;
+        pArr[vi + 3] = pt.x - sx; pArr[vi + 4] = pt.y - sy; pArr[vi + 5] = pt.z - sz;
+        cArr[vi] = tint[0] * fade; cArr[vi + 1] = tint[1] * fade; cArr[vi + 2] = tint[2] * fade;
+        cArr[vi + 3] = tint[0] * fade; cArr[vi + 4] = tint[1] * fade; cArr[vi + 5] = tint[2] * fade;
+      }
+      rb.pos.needsUpdate = true;
+      rb.col.needsUpdate = true;
+    };
+    fillRibbon(_dragonWingTrails.L);
+    fillRibbon(_dragonWingTrails.R);
+    if ((dm._diveBoost || 0) > 0.16 && (frameCounter % 2) === 0) {
+      spawnParticles(_wtL.x, _wtL.y, _wtL.z, 0xe0f2fe, 2, true);
+      spawnParticles(_wtR.x, _wtR.y, _wtR.z, 0xe0f2fe, 2, true);
+      spawnParticles(dm.x + (Math.random() - 0.5) * 4.5, dm.y + 1.5 + Math.random() * 2.5, dm.z + (Math.random() - 0.5) * 4.5, 0xf8fafc, 2, false);
+    }
   }
   function countAndFindNearestEndCrystal(dx, dy, dz) {
     let count = endCrystalVisuals.size, best = null, bestD2 = 1e9;
@@ -6160,20 +6426,21 @@
   function updateDragonMode(m, dt, dist) {
     if (!m.elemDragon) return;
     if (!m._groundCacheT || m._groundCacheT <= 0) {
-      m._groundCacheT = 0.45;
-      m._groundY = Math.max(WATER_LEVEL + 1, colGroundY(Math.floor(m.x), Math.floor(m.z)) + 1);
+      m._groundCacheT = 0.38;
+      m._groundY = _getDragonGroundSurfaceY(m.x, Math.max(m.y, 16) + 4, m.z, m.dragonScale);
     } else m._groundCacheT -= dt;
     m.dragonModeTimer -= dt;
     const isSolidNonFoliage = (wx, wy, wz) => {
       const b = getBlockWorld(wx, wy, wz), d = BLOCK_DEF[b];
       return isSolidAt(wx, wy, wz) && !(d && (d.foliage || d.isLog || d.cross));
     };
+    const homeR = m.homeRadius || 100;
     if (m.dragonMode === 'fly') {
       m.flying = true;
       m._landVy = 0;
-      const nearHome = (typeof m.homeX !== 'number') || Math.hypot(m.x - m.homeX, m.z - m.homeZ) <= ((m.homeRadius || 24) + 2);
-      if (m.dragonModeTimer <= 0 && dist < 44 && nearHome) {
-        m.dragonMode = 'land'; m.dragonModeTimer = 5.5;
+      const nearHome = (typeof m.homeX !== 'number') || Math.hypot(m.x - m.homeX, m.z - m.homeZ) <= (homeR + 2);
+      if (m.dragonModeTimer <= 0 && dist < 56 && nearHome) {
+        m.dragonMode = 'land'; m.dragonModeTimer = 6.0;
         m.lastSkillLabel = '🦅 HẠ CÁNH XUỐNG TỔ!';
       }
     } else if (m.dragonMode === 'land') {
@@ -6182,13 +6449,13 @@
       const tgtYaw = Math.atan2((typeof m.homeX === 'number' ? m.homeX : player.x) - m.x, (typeof m.homeZ === 'number' ? m.homeZ : player.z) - m.z);
       m.yaw = _turnAngleTowards(m.yaw, tgtYaw, 3.8, dt);
       const altAbove = Math.max(0, m.y - landY);
-      const desSink = altAbove > 5.0 ? -4.2 : -(1.1 + altAbove * 0.55);
+      const desSink = altAbove > 5.0 ? -4.5 : -(1.1 + altAbove * 0.55);
       m._landVy = (m._landVy || desSink) + (desSink - (m._landVy || desSink)) * Math.min(1, dt * 4.5);
       m.y = Math.max(landY, m.y + m._landVy * dt);
       m._flyPitch = Math.max(-0.22, Math.min(0.28, altAbove < 3.5 ? -0.18 : 0.14));
       const belowSolid = isSolidNonFoliage(Math.floor(m.x), Math.floor(m.y - 0.35), Math.floor(m.z));
       if (belowSolid || altAbove <= 0.35 || m.dragonModeTimer <= 0) {
-        m.y = Math.max(WATER_LEVEL + 0.6, belowSolid ? Math.floor(m.y - 0.35) + 1.0 : landY);
+        m.y = Math.max(landY, belowSolid ? Math.floor(m.y - 0.35) + 1.0 : landY);
         m.dragonMode = 'ground'; m.flying = false; m.vy = 0; m._landVy = 0; m.onGround = true;
         m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
         m.pauseT = 3.5 + Math.random() * 2.5;
@@ -6200,7 +6467,9 @@
       }
     } else if (m.dragonMode === 'ground') {
       m.flying = false;
-      const tooFarHome = (typeof m.homeX === 'number') && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > ((m.homeRadius || 24) + 3);
+      const surfG = _getDragonGroundSurfaceY(m.x, m.y + 3.0, m.z, m.dragonScale);
+      if (m.y < surfG) m.y = surfG;
+      const tooFarHome = (typeof m.homeX === 'number') && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > (homeR + 3);
       if (m.dragonModeTimer <= 0 || tooFarHome || (m.y < WATER_LEVEL - 1.5 && m.elemDragon !== 'water')) {
         m.dragonMode = 'fly'; m.flying = true; m.y += 1.4; m.vy = 0;
         m.dragonModeTimer = 8.5 + Math.random() * 2.5;
@@ -6231,14 +6500,13 @@
     const skPick = Math.random();
     m.atkAnimT = 0.55; m._roarT = 1.15; playSfx('roar');
     if (skPick < 0.34) {
-      // Aerial Skill 1: Elemental Breath Volley with smart target-velocity lead from exact mouth pos!
       const cfg = {
-        ice:   ['❄️ BAY 1: HƠI THỞ BĂNG HÀN!',   'drg_ice',   3, 21.5, 0.12, 6.5, 2.8],
-        fire:  ['🔥 BAY 1: PHUN HỎA DIỆM!',      'drg_fire',  3, 22.0, 0.12, 7.5, 2.6],
-        earth: ['🪨 BAY 1: PHÁO ĐÁ ĐỊA CHẤN!',   'drg_earth', 2, 19.0, 0.11, 9.0, 3.0],
-        water: ['🌊 BAY 1: VÒI RỒNG THỦY ÁP!',   'drg_water', 3, 21.5, 0.12, 6.5, 2.6],
-        leaf:  ['🌿 BAY 1: BÃO PHI TIÊU LÁ SẮC!', 'drg_leaf',  4, 20.5, 0.13, 5.5, 2.5],
-        tree:  ['🌳 BAY 1: CƠN MƯA GAI CỔ THỤ!',  'drg_tree',  4, 20.5, 0.13, 6.0, 2.6]
+        ice:   ['❄️ BAY 1: HƠI THỞ BĂNG HÀN!',   'drg_ice',   3, 24.5, 0.13, m.dmg * 0.85, 2.6],
+        fire:  ['🔥 BAY 1: PHUN HỎA DIỆM!',      'drg_fire',  3, 25.0, 0.13, m.dmg * 0.90, 2.5],
+        earth: ['🪨 BAY 1: PHÁO ĐÁ ĐỊA CHẤN!',   'drg_earth', 2, 22.0, 0.12, m.dmg * 1.10, 2.8],
+        water: ['🌊 BAY 1: VÒI RỒNG THỦY ÁP!',   'drg_water', 3, 24.5, 0.13, m.dmg * 0.85, 2.5],
+        leaf:  ['🌿 BAY 1: BÃO PHI TIÊU LÁ SẮC!', 'drg_leaf',  5, 24.0, 0.12, m.dmg * 0.72, 2.4],
+        tree:  ['🌳 BAY 1: CƠN MƯA GAI CỔ THỤ!',  'drg_tree',  4, 23.5, 0.13, m.dmg * 0.80, 2.5]
       }[el];
       m.lastSkillLabel = cfg[0]; m.atkCd = cfg[6];
       const aim = computeSmartAimDir(mp.x, mp.y, mp.z, tx, ty, tz, tvx, tgtMob && tgtMob.elemDragon ? tvy * 2.0 : tvy, tvz, cfg[3], 0, 0.004);
@@ -6246,36 +6514,34 @@
         const sp = (si - (cfg[2] - 1) * 0.5) * cfg[4];
         const sx = aim.x * Math.cos(sp) - aim.z * Math.sin(sp);
         const sz = aim.x * Math.sin(sp) + aim.z * Math.cos(sp);
-        fireEnergyOrb(mp.x, mp.y, mp.z, sx, aim.y, sz, cfg[3], cfg[5], cfg[1], { ownerDragon: m });
+        fireEnergyOrb(mp.x, mp.y, mp.z, sx, aim.y, sz, cfg[3], cfg[5], cfg[1], { ownerDragon: m, scale: 3.1, splashR: 5.8 });
       }
     } else if (skPick < 0.68) {
-      // Aerial Skill 2: Elemental Sky Bombardment around target from mouth!
       const skyMap = {
-        ice:   ['🌨️ BAY 2: MƯA BĂNG CỰC HÀN!',    'drg_ice',        4, 20.5, 6.0],
-        fire:  ['☄️ BAY 2: THIÊN THẠCH DUNG NHAM!', 'drg_fire_meteor',2, 21.5, 8.5],
-        earth: ['⛰️ BAY 2: MƯA TẢNG ĐÁ TRỜI!',     'drg_earth',      3, 19.5, 8.0],
-        water: ['🌀 BAY 2: BÃO XOÁY ĐẠI DƯƠNG!',   'drg_water',      3, 20.5, 6.5],
-        leaf:  ['🌳 BAY 2: MƯA HẠT GIỐNG RỪNG!',   'drg_leaf_seed',  3, 19.5, 6.0],
-        tree:  ['🌲 BAY 2: MƯA RỄ CÂY ĐẠI THỤ!',   'drg_tree_root',  3, 19.5, 7.0]
+        ice:   ['🌨️ BAY 2: MƯA BĂNG CỰC HÀN!',    'drg_ice',         5, 23.0, m.dmg * 0.82],
+        fire:  ['☄️ BAY 2: THIÊN THẠCH DUNG NHAM!', 'drg_fire_meteor', 3, 24.0, m.dmg * 1.15],
+        earth: ['⛰️ BAY 2: MƯA TẢNG ĐÁ TRỜI!',     'drg_earth',       4, 21.5, m.dmg * 1.05],
+        water: ['🌀 BAY 2: BÃO XOÁY ĐẠI DƯƠNG!',   'drg_water',       4, 23.0, m.dmg * 0.90],
+        leaf:  ['🌳 BAY 2: MƯA HẠT GIỐNG RỪNG!',   'drg_leaf_seed',   4, 22.0, m.dmg * 0.85],
+        tree:  ['🌲 BAY 2: MƯA RỄ CÂY ĐẠI THỤ!',   'drg_tree_root',   4, 22.0, m.dmg * 0.95]
       }[el];
-      m.lastSkillLabel = skyMap[0]; m.atkCd = 3.2;
+      m.lastSkillLabel = skyMap[0]; m.atkCd = 3.0;
       if (el === 'fire' || el === 'earth') m.swoopT = 1.6;
       for (let bi = 0; bi < skyMap[2]; bi++) {
-        const ox = tx + (bi === 0 ? 0 : (Math.random() - 0.5) * 3.8);
-        const oz = tz + (bi === 0 ? 0 : (Math.random() - 0.5) * 3.8);
+        const ox = tx + (bi === 0 ? 0 : (Math.random() - 0.5) * 4.8);
+        const oz = tz + (bi === 0 ? 0 : (Math.random() - 0.5) * 4.8);
         const aim = computeSmartAimDir(mp.x, mp.y, mp.z, ox, ty, oz, tvx, tgtMob && tgtMob.elemDragon ? tvy * 2.0 : tvy, tvz, skyMap[3], 0, 0.005);
-        fireEnergyOrb(mp.x, mp.y, mp.z, aim.x, aim.y, aim.z, skyMap[3], skyMap[4], skyMap[1], { ownerDragon: m });
+        fireEnergyOrb(mp.x, mp.y, mp.z, aim.x, aim.y, aim.z, skyMap[3], skyMap[4], skyMap[1], { ownerDragon: m, scale: 3.4, splashR: 6.4 });
       }
     } else {
-      // Aerial Skill 3/4: Wing Vortex Dash or Radial Elemental Burst!
       const kindMap4 = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
       const isBurst = (Math.random() < 0.5);
       m.lastSkillLabel = isBurst ? '💥 BAY 4: BÃO NGUYÊN TỐ VÒNG TRÒN!' : '🌪️ BAY 3: CÁNH RỒNG XUNG KÍCH!';
-      m.atkCd = 3.6;
+      m.atkCd = 3.4;
       if (isBurst) {
-        for (let k = 0; k < 6; k++) {
-          const a = (k / 6) * Math.PI * 2;
-          fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.18, Math.sin(a), 20.0, m.dmg * 1.1, kindMap4[el] || 'drg_fire', { ownerDragon: m });
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(a), -0.18, Math.sin(a), 22.0, m.dmg * 1.15, kindMap4[el] || 'drg_fire', { ownerDragon: m, scale: 3.2, splashR: 6.0 });
         }
       } else {
         m.swoopT = 2.0;
@@ -6288,49 +6554,49 @@
     const tx = tgtMob ? tgtMob.x : player.x;
     const ty = tgtMob ? (tgtMob.y + 0.5) : player.y;
     const tz = tgtMob ? tgtMob.z : player.z;
-    m.atkAnimT = 0.60; m._roarT = 1.25; m.atkCd = 3.2; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.45);
+    m.atkAnimT = 0.60; m._roarT = 1.25; m.atkCd = 3.0; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.45);
     const px0 = Math.floor(tx), pz0 = Math.floor(tz);
     const applyGroundHit = (dmgMul, msg, extraFn) => {
       if (tgtMob) {
-        if (dist3D < 7.8) hurtMob(tgtMob, m.dmg * dmgMul, tx - m.x, tz - m.z, 6.8, el === 'fire', false);
-      } else if (dist3D < 7.5 && !player.dead && gameMode !== 'creative') {
+        if (dist3D < 10.5) hurtMob(tgtMob, m.dmg * dmgMul, tx - m.x, tz - m.z, 7.2, el === 'fire', false);
+      } else if (dist3D < 10.0 && !player.dead && gameMode !== 'creative') {
         if (extraFn) extraFn();
         hurtPlayer(m.dmg * dmgMul, msg);
       }
     };
     if (el === 'ice') {
       m.lastSkillLabel = '❄️ ĐẤT 3: ĐỊA CHẤN ĐÓNG BĂNG!';
-      spawnPixelFx('ice_shatter', m.x, m.y + 0.8, m.z, { count: 4, scale: 1.8, life: 0.55, spread: 1.5 });
+      spawnPixelFx('ice_shatter', m.x, m.y + 1.2, m.z, { count: 5, scale: 3.6, life: 0.60, spread: 2.8 });
       for (let k = 0; k < 5; k++) {
         const ax = px0 + (((Math.random() * 5) | 0) - 2), az = pz0 + (((Math.random() * 5) | 0) - 2);
         const gy = colGroundY(ax, az);
         if (getBlockWorld(ax, WATER_LEVEL, az) === B.WATER) setBlockWorld(ax, WATER_LEVEL, az, B.PACKED_ICE, true);
         else _placeSafeDragonBlock(ax, gy + 1, az, B.SNOW);
       }
-      applyGroundHit(0.85, 'Bạn bị Địa Chấn Băng Giá của Rồng Băng đóng băng!', () => { player.chillT = 4.0; });
+      applyGroundHit(0.95, 'Bạn bị Địa Chấn Băng Giá của Rồng Băng đóng băng!', () => { player.chillT = 4.0; });
     } else if (el === 'fire') {
       m.lastSkillLabel = '🔥 ĐẤT 3: VÒNG LỬA ĐỊA NGỤC!';
-      spawnPixelFx('explosion_fire', m.x, m.y + 0.8, m.z, { count: 4, scale: 1.8, life: 0.50, spread: 1.5 });
+      spawnPixelFx('explosion_fire', m.x, m.y + 1.2, m.z, { count: 5, scale: 3.6, life: 0.56, spread: 2.8 });
       for (let k = 0; k < 5; k++) {
         const ax = px0 + (((Math.random() * 5) | 0) - 2), az = pz0 + (((Math.random() * 5) | 0) - 2);
         const gy = colGroundY(ax, az), tb = getBlockWorld(ax, gy, az);
         if (tb === B.ICE || tb === B.PACKED_ICE || tb === B.SNOW) setBlockWorld(ax, gy, az, B.WATER, true);
         else _placeSafeDragonBlock(ax, gy + 1, az, B.FIRE);
       }
-      applyGroundHit(0.9, 'Bạn bị Vòng Lửa Hỏa Diệm của Rồng Lửa thiêu đốt!', () => { player.burnTime = Math.max(player.burnTime || 0, 4.5); });
+      applyGroundHit(1.00, 'Bạn bị Vòng Lửa Hỏa Diệm của Rồng Lửa thiêu đốt!', () => { player.burnTime = Math.max(player.burnTime || 0, 4.5); });
     } else if (el === 'earth') {
       m.lastSkillLabel = '🪨 ĐẤT 3: GAI ĐÁ TRỒI ĐẤT!';
-      spawnPixelFx('smoke_puff', tx, ty, tz, { count: 4, scale: 1.6, life: 0.55, spread: 1.4 });
+      spawnPixelFx('smoke_puff', tx, ty + 0.5, tz, { count: 5, scale: 3.4, life: 0.60, spread: 2.4 });
       for (let k = 1; k <= 3; k++) {
         const sx = Math.floor(m.x + ((tx - m.x) * (k / 3.5))), sz = Math.floor(m.z + ((tz - m.z) * (k / 3.5)));
         const gy = colGroundY(sx, sz);
         _placeSafeDragonBlock(sx, gy + 1, sz, B.STONE);
         _placeSafeDragonBlock(sx, gy + 2, sz, B.DIRT);
       }
-      applyGroundHit(1.0, 'Bạn bị Gai Đá Địa Chấn của Rồng Đất hất văng!', () => { player.vy = Math.max(player.vy, 9.0); });
+      applyGroundHit(1.10, 'Bạn bị Gai Đá Địa Chấn của Rồng Đất hất văng!', () => { player.vy = Math.max(player.vy, 9.5); });
     } else if (el === 'water') {
       m.lastSkillLabel = '🌊 ĐẤT 3: MẠCH NƯỚC PHUN TRÀO!';
-      spawnPixelFx('water_splash', tx, ty + 0.3, tz, { count: 4, scale: 1.7, life: 0.52, spread: 1.4 });
+      spawnPixelFx('water_splash', tx, ty + 0.6, tz, { count: 5, scale: 3.5, life: 0.58, spread: 2.4 });
       for (let k = 0; k < 2; k++) {
         const ax = px0 + (k === 0 ? 0 : 1), az = pz0 + (k === 0 ? 0 : -1), gy = colGroundY(ax, az);
         if (_placeSafeDragonBlock(ax, gy + 1, az, B.WATER)) {
@@ -6338,19 +6604,19 @@
           scheduleFluid(ax, gy + 1, az, 0.12);
         }
       }
-      applyGroundHit(0.8, 'Bạn bị Mạch Nước Phun Trào của Rồng Nước thổi bay!', () => {
+      applyGroundHit(0.90, 'Bạn bị Mạch Nước Phun Trào của Rồng Nước thổi bay!', () => {
         const pInv = 1 / (Math.hypot(player.x - m.x, player.z - m.z) + 0.1);
         player.vx += (player.x - m.x) * pInv * 10.5; player.vz += (player.z - m.z) * pInv * 10.5; player.vy = Math.max(player.vy, 10.0);
       });
     } else if (el === 'leaf' || el === 'tree') {
       m.lastSkillLabel = el === 'tree' ? '🌳 ĐẤT 3: RỄ CÂY CỔ THỤ TRÓI ĐẤT!' : '🌿 ĐẤT 3: RỪNG GAI TRÓI CHÂN!';
-      spawnParticles(tx, ty + 0.2, tz, el === 'tree' ? 0x65a30d : 0x22c55e, 16, true);
+      spawnPixelFx('magic_poison', tx, ty + 0.6, tz, { count: 5, scale: 3.4, life: 0.58, spread: 2.4 });
       for (let k = 0; k < 5; k++) {
         const ax = px0 + (((Math.random() * 5) | 0) - 2), az = pz0 + (((Math.random() * 5) | 0) - 2);
         const gy = colGroundY(ax, az);
         _placeSafeDragonBlock(ax, gy + 1, az, k < 2 ? (el === 'tree' ? B.OAK_LOG : B.OAK_LEAVES) : (k === 2 ? B.FLOWER_RED : B.TALL_GRASS));
       }
-      applyGroundHit(0.75, el === 'tree' ? 'Bạn bị Rễ Cây Cổ Thụ của Rồng Cây quật ngã!' : 'Bạn bị Rừng Gai của Rồng Lá trói chân & đâm thương!', () => { player.entangleT = 3.2; });
+      applyGroundHit(0.85, el === 'tree' ? 'Bạn bị Rễ Cây Cổ Thụ của Rồng Cây quật ngã!' : 'Bạn bị Rừng Gai của Rồng Lá trói chân & đâm thương!', () => { player.entangleT = 3.2; });
     }
     flushUrgentChunks(12);
   }
@@ -6410,35 +6676,57 @@
       for (let ni = 0; ni < nests.length; ni++) {
         const n = nests[ni];
         if (spawnedDragonNests.has(n.idx)) continue;
-        let nearAnyPeer = Math.hypot(player.x - n.x, player.z - n.z) < 58;
+        let nearAnyPeer = Math.hypot(player.x - n.x, player.z - n.z) < 96;
         if (!nearAnyPeer && activeRoomId && typeof remotePlayers !== 'undefined') {
           for (const rp of remotePlayers.values()) {
-            if (!rp.isBuddy && (rp.dim || 'overworld') === currentDimension && Math.hypot(rp.x - n.x, rp.z - n.z) < 58) { nearAnyPeer = true; break; }
+            if (!rp.isBuddy && (rp.dim || 'overworld') === currentDimension && Math.hypot(rp.x - n.x, rp.z - n.z) < 96) { nearAnyPeer = true; break; }
           }
         }
         if (nearAnyPeer && chunks.has(chunkKey(n.x >> 4, n.z >> 4))) {
           spawnedDragonNests.add(n.idx);
           const dType = `${n.el}_dragon`;
-          if (MOB_STATS[dType]) spawnMobOfType(dType, n.x + 0.5, n.y + 9.0, n.z + 0.5, { homeX: n.x + 0.5, homeY: n.y + 9.0, homeZ: n.z + 0.5, homeRadius: 24, nestIdx: n.idx });
+          if (MOB_STATS[dType]) spawnMobOfType(dType, n.x + 0.5, n.y + 9.0, n.z + 0.5, { dragonStage: 4, homeX: n.x + 0.5, homeY: n.y + 9.0, homeZ: n.z + 0.5, homeRadius: 100, nestIdx: n.idx });
         }
       }
     }
 
-    // Update lingering Dragon Breath Acid Clouds!
+    // Update lingering Dragon Breath Acid Clouds & Ender Singularity Vortexes!
     for (let ci = dragonClouds.length - 1; ci >= 0; ci--) {
       const cl = dragonClouds[ci];
       cl.life -= dt; cl.tick += dt;
       cl.mesh.rotation.y += dt * 1.4;
-      const sc = 0.85 + Math.sin(elapsed * 5 + ci) * 0.12;
-      cl.mesh.scale.set(sc, 1, sc);
+      const sc = (0.9 + Math.sin(elapsed * 5 + ci) * 0.14);
+      cl.mesh.scale.set(sc * ((cl.r || 3.9) / 3.9), 1, sc * ((cl.r || 3.9) / 3.9));
       if (cl.tick >= 0.55) {
         cl.tick = 0;
-        spawnParticles(cl.x + (Math.random() - 0.5) * 3.0, cl.y + 0.6, cl.z + (Math.random() - 0.5) * 3.0, 0xe879f9, 3, true);
-        if (!player.dead && Math.hypot(player.x - cl.x, player.z - cl.z) < 2.8 && Math.abs(player.y - cl.y) < 2.4) {
-          hurtPlayer(2.5, 'Bạn bị Hơi Thở Axit Rồng Ender thiêu đốt!');
+        spawnParticles(cl.x + (Math.random() - 0.5) * (cl.r || 3.9), cl.y + 0.8, cl.z + (Math.random() - 0.5) * (cl.r || 3.9), 0xe879f9, 5, true);
+        if (!player.dead && Math.hypot(player.x - cl.x, player.z - cl.z) < (cl.r || 3.9) && Math.abs(player.y - cl.y) < 3.0) {
+          hurtPlayer(4.0, 'Bạn bị Hơi Thở Axit Rồng Ender thiêu đốt!');
         }
       }
       if (cl.life <= 0) { scene.remove(cl.mesh); dragonClouds[ci] = dragonClouds[dragonClouds.length - 1]; dragonClouds.pop(); }
+    }
+    for (let vi = _enderVortexes.length - 1; vi >= 0; vi--) {
+      const vx = _enderVortexes[vi];
+      vx.life -= dt; vx.tick += dt;
+      if (vx.tick >= 0.15) {
+        vx.tick = 0;
+        spawnPixelFx('magic_ender', vx.x + (Math.random() - 0.5) * 3.0, vx.y + 1.0, vx.z + (Math.random() - 0.5) * 3.0, { count: 2, scale: 2.2, life: 0.35, spread: 0.6 });
+        if (!player.dead && gameMode !== 'creative') {
+          const pd = Math.hypot(player.x - vx.x, player.z - vx.z);
+          if (pd > 0.6 && pd < 14.0 && Math.abs(player.y - vx.y) < 8.0) {
+            player.vx += ((vx.x - player.x) / pd) * 6.5;
+            player.vz += ((vx.z - player.z) / pd) * 6.5;
+          }
+        }
+      }
+      if (vx.life <= 0) {
+        spawnPixelFx('explosion_ender', vx.x, vx.y + 1.0, vx.z, { count: 4, scale: 3.8, life: 0.55, spread: 2.0 });
+        if (!player.dead && gameMode !== 'creative' && Math.hypot(player.x - vx.x, player.y - vx.y, player.z - vx.z) < 7.5) {
+          hurtPlayer(vx.dmg || 16, 'Bạn bị Hố Đen Hư Vô của Rồng Ender nghiền nát!');
+        }
+        _enderVortexes.splice(vi, 1);
+      }
     }
 
     // Player gaze vector for Minecraft Enderman eye-contact aggro!
@@ -7022,8 +7310,16 @@
         if (m._sk3Cd > 0) m._sk3Cd = Math.max(0, m._sk3Cd - dt);
         if (m._sk4Cd > 0) m._sk4Cd = Math.max(0, m._sk4Cd - dt);
 
-        // End Crystal Healing Beam for Ender Dragon only!
+        // End Crystal Healing Beam & Orbiting Purple Void Aura for Ender Dragon!
         if (m.type === 'ender_dragon') {
+          if (isMobVis && (frameCounter + i) % 3 === 0) {
+            const ang = elapsed * 2.4 + i;
+            const rA = 2.6 + Math.sin(elapsed * 3.1) * 0.8;
+            spawnParticles(m.x + Math.cos(ang) * rA, m.y + 1.4 + Math.sin(elapsed * 2.2) * 1.1, m.z + Math.sin(ang) * rA, (frameCounter & 1) ? 0xd946ef : 0xa855f7, 2, true);
+            if (((frameCounter + i) % 12) === 0) {
+              spawnPixelFx('magic_ender', m.x + (Math.random() - 0.5) * 4.2, m.y + 1.5 + Math.random() * 2.2, m.z + (Math.random() - 0.5) * 4.2, { count: 1, scale: 2.0, life: 0.42, spread: 0.5 });
+            }
+          }
           _endCrystalScanT -= dt;
           if (_endCrystalScanT <= 0) {
             _endCrystalScanT = 0.75;
@@ -7052,9 +7348,9 @@
             m.flying = false;
             m._landedIdle = true;
             speed = 0;
-            const gySit = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z);
+            const gySit = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z, scD);
             const targetSitY = Math.max(WATER_LEVEL + 0.02, gySit);
-            m.y += (targetSitY - m.y) * Math.min(1, dt * 8.0);
+            m.y = Math.max(targetSitY, m.y + (targetSitY - m.y) * Math.min(1, dt * 8.0));
             m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
             m.flyVx = 0; m.flyVy = 0; m.flyVz = 0; m._flyPitch = 0;
             if (dist < 14 + scD * 2.0) {
@@ -7076,7 +7372,7 @@
               const tpAng = player.yaw + 2.2 + Math.random() * 1.4;
               const tpOff = 5.0 + scD * 1.4;
               const txP = player.x + Math.cos(tpAng) * tpOff, tzP = player.z + Math.sin(tpAng) * tpOff;
-              const gyP = _getDragonGroundSurfaceY(txP, player.y + 4, tzP);
+              const gyP = _getDragonGroundSurfaceY(txP, player.y + 4, tzP, scD);
               m.x = txP; m.z = tzP; m.y = Math.max(player.y + 2.4, gyP + 1.6);
               m.rx = m.x; m.ry = m.y; m.rz = m.z;
               spawnParticles(m.x, m.y + 0.8, m.z, 0xfbbf24, 14, true);
@@ -7101,7 +7397,7 @@
               m.yaw = _turnAngleTowards(m.yaw, Math.atan2(adx, adz), 5.6, dt);
               const keepD = 7.5 + scD * 1.4;
               const mvSpd = ad > keepD + 2 ? 11.0 : (ad < keepD - 2 ? -2.0 : 3.6);
-              const gyA = _getDragonGroundSurfaceY(m.x, m.y + 4, m.z);
+              const gyA = _getDragonGroundSurfaceY(m.x, m.y + 4, m.z, scD);
               const wantAY = Math.max(gyA + 2.0 + scD * 1.2, assistTgt.y + 3.2 + scD * 0.6);
               const desVx = (adx / ad) * mvSpd, desVz = (adz / ad) * mvSpd, desVy = (wantAY - m.y) * 2.8;
               const fk = 1 - Math.exp(-6.5 * dt);
@@ -7111,26 +7407,26 @@
               const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = m.y + m.flyVy * dt;
               if (!isSolidAt(Math.floor(nxD), Math.floor(nyD), Math.floor(m.z))) m.x = nxD;
               if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(nzD))) m.z = nzD;
-              if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = nyD;
+              if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = Math.max(gyA + 0.5, nyD);
               m._flyPitch = Math.max(-0.34, Math.min(0.34, -(m.flyVy || 0) * 0.045));
-              if (m.atkCd <= 0 && ad < 30) {
-                m.atkCd = 1.55; m.atkAnimT = 0.45;
+              if (m.atkCd <= 0 && ad < 36) {
+                m.atkCd = 1.50; m.atkAnimT = 0.45;
                 const kMap = { ice: 'drg_ice', fire: 'drg_fire', earth: 'drg_earth', water: 'drg_water', leaf: 'drg_leaf', tree: 'drg_tree' };
                 const mp = getDragonMouthWorldPos(m, _mouthPos);
                 const mdx2 = assistTgt.x - mp.x, mdy2 = (assistTgt.y + assistTgt.hitboxH * 0.55) - mp.y, mdz2 = assistTgt.z - mp.z;
                 const mlen = Math.hypot(mdx2, mdy2, mdz2) || 1;
-                fireEnergyOrb(mp.x, mp.y, mp.z, mdx2 / mlen, mdy2 / mlen, mdz2 / mlen, 24.0, m.dmg, kMap[m.elemDragon] || 'drg_fire', { friendlyDragon: true, ownerDragon: m });
+                fireEnergyOrb(mp.x, mp.y, mp.z, mdx2 / mlen, mdy2 / mlen, mdz2 / mlen, 27.0, m.dmg, kMap[m.elemDragon] || 'drg_fire', { friendlyDragon: true, ownerDragon: m, scale: 3.0, splashR: 5.5 });
               }
               speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
             } else {
-              const gyF = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z);
+              const gyF = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z, scD);
               const wantLandY = Math.max(WATER_LEVEL + 0.02, gyF);
               const stayGroundedBand = m._landedIdle ? (11.5 + scD * 2.5) : (9.0 + scD * 2.0);
               if (player.y - gyF < 4.5 && dist < stayGroundedBand) {
                 if (m.y <= wantLandY + 1.25) {
                   m.flying = false;
                   m._landedIdle = true;
-                  m.y += (wantLandY - m.y) * Math.min(1, dt * 7.5);
+                  m.y = Math.max(wantLandY, m.y + (wantLandY - m.y) * Math.min(1, dt * 7.5));
                   m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
                   m.flyVx = 0; m.flyVy = 0; m.flyVz = 0;
                   m._flyPitch = 0;
@@ -7153,7 +7449,7 @@
                   const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = Math.max(wantLandY, m.y + m.flyVy * dt);
                   if (!isSolidAt(Math.floor(nxD), Math.floor(nyD + 0.5), Math.floor(m.z))) m.x = nxD;
                   if (!isSolidAt(Math.floor(m.x), Math.floor(nyD + 0.5), Math.floor(nzD))) m.z = nzD;
-                  m.y = nyD;
+                  m.y = Math.max(wantLandY, nyD);
                   m._flyPitch = Math.max(-0.26, Math.min(0.26, -(m.flyVy || 0) * 0.04));
                   speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
                 }
@@ -7176,7 +7472,7 @@
                 const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = m.y + m.flyVy * dt;
                 if (!isSolidAt(Math.floor(nxD), Math.floor(nyD), Math.floor(m.z))) m.x = nxD;
                 if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(nzD))) m.z = nzD;
-                if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = nyD;
+                if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = Math.max(gyF + 0.5, nyD);
                 else m.y = Math.min(MAX_Y - 4, m.y + dt * 3.0);
                 m._flyPitch = Math.max(-0.32, Math.min(0.32, -(m.flyVy || 0) * 0.042));
                 speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
@@ -7185,10 +7481,10 @@
           }
         } else {
 
-        const engageRange = isDragon ? 68 : (isGhast ? 32 : 24);
-        const canSeePlayer = isAggroToPlayer && !player.dead && gameMode !== 'creative' && dist3D < engageRange && !(currentDimension === 'overworld' && player.y < -3) && ((isDragon && dist3D < 48) || hasLineOfSight(m.x, m.y + 1.2, m.z, player.x, player.y + 1.1, player.z));
-        // Wild dragons detect & attack nearby tamed player dragons too (even if player is in Creative)!
-        let wildDrgMobTgt = null, wildDrgMobD = 64;
+        const engageRange = isDragon ? 96 : (isGhast ? 32 : 24);
+        const canSeePlayer = isAggroToPlayer && !player.dead && gameMode !== 'creative' && dist3D < engageRange && !(currentDimension === 'overworld' && player.y < -3) && ((isDragon && dist3D < 82) || hasLineOfSight(m.x, m.y + 1.2, m.z, player.x, player.y + 1.1, player.z));
+        // Wild dragons detect & attack nearby tamed player dragons too!
+        let wildDrgMobTgt = null, wildDrgMobD = 88;
         if (isDragon && !m.tamed) {
           for (let ti = 0; ti < _mobSnapBuf.length; ti++) {
             const tm = _mobSnapBuf[ti];
@@ -7205,17 +7501,17 @@
         const aimZ = aimTgtMob ? aimTgtMob.z : player.z;
         const aimDist = aimTgtMob ? Math.hypot(aimX - m.x, aimZ - m.z) : dist;
         const aimDist3D = aimTgtMob ? Math.hypot(aimX - m.x, aimY - m.y, aimZ - m.z) : dist3D;
-        const _drgHomeLeash = (isDragon && !m.tamed && typeof m.homeX === 'number') ? (m.type === 'ender_dragon' ? 46 : 26) : 0;
+        const _drgHomeLeash = (isDragon && !m.tamed && typeof m.homeX === 'number') ? (m.type === 'ender_dragon' ? 92 : (m.homeRadius || 100)) : 0;
         const _drgAimFromHome = _drgHomeLeash > 0 ? Math.hypot(aimX - m.homeX, aimZ - m.homeZ) : 0;
         const hasTarget = (canSeePlayer || !!aimTgtMob) && (!_drgHomeLeash || _drgAimFromHome <= _drgHomeLeash + 4);
         if (_drgHomeLeash > 0 && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > _drgHomeLeash + 2) m.swoopT = 0;
 
-        if (m.elemDragon && m.dragonMode === 'land') {
+        if (m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground')) {
           m.swoopT = 0;
           const landTargetX = hasTarget ? aimX : (typeof m.homeX === 'number' ? m.homeX : aimX);
           const landTargetZ = hasTarget ? aimZ : (typeof m.homeZ === 'number' ? m.homeZ : aimZ);
           m.yaw = _turnAngleTowards(m.yaw, Math.atan2(landTargetX - m.x, landTargetZ - m.z), 4.5, dt);
-          speed = (hasTarget && aimDist > Math.max(5.5, (m.hitboxR || 2.0) + 2.2)) ? m.speed * 0.65 : 0;
+          speed = (hasTarget && aimDist > Math.max(6.5, (m.hitboxR || 2.0) + 2.4)) ? 3.8 : 0;
           const fnx = m.x + (Math.sin(m.yaw) * speed + m.vx) * dt, fnz = m.z + (Math.cos(m.yaw) * speed + m.vz) * dt;
           if ((!_drgHomeLeash || Math.hypot(fnx - m.homeX, fnz - m.homeZ) <= _drgHomeLeash) && !isSolidAt(Math.floor(fnx), Math.floor(m.y + 0.5), Math.floor(fnz))) { m.x = fnx; m.z = fnz; }
           m.vx *= 0.9; m.vz *= 0.9;
@@ -7242,10 +7538,10 @@
           } else if (m.swoopT > 0) {
             m.swoopT -= dt;
             const dYawS = Math.atan2(aimX - m.x, aimZ - m.z);
-            m.yaw = isDragon ? _turnAngleTowards(m.yaw, dYawS, 5.0, dt) : dYawS;
-            speed = isDragon ? m.speed * 1.45 : m.speed * 1.25;
+            m.yaw = isDragon ? _turnAngleTowards(m.yaw, dYawS, 5.2, dt) : dYawS;
+            speed = isDragon ? m.speed * 1.65 : m.speed * 1.25;
             const fkS = 1 - Math.exp(-5.8 * dt);
-            const desVyS = ((aimY + (isDragon ? 1.4 : 0.4)) - m.y) * (isDragon ? 3.2 : 3.5);
+            const desVyS = ((aimY + (isDragon ? 1.6 : 0.4)) - m.y) * (isDragon ? 3.2 : 3.5);
             const desVxS = Math.sin(m.yaw) * speed, desVzS = Math.cos(m.yaw) * speed;
             m.flyVx = (m.flyVx || 0) + (desVxS - (m.flyVx || 0)) * fkS;
             m.flyVy = (m.flyVy || 0) + (desVyS - (m.flyVy || 0)) * fkS;
@@ -7253,19 +7549,23 @@
             const nyS = m.y + m.flyVy * dt;
             if (!isSolidAt(Math.floor(m.x), Math.floor(nyS), Math.floor(m.z))) m.y = nyS;
             else m.swoopT = 0;
-            m._flyPitch = Math.max(-0.38, Math.min(0.38, -m.flyVy * 0.05));
+            m._flyPitch = Math.max(-0.42, Math.min(0.42, -m.flyVy * 0.05));
+            if (m.type === 'ender_dragon' && (frameCounter % 2) === 0) {
+              spawnParticles(m.x, m.y + 1.5, m.z, 0xd946ef, 3, true);
+            }
             const hitD = Math.hypot(aimX - m.x, aimY - m.y, aimZ - m.z);
-            if (hitD < (isDragon ? 4.2 : 1.8) && m.atkCd <= 0) {
+            if (hitD < (isDragon ? 5.6 : 1.8) && m.atkCd <= 0) {
+              if (m.type === 'ender_dragon') spawnPixelFx('explosion_ender', m.x, m.y + 1.4, m.z, { count: 5, scale: 3.8, life: 0.62, spread: 3.2 });
               if (aimTgtMob) {
-                hurtMob(aimTgtMob, m.dmg, aimX - m.x, aimZ - m.z, 6.2, m.elemDragon === 'fire', false);
-                spawnParticles(aimX, aimY, aimZ, 0xf97316, 14, true);
+                hurtMob(aimTgtMob, m.dmg * 1.25, aimX - m.x, aimZ - m.z, 7.2, m.elemDragon === 'fire', false);
+                spawnParticles(aimX, aimY, aimZ, m.type === 'ender_dragon' ? 0xd946ef : 0xf97316, 18, true);
                 m.atkCd = 1.8; m.swoopT = 0;
               } else if (!player.dead && gameMode !== 'creative' && hasLineOfSight(m.x, m.y + 0.8, m.z, player.x, player.y + 0.9, player.z)) {
-                hurtPlayer(m.dmg, isDragon ? 'Bạn bị Boss Rồng Ender bổ nhào quật ngã!' : `Bạn bị ${m.displayName} bổ nhào tấn công!`);
+                hurtPlayer(m.dmg, isDragon ? `Bạn bị ${m.displayName} bổ nhào quật ngã!` : `Bạn bị ${m.displayName} bổ nhào tấn công!`);
                 if (isDragon) {
-                  cameraShake = 0.48;
-                  player.vy = Math.max(player.vy, 7.5);
-                  spawnParticles(m.x, m.y + 1.0, m.z, 0xd946ef, 18, true);
+                  cameraShake = 0.54;
+                  player.vy = Math.max(player.vy, 8.5);
+                  spawnParticles(m.x, m.y + 1.0, m.z, 0xd946ef, 22, true);
                 }
                 m.atkCd = 2.0; m.swoopT = 0;
               }
@@ -7273,12 +7573,12 @@
           } else {
             const hpPct = m.hp / m.maxHp;
             const dPhase = hpPct < 0.34 ? 3 : (hpPct < 0.67 ? 2 : 1);
-            const orbitR = isDragon ? (_drgHomeLeash > 0 ? Math.min(14.0, _drgHomeLeash * 0.55) : (dPhase === 3 ? 17.0 : 21.0)) : 8.5;
+            const orbitR = isDragon ? (_drgHomeLeash > 0 ? Math.min(34.0, _drgHomeLeash * 0.45) : (dPhase === 3 ? 22.0 : 28.0)) : 8.5;
             const orbitAng = elapsed * (isDragon ? (0.48 + dPhase * 0.11) : 0.92) + i;
             let tx = aimX + Math.cos(orbitAng) * orbitR, tz = aimZ + Math.sin(orbitAng) * orbitR;
             if (_drgHomeLeash > 0) {
               const hd = Math.hypot(tx - m.homeX, tz - m.homeZ);
-              if (hd > _drgHomeLeash - 2) { const scH = (_drgHomeLeash - 2) / hd; tx = m.homeX + (tx - m.homeX) * scH; tz = m.homeZ + (tz - m.homeZ) * scH; }
+              if (hd > _drgHomeLeash - 4) { const scH = (_drgHomeLeash - 4) / hd; tx = m.homeX + (tx - m.homeX) * scH; tz = m.homeZ + (tz - m.homeZ) * scH; }
             }
             const desYawO = Math.atan2(tx - m.x, tz - m.z);
             m.yaw = isDragon ? _turnAngleTowards(m.yaw, desYawO, 4.0, dt) : desYawO;
@@ -7296,50 +7596,60 @@
               const nextY = m.y + (targetH - m.y) * dt * 1.5;
               if (!isSolidAt(Math.floor(m.x), Math.floor(nextY), Math.floor(m.z))) m.y = nextY;
             }
-            if (isDragon && m.atkCd <= 0 && aimDist3D < 58) {
+            if (isDragon && m.atkCd <= 0 && aimDist3D < 72) {
               if (m.elemDragon) {
                 castElementalDragonAerialSkill(m, aimDist3D, aimTgtMob);
               } else {
-                const skR = Math.random();
                 const mp = getDragonMouthWorldPos(m, _mouthPos);
                 const dx = aimX - mp.x, dy = aimY - mp.y, dz = aimZ - mp.z;
                 const dLen = Math.hypot(dx, dy, dz) || 1;
-                if (aimDist3D < 9.5) {
-                  m.lastSkillLabel = '🌪️ KỸ NĂNG: SÓNG XUNG KÍCH CÁNH RỒNG!';
-                  m.atkAnimT = 0.55;
-                  playSfx('roar'); cameraShake = 0.42;
-                  spawnParticles(m.x, m.y + 1.2, m.z, 0xe879f9, 20, true);
-                  if (aimTgtMob) {
-                    hurtMob(aimTgtMob, m.dmg * 0.85, aimX - m.x, aimZ - m.z, 7.2, false, false);
-                  } else if (!player.dead && gameMode !== 'creative') {
-                    const pushInv = 1 / (dist + 0.1);
-                    player.vx += (player.x - m.x) * pushInv * 12.0; player.vz += (player.z - m.z) * pushInv * 12.0; player.vy = Math.max(player.vy, 7.0);
-                    hurtPlayer(m.dmg * 0.75, 'Bạn bị Sóng Xung Kích Cánh Rồng hất văng!');
+                m._edSkIdx = ((m._edSkIdx || 0) + 1) % 5;
+                const edSk = m._edSkIdx;
+                m.atkAnimT = 0.60; m._roarT = 1.25; playSfx('roar');
+                if (edSk === 0) {
+                  m.lastSkillLabel = '☠️ KỸ NĂNG 1: HƠI THỞ AXIT HƯ KHÔNG!';
+                  for (let si = -1; si <= 1; si++) {
+                    const sp = si * 0.16;
+                    const sx = (dx / dLen) * Math.cos(sp) - (dz / dLen) * Math.sin(sp);
+                    const sz = (dx / dLen) * Math.sin(sp) + (dz / dLen) * Math.cos(sp);
+                    fireEnergyOrb(mp.x, mp.y, mp.z, sx, dy / dLen, sz, 24.0, m.dmg * 0.85, 'dragon_ball', { scale: 3.4, splashR: 6.2, effect: 'acid', ownerDragon: m });
+                  }
+                  const clY = Math.max(2, _getDragonGroundSurfaceY(aimX, aimY + 4, aimZ, m.dragonScale));
+                  spawnDragonBreathCloud(aimX, clY, aimZ, 1.45);
+                  spawnDragonBreathCloud(aimX + (Math.random() - 0.5) * 6, clY, aimZ + (Math.random() - 0.5) * 6, 1.25);
+                  m.atkCd = 2.8;
+                } else if (edSk === 1) {
+                  m.lastSkillLabel = '☄️ KỸ NĂNG 2: MƯA THIÊN THẠCH ENDER!';
+                  for (let mi = 0; mi < 5; mi++) {
+                    const txM = aimX + (mi === 0 ? 0 : (Math.random() - 0.5) * 10);
+                    const tzM = aimZ + (mi === 0 ? 0 : (Math.random() - 0.5) * 10);
+                    fireEnergyOrb(txM, aimY + 24 + mi * 2, tzM, 0, -1, 0, 22.0, m.dmg * 1.05, 'dragon_ball', { pfxKey: 'explosion_ender', scale: 3.8, splashR: 6.8, gravity: 9.0, ownerDragon: m });
+                  }
+                  m.atkCd = 3.2;
+                } else if (edSk === 2) {
+                  m.lastSkillLabel = '🌀 KỸ NĂNG 3: HỐ ĐEN TRỌNG LỰC HƯ VÔ!';
+                  const vxY = _getDragonGroundSurfaceY(aimX, aimY + 4, aimZ, m.dragonScale);
+                  spawnEnderVortex(aimX, vxY, aimZ, m.dmg * 1.15);
+                  m.atkCd = 3.4;
+                } else if (edSk === 3) {
+                  m.lastSkillLabel = '⚡ KỸ NĂNG 4: THIÊN LÔI PHÁN QUYẾT ENDER!';
+                  cameraShake = Math.max(cameraShake, 0.44);
+                  for (let li = 0; li < 4; li++) {
+                    const lx = aimX + (li === 0 ? 0 : (Math.random() - 0.5) * 11);
+                    const lz = aimZ + (li === 0 ? 0 : (Math.random() - 0.5) * 11);
+                    const ly = _getDragonGroundSurfaceY(lx, aimY + 4, lz, m.dragonScale);
+                    for (let h = 0; h <= 10; h += 5) spawnPixelFx('lightning_arc', lx, ly + h + 1.5, lz, { count: 2, scale: 3.0, life: 0.48, spread: 0.5 });
+                    spawnPixelFx('explosion_ender', lx, ly + 1.2, lz, { count: 3, scale: 3.2, life: 0.52, spread: 1.5 });
+                    if (!player.dead && gameMode !== 'creative' && Math.hypot(player.x - lx, player.z - lz) < 4.5 && Math.abs(player.y - ly) < 6.0) {
+                      hurtPlayer(m.dmg * 0.75, 'Bạn bị Thiên Lôi Phán Quyết của Rồng Ender đánh trúng!');
+                    }
                   }
                   m.atkCd = 3.0;
-                } else if (skR < 0.42) {
-                  m.lastSkillLabel = '☄️ KỸ NĂNG: LOẠT CẦU LỬA HƯ KHÔNG!';
-                  m.atkAnimT = 0.50;
-                  const shots = dPhase >= 2 ? 3 : 1;
-                  for (let si = 0; si < shots; si++) {
-                    const spread = (si - (shots - 1) * 0.5) * 0.14;
-                    const sx = (dx / dLen) * Math.cos(spread) - (dz / dLen) * Math.sin(spread);
-                    const sz = (dx / dLen) * Math.sin(spread) + (dz / dLen) * Math.cos(spread);
-                    fireEnergyOrb(mp.x, mp.y, mp.z, sx, dy / dLen, sz, 18.0, 6.5, 'dragon_ball');
-                  }
-                  m.atkCd = dPhase === 3 ? 2.4 : 3.2;
-                } else if (skR < 0.72) {
-                  m.lastSkillLabel = '☠️ KỸ NĂNG: HƠI THỞ AXIT RỒNG!';
-                  m.atkAnimT = 0.55;
-                  playSfx('roar');
-                  const clY = Math.max(2, getTerrainHeight(Math.floor(aimX), Math.floor(aimZ), BIOMES.THE_END)) + 1.0;
-                  spawnDragonBreathCloud(aimX, clY, aimZ);
-                  if (dPhase === 3) spawnDragonBreathCloud(aimX + (Math.random() - 0.5) * 7, clY, aimZ + (Math.random() - 0.5) * 7);
-                  spawnParticles(mp.x, mp.y, mp.z, 0xd946ef, 14, true);
-                  m.atkCd = 3.5;
                 } else {
-                  m.lastSkillLabel = '⚡ KỸ NĂNG: LAO BỔ NHÀO HỦY DIỆT!';
-                  m.swoopT = 2.6; playSfx('roar'); m.atkCd = 1.2;
+                  m.lastSkillLabel = '🌌 KỸ NĂNG 5: XÉ RÁCH KHÔNG GIAN BỔ NHÀO!';
+                  m.swoopT = 2.6;
+                  spawnParticles(m.x, m.y + 1.4, m.z, 0xd946ef, 24, true);
+                  m.atkCd = 1.6;
                 }
               }
             } else if (!isDragon && m.atkCd <= 0 && dist3D < 16) { m.swoopT = 1.8; playSfx('roar'); }
@@ -7348,14 +7658,14 @@
           m.swoopT = 0;
           m.wanderT -= dt; if (m.wanderT <= 0) { m.wanderT = 3 + Math.random() * 3; m._wanderYaw = (m._wanderYaw ?? m.yaw) + (Math.random() - 0.5) * 1.8; }
           if (isDragon && !m.tamed && typeof m.homeX === 'number') {
-            const orbR = Math.min(20, (m.homeRadius || 18));
-            m._orbitAng = (m._orbitAng !== undefined ? m._orbitAng : Math.atan2(m.z - m.homeZ, m.x - m.homeX)) + dt * 0.42;
+            const orbR = Math.min(48, (m.homeRadius || 100) * 0.45);
+            m._orbitAng = (m._orbitAng !== undefined ? m._orbitAng : Math.atan2(m.z - m.homeZ, m.x - m.homeX)) + dt * 0.34;
             const ox = m.homeX + Math.cos(m._orbitAng) * orbR, oz = m.homeZ + Math.sin(m._orbitAng) * orbR;
-            const wantY = Math.min(MAX_Y - 5, Math.max((m._groundY || WATER_LEVEL + 2) + 8.5, m.homeY || targetH));
+            const wantY = Math.min(MAX_Y - 5, Math.max((m._groundY || WATER_LEVEL + 2) + 10.5, m.homeY || targetH));
             const desYawO = Math.atan2(ox - m.x, oz - m.z);
             m.yaw = _turnAngleTowards(m.yaw, desYawO, 3.4, dt);
             const fkW = 1 - Math.exp(-4.0 * dt);
-            const orbSpd = speed * 0.78;
+            const orbSpd = speed * 0.85;
             const odx = ox - m.x, odz = oz - m.z, od = Math.hypot(odx, odz) || 1;
             const desVxW = (odx / od) * orbSpd, desVzW = (odz / od) * orbSpd, desVyW = (wantY - m.y) * 2.0;
             m.flyVx = (m.flyVx || 0) + (desVxW - (m.flyVx || 0)) * fkW;
@@ -7380,7 +7690,7 @@
             if (!isSolidAt(Math.floor(m.x), Math.floor(nextY), Math.floor(m.z))) m.y = nextY;
           }
         }
-        if (!(m.elemDragon && m.dragonMode === 'land')) {
+        if (!(m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground'))) {
           const mvX = (isDragon && m.flyVx !== undefined) ? m.flyVx : Math.sin(m.yaw) * speed;
           const mvZ = (isDragon && m.flyVz !== undefined) ? m.flyVz : Math.cos(m.yaw) * speed;
           const fnx = m.x + (mvX + m.vx) * dt, fnz = m.z + (mvZ + m.vz) * dt;
@@ -8033,8 +8343,12 @@
         if (isSkinnedDragon) {
           const actions = m.anim.actions;
           const spdDrg = isRidingThis ? (player.curSpeed || 0) : Math.hypot(m.vx || 0, m.vz || 0);
-          const swooping = (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
-          const gliding = (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
+          const swooping = isRidingThis
+            ? !!(m.flying && (m._drgDiving || (m._diveBoost || 0) > 0.14))
+            : (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
+          const gliding = isRidingThis
+            ? swooping
+            : (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
           m._drgSwooping = swooping;
           m._drgGliding = gliding;
           let desiredClip = 'Idle';
@@ -8045,10 +8359,10 @@
           } else if (m.flying && !m.sitting) {
             if (swooping || gliding) {
               desiredClip = 'Glide';
-              desiredScale = 1.0;
+              desiredScale = isRidingThis ? 1.05 : 1.0;
             } else {
               desiredClip = 'Fly_Flap';
-              desiredScale = isRidingThis ? 1.25 : 1.08;
+              desiredScale = isRidingThis ? 1.15 : 1.08;
               if (isRidingThis && (m._lastFlapT || 0) < elapsed - 0.68) {
                 m._lastFlapT = elapsed;
                 playSfx('wing_flap');
@@ -8056,7 +8370,7 @@
             }
           } else if (!m.sitting && effSpeed > 0.14) {
             desiredClip = 'Walk';
-            desiredScale = Math.max(0.75, Math.min(1.65, effSpeed * 0.45));
+            desiredScale = isRidingThis ? Math.max(0.55, Math.min(1.05, effSpeed * 0.22)) : Math.max(0.65, Math.min(1.25, effSpeed * 0.28));
           }
           if (actions) {
             if (!actions[desiredClip]) desiredClip = m.anim.activeClip || Object.keys(actions)[0];
@@ -8484,6 +8798,7 @@
       }
     }
 
+    _updateDragonWingTrails(player.ridingDragon || null, player.curSpeed || 0, dt);
     if (!dragonBeamActive && dragonHealBeam.visible) dragonHealBeam.visible = false;
 
     if (activeBoss) {
@@ -8548,12 +8863,13 @@
       if (p.life <= 0) { scene.remove(p.mesh); projectiles[i] = projectiles[projectiles.length - 1]; projectiles.pop(); continue; }
       if (p.stuck) continue;
       if (p.kind === 'arrow' || p.kind === 'snowball') p.vy -= 14.5 * dt;
+      else if (p.gravity) p.vy -= p.gravity * dt;
       const prevPx = p.x, prevPy = p.y, prevPz = p.z;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
       p.mesh.position.set(p.x, p.y, p.z);
       if (sodiumOpts.entityCulling && _camFrustumReady) {
         _cullSphere.center.set(p.x, p.y, p.z);
-        _cullSphere.radius = 0.85;
+        _cullSphere.radius = Math.max(0.85, (p.scale || 1) * 0.65);
         p.mesh.visible = _camFrustum.intersectsSphere(_cullSphere);
       } else {
         p.mesh.visible = true;
@@ -8563,7 +8879,7 @@
         p.pfxT = (p.pfxT || 0) + dt * 14.0;
         p.mesh.material = p.pfxSheet.mats[(p.pfxT | 0) % p.pfxSheet.frames];
         if (((frameCounter + i) % 3) === 0 && p.pfxKey) {
-          spawnPixelFx(p.pfxKey, p.x, p.y, p.z, { count: 1, scale: 0.44, life: 0.24, spread: 0.14, vx: 0, vy: 0.15, vz: 0 });
+          spawnPixelFx(p.pfxKey, p.x, p.y, p.z, { count: 1, scale: p.trailScale || 0.44, life: 0.28, spread: (p.scale || 1) >= 2.0 ? 0.36 : 0.14, vx: 0, vy: 0.15, vz: 0 });
         }
       }
 
@@ -8581,34 +8897,44 @@
           scene.remove(p.mesh); projectiles[i] = projectiles[projectiles.length - 1]; projectiles.pop(); continue;
         }
         if (p.kind !== 'arrow') {
+          const sr = p.splashR || 3.4, vSc = p.vfxScale || 1.2, isBigDrg = (p.scale || 1) >= 2.0;
           if (p.kind === 'ghast_fire') triggerExplosion(p.x, p.y, p.z, 2.2, p.dmg, 'Bạn bị Cầu Lửa Ghast nổ trúng!');
           else if (p.kind && p.kind.startsWith('drg_')) {
             applyElementalDragonImpact(p.kind, p.x, p.y, p.z, false);
-            spawnPixelFx(p.pfxKey || 'magic_ender', p.x, p.y + 0.25, p.z, { count: 2, scale: 1.2, life: 0.44, spread: 0.4 });
+            spawnPixelFx(p.pfxKey || 'magic_ender', p.x, p.y + 0.45, p.z, { count: isBigDrg ? 4 : 2, scale: vSc, life: 0.56, spread: isBigDrg ? 1.5 : 0.4 });
             playSfx('mob_explode');
             if (p.friendlyDragon) {
               for (let mi = mobs.length - 1; mi >= 0; mi--) {
                 const mb = mobs[mi];
                 if (!mb || mb._dead || mb.tamed || mb === p.ownerDragon) continue;
-                if (Math.hypot(mb.x - p.x, mb.y + 0.8 - p.y, mb.z - p.z) < 3.4) hurtMob(mb, p.dmg * 0.8, p.vx, p.vz, 3.6, p.kind === 'drg_fire', false);
+                if (Math.hypot(mb.x - p.x, mb.y + 0.8 - p.y, mb.z - p.z) < sr) {
+                  const kx = p.effect === 'vortex' ? (p.x - mb.x) : p.vx;
+                  const kz = p.effect === 'vortex' ? (p.z - mb.z) : p.vz;
+                  const ky = p.effect === 'quake' ? 9.5 : 4.2;
+                  hurtMob(mb, p.dmg * 0.90, kx, kz, ky, p.kind === 'drg_fire' || p.kind === 'drg_fire_meteor', false);
+                  if (p.effect === 'freeze') mb._chilledT = 4.0;
+                }
               }
             } else {
-              if (!player.dead && Math.hypot(player.x - p.x, player.y + 0.8 - p.y, player.z - p.z) < 2.9) {
+              if (!player.dead && Math.hypot(player.x - p.x, player.y + 0.8 - p.y, player.z - p.z) < sr * 0.85) {
                 applyElementalDragonImpact(p.kind, p.x, p.y, p.z, true);
                 hurtPlayer(p.dmg, 'Bạn trúng đòn nguyên tố của Rồng!');
               }
               for (let mi = mobs.length - 1; mi >= 0; mi--) {
                 const tm = mobs[mi];
                 if (!tm || tm._dead || !tm.tamed) continue;
-                if (Math.hypot(tm.x - p.x, tm.y + 0.8 - p.y, tm.z - p.z) < 3.2) hurtMob(tm, p.dmg * 0.85, p.vx, p.vz, 3.2, p.kind === 'drg_fire', false);
+                if (Math.hypot(tm.x - p.x, tm.y + 0.8 - p.y, tm.z - p.z) < sr * 0.85) hurtMob(tm, p.dmg * 0.85, p.vx, p.vz, 3.8, p.kind === 'drg_fire', false);
               }
             }
           } else {
-            const hitPfx = p.kind === 'ice_shard' ? 'ice_shatter' : (p.kind === 'sonic_boom' || p.kind === 'guardian_beam' ? 'lightning_arc' : (p.kind === 'blaze_fire' ? 'explosion_fire' : (p.kind === 'witch_potion' || p.kind === 'poison_arrow' ? 'magic_poison' : 'magic_ender')));
-            spawnPixelFx(hitPfx, p.x, p.y + 0.2, p.z, { count: 2, scale: 1.1, life: 0.42, spread: 0.35 });
+            const hitPfx = p.kind === 'ice_shard' ? 'ice_shatter' : (p.kind === 'sonic_boom' || p.kind === 'guardian_beam' ? 'lightning_arc' : (p.kind === 'blaze_fire' ? 'explosion_fire' : (p.kind === 'witch_potion' || p.kind === 'poison_arrow' ? 'magic_poison' : (p.pfxKey || 'magic_ender'))));
+            spawnPixelFx(hitPfx, p.x, p.y + 0.35, p.z, { count: isBigDrg ? 4 : 2, scale: vSc, life: 0.54, spread: isBigDrg ? 1.5 : 0.35 });
             playSfx('mob_explode');
-            if (!player.dead && Math.hypot(player.x - p.x, player.y + 0.8 - p.y, player.z - p.z) < 2.8) {
-              hurtPlayer(p.dmg, p.kind === 'sonic_boom' ? 'Bạn trúng Sóng Âm Warden!' : (p.kind === 'blaze_fire' ? 'Bạn trúng Cầu Lửa Blaze!' : 'Bạn trúng đòn năng lượng!'));
+            if (p.kind === 'dragon_ball' && p.effect === 'acid') {
+              spawnDragonBreathCloud(p.x, colGroundY(Math.floor(p.x), Math.floor(p.z)) + 1.0, p.z, 1.35);
+            }
+            if (!player.dead && Math.hypot(player.x - p.x, player.y + 0.8 - p.y, player.z - p.z) < sr) {
+              hurtPlayer(p.dmg, p.kind === 'sonic_boom' ? 'Bạn trúng Sóng Âm Warden!' : (p.kind === 'blaze_fire' ? 'Bạn trúng Cầu Lửa Blaze!' : 'Bạn trúng đòn năng lượng Rồng!'));
             }
           }
           scene.remove(p.mesh); projectiles[i] = projectiles[projectiles.length - 1]; projectiles.pop(); continue;
@@ -8617,13 +8943,14 @@
       }
       if (p.fromPlayer || p.friendlyDragon) {
         let hit = false;
+        const hitPad = p.friendlyDragon ? Math.max(0.95, (p.scale || 1) * 0.45) : 0.35;
         for (let mi = mobs.length - 1; mi >= 0; mi--) {
           const m = mobs[mi];
           if (p.friendlyDragon && (m.tamed || m === p.ownerDragon)) continue;
-          if (Math.hypot(m.x - p.x, m.z - p.z) < m.hitboxR + (p.friendlyDragon ? 0.85 : 0.35) && p.y >= m.y - 0.3 && p.y <= m.y + m.hitboxH + 0.45) {
+          if (Math.hypot(m.x - p.x, m.z - p.z) < m.hitboxR + hitPad && p.y >= m.y - 0.5 && p.y <= m.y + m.hitboxH + 0.85) {
             playSfx('crit');
-            spawnPixelFx(p.kind === 'snowball' ? 'ice_shatter' : (p.pfxKey || 'crit_star'), p.x, p.y, p.z, { count: 1, scale: 0.85, life: 0.32 });
-            hurtMob(m, p.dmg, p.vx, p.vz, p.kind === 'snowball' ? 2.5 : 4.0, p.kind === 'drg_fire', !p.friendlyDragon);
+            spawnPixelFx(p.kind === 'snowball' ? 'ice_shatter' : (p.pfxKey || 'crit_star'), p.x, p.y, p.z, { count: (p.scale || 1) >= 2.0 ? 3 : 1, scale: p.vfxScale || 0.85, life: 0.44, spread: (p.scale || 1) >= 2.0 ? 1.1 : 0.1 });
+            hurtMob(m, p.dmg, p.vx, p.vz, p.effect === 'quake' ? 9.5 : (p.kind === 'snowball' ? 2.5 : 4.2), p.kind === 'drg_fire' || p.kind === 'drg_fire_meteor', !p.friendlyDragon);
             if (!p.friendlyDragon) emitSculkVibration(p.x, p.y, p.z, 'projectile', 14);
             hit = true; break;
           }
@@ -8631,7 +8958,8 @@
         if (hit) { scene.remove(p.mesh); projectiles[i] = projectiles[projectiles.length - 1]; projectiles.pop(); }
       } else {
         let hitMobOrP = false;
-        if (!player.dead && Math.hypot(player.x - p.x, player.z - p.z) < (p.kind === 'arrow' ? 0.5 : 1.0) && p.y >= player.y && p.y <= player.y + PLAYER_HEIGHT) {
+        const pHitR = p.kind === 'arrow' ? 0.5 : Math.max(1.1, (p.scale || 1) * 0.52);
+        if (!player.dead && Math.hypot(player.x - p.x, player.z - p.z) < pHitR && p.y >= player.y - 0.3 && p.y <= player.y + PLAYER_HEIGHT + 0.5) {
           const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
           const pHoriz = Math.hypot(p.vx, p.vz) || 1;
           const fromFront = (-(p.vx * fx + p.vz * fz)) >= -0.25 * pHoriz;

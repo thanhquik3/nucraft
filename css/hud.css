@@ -251,6 +251,9 @@
   }
   #airRow { display: none; justify-content: flex-end; }
   #airRow.visible { display: flex; }
+  #dragonHealthRow { display: none; justify-content: flex-end; height: 18px; }
+  #dragonHealthRow.visible { display: flex; }
+  .mc-ico.mount-heart img:last-child { filter: sepia(0.35) saturate(2.4) hue-rotate(36deg) brightness(1.16); }
 
   #minimapWrap {
     position: relative; width: 112px; height: 112px; margin-top: 0; pointer-events: auto; cursor: pointer;
@@ -537,21 +540,33 @@
   }
   #btnContextPet.visible { display: flex; }
   #btnContextPet:active { transform: translateX(-50%) scale(0.95); background: rgba(60, 133, 39, 0.88); color: #fff; }
-  #btnDragonMount {
-    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
-    height: 36px; padding: 0 18px; border-radius: 0;
-    background: linear-gradient(180deg, #4b9b34 0%, #347222 100%); color: #ffffff;
-    border: 2px solid #0e1014;
-    box-shadow: inset 2px 2px 0 rgba(163, 245, 107, 0.45), inset -2px -2px 0 rgba(20, 62, 12, 0.85), 0 3px 0 rgba(0,0,0,0.45);
-    font-family: var(--font-pixel); font-size: 13px; font-weight: 700; text-shadow: 1px 1px 0 #0b1b06;
+  #dragonActionRow {
+    position: fixed; left: 50%; bottom: 108px; transform: translateX(-50%);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    z-index: 34; pointer-events: none; max-width: calc(100vw - 16px);
+  }
+  #btnDragonMount, #btnDragonEquip {
+    height: 36px; padding: 0 15px; border-radius: 0;
+    color: #ffffff; border: 2px solid #0e1014;
+    font-family: var(--font-pixel); font-size: 12.5px; font-weight: 700;
     display: none; align-items: center; justify-content: center; gap: 6px;
-    pointer-events: auto; cursor: pointer; z-index: 34; white-space: nowrap;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
     user-select: none; -webkit-user-select: none; touch-action: manipulation;
   }
-  #btnDragonMount.visible { display: flex; }
-  #btnDragonMount:active { transform: translateX(-50%) scale(0.95); }
+  #btnDragonMount {
+    background: linear-gradient(180deg, #4b9b34 0%, #347222 100%);
+    box-shadow: inset 2px 2px 0 rgba(163, 245, 107, 0.45), inset -2px -2px 0 rgba(20, 62, 12, 0.85), 0 3px 0 rgba(0,0,0,0.45);
+    text-shadow: 1px 1px 0 #0b1b06;
+  }
+  #btnDragonEquip {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: inset 2px 2px 0 rgba(147, 197, 253, 0.45), inset -2px -2px 0 rgba(15, 35, 95, 0.88), 0 3px 0 rgba(0,0,0,0.45);
+    text-shadow: 1px 1px 0 #091334;
+  }
+  #btnDragonMount.visible, #btnDragonEquip.visible { display: inline-flex; }
+  #btnDragonMount:active, #btnDragonEquip:active { transform: scale(0.95); }
   #dragonGrowthWrap {
-    position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%);
+    position: fixed; left: 50%; bottom: 152px; transform: translateX(-50%);
     min-width: 210px; max-width: min(280px, calc(100vw - 24px));
     padding: 6px 10px; border-radius: 0;
     background: rgba(28, 30, 34, 0.90); border: 2px solid #0e1014;
@@ -568,7 +583,7 @@
   #dragonGrowthFill { height: 100%; width: 0%; background: #62c432; box-shadow: inset 0 2px 0 #a3f56b, inset 0 -2px 0 #347a16; transition: width 0.2s ease; }
   .dg-sub { font-size: 10px; color: #d0d4dc; display: flex; justify-content: flex-start; text-shadow: 1px 1px 0 #000; }
   #dragonFlightHud {
-    position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
+    position: fixed; left: 50%; bottom: 118px; transform: translateX(-50%);
     display: none; flex-wrap: wrap; justify-content: center;
     max-width: calc(100vw - 12px);
     align-items: center; gap: 6px; z-index: 35; pointer-events: auto;
@@ -828,7 +843,83 @@
   #chestGrid .slot canvas { width: 78%; height: 78%; }
 
   /* Authentic 100% Minecraft Java Recipe Book Tabs & Controls */
-  #invModal, #furnaceModal, #chestModal, #tradeModal, #smithingModal { overflow: hidden; overflow-x: clip; overflow-y: clip; }
+  #invModal, #furnaceModal, #chestModal, #tradeModal, #smithingModal, #dragonModal { overflow: hidden; overflow-x: clip; overflow-y: clip; }
+  #dragonGuiPanel {
+    width: min(392px, 95vw); max-height: 94dvh; overflow-y: auto; box-sizing: border-box; position: relative;
+    background: #c6c6c6; color: #3f3f3f; border: 3px solid #1b1b1b;
+    box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555, 0 18px 48px rgba(0,0,0,0.82);
+    padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 0; border-radius: 0;
+  }
+  .dragon-gui-title { text-align: center; font-size: 14px; font-weight: 800; color: #3f3f3f; margin-bottom: 6px; padding: 0 22px; }
+  #dragonTopRow { display: flex; align-items: stretch; justify-content: center; gap: 6px; margin-bottom: 6px; }
+  .dragon-slot-col { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+  .dragon-eq-slot {
+    position: relative; width: 40px; height: 40px; box-sizing: border-box; background: #8b8b8b;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    contain: layout style;
+  }
+  .dragon-eq-slot:hover { background: #a4a4a4; }
+  .dragon-eq-slot.equipped { background: #7f8791; }
+  .dragon-eq-slot .deq-ghost { font-family: var(--font-pixel); font-size: 10px; font-weight: 700; color: #404040; opacity: 0.72; pointer-events: none; text-align: center; }
+  .dragon-eq-slot canvas { position: absolute; width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; z-index: 1; }
+  #dragonPreviewBox {
+    flex: 1; min-width: 180px; height: 148px; box-sizing: border-box; background: #050507;
+    border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab;
+  }
+  #dragonPreviewCanvas { width: 100%; height: 100%; display: block; }
+  #btnDragonSitModal {
+    width: 40px; height: 40px; padding: 0 2px; box-sizing: border-box; background: #6e6e6e;
+    border-top: 2px solid #dcdcdc; border-left: 2px solid #dcdcdc;
+    border-right: 2px solid #373737; border-bottom: 2px solid #373737;
+    font-family: var(--font-pixel); font-size: 9px; font-weight: 700; color: #ffffff;
+    text-shadow: 1px 1px 0 #1b1b1b; cursor: pointer; line-height: 1.1; text-align: center;
+  }
+  #btnDragonSitModal:hover { background: #848484; }
+  #dragonStatsPanel {
+    background: #050507; border-top: 2px solid #373737; border-left: 2px solid #373737;
+    border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
+    padding: 6px 8px; margin-bottom: 8px; text-align: center;
+    color: #f8fafc; font-family: var(--font-pixel); font-size: 11.5px; line-height: 1.38; text-shadow: 1px 1px 0 #141414;
+  }
+  .dstat-name { color: #fde047; font-weight: 800; font-size: 12px; }
+  #dragonBackpackGrid, #dragonHotbarGrid { margin: 0 auto; }
+  #dragonBackpackGrid .slot:hover::before, #dragonHotbarGrid .slot:hover::before {
+    content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.32); pointer-events: none; z-index: 2;
+  }
+  @media (max-height: 520px) {
+    #dragonActionRow { bottom: 96px; }
+    #dragonFlightHud { bottom: 98px; gap: 4px; }
+    #dragonFlightHud .df-btn { height: 30px; padding: 0 8px; font-size: 10.5px; }
+    #dragonGuiPanel { padding: 7px 9px 9px; width: min(350px, 94vw); }
+    .dragon-gui-title { font-size: 12px; margin-bottom: 4px; }
+    #dragonPreviewBox { height: 96px; }
+    .dragon-eq-slot, #btnDragonSitModal { width: 32px; height: 32px; }
+    .dragon-eq-slot canvas { width: 26px; height: 26px; }
+    #dragonStatsPanel { font-size: 10px; line-height: 1.28; padding: 4px 6px; margin-bottom: 5px; }
+    .dstat-name { font-size: 10.5px; }
+    #dragonModal .inv-grid-9 { grid-template-columns: repeat(9, 34px); }
+    #dragonModal .inv-grid-9 .slot { width: 34px; height: 34px; }
+    #dragonModal .inv-grid-9 .slot canvas { width: 26px; height: 26px; }
+  }
+  @media (max-width: 600px) {
+    #dragonActionRow { bottom: 116px; gap: 5px; }
+    #btnDragonMount, #btnDragonEquip { height: 32px; padding: 0 10px; font-size: 11px; }
+    #dragonFlightHud { bottom: 118px; gap: 4px; }
+    #dragonFlightHud .df-btn { height: 29px; padding: 0 7px; font-size: 10px; }
+  }
+  @media (max-width: 520px) {
+    #dragonGuiPanel { width: calc(100vw - 14px); max-width: 374px; padding: 8px 7px 10px; overflow-x: hidden; }
+    #dragonPreviewBox { min-width: 140px; height: 130px; }
+    .dragon-eq-slot, #btnDragonSitModal { width: 34px; height: 34px; }
+    .dragon-eq-slot canvas { width: 26px; height: 26px; }
+    #dragonModal .inv-grid-9 { grid-template-columns: repeat(9, minmax(0, 1fr)); width: 100%; max-width: 342px; }
+    #dragonModal .inv-grid-9 .slot { width: 100%; height: auto; aspect-ratio: 1; }
+    #dragonModal .inv-grid-9 .slot canvas { width: 78%; height: 78%; }
+  }
   #invDualWrap { display: flex; align-items: flex-start; gap: 10px; flex-shrink: 0; transform-origin: center center; will-change: transform; }
   #furnaceModal .mc-gui-panel, #chestModal .mc-gui-panel, #tradeModal .mc-gui-panel, #smithingModal .mc-gui-panel { flex-shrink: 0; transform-origin: center center; will-change: transform; }
   #recipeBookWrap { display: flex; align-items: stretch; }
@@ -1023,10 +1114,10 @@
 
   /* Hide in-game HUD cleanly while on the Minecraft Java Title Screen or Pause / Death Menu */
   body.in-lobby #hud, body.in-lobby #crosshairWrap, body.in-lobby #mobileControls,
-  body.in-lobby #btnDragonMount, body.in-lobby #dragonGrowthWrap, body.in-lobby #dragonFlightHud,
+  body.in-lobby #dragonActionRow, body.in-lobby #btnDragonMount, body.in-lobby #btnDragonEquip, body.in-lobby #dragonGrowthWrap, body.in-lobby #dragonFlightHud, body.in-lobby #dragonHealthRow,
   body.in-menu #hud, body.in-menu #crosshairWrap, body.in-menu #mobileControls,
-  body.in-menu #btnDragonMount, body.in-menu #dragonGrowthWrap, body.in-menu #dragonFlightHud,
+  body.in-menu #dragonActionRow, body.in-menu #btnDragonMount, body.in-menu #btnDragonEquip, body.in-menu #dragonGrowthWrap, body.in-menu #dragonFlightHud, body.in-menu #dragonHealthRow,
   body.hud-hidden #hud, body.hud-hidden #crosshairWrap, body.hud-hidden #mobileControls,
   body.hud-hidden #toast, body.hud-hidden #hudEditorBar, body.hud-hidden #friendReqBanner,
-  body.hud-hidden #btnDragonMount, body.hud-hidden #dragonGrowthWrap, body.hud-hidden #dragonFlightHud { display: none !important; }
+  body.hud-hidden #dragonActionRow, body.hud-hidden #btnDragonMount, body.hud-hidden #btnDragonEquip, body.hud-hidden #dragonGrowthWrap, body.hud-hidden #dragonFlightHud, body.hud-hidden #dragonHealthRow { display: none !important; }
 

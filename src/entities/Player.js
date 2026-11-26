@@ -3470,7 +3470,7 @@
       isPlaying = false; mining.active = false;
       if (typeof clearMoveKeys === 'function') clearMoveKeys();
       if (typeof chatOpen !== 'undefined' && chatOpen && typeof closeChatBox === 'function') { closeChatBox(); isPlaying = false; }
-      ['invModal', 'chestModal', 'furnaceModal', 'smithingModal', 'tradeModal', 'worldMapModal', 'menuModal'].forEach(id => {
+      ['invModal', 'dragonModal', 'chestModal', 'furnaceModal', 'smithingModal', 'tradeModal', 'worldMapModal', 'menuModal'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.classList.add('hidden'); el.classList.remove('pause-mode', 'from-lobby'); }
       });
@@ -5073,49 +5073,112 @@
     }
     if (player.ridingDragon && !player.ridingDragon._dead) {
       const dm = player.ridingDragon;
+      const scD = dm.dragonScale || 1.0;
       let rf = f, rs = s;
       if (len > 1) { rf /= len; rs /= len; }
       sprinting = canCtrl && !!(keys['ControlLeft'] || keys['ControlRight'] || touchState.sprint) && rf > 0.15;
-      const drgSpdMul = 1 + Math.max(0, (dm.dragonScale || 1) - 1) * 0.14;
-      const rSpd = (sprinting ? 23.0 : 16.0) * drgSpdMul;
+      const drgSpdMul = 1 + Math.max(0, scD - 1) * 0.14;
       const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
-      const cosP = Math.max(0.28, Math.cos(player.pitch)), sinP = Math.sin(player.pitch);
-      const tVx = (-sinY * cosP * rf + cosY * rs) * rSpd;
-      const tVz = (-cosY * cosP * rf - sinY * rs) * rSpd;
-      const hoverUD = canCtrl ? (((keys['Space'] || touchState.jump || dragonFlyCtrl.up) ? 9.5 : 0) - ((keys['ShiftLeft'] || keys['ShiftRight'] || touchState.sneak || dragonFlyCtrl.down) ? 9.5 : 0)) : 0;
-      const upDown = rf * sinP * rSpd + hoverUD;
-      const smK = 1 - Math.exp(-10.5 * dt);
+      const _isDrgWall = (wx, wy, wz) => { const b = getBlockWorld(wx, wy, wz), d = BLOCK_DEF[b]; return isSolidAt(wx, wy, wz) && !(d && (d.foliage || d.isLog || d.cross)); };
+      const _findDrgFloorY = (cx, cz, fromY, toY) => {
+        const off = Math.min(2.0, Math.max(0.4, scD * 0.38));
+        const pts = [[cx, cz], [cx + off, cz], [cx - off, cz], [cx, cz + off], [cx, cz - off]];
+        const yTop = Math.min(MAX_Y - 1, Math.floor(fromY + 0.18));
+        const yBot = Math.max(MIN_Y + 1, Math.floor(toY - 0.06));
+        for (let sy = yTop; sy >= yBot; sy--) {
+          for (let pi = 0; pi < 5; pi++) {
+            if (_isDrgWall(Math.floor(pts[pi][0]), sy, Math.floor(pts[pi][1]))) return sy + 1.0;
+          }
+        }
+        return -9999;
+      };
+
+      const wantJumpTakeoff = canCtrl && (keys['Space'] || touchState.jump);
+      if (!dm.flying && (wantJumpTakeoff || (player.pitch > 0.24 && rf > 0.15))) {
+        dm.flying = true;
+        player.vy = 8.5;
+        dm.y += 0.22;
+        dm._diveBoost = 0;
+        dm._drgDiving = false;
+      }
+
+      let tVx = 0, tVz = 0, upDown = 0;
+      if (!dm.flying) {
+        const gSpd = sprinting ? 5.2 : 3.6;
+        tVx = (-sinY * rf + cosY * rs) * gSpd;
+        tVz = (-cosY * rf - sinY * rs) * gSpd;
+        upDown = 0;
+        dm._diveBoost = 0;
+        dm._drgDiving = false;
+      } else {
+        const gSurf = (typeof _getDragonGroundSurfaceY === 'function') ? _getDragonGroundSurfaceY(dm.x, dm.y + 2.0, dm.z, scD) : 1;
+        const altEst = Math.max(0, dm.y - gSurf);
+        const isDiving = (rf > 0.10 && player.pitch < -0.22 && altEst > 3.2);
+        const wantDive = isDiving ? Math.min(1.0, (-player.pitch - 0.20) / 0.72) : 0;
+        if (isDiving) {
+          dm._diveBoost = (dm._diveBoost || 0) + (wantDive - (dm._diveBoost || 0)) * (1 - Math.exp(-3.2 * dt));
+        } else {
+          dm._diveBoost = Math.max(0, (dm._diveBoost || 0) - dt * (player.pitch > 0.18 ? 0.55 : 0.95));
+        }
+        dm._drgDiving = ((dm._diveBoost || 0) > 0.14 && rf > 0.08);
+        const baseAirSpd = (sprinting ? 23.0 : 17.5) * drgSpdMul;
+        const rSpd = baseAirSpd + 23.0 * (dm._diveBoost || 0);
+        const cosP = Math.max(0.18, Math.cos(player.pitch)), sinP = Math.sin(player.pitch);
+        tVx = (-sinY * cosP * rf + cosY * rs) * rSpd;
+        tVz = (-cosY * cosP * rf - sinY * rs) * rSpd;
+        const hoverUp = wantJumpTakeoff ? 6.5 : 0;
+        upDown = rf * sinP * rSpd * (isDiving ? 1.18 : 1.0) + hoverUp;
+      }
+
+      const smK = 1 - Math.exp((dm.flying ? -10.5 : -12.0) * dt);
       const vK = 1 - Math.exp(-9.5 * dt);
       player.smoothMoveX = (player.smoothMoveX || 0) + (tVx - (player.smoothMoveX || 0)) * smK;
       player.smoothMoveZ = (player.smoothMoveZ || 0) + (tVz - (player.smoothMoveZ || 0)) * smK;
-      player.vy = (player.vy || 0) + (upDown - (player.vy || 0)) * vK;
+      if (dm.flying) player.vy = (player.vy || 0) + (upDown - (player.vy || 0)) * vK;
+      else player.vy = 0;
       moveX = player.smoothMoveX; moveZ = player.smoothMoveZ;
       if (Math.abs(moveX) < 0.01 && tVx === 0) moveX = 0;
       if (Math.abs(moveZ) < 0.01 && tVz === 0) moveZ = 0;
       if (Math.abs(player.vy) < 0.01 && upDown === 0) player.vy = 0;
       const nxD = dm.x + moveX * dt, nzD = dm.z + moveZ * dt, nyD = Math.min(540, dm.y + player.vy * dt);
-      const bxCur = Math.floor(dm.x), bzCur = Math.floor(dm.z), byMid = Math.floor(dm.y + 0.9), byHi = Math.floor(dm.y + 1.9);
-      const _isDrgWall = (wx, wy, wz) => { const b = getBlockWorld(wx, wy, wz), d = BLOCK_DEF[b]; return isSolidAt(wx, wy, wz) && !(d && (d.foliage || d.cross)); };
+      const bzCur = Math.floor(dm.z), byMid = Math.floor(dm.y + 1.15), byHi = Math.floor(dm.y + 2.25);
       if (!_isDrgWall(Math.floor(nxD), byMid, bzCur) && !_isDrgWall(Math.floor(nxD), byHi, bzCur)) dm.x = nxD;
       else player.smoothMoveX = 0;
       if (!_isDrgWall(Math.floor(dm.x), byMid, Math.floor(nzD)) && !_isDrgWall(Math.floor(dm.x), byHi, Math.floor(nzD))) dm.z = nzD;
       else player.smoothMoveZ = 0;
-      const bxNew = Math.floor(dm.x), bzNew = Math.floor(dm.z);
-      const solidUnder = _isDrgWall(bxNew, Math.floor(nyD + 0.02), bzNew);
-      if (solidUnder && player.vy <= 0) {
-        dm.y = Math.floor(nyD + 0.02) + 1.02;
-        player.vy = 0;
-      } else if (!solidUnder) {
-        dm.y = Math.max(MIN_Y + 2, nyD);
+
+      if (!dm.flying) {
+        const groundY = _findDrgFloorY(dm.x, dm.z, dm.y + 1.25, dm.y - 1.65);
+        if (groundY > -9000) {
+          if (groundY >= dm.y) dm.y += (groundY - dm.y) * Math.min(1, dt * 16.0);
+          else dm.y = Math.max(groundY, dm.y - 12.0 * dt);
+          if (Math.abs(groundY - dm.y) < 0.04) dm.y = groundY;
+        } else {
+          dm.flying = true;
+          player.vy = -1.2;
+        }
+      } else {
+        const sweepFloor = (player.vy <= 0.1) ? _findDrgFloorY(dm.x, dm.z, dm.y, nyD) : -9999;
+        if (sweepFloor > -9000 && nyD <= sweepFloor + 0.06) {
+          dm.y = sweepFloor;
+          player.vy = 0;
+          dm.flying = false;
+          dm._diveBoost = 0;
+          dm._drgDiving = false;
+          player.smoothMoveX *= 0.30;
+          player.smoothMoveZ *= 0.30;
+        } else {
+          dm.y = Math.max(MIN_Y + 2, nyD);
+        }
       }
-      dm.flying = (upDown > 0.2) || !_isDrgWall(bxNew, Math.floor(dm.y - 0.35), bzNew);
+
       let dDiff = (player.yaw + Math.PI) - dm.yaw;
       while (dDiff > Math.PI) dDiff -= Math.PI * 2;
       while (dDiff < -Math.PI) dDiff += Math.PI * 2;
       const yawStep = dDiff * (1 - Math.exp(-9.5 * dt));
       dm.yaw += yawStep;
-      const wantBank = Math.max(-0.32, Math.min(0.32, -rs * 0.18 - yawStep * 2.2));
-      const wantPitch = Math.max(-0.52, Math.min(0.52, -player.vy * 0.032));
+      const wantBank = Math.max(-0.36, Math.min(0.36, -rs * 0.18 - yawStep * 2.4));
+      const wantPitch = dm.flying ? (dm._drgDiving ? Math.max(-0.78, Math.min(0.72, -player.pitch * 0.88)) : Math.max(-0.52, Math.min(0.52, -player.vy * 0.032))) : 0;
       dm._bankRoll = (dm._bankRoll || 0) + (wantBank - (dm._bankRoll || 0)) * (1 - Math.exp(-9.0 * dt));
       dm._flyPitch = (dm._flyPitch || 0) + (wantPitch - (dm._flyPitch || 0)) * (1 - Math.exp(-9.0 * dt));
       dm.rx = dm.x; dm.ry = dm.y; dm.rz = dm.z; dm.ryaw = dm.yaw;
@@ -5712,7 +5775,8 @@
     const eyeY = player.y + EYE_HEIGHT + (player.sneakEyeOff || 0) + (player.sitEyeOff || 0) + (player.swimEyeOff || 0) + bobY + (player._stepCamOff || 0);
     if (!player.spyglassZoom) {
       const bowZoom = player.bowDrawing ? (11.5 * Math.min(1, player.bowCharge || 0)) : 0;
-      const targetFov = (player.lowSprintSwim ? 84 : (player.sprintSwimming ? 80 : 74)) - bowZoom;
+      const drgDiveFov = (player.ridingDragon && (player.ridingDragon._diveBoost || 0) > 0.04) ? Math.min(11.0, (player.ridingDragon._diveBoost || 0) * 11.0) : 0;
+      const targetFov = (player.lowSprintSwim ? 84 : (player.sprintSwimming ? 80 : 74)) + drgDiveFov - bowZoom;
       if (Math.abs(camera.fov - targetFov) > 0.02) {
         camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-10.0 * dt));
         if (Math.abs(camera.fov - targetFov) <= 0.04) camera.fov = targetFov;

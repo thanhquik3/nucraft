@@ -108,6 +108,7 @@
           <div class="mc-icon-row left" id="heartsRow"></div>
         </div>
         <div class="mc-stat-col right">
+          <div class="mc-icon-row right" id="dragonHealthRow"></div>
           <div class="mc-icon-row right" id="airRow"></div>
           <div class="mc-icon-row right" id="hungerRow"></div>
         </div>
@@ -260,19 +261,20 @@
     </button>
     <button id="btnContextPet" type="button" title="Thuần hóa thú cưng gần bạn">💖 Thuần Hóa</button>
   </div>
-  <button id="btnDragonMount" type="button" title="Cưỡi Rồng (Phím R)">Cưỡi Rồng (R)</button>
+  <div id="dragonActionRow">
+    <button id="btnDragonMount" type="button" title="Cưỡi Rồng (Phím R)">Cưỡi Rồng (R)</button>
+    <button id="btnDragonEquip" type="button" title="Mở Giao Diện Trang Bị Rồng">🛡️ Trang Bị Rồng</button>
+  </div>
   <div id="dragonGrowthWrap">
     <div class="dg-head"><span id="dgName">Rồng Lửa</span><span id="dgPct">0%</span></div>
     <div class="dg-bar"><div id="dragonGrowthFill"></div></div>
     <div class="dg-sub"><span id="dgStage">Sơ Sinh • Bay Theo</span></div>
   </div>
   <div id="dragonFlightHud">
-    <button class="df-btn" id="btnDragonUp" type="button">▲ Lên</button>
-    <button class="df-btn" id="btnDragonDown" type="button">▼ Xuống</button>
     <button class="df-btn" id="btnDragonBreath" type="button">Phun Lửa</button>
-    <button class="df-btn" id="btnDragonSk2" type="button">[G] Mưa</button>
-    <button class="df-btn" id="btnDragonSk3" type="button">[V] Lướt</button>
-    <button class="df-btn" id="btnDragonSk4" type="button">[B] Nộ</button>
+    <button class="df-btn" id="btnDragonSk2" type="button">[G] Chiêu 2</button>
+    <button class="df-btn" id="btnDragonSk3" type="button">[V] Chiêu 3</button>
+    <button class="df-btn" id="btnDragonSk4" type="button">[B] Chiêu 4</button>
     <button class="df-btn df-exit" id="btnDragonExit" type="button">Xuống (R)</button>
   </div>
 
@@ -358,6 +360,37 @@
         <div class="inv-gap"></div>
         <div class="inv-grid-9" id="invHotbarGrid"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Classic Minecraft Dragon Armor, Saddle & Info Modal -->
+  <div class="modal-backdrop hidden" id="dragonModal">
+    <div id="dragonGuiPanel">
+      <button class="mc-gui-close" id="btnCloseDragonModal" type="button" title="Đóng">✕</button>
+      <div class="mc-gui-label dragon-gui-title" id="dragonModalTitle">Rồng Lửa</div>
+      <div id="dragonTopRow">
+        <div class="dragon-slot-col" id="dragonSlotColLeft">
+          <div class="dragon-eq-slot" data-deq="head" title="Giáp Đầu Rồng"><span class="deq-ghost">Đầu</span><canvas width="32" height="32"></canvas></div>
+          <div class="dragon-eq-slot" data-deq="neck" title="Giáp Cổ Rồng"><span class="deq-ghost">Cổ</span><canvas width="32" height="32"></canvas></div>
+          <div class="dragon-eq-slot" data-deq="saddle" title="Yên Cưỡi Rồng"><span class="deq-ghost">Yên</span><canvas width="32" height="32"></canvas></div>
+        </div>
+        <div id="dragonPreviewBox"><canvas id="dragonPreviewCanvas" width="224" height="148"></canvas></div>
+        <div class="dragon-slot-col" id="dragonSlotColRight">
+          <div class="dragon-eq-slot" data-deq="body" title="Giáp Thân Rồng"><span class="deq-ghost">Thân</span><canvas width="32" height="32"></canvas></div>
+          <div class="dragon-eq-slot" data-deq="tail" title="Giáp Đuôi Rồng"><span class="deq-ghost">Đuôi</span><canvas width="32" height="32"></canvas></div>
+          <button id="btnDragonSitModal" type="button" title="Đứng / Ngồi">🪑 Ngồi</button>
+        </div>
+      </div>
+      <div id="dragonStatsPanel">
+        <div class="dstat-name" id="dstatName">Rồng Lửa (Trưởng Thành)</div>
+        <div class="dstat-line" id="dstatHp">Máu: 450 / 450</div>
+        <div class="dstat-line" id="dstatGender">Giới tính: Đực ♂</div>
+        <div class="dstat-line" id="dstatSpeed">Tốc độ: Đi 3.6 • Bay 28.0</div>
+        <div class="dstat-line" id="dstatDmg">Sát thương: 15 • Giáp: 0/20</div>
+      </div>
+      <div class="inv-grid-9" id="dragonBackpackGrid"></div>
+      <div class="inv-gap"></div>
+      <div class="inv-grid-9" id="dragonHotbarGrid"></div>
     </div>
   </div>
 
@@ -1514,13 +1547,13 @@
               <div class="gm-section-title" data-i18n="lbl_mobs">Triệu Hồi Quái Vật Địa Ngục, End City &amp; Boss Blender 3D</div>
               <div class="gm-btn-grid" id="mobSpawnSeg">
                 <button class="spawn-btn" data-mob="v70_hostile_pack" style="border-color:#22d3ee;color:#a5f3fc;">⚡ Bộ Creeper &amp; Xác Sống Mới (v70)</button>
-                <button class="spawn-btn" data-mob="ender_dragon" style="border-color:#d946ef;color:#f5d0fe;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#a855f7"/><rect x="9" y="0" width="2" height="2" fill="#a855f7"/><rect x="1" y="2" width="10" height="6" fill="#2d1438"/><rect x="2" y="4" width="2" height="2" fill="#f0abfc"/><rect x="8" y="4" width="2" height="2" fill="#f0abfc"/><rect x="3" y="6" width="6" height="3" fill="#180820"/></svg> Boss Rồng Ender (600HP)</button>
-                <button class="spawn-btn" data-mob="ice_dragon" style="border-color:#38bdf8;color:#bae6fd;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#bae6fd"/><rect x="9" y="0" width="2" height="2" fill="#bae6fd"/><rect x="1" y="2" width="10" height="6" fill="#0284c7"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#075985"/></svg> Rồng Băng (420HP)</button>
-                <button class="spawn-btn" data-mob="fire_dragon" style="border-color:#f97316;color:#fed7aa;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#f59e0b"/><rect x="9" y="0" width="2" height="2" fill="#f59e0b"/><rect x="1" y="2" width="10" height="6" fill="#b91c1c"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#7f1d1d"/></svg> Rồng Lửa (450HP)</button>
-                <button class="spawn-btn" data-mob="earth_dragon" style="border-color:#d97706;color:#fde68a;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#78716c"/><rect x="9" y="0" width="2" height="2" fill="#78716c"/><rect x="1" y="2" width="10" height="6" fill="#7c4a26"/><rect x="2" y="4" width="2" height="2" fill="#34d399"/><rect x="8" y="4" width="2" height="2" fill="#34d399"/><rect x="3" y="6" width="6" height="3" fill="#452714"/></svg> Rồng Đất (500HP)</button>
-                <button class="spawn-btn" data-mob="water_dragon" style="border-color:#06b6d4;color:#a5f3fc;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#67e8f9"/><rect x="9" y="0" width="2" height="2" fill="#67e8f9"/><rect x="1" y="2" width="10" height="6" fill="#0369a1"/><rect x="2" y="4" width="2" height="2" fill="#fef9c3"/><rect x="8" y="4" width="2" height="2" fill="#fef9c3"/><rect x="3" y="6" width="6" height="3" fill="#0c4a6e"/></svg> Rồng Nước (430HP)</button>
-                <button class="spawn-btn" data-mob="leaf_dragon" style="border-color:#22c55e;color:#bbf7d0;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#86efac"/><rect x="9" y="0" width="2" height="2" fill="#86efac"/><rect x="1" y="2" width="10" height="6" fill="#15803d"/><rect x="2" y="4" width="2" height="2" fill="#fde047"/><rect x="8" y="4" width="2" height="2" fill="#fde047"/><rect x="3" y="6" width="6" height="3" fill="#14532d"/></svg> Rồng Lá (410HP)</button>
-                <button class="spawn-btn" data-mob="tree_dragon" style="border-color:#84cc16;color:#ecfccb;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#a3e635"/><rect x="9" y="0" width="2" height="2" fill="#a3e635"/><rect x="1" y="2" width="10" height="6" fill="#5c3a21"/><rect x="2" y="4" width="2" height="2" fill="#facc15"/><rect x="8" y="4" width="2" height="2" fill="#facc15"/><rect x="3" y="6" width="6" height="3" fill="#3f2314"/></svg> Rồng Cây Cổ Thụ (460HP)</button>
+                <button class="spawn-btn" data-mob="ender_dragon" style="border-color:#d946ef;color:#f5d0fe;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#a855f7"/><rect x="9" y="0" width="2" height="2" fill="#a855f7"/><rect x="1" y="2" width="10" height="6" fill="#2d1438"/><rect x="2" y="4" width="2" height="2" fill="#f0abfc"/><rect x="8" y="4" width="2" height="2" fill="#f0abfc"/><rect x="3" y="6" width="6" height="3" fill="#180820"/></svg> Boss Rồng Ender (750HP)</button>
+                <button class="spawn-btn" data-mob="ice_dragon" style="border-color:#38bdf8;color:#bae6fd;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#bae6fd"/><rect x="9" y="0" width="2" height="2" fill="#bae6fd"/><rect x="1" y="2" width="10" height="6" fill="#0284c7"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#075985"/></svg> Rồng Băng (460HP)</button>
+                <button class="spawn-btn" data-mob="fire_dragon" style="border-color:#f97316;color:#fed7aa;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#f59e0b"/><rect x="9" y="0" width="2" height="2" fill="#f59e0b"/><rect x="1" y="2" width="10" height="6" fill="#b91c1c"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#7f1d1d"/></svg> Rồng Lửa (490HP)</button>
+                <button class="spawn-btn" data-mob="earth_dragon" style="border-color:#d97706;color:#fde68a;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#78716c"/><rect x="9" y="0" width="2" height="2" fill="#78716c"/><rect x="1" y="2" width="10" height="6" fill="#7c4a26"/><rect x="2" y="4" width="2" height="2" fill="#34d399"/><rect x="8" y="4" width="2" height="2" fill="#34d399"/><rect x="3" y="6" width="6" height="3" fill="#452714"/></svg> Rồng Đất (540HP)</button>
+                <button class="spawn-btn" data-mob="water_dragon" style="border-color:#06b6d4;color:#a5f3fc;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#67e8f9"/><rect x="9" y="0" width="2" height="2" fill="#67e8f9"/><rect x="1" y="2" width="10" height="6" fill="#0369a1"/><rect x="2" y="4" width="2" height="2" fill="#fef9c3"/><rect x="8" y="4" width="2" height="2" fill="#fef9c3"/><rect x="3" y="6" width="6" height="3" fill="#0c4a6e"/></svg> Rồng Nước (470HP)</button>
+                <button class="spawn-btn" data-mob="leaf_dragon" style="border-color:#22c55e;color:#bbf7d0;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#86efac"/><rect x="9" y="0" width="2" height="2" fill="#86efac"/><rect x="1" y="2" width="10" height="6" fill="#15803d"/><rect x="2" y="4" width="2" height="2" fill="#fde047"/><rect x="8" y="4" width="2" height="2" fill="#fde047"/><rect x="3" y="6" width="6" height="3" fill="#14532d"/></svg> Rồng Lá (440HP)</button>
+                <button class="spawn-btn" data-mob="tree_dragon" style="border-color:#84cc16;color:#ecfccb;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#a3e635"/><rect x="9" y="0" width="2" height="2" fill="#a3e635"/><rect x="1" y="2" width="10" height="6" fill="#5c3a21"/><rect x="2" y="4" width="2" height="2" fill="#facc15"/><rect x="8" y="4" width="2" height="2" fill="#facc15"/><rect x="3" y="6" width="6" height="3" fill="#3f2314"/></svg> Rồng Cây Cổ Thụ (500HP)</button>
                 <button class="spawn-btn" data-mob="wildfire" style="border-color:#f59e0b;color:#fde68a;">🔥 BOSS Thần Lửa Wildfire (160HP)</button>
                 <button class="spawn-btn" data-mob="redstone_monstrosity" style="border-color:#ef4444;color:#fecaca;">🌋 BOSS Redstone Monstrosity (240HP)</button>
                 <button class="spawn-btn" data-mob="prismarine_colossus" style="border-color:#14b8a6;color:#99f6e4;">🔱 BOSS Thủ Thần Prismarine (200HP)</button>

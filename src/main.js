@@ -30,7 +30,9 @@
     _playerCombatTarget = null; _playerCombatTargetT = 0; _dragonGrowthUiTimer = 0; _activeGrowthDragon = null;
     document.getElementById('dragonGrowthWrap')?.classList.remove('visible');
     document.getElementById('btnDragonMount')?.classList.remove('visible');
+    document.getElementById('btnDragonEquip')?.classList.remove('visible');
     document.getElementById('dragonFlightHud')?.classList.remove('visible'); _hingesAnimating = true;
+    document.getElementById('dragonModal')?.classList.add('hidden');
     document.getElementById('tradeModal')?.classList.add('hidden');
     document.getElementById('friendsModal')?.classList.add('hidden');
     document.getElementById('addFriendModal')?.classList.add('hidden');
@@ -1698,6 +1700,9 @@
         invPreviewRenderer.render(invPreviewScene, invPreviewCam);
       }
     }
+    if (!isPlaying && _runPreviewThisFrame && typeof tickDragonModalPreview === 'function') {
+      tickDragonModalPreview(dt);
+    }
 
     if (worldSimActive && !_runAiSynth) {
       if (typeof window._minimapAcc !== 'number') window._minimapAcc = 0;
@@ -1748,7 +1753,7 @@
         else if (currentDimension === 'nether') nextDepth = currentLang === 'en'
           ? `🔥 The Nether: ${trueY} / -1000m (${Math.max(0, 1000 + trueY)}m → The End)`
           : `🔥 Địa Ngục: ${trueY} / -1000m (Còn ${Math.max(0, 1000 + trueY)}m → Khu Kết Thúc)`;
-        else nextDepth = _tr('🌌 Đấu Trường End • Phá Pha Lê & Hạ Rồng 600HP!', '🌌 The End Arena • Destroy Crystals & Slay 600HP Dragon!');
+        else nextDepth = _tr('🌌 Đấu Trường End • Phá Pha Lê & Hạ Rồng 750HP!', '🌌 The End Arena • Destroy Crystals & Slay 750HP Dragon!');
         if (nextDepth !== window._lastDepthTxt) { window._lastDepthTxt = nextDepth; _elDepth.textContent = nextDepth; _hudTxtChanged = true; }
       }
       syncLiveTimeAndWeatherUi();

@@ -184,6 +184,10 @@
     if (smithModalEl && !smithModalEl.classList.contains('hidden')) {
       scaleGuiPanelToViewport(smithModalEl.querySelector('.mc-gui-panel'), padX, padY);
     }
+    const drgModalEl = document.getElementById('dragonModal');
+    if (drgModalEl && !drgModalEl.classList.contains('hidden')) {
+      scaleGuiPanelToViewport(document.getElementById('dragonGuiPanel'), padX, padY);
+    }
     scaleSettingsModalToViewport();
   }
   function syncEditorSliders() {
@@ -197,7 +201,7 @@
     ensureAudio(); isPlaying = false; mining.active = false; clearMoveKeys();
     if (document.pointerLockElement) document.exitPointerLock();
     document.body.classList.remove('in-menu');
-    document.getElementById('menuModal').classList.add('hidden'); document.getElementById('invModal').classList.add('hidden');
+    document.getElementById('menuModal').classList.add('hidden'); document.getElementById('invModal').classList.add('hidden'); document.getElementById('dragonModal')?.classList.add('hidden');
     showMobileControls = true; syncMobileControls();
     hudEditMode = true; editTargetId = 'all';
     document.getElementById('mobileControls').classList.add('editing');
@@ -644,6 +648,7 @@
       if (chatOpen) closeChatBox();
       else if (hudEditMode) exitHudEditMode(true);
       else if (!document.getElementById('menuModal').classList.contains('hidden')) startPlaying();
+      else if (!document.getElementById('dragonModal')?.classList.contains('hidden')) closeDragonModal();
       else if (!document.getElementById('furnaceModal').classList.contains('hidden')) closeFurnaceModal();
       else if (!document.getElementById('chestModal').classList.contains('hidden')) closeChestModal();
       else if (!document.getElementById('worldMapModal').classList.contains('hidden')) closeWorldMapModal();
@@ -656,6 +661,7 @@
     if ((e.code === 'KeyT' || e.code === 'Enter') && isPlaying && !player.dead && !chatOpen) { e.preventDefault(); openChatBox(); return; }
     if (e.code === 'Slash' && isPlaying && !player.dead && !chatOpen) { e.preventDefault(); openChatBox('/'); return; }
     if (e.code === 'KeyE') {
+      if (!document.getElementById('dragonModal')?.classList.contains('hidden')) { closeDragonModal(); return; }
       if (!document.getElementById('furnaceModal').classList.contains('hidden')) { closeFurnaceModal(); return; }
       if (!document.getElementById('chestModal').classList.contains('hidden')) { closeChestModal(); return; }
       if (!document.getElementById('smithingModal').classList.contains('hidden')) { closeSmithingModal(); return; }
@@ -2974,7 +2980,7 @@
       if (idx < 9 || (emptyIdx >= 0 && emptyIdx < 9)) renderHotbar();
     }
   }
-  ['invModal', 'chestModal', 'furnaceModal'].forEach(mid => {
+  ['invModal', 'dragonModal', 'chestModal', 'furnaceModal'].forEach(mid => {
     document.getElementById(mid)?.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
@@ -3328,6 +3334,218 @@
       } else ui.dur.style.display = 'none';
     }
   }
+
+  // ===================== CLASSIC MINECRAFT DRAGON ARMOR, SADDLE & STATS MODAL =====================
+  let _dragonModalTarget = null;
+  let _dragonModalBpPool = [], _dragonModalHbPool = [], _dragonModalPoolsBound = false;
+  let _dragonPrevRenderer = null, _dragonPrevScene = null, _dragonPrevCam = null, _dragonPrevRig = null;
+  let _dragonPrevType = '', _dragonPrevRotY = 0.58;
+  const _elDragonModal = document.getElementById('dragonModal');
+  const _elDragonTitle = document.getElementById('dragonModalTitle');
+  const _elDragonSitBtn = document.getElementById('btnDragonSitModal');
+  let _dragonEqSlotEls = null;
+
+  function _getDragonItemId(slotKey, tier) {
+    if (slotKey === 'saddle') return B.DRAGON_SADDLE || 0;
+    if (!tier) return 0;
+    return B[`DRAGON_ARMOR_${String(tier).toUpperCase()}_${String(slotKey).toUpperCase()}`] || 0;
+  }
+  function ensureDragonPreview3D() {
+    const cv = document.getElementById('dragonPreviewCanvas');
+    if (!cv || _dragonPrevRenderer) return;
+    try {
+      _dragonPrevRenderer = new THREE.WebGLRenderer({ canvas: cv, alpha: false, antialias: false, preserveDrawingBuffer: true });
+      _dragonPrevRenderer.setClearColor(0x050507, 1);
+      if (typeof THREE.ACESFilmicToneMapping !== 'undefined') _dragonPrevRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      _dragonPrevRenderer.toneMappingExposure = 0.96;
+      _dragonPrevRenderer.setSize(224, 148, false);
+      _dragonPrevScene = new THREE.Scene();
+      _dragonPrevCam = new THREE.PerspectiveCamera(38, 224 / 148, 0.1, 30);
+      _dragonPrevCam.position.set(0, 1.48, 5.2);
+      _dragonPrevCam.lookAt(0, 0.88, 0);
+      _dragonPrevScene.add(new THREE.AmbientLight(0xffffff, 0.72));
+      const dL = new THREE.DirectionalLight(0xfff5e4, 0.65); dL.position.set(3.2, 5.0, 4.2); _dragonPrevScene.add(dL);
+      const rL = new THREE.DirectionalLight(0xcbd5e1, 0.25); rL.position.set(-3.0, 2.5, -3.2); _dragonPrevScene.add(rL);
+      let dragging = false, lx = 0;
+      cv.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; });
+      window.addEventListener('pointerup', () => { dragging = false; });
+      window.addEventListener('pointermove', (e) => {
+        if (dragging && _elDragonModal && !_elDragonModal.classList.contains('hidden')) {
+          _dragonPrevRotY += (e.clientX - lx) * 0.022; lx = e.clientX; drawDragonPreview();
+        }
+      });
+    } catch (_) {}
+  }
+  function drawDragonPreview() {
+    const m = _dragonModalTarget;
+    if (!m) return;
+    ensureDragonPreview3D();
+    if (!_dragonPrevRenderer || !_dragonPrevScene || !_dragonPrevCam) return;
+    if (_dragonPrevType !== m.type || !_dragonPrevRig) {
+      if (_dragonPrevRig) {
+        if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.stopAllAction();
+        _dragonPrevScene.remove(_dragonPrevRig.group);
+        _dragonPrevRig = null;
+      }
+      if (typeof instantiateBlenderMob === 'function') {
+        const built = instantiateBlenderMob(m.type);
+        if (built && built.group) {
+          built.group.scale.setScalar(0.84);
+          built.group.position.set(0, 0, 0);
+          _dragonPrevScene.add(built.group);
+          _dragonPrevRig = built;
+          _dragonPrevType = m.type;
+        }
+      }
+    }
+    if (!_dragonPrevRig) return;
+    if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(_dragonPrevRig.anim, m.dragonArmor, !!m.saddled);
+    if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.update(0.001);
+    _dragonPrevRig.group.rotation.y = _dragonPrevRotY;
+    _dragonPrevRenderer.render(_dragonPrevScene, _dragonPrevCam);
+  }
+  function tickDragonModalPreview(dt) {
+    if (!_dragonModalTarget || !_elDragonModal || _elDragonModal.classList.contains('hidden')) return;
+    if (!_dragonPrevRig || !_dragonPrevRenderer) return;
+    if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.update(Math.min(0.04, dt));
+    _dragonPrevRig.group.rotation.y = _dragonPrevRotY;
+    _dragonPrevRenderer.render(_dragonPrevScene, _dragonPrevCam);
+  }
+  function _handleDragonEqSlotClick(slotKey) {
+    const m = _dragonModalTarget;
+    if (!m || m._dead) return;
+    if (slotKey === 'saddle') {
+      if (!m.saddled) return;
+      m.saddled = false;
+      if (gameMode !== 'creative') addItemToInventory(B.DRAGON_SADDLE, 1);
+      if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(m.anim, m.dragonArmor, false);
+      if (typeof rebuildDragonStageMesh === 'function') rebuildDragonStageMesh(m);
+    } else {
+      const prevTier = m.dragonArmor && m.dragonArmor[slotKey];
+      if (!prevTier) return;
+      m.dragonArmor[slotKey] = null;
+      const retId = _getDragonItemId(slotKey, prevTier);
+      if (retId && gameMode !== 'creative') addItemToInventory(retId, 1);
+      if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
+    }
+    playSfx('equip'); renderHotbar(); renderDragonModal(); drawDragonPreview();
+  }
+  function _handleDragonInvClick(idx) {
+    const m = _dragonModalTarget;
+    if (!m || m._dead) return;
+    const s = inventory[idx], def = s && s.count > 0 ? BLOCK_DEF[s.id] : null;
+    if (!s || !def) return;
+    if (def.dragonArmorSlot) {
+      const aSlot = def.dragonArmorSlot, aTier = def.dragonArmorTier || 'iron';
+      if (!m.dragonArmor || typeof m.dragonArmor !== 'object') m.dragonArmor = {};
+      const prevTier = m.dragonArmor[aSlot];
+      if (prevTier === aTier) return;
+      if (gameMode !== 'creative') {
+        s.count--; if (s.count <= 0) _clearSlotObj(s);
+        const prevId = prevTier ? _getDragonItemId(aSlot, prevTier) : 0;
+        if (prevId) addItemToInventory(prevId, 1);
+      }
+      m.dragonArmor[aSlot] = aTier;
+      if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
+      playSfx('equip'); renderHotbar(); renderDragonModal(); drawDragonPreview();
+    } else if (s.id === B.DRAGON_SADDLE) {
+      if ((m.growth || 0) < 100 || m.saddled) return;
+      if (gameMode !== 'creative') { s.count--; if (s.count <= 0) _clearSlotObj(s); }
+      m.saddled = true;
+      if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(m.anim, m.dragonArmor, true);
+      if (typeof rebuildDragonStageMesh === 'function') rebuildDragonStageMesh(m);
+      playSfx('equip'); renderHotbar(); renderDragonModal(); drawDragonPreview();
+    } else if (s.id === B.DRAGON_CRYSTAL && typeof feedOrInteractTamedDragon === 'function') {
+      feedOrInteractTamedDragon(m, s, def, false, false);
+      renderDragonModal(); drawDragonPreview();
+    }
+  }
+  function renderDragonModal() {
+    const m = _dragonModalTarget;
+    if (!m || !_elDragonModal) return;
+    const locName = (typeof getLocalizedMobName === 'function') ? getLocalizedMobName(m.type, m.displayName) : (m.displayName || 'Rồng');
+    if (_elDragonTitle) _elDragonTitle.textContent = locName;
+    if (_elDragonSitBtn) _elDragonSitBtn.textContent = m.sitting ? tr('🪑 Ngồi', '🪑 Sit') : tr('🐾 Theo', '🐾 Follow');
+    const stNames = [tr('Sơ Sinh', 'Hatchling'), tr('Rồng Nhỏ', 'Young'), tr('Chiến Đấu', 'Juvenile'), tr('Thiếu Niên', 'Sub-Adult'), tr('Trưởng Thành', 'Adult')];
+    const stg = typeof growthToDragonStage === 'function' ? growthToDragonStage(m.growth || 0) : (m.dragonStage || 0);
+    const armPts = typeof calcDragonArmorPts === 'function' ? calcDragonArmorPts(m) : 0;
+    const sc = m.dragonScale || 1;
+    const flySpd = (17.5 * (1 + Math.max(0, sc - 1) * 0.14)).toFixed(1);
+    const elN = document.getElementById('dstatName');
+    const elH = document.getElementById('dstatHp');
+    const elG = document.getElementById('dstatGender');
+    const elS = document.getElementById('dstatSpeed');
+    const elD = document.getElementById('dstatDmg');
+    if (elN) elN.textContent = `${locName} • ${stNames[stg] || stNames[0]} (${Math.round(m.growth || 0)}%)`;
+    if (elH) elH.textContent = tr(`Máu: ${Math.ceil(m.hp)} / ${m.maxHp}`, `Health: ${Math.ceil(m.hp)} / ${m.maxHp}`);
+    if (elG) elG.textContent = tr(`Giới tính: ${m.gender === 'F' ? 'Cái ♀' : 'Đực ♂'}`, `Gender: ${m.gender === 'F' ? 'Female ♀' : 'Male ♂'}`);
+    if (elS) elS.textContent = tr(`Tốc độ: Đi 3.6 • Bay ${flySpd}`, `Speed: Walk 3.6 • Fly ${flySpd}`);
+    if (elD) elD.textContent = tr(`Sát thương: ${m.dmg} • Giáp: ${armPts}/20`, `Damage: ${m.dmg} • Armor: ${armPts}/20`);
+    if (!_dragonEqSlotEls) {
+      _dragonEqSlotEls = Array.from(_elDragonModal.querySelectorAll('.dragon-eq-slot'));
+      for (const el of _dragonEqSlotEls) {
+        el.addEventListener('click', () => _handleDragonEqSlotClick(el.dataset.deq));
+      }
+    }
+    for (const el of _dragonEqSlotEls) {
+      const sk = el.dataset.deq;
+      const itemId = (sk === 'saddle') ? (m.saddled ? B.DRAGON_SADDLE : 0) : _getDragonItemId(sk, m.dragonArmor && m.dragonArmor[sk]);
+      el.classList.toggle('equipped', itemId > 0);
+      const ghost = el.querySelector('.deq-ghost'), cv = el.querySelector('canvas');
+      if (ghost) ghost.style.display = itemId > 0 ? 'none' : '';
+      if (cv) {
+        const ctx = cv.getContext('2d');
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        if (itemId > 0) drawBlockPreview(ctx, itemId);
+      }
+      el.title = itemId > 0 ? shortItemTip(itemId) : '';
+    }
+    const bpEl = document.getElementById('dragonBackpackGrid'), hbEl = document.getElementById('dragonHotbarGrid');
+    if (bpEl && hbEl) {
+      _ensureSlotGridPool(bpEl, _dragonModalBpPool, 27, _dragonModalPoolsBound ? null : (ui, k) => {
+        ui.div.addEventListener('click', () => _handleDragonInvClick(k + 9));
+      });
+      _ensureSlotGridPool(hbEl, _dragonModalHbPool, 9, _dragonModalPoolsBound ? null : (ui, k) => {
+        ui.div.addEventListener('click', () => _handleDragonInvClick(k));
+      });
+      _dragonModalPoolsBound = true;
+      for (let i = 0; i < 27; i++) _syncSimpleSlotUI(_dragonModalBpPool[i], inventory[i + 9]);
+      for (let i = 0; i < 9; i++) _syncSimpleSlotUI(_dragonModalHbPool[i], inventory[i]);
+    }
+  }
+  function openDragonModal(m) {
+    if (!m || m._dead || !m.tamed || !m.elemDragon || !_elDragonModal) return;
+    _dragonModalTarget = m;
+    isPlaying = false; mining.active = false; clearMoveKeys(); resetInvDragState();
+    playSfx('ui_open');
+    if (document.pointerLockElement) document.exitPointerLock();
+    renderDragonModal();
+    _elDragonModal.classList.remove('hidden');
+    updateMobileUiScale();
+    requestAnimationFrame(() => { updateMobileUiScale(); drawDragonPreview(); });
+  }
+  function closeDragonModal() {
+    if (!_elDragonModal || _elDragonModal.classList.contains('hidden')) return;
+    hideMcTooltip();
+    _elDragonModal.classList.add('hidden');
+    _dragonModalTarget = null;
+    playSfx('ui_close');
+    updateMobileUiScale();
+    if (!document.getElementById('lobbyScreen')?.classList.contains('hidden')) return;
+    isPlaying = true; safeLockPointer();
+  }
+  document.getElementById('btnCloseDragonModal')?.addEventListener('click', closeDragonModal);
+  if (_elDragonSitBtn) {
+    _elDragonSitBtn.addEventListener('click', () => {
+      const m = _dragonModalTarget;
+      if (!m || m._dead || typeof feedOrInteractTamedDragon !== 'function') return;
+      feedOrInteractTamedDragon(m, null, null, true, false);
+      renderDragonModal();
+    });
+  }
+  if (_elDragonModal) {
+    _elDragonModal.addEventListener('click', (e) => { if (e.target === _elDragonModal) closeDragonModal(); });
+  }
   function _syncInvPairPools(bpEl, bpPool, hbEl, hbPool, onTapFn, dragSourceType, modalName) {
     const mk = (isHb) => (ui, k) => {
       const invIdx = isHb ? k : (k + 9);
@@ -3549,7 +3767,7 @@
     for (let i = 0; i < mobs.length; i++) {
       const mb = mobs[i];
       if (!mb || mb._dead || !mb.tamed || !mb.elemDragon) continue;
-      tamedDragons.push({ el: mb.elemDragon, x: +mb.x.toFixed(2), y: +mb.y.toFixed(2), z: +mb.z.toFixed(2), growth: mb.growth || 0, saddled: !!mb.saddled, sitting: !!mb.sitting, hp: Math.round(mb.hp), dragonArmor: mb.dragonArmor ? { ...mb.dragonArmor } : null });
+      tamedDragons.push({ el: mb.elemDragon, x: +mb.x.toFixed(2), y: +mb.y.toFixed(2), z: +mb.z.toFixed(2), growth: mb.growth || 0, saddled: !!mb.saddled, sitting: !!mb.sitting, hp: Math.round(mb.hp), gender: mb.gender || 'M', dragonArmor: mb.dragonArmor ? { ...mb.dragonArmor } : null });
     }
     const incEggs = [];
     for (const eg of incubatingEggs.values()) incEggs.push({ x: eg.x, y: eg.y, z: eg.z, el: eg.el, eggId: eg.eggId, timer: +eg.timer.toFixed(2) });
@@ -4117,9 +4335,32 @@
       _prevHudAirFull = fullB;
     }
     const sig = `${player.hp}|${player.armor}|${player.hunger}|${airShow ? 1 : 0}|${fullB}|${popState}|${_hudHpAnimSeq}`;
-    if (sig === _lastStatusBarSig) return;
-    _lastStatusBarSig = sig;
+    const rideDrg = (typeof player !== 'undefined' && player.ridingDragon && !player.ridingDragon._dead) ? player.ridingDragon : null;
+    const drgHpI = rideDrg ? Math.max(0, Math.ceil(rideDrg.hp)) : -1;
+    const drgMaxI = rideDrg ? Math.max(1, Math.ceil(rideDrg.maxHp)) : 0;
+    const fullSig = `${sig}|${drgHpI}/${drgMaxI}`;
+    if (fullSig === _lastStatusBarSig) return;
+    _lastStatusBarSig = fullSig;
     const hud = _mcBundle.hud || {};
+    const drgRow = document.getElementById('dragonHealthRow');
+    if (drgRow) {
+      if (rideDrg) {
+        drgRow.classList.add('visible');
+        const totalHearts = 10;
+        const filledHalves = Math.max(0, Math.min(20, Math.round((rideDrg.hp / drgMaxI) * 20)));
+        let mHtml = '';
+        for (let i = 0; i < totalHearts; i++) {
+          const idx = totalHearts - 1 - i;
+          const v = filledHalves - idx * 2;
+          const fg = v >= 2 ? hud.heart_full : (v >= 1 ? hud.heart_half : '');
+          mHtml += mcHudIconHtml(hud.heart_bg, fg, fg ? 'mount-heart' : '');
+        }
+        drgRow.innerHTML = mHtml;
+      } else {
+        drgRow.classList.remove('visible');
+        if (drgRow.innerHTML) drgRow.innerHTML = '';
+      }
+    }
     const lowHp = player.hp > 0 && player.hp <= 4;
     let hHtml = '', arHtml = '', fHtml = '';
     // 1) Hearts (Left -> Right, 10x 9x9px official Minecraft hearts + smooth half-heart heal & hurt animations!)
