@@ -5,7 +5,8 @@ const {
     WALK_SPEED, SPRINT_SPEED, SNEAK_SPEED, BUILD_TAG, PLAYER_RADIUS,
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
-    _DYN_COLORED_ENTRIES, SLAB_SPECS
+    _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -66,15 +67,16 @@ const {
     return _keyToTitleEn(type);
   }
 
-  const IS_SOLID = new Uint8Array(1024);
-  const IS_OPAQUE = new Uint8Array(1024);
-  const IS_DOOR = new Uint8Array(1024);
-  const IS_DOOR_OR_TRAP = new Uint8Array(1024);
-  const IS_EMISSIVE = new Uint8Array(1024);
-  const IS_STAIRS = new Uint8Array(1024);
-  const IS_SLAB = new Uint8Array(1024);
-  const IS_FENCE_WALL = new Uint8Array(1024);
-  const IS_RAY_NON_SOLID = new Uint8Array(1024);
+  const BLOCK_LUT_CAP = 2048;
+  const IS_SOLID = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_OPAQUE = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_DOOR = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_DOOR_OR_TRAP = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_EMISSIVE = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_STAIRS = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_SLAB = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_FENCE_WALL = new Uint8Array(BLOCK_LUT_CAP);
+  const IS_RAY_NON_SOLID = new Uint8Array(BLOCK_LUT_CAP);
   const BLOCK_DEF = {
     [B.AIR]:           { name: 'Không khí',           hard: 0,    solid: false, trans: true },
     [B.GRASS]:         { name: 'Cỏ Xanh',             hard: 0.55, solid: true,  dirt: true, drop: B.DIRT,          tiles: [0, 1, 2],    mapColor: '#5da642' },
@@ -403,22 +405,22 @@ const {
     [B.IRON_TRAPDOOR]:     { name: 'Cửa Sập Sắt',                hard: 1.70, solid: true,  rock: true, trapdoor: true, doorTier: 'iron', trans: true, interactive: true, drop: 229, tiles: [248, 248, 248], mapColor: '#cbd5e1' },
     [B.WHITE_WOOL]:        { name: 'Len Trắng (Vải Lều Trắng)',  hard: 0.32, solid: true,  wood: true, isWool: true, woolColor: 'white', drop: 230, tiles: [249, 249, 249], mapColor: '#f1f5f9' },
     // v29: Cầu thang gỗ sồi & gạch đá (khối bậc thang thật — tự chọn hướng theo góc nhìn khi đặt)
-    [B.OAK_STAIRS_N]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 0, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
-    [B.OAK_STAIRS_S]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 1, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
-    [B.OAK_STAIRS_E]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 2, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
-    [B.OAK_STAIRS_W]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 3, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
-    [B.STONE_STAIRS_N]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 0, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
-    [B.STONE_STAIRS_S]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 1, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
-    [B.STONE_STAIRS_E]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 2, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
-    [B.STONE_STAIRS_W]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 3, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
-    [B.TERRACOTTA_STAIRS_N]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 0, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
-    [B.TERRACOTTA_STAIRS_S]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 1, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
-    [B.TERRACOTTA_STAIRS_E]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 2, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
-    [B.TERRACOTTA_STAIRS_W]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 3, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
-    [B.DEEPSLATE_STAIRS_N]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 0, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
-    [B.DEEPSLATE_STAIRS_S]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 1, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
-    [B.DEEPSLATE_STAIRS_E]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 2, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
-    [B.DEEPSLATE_STAIRS_W]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 3, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
+    [B.OAK_STAIRS_N]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 0, stairBase: B.OAK_STAIRS_N, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
+    [B.OAK_STAIRS_S]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 1, stairBase: B.OAK_STAIRS_N, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
+    [B.OAK_STAIRS_E]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 2, stairBase: B.OAK_STAIRS_N, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
+    [B.OAK_STAIRS_W]:      { name: 'Cầu Thang Gỗ Sồi',           hard: 0.75, solid: true,  wood: true, stairs: true, stairDir: 3, stairBase: B.OAK_STAIRS_N, trans: true, drop: B.OAK_STAIRS_N,   tiles: [8, 8, 8],     mapColor: '#b98952' },
+    [B.STONE_STAIRS_N]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 0, stairBase: B.STONE_STAIRS_N, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
+    [B.STONE_STAIRS_S]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 1, stairBase: B.STONE_STAIRS_N, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
+    [B.STONE_STAIRS_E]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 2, stairBase: B.STONE_STAIRS_N, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
+    [B.STONE_STAIRS_W]:    { name: 'Cầu Thang Gạch Đá',          hard: 1.40, solid: true,  rock: true, stairs: true, stairDir: 3, stairBase: B.STONE_STAIRS_N, trans: true, drop: B.STONE_STAIRS_N, tiles: [33, 33, 33],  mapColor: '#8d959e' },
+    [B.TERRACOTTA_STAIRS_N]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 0, stairBase: B.TERRACOTTA_STAIRS_N, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
+    [B.TERRACOTTA_STAIRS_S]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 1, stairBase: B.TERRACOTTA_STAIRS_N, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
+    [B.TERRACOTTA_STAIRS_E]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 2, stairBase: B.TERRACOTTA_STAIRS_N, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
+    [B.TERRACOTTA_STAIRS_W]: { name: 'Cầu Thang Ngói Đất Nung',  hard: 1.25, solid: true,  rock: true, stairs: true, stairDir: 3, stairBase: B.TERRACOTTA_STAIRS_N, trans: true, drop: B.TERRACOTTA_STAIRS_N, tiles: [18, 18, 18], mapColor: '#b85c3e' },
+    [B.DEEPSLATE_STAIRS_N]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 0, stairBase: B.DEEPSLATE_STAIRS_N, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
+    [B.DEEPSLATE_STAIRS_S]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 1, stairBase: B.DEEPSLATE_STAIRS_N, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
+    [B.DEEPSLATE_STAIRS_E]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 2, stairBase: B.DEEPSLATE_STAIRS_N, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
+    [B.DEEPSLATE_STAIRS_W]: { name: 'Cầu Thang Đá Phiến',        hard: 1.60, solid: true,  rock: true, stairs: true, stairDir: 3, stairBase: B.DEEPSLATE_STAIRS_N, trans: true, drop: B.DEEPSLATE_STAIRS_N, tiles: [22, 22, 22], mapColor: '#3c414a' },
     // ===== v24 ITEMS =====
     [B.SHEARS]:            { name: 'Kéo Cắt Lá',                 hard: 0,    solid: false, itemOnly: true, voxelItem: true, tool: 'shears', maxDur: 238, tiles: [250, 250, 250], mapColor: '#cbd5e1' },
     [B.DIAMOND]:           { name: 'Kim Cương',                  hard: 0,    solid: false, itemOnly: true, voxelItem: true, tiles: [251, 251, 251], mapColor: '#22d3ee' },
@@ -715,7 +717,89 @@ const {
     }
   }
 
-  for (let i = 0; i < 1024; i++) {
+  // v141: Jungle, Dark Oak, Bone, Bone Meal, Bone Block & Complete 17 Wood Families (Planks, Stripped Logs, Stairs, Slabs, Fences, Doors, Trapdoors, Saplings)
+  BLOCK_DEF[B.JUNGLE_LOG]    = { name: 'Gỗ Rừng Nhiệt Đới',       nameEn: 'Jungle Log',      hard: 0.90, solid: true, wood: true, isLog: true, customAtlasTex: true, drop: B.JUNGLE_LOG, tiles: [JUNGLE_LOG_TILES.top, JUNGLE_LOG_TILES.side, JUNGLE_LOG_TILES.top], mapColor: '#5c4928' };
+  BLOCK_DEF[B.JUNGLE_LEAVES] = { name: 'Lá Rừng Nhiệt Đới',       nameEn: 'Jungle Leaves',   hard: 0.25, solid: true, foliage: true, shearsOnly: true, customAtlasTex: true, drop: B.JUNGLE_LEAVES, tiles: [JUNGLE_LOG_TILES.leaves, JUNGLE_LOG_TILES.leaves, JUNGLE_LOG_TILES.leaves], mapColor: '#3ea825' };
+  BLOCK_DEF[B.DARK_OAK_LOG]  = { name: 'Gỗ Sồi Đen',              nameEn: 'Dark Oak Log',    hard: 0.95, solid: true, wood: true, isLog: true, customAtlasTex: true, drop: B.DARK_OAK_LOG, tiles: [DARK_OAK_LOG_TILES.top, DARK_OAK_LOG_TILES.side, DARK_OAK_LOG_TILES.top], mapColor: '#382515' };
+  BLOCK_DEF[B.DARK_OAK_LEAVES] = { name: 'Lá Sồi Đen',            nameEn: 'Dark Oak Leaves', hard: 0.25, solid: true, foliage: true, shearsOnly: true, customAtlasTex: true, drop: B.DARK_OAK_LEAVES, tiles: [DARK_OAK_LOG_TILES.leaves, DARK_OAK_LOG_TILES.leaves, DARK_OAK_LOG_TILES.leaves], mapColor: '#255c20' };
+  BLOCK_DEF[B.BONE]          = { name: 'Xương',                   nameEn: 'Bone',            hard: 0.1, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [BONE_TILES.bone, BONE_TILES.bone, BONE_TILES.bone], mapColor: '#ece9dc' };
+  BLOCK_DEF[B.BONE_MEAL]     = { name: 'Bột Xương',               nameEn: 'Bone Meal',       hard: 0.1, solid: false, itemOnly: true, voxelItem: true, isBoneMeal: true, customAtlasTex: true, tiles: [BONE_TILES.meal, BONE_TILES.meal, BONE_TILES.meal], mapColor: '#f5f5f0' };
+  BLOCK_DEF[B.BONE_BLOCK]    = { name: 'Khối Xương Hóa Thạch',    nameEn: 'Bone Block',      hard: 1.5, solid: true, rock: true, customAtlasTex: true, drop: B.BONE_BLOCK, tiles: [BONE_TILES.blockTop, BONE_TILES.blockSide, BONE_TILES.blockTop], mapColor: '#e5e0cc' };
+
+  for (const wf of WOOD_FAMILIES) {
+    const isNether = (wf.key === 'crimson' || wf.key === 'warped');
+    const logDef = BLOCK_DEF[wf.log];
+    if (logDef) { logDef.isLog = true; logDef.wood = true; logDef.stripTo = wf.stripped; }
+    if (wf.leaves && BLOCK_DEF[wf.leaves]) BLOCK_DEF[wf.leaves].saplingDrop = wf.sapling;
+
+    const pDef = BLOCK_DEF[wf.planks] || (BLOCK_DEF[wf.planks] = { name: `Ván Gỗ ${wf.vn}`, nameEn: `${wf.en} Planks`, hard: 0.85, solid: true, wood: true, drop: wf.planks });
+    pDef.isPlanks = true; pDef.wood = true; pDef.solid = true; pDef.customAtlasTex = true;
+    pDef.tiles = [wf.tPlank, wf.tPlank, wf.tPlank];
+    pDef.mapColor = wf.mapColor;
+
+    BLOCK_DEF[wf.stripped] = {
+      name: `Gỗ ${wf.vn} Cạo Vỏ`, nameEn: `Stripped ${wf.en} Log`,
+      hard: 1.05, solid: true, wood: true, isLog: true, isStripped: true, customAtlasTex: true,
+      drop: wf.stripped, tiles: [wf.tStripTop, wf.tStripSide, wf.tStripTop], mapColor: wf.mapColor
+    };
+
+    for (let d = 0; d < 4; d++) {
+      const sid = wf.stairsN + d;
+      BLOCK_DEF[sid] = {
+        name: `Cầu Thang Gỗ ${wf.vn}`, nameEn: `${wf.en} Stairs`,
+        hard: 0.75, solid: true, wood: true, stairs: true, stairDir: d, stairBase: wf.stairsN,
+        trans: true, customAtlasTex: true, drop: wf.stairsN,
+        tiles: [wf.tPlank, wf.tPlank, wf.tPlank], mapColor: wf.mapColor
+      };
+    }
+
+    for (const sId of [wf.slabBot, wf.slabTop]) {
+      const sd = BLOCK_DEF[sId];
+      if (sd) {
+        sd.fullBlockId = wf.planks;
+        sd.wood = true; sd.customAtlasTex = true;
+        sd.tiles = [wf.tPlank, wf.tPlank, wf.tPlank];
+        sd.mapColor = wf.mapColor;
+      }
+    }
+
+    BLOCK_DEF[wf.fence] = {
+      name: `Hàng Rào Gỗ ${wf.vn}`, nameEn: `${wf.en} Fence`,
+      hard: 0.85, solid: true, wood: true, fence: true, trans: true, customAtlasTex: true,
+      drop: wf.fence, tiles: [wf.tPlank, wf.tPlank, wf.tPlank], mapColor: wf.mapColor
+    };
+
+    const existingDoor = BLOCK_DEF[wf.door];
+    BLOCK_DEF[wf.door] = Object.assign({}, existingDoor || {}, {
+      name: (existingDoor && existingDoor.name) || `Cửa Gỗ ${wf.vn}`, nameEn: `${wf.en} Door`,
+      hard: 0.70, solid: true, wood: true, door: true, doorTier: wf.tier, trans: true, interactive: true,
+      customAtlasTex: true, drop: wf.door, tiles: [wf.tDoor, wf.tDoor, wf.tDoor], mapColor: wf.mapColor
+    });
+
+    const existingTrap = BLOCK_DEF[wf.trapdoor];
+    BLOCK_DEF[wf.trapdoor] = Object.assign({}, existingTrap || {}, {
+      name: (existingTrap && existingTrap.name) || `Cửa Sập Gỗ ${wf.vn}`, nameEn: `${wf.en} Trapdoor`,
+      hard: 0.65, solid: true, wood: true, trapdoor: true, doorTier: wf.tier, trans: true, interactive: true,
+      customAtlasTex: true, drop: wf.trapdoor, tiles: [wf.tTrap, wf.tTrap, wf.tTrap], mapColor: wf.mapColor
+    });
+
+    const existingSap = BLOCK_DEF[wf.sapling];
+    BLOCK_DEF[wf.sapling] = Object.assign({}, existingSap || {}, {
+      name: (existingSap && existingSap.name) || `Mầm Cây ${wf.vn}`,
+      nameEn: (existingSap && existingSap.nameEn) || `${wf.en} Sapling`,
+      hard: 0.05, solid: false, cross: true, trans: true, foliage: true,
+      shearsOnly: false, isSapling: true, saplingStyle: wf.treeStyle, isNetherSapling: isNether,
+      customAtlasTex: true, drop: wf.sapling, tiles: [wf.tSapling, wf.tSapling, wf.tSapling],
+      mapColor: (existingSap && existingSap.mapColor) || wf.mapColor
+    });
+  }
+  BLOCK_DEF[B.CRIMSON_MAPLE_LEAVES].saplingDrop = B.OAK_SAPLING;
+  BLOCK_DEF[B.GOLDEN_MAPLE_LEAVES].saplingDrop  = B.OAK_SAPLING;
+  BLOCK_DEF[B.ORANGE_MAPLE_LEAVES].saplingDrop  = B.OAK_SAPLING;
+  BLOCK_DEF[B.COBALT_LEAVES].saplingDrop        = B.AZURE_SAPLING;
+  BLOCK_DEF[B.LULLABY_LEAVES].saplingDrop       = B.SIFT_SAPLING;
+
+  for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];
     if (!d) continue;
     if (d.solid) {
@@ -734,9 +818,9 @@ const {
   const BLK_WATER_SEA = 1, BLK_LAVA = 2, BLK_CROSS = 4, BLK_TORCH = 8, BLK_LANTERN = 16, BLK_HANG = 32;
   const BLK_ANIM = 64, BLK_SUB = 128, BLK_FOLIAGE = 256, BLK_CRYSTAL = 512, BLK_PORTAL = 1024;
   const BLK_EMISSIVE = 2048, BLK_GLASS = 4096, BLK_SOLID = 8192;
-  const BLOCK_DEF_ARR = new Array(1024);
-  const BLOCK_FLAGS = new Uint16Array(1024);
-  for (let i = 0; i < 1024; i++) {
+  const BLOCK_DEF_ARR = new Array(BLOCK_LUT_CAP);
+  const BLOCK_FLAGS = new Uint16Array(BLOCK_LUT_CAP);
+  for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];
     if (!d) continue;
     BLOCK_DEF_ARR[i] = d;

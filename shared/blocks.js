@@ -368,9 +368,83 @@
   B.SOULFORGED_LEGS      = _dynBlockId++;
   B.SOULFORGED_BOOTS     = _dynBlockId++;
 
+  // v141: Complete Wood Families, Stripped Logs, Saplings, Jungle/Dark Oak Logs & Bone/Fossil Blocks
+  B.JUNGLE_LOG    = _dynBlockId++;
+  B.JUNGLE_LEAVES = _dynBlockId++;
+  B.DARK_OAK_LOG  = _dynBlockId++;
+  B.DARK_OAK_LEAVES = _dynBlockId++;
+  B.BONE          = _dynBlockId++;
+  B.BONE_MEAL     = _dynBlockId++;
+  B.BONE_BLOCK    = _dynBlockId++;
+
+  const BONE_TILES = { bone: 577, meal: 578, blockSide: 579, blockTop: 580 };
+  const JUNGLE_LOG_TILES   = { top: 581, side: 582, leaves: 583 };
+  const DARK_OAK_LOG_TILES = { top: 584, side: 585, leaves: 586 };
+
+  let _nextTile = 587;
+  const _allocPlank = (existing) => existing !== undefined ? existing : _dynBlockId++;
+  const _allocStairs4 = (nKey, existingN) => {
+    if (existingN !== undefined) return existingN;
+    const base = _dynBlockId;
+    B[nKey + '_N'] = _dynBlockId++;
+    B[nKey + '_S'] = _dynBlockId++;
+    B[nKey + '_E'] = _dynBlockId++;
+    B[nKey + '_W'] = _dynBlockId++;
+    return base;
+  };
+  const WOOD_FAMILIES = [
+    { key: 'oak',       tier: 'oak',       vn: 'Sồi',          en: 'Oak',       log: B.OAK_LOG,       leaves: B.OAK_LEAVES,       planks: B.PLANKS,        stairsKey: 'OAK_STAIRS',       stairsN: B.OAK_STAIRS_N, slabKey: 'OAK_SLAB',       fence: B.OAK_FENCE,     door: B.OAK_DOOR,     trapdoor: B.OAK_TRAPDOOR,     saplingKey: 'OAK_SAPLING',       treeStyle: 'apple',          fuel: 15, mapColor: '#b98952', tPlank: 8,   tDoor: 240, tTrap: 245, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#674c2a', b:'#946e3e', B:'#876335', m:'#ae834c', M:'#a37844', h:'#c49a5d', H:'#d0a86a' }, stripPal: { a:'#b59058', b:'#a17d47', c:'#c5a16a', d:'#846334', core:'#d4b27a', ring:'#94713d' }, doorPal: { frame:0x8d6c3b, panel:0xad884e, dark:0x674c26, hi:0xc29e62, knob:0x525862, win:true,  mode:'open' } },
+    { key: 'spruce',    tier: 'spruce',    vn: 'Thông',        en: 'Spruce',    log: B.SPRUCE_LOG,    leaves: B.SPRUCE_LEAVES,    planksKey: 'SPRUCE_PLANKS',    stairsKey: 'SPRUCE_STAIRS',    slabKey: 'SPRUCE_SLAB',    fence: B.SPRUCE_FENCE,  door: B.SPRUCE_DOOR,  trapdoor: B.SPRUCE_TRAPDOOR,  saplingKey: 'SPRUCE_SAPLING',    treeStyle: 'pine',           fuel: 15, mapColor: '#725330', tPlank: _nextTile++, tDoor: 241, tTrap: 246, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#4a3219', b:'#6b4b29', B:'#604223', m:'#7e5932', M:'#73502b', h:'#8e673b', H:'#9c7445' }, stripPal: { a:'#745532', b:'#634728', c:'#85643e', d:'#50371d', core:'#8c6940', ring:'#5b3f22' }, doorPal: { frame:0x4b341b, panel:0x6d4e2d, dark:0x3b2814, hi:0x7e5d38, knob:0xbec5cd, win:false, mode:'spruce' } },
+    { key: 'birch',     tier: 'birch',     vn: 'Bạch Dương',   en: 'Birch',     log: B.BIRCH_LOG,     leaves: B.BIRCH_LEAVES,     planksKey: 'BIRCH_PLANKS',     stairsKey: 'BIRCH_STAIRS',     slabKey: 'BIRCH_SLAB',     fence: B.BIRCH_FENCE,   door: B.BIRCH_DOOR,   trapKey: 'BIRCH_TRAPDOOR',   saplingKey: 'BIRCH_SAPLING',     treeStyle: 'sculpted_birch', fuel: 15, mapColor: '#d7cb8d', tPlank: _nextTile++, tDoor: 242, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#9e905e', b:'#c4b67d', B:'#b9aa72', m:'#d7c98f', M:'#cdbf85', h:'#e3d7a0', H:'#ece1ad' }, stripPal: { a:'#c7b881', b:'#b4a56e', c:'#d6c792', d:'#9c8d57', core:'#ded09d', ring:'#a89962' }, doorPal: { frame:0xc5b580, panel:0xddd0a0, dark:0xa6945f, hi:0xebe0b6, knob:0x3f444c, win:false, mode:'birch' } },
+    { key: 'jungle',    tier: 'jungle',    vn: 'Rừng Nhiệt Đới',en: 'Jungle',   log: B.JUNGLE_LOG,    leaves: B.JUNGLE_LEAVES,    planksKey: 'JUNGLE_PLANKS',    stairsKey: 'JUNGLE_STAIRS',    slabKey: 'JUNGLE_SLAB',    fenceKey: 'JUNGLE_FENCE',   doorKey: 'JUNGLE_DOOR',   trapKey: 'JUNGLE_TRAPDOOR',   saplingKey: 'JUNGLE_SAPLING',    treeStyle: 'canopy_jungle',  fuel: 15, mapColor: '#a87653', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#6e4931', b:'#9a6a4a', B:'#8e5f41', m:'#b27c58', M:'#a5714e', h:'#c48d67', H:'#d09b75' }, stripPal: { a:'#b3825c', b:'#9c6c48', c:'#c4936c', d:'#815636', core:'#cba078', ring:'#8d613f' }, doorPal: { frame:0x8c5b3b, panel:0xae7652, dark:0x664026, hi:0xc48b66, knob:0x4b4036, win:true,  mode:'jungle' } },
+    { key: 'acacia',    tier: 'acacia',    vn: 'Keo',          en: 'Acacia',    log: B.ACACIA_LOG,    leaves: B.ACACIA_LEAVES,    planksKey: 'ACACIA_PLANKS',    stairsKey: 'ACACIA_STAIRS',    slabKey: 'ACACIA_SLAB',    fenceKey: 'ACACIA_FENCE',   doorKey: 'ACACIA_DOOR',   trapKey: 'ACACIA_TRAPDOOR',   saplingKey: 'ACACIA_SAPLING',    treeStyle: 'acacia',         fuel: 15, mapColor: '#b56134', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#6e3214', b:'#9d4c23', B:'#90441e', m:'#b55c2e', M:'#a85327', h:'#c76c3a', H:'#d67a48' }, stripPal: { a:'#b05832', b:'#994826', c:'#c26840', d:'#7c3719', core:'#c96f45', ring:'#883f20' }, doorPal: { frame:0x8e421e, panel:0xb55d30, dark:0x672d12, hi:0xcc7142, knob:0x3f2e25, win:true,  mode:'acacia' } },
+    { key: 'dark_oak',  tier: 'dark_oak',  vn: 'Sồi Đen',      en: 'Dark Oak',  log: B.DARK_OAK_LOG,  leaves: B.DARK_OAK_LEAVES,  planksKey: 'DARK_OAK_PLANKS',  stairsKey: 'DARK_OAK_STAIRS',  slabKey: 'DARK_OAK_SLAB',  fenceKey: 'DARK_OAK_FENCE', doorKey: 'DARK_OAK_DOOR', trapKey: 'DARK_OAK_TRAPDOOR', saplingKey: 'DARK_OAK_SAPLING',  treeStyle: 'dark_oak',       fuel: 15, mapColor: '#432b16', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#211308', b:'#372210', B:'#2f1c0c', m:'#462c16', M:'#3e2713', h:'#56381e', H:'#634225' }, stripPal: { a:'#4b331d', b:'#3b2614', c:'#593e25', d:'#2c1b0c', core:'#5e4329', ring:'#352110' }, doorPal: { frame:0x36210f, panel:0x4b2f17, dark:0x221407, hi:0x5e3d21, knob:0xd4af37, win:false, mode:'dark_oak' } },
+    { key: 'mangrove',  tier: 'mangrove',  vn: 'Đước Đỏ',      en: 'Mangrove',  log: B.MANGROVE_LOG,  leaves: B.MANGROVE_LEAVES,  planksKey: 'MANGROVE_PLANKS',  stairsKey: 'MANGROVE_STAIRS',  slabKey: 'MANGROVE_SLAB',  fenceKey: 'MANGROVE_FENCE', doorKey: 'MANGROVE_DOOR', trapKey: 'MANGROVE_TRAPDOOR', sapling: B.MANGROVE_PROPAGULE,   treeStyle: 'mangrove',       fuel: 15, mapColor: '#773334', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: 528,        tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#47191b', b:'#6b272a', B:'#5f2124', m:'#7e3437', M:'#732c2f', h:'#914043', H:'#a14c4f' }, stripPal: { a:'#7a3133', b:'#662426', c:'#8b3d3f', d:'#50191b', core:'#8e3f42', ring:'#5e2123' }, doorPal: { frame:0x602426, panel:0x7d3336, dark:0x441618, hi:0x944346, knob:0xb5894b, win:true,  mode:'mangrove' } },
+    { key: 'sakura',    tier: 'sakura',    vn: 'Hoa Anh Đào',  en: 'Cherry',    log: B.SAKURA_LOG,    leaves: B.SAKURA_LEAVES,    planksKey: 'SAKURA_PLANKS',    stairsKey: 'SAKURA_STAIRS',    slabKey: 'SAKURA_SLAB',    fence: B.SAKURA_FENCE,  doorKey: 'SAKURA_DOOR',   trapdoor: B.SAKURA_TRAPDOOR,  saplingKey: 'SAKURA_SAPLING',    treeStyle: 'sakura',         fuel: 15, mapColor: '#ebb1c2', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: 247, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#b87c8d', b:'#dc9fb1', B:'#d393a6', m:'#eab2c2', M:'#e2a7b8', h:'#f4c4d2', H:'#fad5e0' }, stripPal: { a:'#d896a9', b:'#c48094', c:'#e7a9bb', d:'#a6677a', core:'#efc4d2', ring:'#b87689' }, doorPal: { frame:0xd48ca1, panel:0xf1b9c9, dark:0xb06d82, hi:0xfbd3df, knob:0x8a485c, win:true,  mode:'sakura' } },
+    { key: 'bamboo',    tier: 'bamboo',    vn: 'Tre Vàng',     en: 'Bamboo',    log: B.BAMBOO_BLOCK,  leaves: null,               planks: B.BAMBOO_PLANKS, stairsKey: 'BAMBOO_STAIRS',    slabKey: 'BAMBOO_SLAB',    fence: B.BAMBOO_FENCE,  door: B.BAMBOO_DOOR,  trapKey: 'BAMBOO_TRAPDOOR',  sapling: B.BAMBOO_SHOOT,         treeStyle: 'bamboo',         fuel: 15, mapColor: '#cbb653', tPlank: 191, tDoor: 243, tTrap: _nextTile++, tSapling: 192,        tStripTop: _nextTile++, tStripSide: _nextTile++, plankQty: 2, plankPal: { d:'#877428', b:'#b39d3d', B:'#a69135', m:'#cab64e', M:'#beaa46', h:'#dcc860', H:'#e8d672' }, stripPal: { a:'#cbb64a', b:'#b5a03b', c:'#dbc659', d:'#927f2a', core:'#e3cf6c', ring:'#9e8b32' }, doorPal: { frame:0xa68c32, panel:0xdbc35c, dark:0x7e681f, hi:0xe9d678, knob:0x4a3d14, win:true,  mode:'bamboo' } },
+    { key: 'crimson',   tier: 'crimson',   vn: 'Nấm Đỏ Thẫm',  en: 'Crimson',   log: B.CRIMSON_STEM,  leaves: B.NETHER_WART_BLOCK,planksKey: 'CRIMSON_PLANKS',   stairsKey: 'CRIMSON_STAIRS',   slabKey: 'CRIMSON_SLAB',   fenceKey: 'CRIMSON_FENCE',  doorKey: 'CRIMSON_DOOR',  trapKey: 'CRIMSON_TRAPDOOR',  sapling: B.CRIMSON_FUNGUS,       treeStyle: 'crimson_fungus', fuel: 0,  mapColor: '#6d314b', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: 436,        tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#45182c', b:'#632742', B:'#59213a', m:'#773352', M:'#6d2c4a', h:'#8a4061', H:'#994c6f' }, stripPal: { a:'#7d3153', b:'#692544', c:'#8e3d62', d:'#521a33', core:'#9a486d', ring:'#5e213c' }, doorPal: { frame:0x572139, panel:0x753150, dark:0x3f1528, hi:0x8a4061, knob:0x4a382c, win:false, mode:'slat_h' } },
+    { key: 'warped',    tier: 'warped',    vn: 'Nấm Biến Dị',  en: 'Warped',    log: B.WARPED_STEM,   leaves: B.WARPED_WART_BLOCK,planksKey: 'WARPED_PLANKS',    stairsKey: 'WARPED_STAIRS',    slabKey: 'WARPED_SLAB',    fenceKey: 'WARPED_FENCE',   doorKey: 'WARPED_DOOR',   trapKey: 'WARPED_TRAPDOOR',   sapling: B.WARPED_FUNGUS,        treeStyle: 'warped_fungus',  fuel: 0,  mapColor: '#2a6f73', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: 437,        tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#144346', b:'#226165', B:'#1c575b', m:'#2d787b', M:'#266d71', h:'#398c8f', H:'#459fa2' }, stripPal: { a:'#317f82', b:'#256a6d', c:'#3d9295', d:'#194f52', core:'#479ea1', ring:'#1e5a5d' }, doorPal: { frame:0x1b5357, panel:0x2b7478, dark:0x113a3d, hi:0x398c8f, knob:0x2c4244, win:false, mode:'slat_h' } },
+    { key: 'pale',      tier: 'pale',      vn: 'Sồi Nhợt',     en: 'Pale Oak',  log: B.PALE_LOG,      leaves: B.PALE_LEAVES,      planks: B.PALE_PLANKS,   stairsKey: 'PALE_STAIRS',      slabKey: 'PALE_SLAB',      fenceKey: 'PALE_FENCE',     doorKey: 'PALE_DOOR',     trapKey: 'PALE_TRAPDOOR',     saplingKey: 'PALE_SAPLING',      treeStyle: 'pale_oak',       fuel: 15, mapColor: '#d4d5db', tPlank: 531, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, stripPal: { a:'#d1d3d8', b:'#bec1c7', c:'#e2e4e8', d:'#9ea2aa', core:'#e7e9ed', ring:'#a9adb4' }, doorPal: { frame:0xb0b3ba, panel:0xd4d6dc, dark:0x8a8e96, hi:0xe8eaef, knob:0x4b5563, win:true,  mode:'open' } },
+    { key: 'palm',      tier: 'palm',      vn: 'Dừa Nhiệt Đới',en: 'Palm',      log: B.PALM_LOG,      leaves: B.PALM_LEAVES,      planksKey: 'PALM_PLANKS',      stairsKey: 'PALM_STAIRS',      slabKey: 'PALM_SLAB',      fenceKey: 'PALM_FENCE',     doorKey: 'PALM_DOOR',     trapKey: 'PALM_TRAPDOOR',     saplingKey: 'PALM_SAPLING',      treeStyle: 'palm',           fuel: 15, mapColor: '#c99c5f', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#825c30', b:'#b08249', B:'#a3763f', m:'#c7985a', M:'#ba8d50', h:'#d6aa6b', H:'#e2ba7c' }, stripPal: { a:'#c7995d', b:'#b08349', c:'#d7aa6e', d:'#8d6535', core:'#deb67d', ring:'#9b723f' }, doorPal: { frame:0x9c6e38, panel:0xc7985a, dark:0x734e23, hi:0xd9ad6e, knob:0x4a351e, win:true,  mode:'acacia' } },
+    { key: 'azure',     tier: 'azure',     vn: 'Xanh Lam',     en: 'Azure',     log: B.AZURE_LOG,     leaves: B.AZURE_LEAVES,     planks: B.AZURE_PLANKS,  stairsKey: 'AZURE_STAIRS',     slabKey: 'AZURE_SLAB',     fenceKey: 'AZURE_FENCE',    doorKey: 'AZURE_DOOR',    trapKey: 'AZURE_TRAPDOOR',    saplingKey: 'AZURE_SAPLING',     treeStyle: 'azure_tree',     fuel: 15, mapColor: '#4c7fb8', tPlank: 452, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, stripPal: { a:'#5c8ec4', b:'#4b78ab', c:'#6fa2d8', d:'#385c87', core:'#86b8eb', ring:'#3f6996' }, doorPal: { frame:0x3c5e88, panel:0x527bb0, dark:0x2b4466, hi:0x7aa9e0, knob:0xdbeafe, win:true,  mode:'open' } },
+    { key: 'sift',      tier: 'sift',      vn: 'Giấc Mơ Sift', en: 'Sift',      log: B.SIFT_LOG,      leaves: B.SIFT_LEAVES,      planksKey: 'SIFT_PLANKS',      stairsKey: 'SIFT_STAIRS',      slabKey: 'SIFT_WOOD_SLAB', fenceKey: 'SIFT_FENCE',     doorKey: 'SIFT_DOOR',     trapKey: 'SIFT_TRAPDOOR',     saplingKey: 'SIFT_SAPLING',      treeStyle: 'sift_giant',     fuel: 15, mapColor: '#4fa39b', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#275c58', b:'#3b807a', B:'#33726d', m:'#4d9992', M:'#448b84', h:'#60b0a8', H:'#74c4bc' }, stripPal: { a:'#5da69f', b:'#498c86', c:'#74bdb6', d:'#336b66', core:'#8ad4cd', ring:'#3c7a74' }, doorPal: { frame:0x367570, panel:0x4e9c95, dark:0x24524e, hi:0x72c2ba, knob:0xa7f3d0, win:true,  mode:'sakura' } },
+    { key: 'nightmare', tier: 'nightmare', vn: 'Ác Mộng',      en: 'Nightmare', log: B.NIGHTMARE_LOG, leaves: B.NIGHTMARE_LEAVES, planksKey: 'NIGHTMARE_PLANKS', stairsKey: 'NIGHTMARE_STAIRS', slabKey: 'NIGHTMARE_SLAB', fenceKey: 'NIGHTMARE_FENCE',doorKey: 'NIGHTMARE_DOOR',trapKey: 'NIGHTMARE_TRAPDOOR',saplingKey: 'NIGHTMARE_SAPLING', treeStyle: 'nightmare_tree', fuel: 0,  mapColor: '#56213c', tPlank: _nextTile++, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, plankPal: { d:'#260c1b', b:'#42172f', B:'#381227', m:'#54203d', M:'#491b35', h:'#692a4d', H:'#7a345c' }, stripPal: { a:'#5c2443', b:'#491a34', c:'#6e2e52', d:'#330f23', core:'#7a375d', ring:'#3e152c' }, doorPal: { frame:0x3d142a, panel:0x592240, dark:0x260a19, hi:0x753156, knob:0xf43f5e, win:false, mode:'dark_oak' } },
+    { key: 'sculk',     tier: 'sculk',     vn: 'Sculk Cổ Đại', en: 'Sculk',     log: B.SCULK_LOG,     leaves: B.SCULK_LEAVES,     planks: B.SCULK_PLANKS,  stairsKey: 'SCULK_STAIRS',     slabKey: 'SCULK_SLAB',     fenceKey: 'SCULK_FENCE',    doorKey: 'SCULK_DOOR',    trapKey: 'SCULK_TRAPDOOR',    saplingKey: 'SCULK_SAPLING',     treeStyle: 'sculk_tree',     fuel: 0,  mapColor: '#1a4250', tPlank: 550, tDoor: _nextTile++, tTrap: _nextTile++, tSapling: _nextTile++, tStripTop: _nextTile++, tStripSide: _nextTile++, stripPal: { a:'#164d5e', b:'#103a47', c:'#1e6275', d:'#0a2730', core:'#22d3ee', ring:'#0e4554' }, doorPal: { frame:0x0e3442, panel:0x155166, dark:0x09202b, hi:0x227c99, knob:0x22d3ee, win:true,  mode:'slat_h' } }
+  ];
+
+  for (const wf of WOOD_FAMILIES) {
+    const uKey = wf.key.toUpperCase();
+    wf.planks = _allocPlank(wf.planks);
+    if (wf.planksKey) B[wf.planksKey] = wf.planks;
+    wf.stripped = _dynBlockId++;
+    B['STRIPPED_' + (wf.key === 'bamboo' ? 'BAMBOO_BLOCK' : ((wf.key === 'crimson' || wf.key === 'warped') ? uKey + '_STEM' : uKey + '_LOG'))] = wf.stripped;
+    wf.stairsN = _allocStairs4(wf.stairsKey, wf.stairsN);
+    if (wf.fence === undefined) { wf.fence = _dynBlockId++; B[wf.fenceKey] = wf.fence; }
+    if (wf.door === undefined) { wf.door = _dynBlockId++; B[wf.doorKey] = wf.door; }
+    if (wf.trapdoor === undefined) { wf.trapdoor = _dynBlockId++; B[wf.trapKey] = wf.trapdoor; }
+    if (wf.sapling === undefined) { wf.sapling = _dynBlockId++; B[wf.saplingKey] = wf.sapling; }
+
+    let slab = SLAB_SPECS.find(s => s.key === wf.slabKey);
+    if (slab) {
+      slab.baseId = wf.planks;
+      slab.craftId = wf.planks;
+      slab.fuel = wf.fuel > 0 ? 7.5 : 0;
+    } else {
+      slab = { key: wf.slabKey, name: 'Phiến Gỗ ' + wf.vn, baseId: wf.planks, craftId: wf.planks, isWood: true, fuel: wf.fuel > 0 ? 7.5 : 0 };
+      slab.botId = _dynBlockId++;
+      slab.topId = _dynBlockId++;
+      B[slab.key] = slab.botId;
+      B[slab.key + '_TOP'] = slab.topId;
+      SLAB_SPECS.push(slab);
+    }
+    wf.slabBot = slab.botId;
+    wf.slabTop = slab.topId;
+  }
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
-    _DYN_COLORED_ENTRIES, SLAB_SPECS
+    _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

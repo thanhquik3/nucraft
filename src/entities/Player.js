@@ -3828,6 +3828,24 @@
     return releaseBowDraw(screenX, screenY);
   }
 
+  function tryStripLogWithAxe(hit) {
+    if (!hit) return false;
+    const slot = inventory[player.selectedSlot];
+    const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
+    const targetDef = BLOCK_DEF[hit.id];
+    if (!selDef || selDef.tool !== 'axe' || !targetDef || !targetDef.stripTo) return false;
+    setBlockWorld(hit.x, hit.y, hit.z, targetDef.stripTo, true);
+    flushUrgentChunks(16);
+    if (typeof startHandSwing === 'function') startHandSwing(0.22, 'attack');
+    else player.swingT = 0.22;
+    playBlockSfx(hit.id, true);
+    spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, targetDef.mapColor || '#8a623c', 10, false);
+    emitSculkVibration(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 'mine', 8);
+    if (gameMode !== 'creative') damageHeldTool(1);
+    mining.active = false; mining.progress = 0;
+    return true;
+  }
+
   function handlePlaceOrEat(screenX = null, screenY = null) {
     if (player.dead) { syncSpyglassZoomState(); return; }
     syncSpyglassZoomState();
@@ -4384,6 +4402,50 @@
       return;
     }
 
+    // Bone Meal Fertilization (accelerates Saplings, Wheat Crops & blooms Grass!)
+    if (slot.id === B.BONE_MEAL && hit) {
+      const hDef = BLOCK_DEF[hit.id];
+      const consumeMeal = () => {
+        if (gameMode !== 'creative') { slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar(); }
+        player.swingT = 0.22;
+        spawnParticles(hit.x + 0.5, hit.y + 0.65, hit.z + 0.5, 0x4ade80, 12, true);
+        playSfx('xp_orb');
+      };
+      if (hDef && hDef.isSapling) {
+        consumeMeal();
+        const mk = modKey(hit.x, hit.y, hit.z);
+        const cnt = (saplingFertilizeCount.get(mk) || 0) + 1;
+        saplingFertilizeCount.set(mk, cnt);
+        if (cnt >= 2 || Math.random() < 0.48) {
+          if (!growSaplingAt(hit.x, hit.y, hit.z, hit.id)) {
+            showToast('🌱 Cần thêm không gian trống phía trên để cây lớn!');
+          }
+        }
+        return;
+      }
+      if (hit.id === B.WHEAT_0 || hit.id === B.WHEAT_1 || hit.id === B.WHEAT_2) {
+        consumeMeal();
+        const nextStage = Math.min(B.WHEAT_3, hit.id + 1 + (Math.random() < 0.5 ? 1 : 0));
+        setBlockWorld(hit.x, hit.y, hit.z, nextStage, true);
+        flushUrgentChunks(16);
+        return;
+      }
+      if (hit.id === B.GRASS) {
+        consumeMeal();
+        const flora = [B.TALL_GRASS, B.SHORT_GRASS, B.FLOWER_RED, B.FLOWER_YELLOW];
+        for (let i = 0; i < 6; i++) {
+          const rx = hit.x + ((Math.random() * 5 - 2.5) | 0), rz = hit.z + ((Math.random() * 5 - 2.5) | 0);
+          if (getBlockWorld(rx, hit.y, rz) === B.GRASS && getBlockWorld(rx, hit.y + 1, rz) === B.AIR) {
+            setBlockWorld(rx, hit.y + 1, rz, flora[(Math.random() * flora.length) | 0], true);
+          }
+        }
+        flushUrgentChunks(16);
+        return;
+      }
+      showToast('🦴 Chỉ bón Bột Xương được cho Mầm Cây, Lúa Mì hoặc Cỏ Xanh!');
+      return;
+    }
+
     if (selDef.tool || selDef.itemOnly || (!selDef.solid && !selDef.cross && !selDef.torch && !selDef.liquid && !selDef.portal) || !hit) return;
     const { px, py, pz } = hit;
 
@@ -4467,16 +4529,24 @@
       }
     }
 
+    // Sapling Soil Validation
+    if (BLOCK_DEF[slot.id]?.isSapling) {
+      const soilId = getBlockWorld(px, py - 1, pz);
+      const okBase = soilId === B.GRASS || soilId === B.DIRT || soilId === B.AUTUMN_PODZOL || soilId === B.MYCELIUM || soilId === B.MOSS_BLOCK || soilId === B.FARMLAND || soilId === B.BLUE_GRASS || soilId === B.SIFT_GRASS || soilId === B.LULLABY_GRASS || soilId === B.HUSK_SOIL || soilId === B.SPORE_TURF || soilId === B.PALE_MOSS || soilId === B.NIGHTMARE_MOSS || soilId === B.SCULK || soilId === B.CRIMSON_NYLIUM || soilId === B.WARPED_NYLIUM || soilId === B.NETHERRACK || soilId === B.MUD;
+      const okSand = (slot.id === B.PALM_SAPLING || slot.id === B.MANGROVE_PROPAGULE) && (soilId === B.SAND || soilId === B.RED_SAND);
+      if (!okBase && !okSand) {
+        showToast('🌱 Mầm cây chỉ trồng được trên Đất, Cỏ, Rêu hoặc Đất Trồng!');
+        return;
+      }
+    }
+
     // v29/v69: Cầu thang theo góc nhìn + Phiến (Slab) đặt nửa trên/dưới + hỗ trợ Waterlog!
     let placeId = slot.id;
     const pdefS = BLOCK_DEF[placeId];
     if (pdefS && pdefS.stairs) {
       const fdx = -Math.sin(player.yaw), fdz = -Math.cos(player.yaw);
       const sdir = (Math.abs(fdx) >= Math.abs(fdz)) ? (fdx >= 0 ? 2 : 3) : (fdz >= 0 ? 1 : 0);
-      const sbases = [B.OAK_STAIRS_N, B.STONE_STAIRS_N, B.TERRACOTTA_STAIRS_N, B.DEEPSLATE_STAIRS_N];
-      let sbase = B.OAK_STAIRS_N;
-      for (const sb of sbases) if (placeId >= sb && placeId <= sb + 3) { sbase = sb; break; }
-      placeId = sbase + sdir;
+      placeId = (pdefS.stairBase || B.OAK_STAIRS_N) + sdir;
     } else if (pdefS && pdefS.slab && !pdefS.slabTop) {
       const wantTop = (py === hit.y - 1) || (py === hit.y && (hit.hy || 0) >= 0.5);
       placeId = wantTop ? pdefS.slabTopId : slot.id;
@@ -4536,6 +4606,9 @@
       const ek = modKey(px, py, pz);
       incubatingEggs.set(ek, { x: px, y: py, z: pz, el: pdefS.dragonEgg, eggId: placeId, timer: 8.0 });
       showToast(`🔥 Đang ấp ${pdefS.name}! Sẽ nở sau 8 giây (hoặc chạm lại để nở ngay)!`);
+    }
+    if (pdefS && pdefS.isSapling) {
+      plantedSaplings.set(modKey(px, py, pz), { x: px, y: py, z: pz, id: placeId, age: 0, targetAge: 35 + Math.random() * 45 });
     }
   }
 
@@ -4684,6 +4757,7 @@
       else flowWaterInto(hit.x, hit.y, hit.z);
       doorOpenState.delete(bk);
       incubatingEggs.delete(bk);
+      plantedSaplings.delete(bk); saplingFertilizeCount.delete(bk);
       spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, def.mapColor || '#999', 8, false);
       if (brokenId === B.REDSTONE_ORE && tierOk && !_hasSilkPick) {
         const extraRed = 3 + ((Math.random() * 2) | 0);
@@ -4720,7 +4794,8 @@
         const mQty = 3 + ((Math.random() * 4) | 0);
         spawnDroppedItem(hit.x, hit.y, hit.z, B.MELON_SLICE, { count: mQty });
       } else if (_needsShears) {
-        // (im lặng — không bật thông báo khi đập lá bằng tay)
+        if (def.saplingDrop && Math.random() < 0.16) spawnDroppedItem(hit.x, hit.y, hit.z, def.saplingDrop);
+        if ((brokenId === B.OAK_LEAVES || brokenId === B.DARK_OAK_LEAVES) && Math.random() < 0.03) spawnDroppedItem(hit.x, hit.y, hit.z, B.APPLE);
       } else if (dropId) {
         spawnDroppedItem(hit.x, hit.y, hit.z, dropId);
       }

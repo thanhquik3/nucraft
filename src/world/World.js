@@ -470,16 +470,16 @@
       const isTower = (style === 'canopy_jungle');
       const trunkH = isTower ? (12 + Math.floor(r0 * 6)) : (7 + Math.floor(r0 * 3));
       for (let i = 0; i < trunkH; i++) {
-        setLocalSafe(data, lx, baseWy + i, lz, B.OAK_LOG, true);
-        if (isTower && i < trunkH - 1) setLocalSafe(data, lx + 1, baseWy + i, lz, B.OAK_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz, B.JUNGLE_LOG, true);
+        if (isTower && i < trunkH - 1) setLocalSafe(data, lx + 1, baseWy + i, lz, B.JUNGLE_LOG, true);
       }
-      setLocalSafe(data, lx + 1, baseWy, lz, B.OAK_LOG, true); setLocalSafe(data, lx - 1, baseWy, lz, B.OAK_LOG, true);
-      setLocalSafe(data, lx, baseWy, lz + 1, B.OAK_LOG, true); setLocalSafe(data, lx, baseWy, lz - 1, B.OAK_LOG, true);
+      setLocalSafe(data, lx + 1, baseWy, lz, B.JUNGLE_LOG, true); setLocalSafe(data, lx - 1, baseWy, lz, B.JUNGLE_LOG, true);
+      setLocalSafe(data, lx, baseWy, lz + 1, B.JUNGLE_LOG, true); setLocalSafe(data, lx, baseWy, lz - 1, B.JUNGLE_LOG, true);
       if (isTower) {
         // Mid-trunk side leaf shelf matching tall jungle canopy trees in Images 2 & 3
         const midY = baseWy + Math.floor(trunkH * 0.56);
         for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
-          if (Math.hypot(dx, dz) <= 2.2) setLocalSafe(data, lx + dx, midY, lz + dz, B.OAK_LEAVES, false);
+          if (Math.hypot(dx, dz) <= 2.2) setLocalSafe(data, lx + dx, midY, lz + dz, B.JUNGLE_LEAVES, false);
         }
       }
       const cy = baseWy + trunkH - 2;
@@ -489,13 +489,13 @@
         for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
           const dist = Math.abs(dx) + Math.abs(dz);
           if ((rad >= rCrown && dist > rCrown + 1) || (dy === 4 && dist > 1)) continue;
-          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.OAK_LEAVES, false);
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.JUNGLE_LEAVES, false);
         }
       }
       // Long draping lush B.VINE curtains hanging under canopy rims (4..9 blocks) + trunk vines!
       for (const [vx, vz] of [[rCrown,0],[-rCrown,0],[0,rCrown],[0,-rCrown],[rCrown-1,rCrown-1],[-(rCrown-1),-(rCrown-1)],[rCrown-1,-(rCrown-1)],[-(rCrown-1),rCrown-1]]) {
         if (hash2i(wx + vx, wz + vz, worldSeed + 99) > 0.30) {
-          setLocalSafe(data, lx + vx, cy, lz + vz, B.OAK_LEAVES, false);
+          setLocalSafe(data, lx + vx, cy, lz + vz, B.JUNGLE_LEAVES, false);
           if (!isTower && hash2i(wx + vx, wz + vz, worldSeed + 109) > 0.68) setLocalSafe(data, lx + vx, cy - 1, lz + vz, B.MANGO, false);
           const vLen = (isTower ? 5 : 3) + Math.floor(hash2i(wx + vx, wz + vz, worldSeed + 107) * (isTower ? 5 : 4));
           for (let vd = 1; vd <= vLen; vd++) setLocalSafe(data, lx + vx, cy - vd, lz + vz, B.VINE, false);
@@ -503,7 +503,7 @@
       }
       // Ground leaf-block bushes clustered naturally around the tree trunk (Images 2 & 3!)
       for (const [bxOff, bzOff] of [[2,2],[-2,-2],[2,-2]]) {
-        if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 149) > 0.38) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, B.OAK_LEAVES);
+        if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 149) > 0.38) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, B.JUNGLE_LEAVES);
       }
     } else if (style === 'autumn_maple') {
       // Vivid Crimson, Orange & Golden Ancient Maple Trees
@@ -837,18 +837,18 @@
       const th = Math.min(MAX_Y - baseWy - 5, 14 + Math.floor(r0 * 6));
       for (const [rx, rz] of [[-1,0],[2,0],[0,-1],[1,2],[-1,1],[2,1]]) {
         const rh = 2 + Math.floor(hash2i(wx + rx, wz + rz, worldSeed + 683) * 3);
-        for (let ry = 0; ry < rh; ry++) setLocalSafe(data, lx + rx, baseWy + ry, lz + rz, B.OAK_LOG, true);
+        for (let ry = 0; ry < rh; ry++) setLocalSafe(data, lx + rx, baseWy + ry, lz + rz, B.JUNGLE_LOG, true);
       }
       for (let i = 0; i < th; i++) {
-        setLocalSafe(data, lx, baseWy + i, lz, B.OAK_LOG, true);
-        setLocalSafe(data, lx + 1, baseWy + i, lz, B.OAK_LOG, true);
-        setLocalSafe(data, lx, baseWy + i, lz + 1, B.OAK_LOG, true);
-        setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.OAK_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz, B.JUNGLE_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz, B.JUNGLE_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz + 1, B.JUNGLE_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.JUNGLE_LOG, true);
       }
       // Mid-trunk horizontal limb + leaf shelf
       const midY = baseWy + Math.floor(th * 0.55);
       for (let dx = -2; dx <= 3; dx++) for (let dz = -2; dz <= 3; dz++) {
-        if (Math.hypot(dx - 0.5, dz - 0.5) <= 2.4) setLocalSafe(data, lx + dx, midY, lz + dz, B.OAK_LEAVES, false);
+        if (Math.hypot(dx - 0.5, dz - 0.5) <= 2.4) setLocalSafe(data, lx + dx, midY, lz + dz, B.JUNGLE_LEAVES, false);
       }
       // Flat wide multi-tiered umbrella crown
       const cy = baseWy + th - 2;
@@ -858,37 +858,37 @@
           const d = Math.hypot(dx - 0.5, dz - 0.5);
           if (d > rad + 0.35) continue;
           if (dy === 2 && d > rad - 0.6 && hash3i(wx + dx, cy + dy, wz + dz, worldSeed + 691) < 0.25) continue;
-          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.OAK_LEAVES, false);
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.JUNGLE_LEAVES, false);
         }
       }
       // Long lush vertical vine curtains (8..14 blocks) hanging around perimeter!
       for (const [vx, vz] of [[5,0],[5,2],[-4,0],[-4,1],[0,5],[2,5],[0,-4],[1,-4],[4,4],[-3,4],[4,-3],[-3,-3]]) {
         if (hash2i(wx + vx, wz + vz, worldSeed + 701) > 0.22) {
-          setLocalSafe(data, lx + vx, cy, lz + vz, B.OAK_LEAVES, false);
+          setLocalSafe(data, lx + vx, cy, lz + vz, B.JUNGLE_LEAVES, false);
           const vLen = Math.min(th - 2, 7 + Math.floor(hash2i(wx + vx, wz + vz, worldSeed + 709) * 7));
           for (let vd = 1; vd <= vLen; vd++) setLocalSafe(data, lx + vx, cy - vd, lz + vz, B.VINE, false);
         }
       }
       for (const [bxOff, bzOff] of [[3,3],[-2,-2],[3,-2]]) {
-        if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 719) > 0.35) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, B.OAK_LEAVES);
+        if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 719) > 0.35) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, B.JUNGLE_LEAVES);
       }
     } else if (style === 'dark_oak') {
       const th = 5 + Math.floor(r0 * 3);
       for (let i = 0; i < th; i++) {
-        setLocalSafe(data, lx, baseWy + i, lz, B.SPRUCE_LOG, true);
-        setLocalSafe(data, lx + 1, baseWy + i, lz, B.SPRUCE_LOG, true);
-        setLocalSafe(data, lx, baseWy + i, lz + 1, B.SPRUCE_LOG, true);
-        setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.SPRUCE_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz, B.DARK_OAK_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz, B.DARK_OAK_LOG, true);
+        setLocalSafe(data, lx, baseWy + i, lz + 1, B.DARK_OAK_LOG, true);
+        setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.DARK_OAK_LOG, true);
       }
       const cy = baseWy + th - 1;
       for (let dy = 0; dy <= 3; dy++) {
         const rad = (dy === 0 || dy === 3) ? 2 : 3;
         for (let dx = -rad; dx <= rad + 1; dx++) for (let dz = -rad; dz <= rad + 1; dz++) {
           if (Math.hypot(dx - 0.5, dz - 0.5) > rad + 0.45) continue;
-          setLocalSafe(data, lx + dx, cy + dy, lz + dz, (dy === 0) ? B.SPRUCE_LEAVES : B.OAK_LEAVES, false);
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.DARK_OAK_LEAVES, false);
         }
       }
-      placeLeafBushCluster(data, lx + 2, baseWy, lz + 2, wx + 2, wz + 2, B.SPRUCE_LEAVES);
+      placeLeafBushCluster(data, lx + 2, baseWy, lz + 2, wx + 2, wz + 2, B.DARK_OAK_LEAVES);
     } else if (style === 'pale_oak') {
       const th = 6 + Math.floor(r0 * 4);
       for (let i = 0; i < th; i++) {
@@ -937,6 +937,17 @@
       }
       for (const [vx, vz] of [[3, 0], [-2, 0], [0, 3], [0, -3]]) {
         for (let d = 1; d <= 3; d++) setLocalSafe(data, lx + vx, cy - d, lz + vz, B.GLOW_VINES, false);
+      }
+    } else if (style === 'sculk_tree') {
+      const th = 7 + Math.floor(r0 * 4);
+      for (let i = 0; i < th; i++) setLocalSafe(data, lx, baseWy + i, lz, B.SCULK_LOG, true);
+      const cy = baseWy + th - 2;
+      for (let dy = 0; dy <= 3; dy++) {
+        const rad = dy === 3 ? 1 : (dy === 1 ? 3 : 2);
+        for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+          if (Math.hypot(dx, dz) > rad + 0.35) continue;
+          setLocalSafe(data, lx + dx, cy + dy, lz + dz, B.SCULK_LEAVES, false);
+        }
       }
     }
   }
@@ -1320,6 +1331,49 @@
     }
   }
 
+  function stampNetherDinosaurFossil(data, cx, cz, wx0, wz0, baseH) {
+    const kind = Math.floor(hash2i(cx, cz, worldSeed + 4139) * 3);
+    const rot = Math.floor(hash2i(cz, cx, worldSeed + 4153) * 2); // 0 = X axis, 1 = Z axis
+    const putBone = (rx, ry, rz) => {
+      const lx = rot ? (7 + rz) : (7 + rx), lz = rot ? (7 + rx) : (7 + rz), wy = baseH + ry;
+      if (lx < 1 || lx > 14 || lz < 1 || lz > 14 || wy <= WATER_LEVEL || wy >= 22) return 0;
+      setLocalSafe(data, lx, wy, lz, B.BONE_BLOCK, true);
+      return wy;
+    };
+    let topY = baseH + 4;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -3; dz <= 3; dz++) {
+      if (dx * dx + dz * dz <= 20) setLocalSafe(data, 7 + dx, baseH, 7 + dz, B.SOUL_SAND, true);
+    }
+    if (kind === 0) {
+      // Giant Dinosaur Ribcage
+      for (let i = -4; i <= 4; i++) topY = Math.max(topY, putBone(i, 1, 0));
+      for (const rx of [-3, -1, 1, 3]) {
+        for (const s of [-1, 1]) {
+          topY = Math.max(topY, putBone(rx, 1, s), putBone(rx, 2, s * 2), putBone(rx, 3, s * 2), putBone(rx, 4, s));
+        }
+        topY = Math.max(topY, putBone(rx, 5, 0));
+      }
+    } else if (kind === 1) {
+      // Colossal Dinosaur Skull w/ eye sockets & snout
+      for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) {
+        putBone(x, 1, z);
+        if (Math.abs(x) <= 1 || Math.abs(z) <= 1) topY = Math.max(topY, putBone(x, 4, z));
+      }
+      for (const [sx, sz] of [[-2,-2],[2,-2],[-2,2],[2,2],[0,-2],[0,2]]) putBone(sx, 2, sz), putBone(sx, 3, sz);
+      putBone(3, 2, 0); putBone(4, 2, 0); putBone(3, 1, -1); putBone(3, 1, 1); putBone(4, 1, 0);
+      putBone(-3, 2, 0); putBone(-4, 2, 0);
+    } else {
+      // Half-buried Full Dinosaur Skeleton (skull + spine + 3 rib arches + tail)
+      for (let i = -5; i <= 4; i++) topY = Math.max(topY, putBone(i, 1, 0));
+      for (const rx of [-2, 0, 2]) {
+        for (const s of [-1, 1]) topY = Math.max(topY, putBone(rx, 2, s * 2), putBone(rx, 3, s * 2), putBone(rx, 4, s));
+      }
+      for (let y = 1; y <= 3; y++) for (let z = -1; z <= 1; z++) topY = Math.max(topY, putBone(4, y, z));
+      putBone(5, 1, 0); putBone(5, 2, 0);
+    }
+    return Math.min(WORLD_H - 1, topY - MIN_Y);
+  }
+
   function _genNetherChunk(cx, cz, wx0, wz0, data) {
     if ((depthOffset || 0) !== 0) return _genDeepUndergroundChunk(cx, cz, wx0, wz0, data);
     let maxLy = WORLD_H - 1;
@@ -1395,6 +1449,11 @@
     const midNetherH = colHeights[(8 << 4) | 8];
     if (midNetherH > WATER_LEVEL + 1 && midNetherH <= 13 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
       stampNetherRoofAndCavernStructures(data, cx, cz, wx0, wz0, midNetherH, false);
+    }
+    // Nether Dinosaur Fossils built out of Bone Blocks (skipping Nether bridge corridor wz in [-18..-14])
+    if (midNetherH > WATER_LEVEL + 1 && midNetherH <= 15 && (Math.abs(cx) > 0 || Math.abs(cz) > 0) && !(wz0 <= -10 && wz0 + 15 >= -22) && hash2i(cx, cz, worldSeed + 4129) > 0.855) {
+      const fTop = stampNetherDinosaurFossil(data, cx, cz, wx0, wz0, midNetherH);
+      if (fTop > maxLy) maxLy = fTop;
     }
     // Ancient Debris veins in Nether: ultra-rare (Minecraft Wiki), strictly buried in Netherrack at Y=8..22
     for (let v = 0; v < 2; v++) {
@@ -2694,7 +2753,7 @@
             placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true;
           }
           else if (biome === BIOMES.GIANT_JUNGLE && rTree > 0.934 && rTree <= 0.944) {
-            placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true;
+            placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.JUNGLE_LEAVES); placed = true;
           }
           if (placed) {
             if (biome === BIOMES.FOREST || biome === BIOMES.AUTUMN || biome === BIOMES.SAKURA || biome === BIOMES.PINE_VALLEY) {
@@ -2759,7 +2818,7 @@
         for (let wy = cy + 1; wy <= cy + 9; wy++) data[((wy - MIN_Y) << 8) | (dz << 4) | dx] = B.AIR;
       }
       const wallLog = midB === BIOMES.SAKURA ? B.SAKURA_LOG : B.OAK_LOG;
-      const doorType = midB === BIOMES.SAKURA ? B.BIRCH_DOOR : B.OAK_DOOR;
+      const doorType = midB === BIOMES.SAKURA ? B.SAKURA_DOOR : B.OAK_DOOR;
       for (let dz = 4; dz <= 10; dz++) for (let dx = 4; dx <= 11; dx++) {
         const isC = ((dx === 4 || dx === 11) && (dz === 4 || dz === 10));
         const isW = (dx === 4 || dx === 11 || dz === 4 || dz === 10);
@@ -3317,6 +3376,39 @@
 
   // ===================== v23.0 ANIMATED 3D CHESTS (5 TIERS), DOORS (5 TYPES), TRAPDOORS (4 TYPES), FURNACES & WHEAT CROPS =====================
   const doorOpenState = new Map();     // 'wx,wy,wz' -> boolean
+  const plantedSaplings = new Map();   // 'wx,wy,wz' -> { x, y, z, id, age, targetAge }
+  const saplingFertilizeCount = new Map();
+  let _sapScratch = null;
+  function growSaplingAt(wx, wy, wz, saplingId) {
+    const sDef = BLOCK_DEF[saplingId];
+    if (!sDef || !sDef.isSapling) return false;
+    const style = sDef.saplingStyle || 'apple';
+    for (let dy = 1; dy <= 5; dy++) {
+      if (IS_OPAQUE[getBlockWorld(wx, wy + dy, wz)] === 1) return false;
+    }
+    const minLy = Math.max(0, wy - 4 - MIN_Y), maxLy = Math.min(WORLD_H - 1, wy + 28 - MIN_Y);
+    if (!_sapScratch) _sapScratch = new Uint16Array(16 * WORLD_H * 16);
+    _sapScratch.fill(0, minLy << 8, (maxLy + 1) << 8);
+    setBlockWorld(wx, wy, wz, B.AIR, true);
+    placeLuantiTree(_sapScratch, 8, wy, 8, wx, wz, style);
+    for (let ly = minLy; ly <= maxLy; ly++) {
+      const py = MIN_Y + ly;
+      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+        const bid = _sapScratch[(ly << 8) | (lz << 4) | lx];
+        if (!bid) continue;
+        const px = wx - 8 + lx, pz = wz - 8 + lz;
+        if (lx === 8 && lz === 8 && py >= wy && py <= wy + 4) { setBlockWorld(px, py, pz, bid, true); continue; }
+        const cur = getBlockWorld(px, py, pz);
+        if (cur === B.AIR || IS_OPAQUE[cur] !== 1) setBlockWorld(px, py, pz, bid, true);
+      }
+    }
+    const sk = modKey(wx, wy, wz);
+    plantedSaplings.delete(sk); saplingFertilizeCount.delete(sk);
+    flushUrgentChunks(48);
+    spawnParticles(wx + 0.5, wy + 1.4, wz + 0.5, sDef.mapColor || 0x4ade80, 14, true);
+    playSfx('place');
+    return true;
+  }
   const torchAttachDir = new Map();    // 'wx,wy,wz' -> 'nx'|'px'|'nz'|'pz'|'floor'
   const dragonHeadYaw = new Map();     // 'wx,wy,wz' -> facing yaw in radians
   const windmillHubState = new Map();  // 'wx,wy,wz' -> { yaw, speed }
@@ -3471,13 +3563,9 @@
     }
   }
   const DOOR_MAT_PAL = {
-    oak:    { frame: 0x8d6c3b, panel: 0xad884e, dark: 0x674c26, hi: 0xc29e62, knob: 0x525862, win: true,  mode: 'open' },
-    spruce: { frame: 0x4b341b, panel: 0x6d4e2d, dark: 0x3b2814, hi: 0x7e5d38, knob: 0xbec5cd, win: false, mode: 'spruce' },
-    birch:  { frame: 0xc5b580, panel: 0xddd0a0, dark: 0xa6945f, hi: 0xebe0b6, knob: 0x3f444c, win: false, mode: 'birch' },
-    bamboo: { frame: 0xa68c32, panel: 0xdbc35c, dark: 0x7e681f, hi: 0xe9d678, knob: 0x4a3d14, win: true,  mode: 'open' },
-    sakura: { frame: 0xc27196, panel: 0xf4a9c8, dark: 0x9b5073, hi: 0xffc6df, knob: 0x701a45, win: true,  mode: 'open' },
     iron:   { frame: 0xaeb4ba, panel: 0xd5d9dd, dark: 0x858b92, hi: 0xe8ebee, knob: 0x3a3f46, win: true,  mode: 'open' }
   };
+  for (const wf of WOOD_FAMILIES) DOOR_MAT_PAL[wf.tier] = wf.doorPal;
 
   // Shared Paired Door Open/Close Helper (syncs Double Doors + authentic wood/iron SFX for Player & Villagers!)
   function setDoorOpenPair(wx, wy, wz, openBool, playSound = true, fromRemote = false) {
@@ -3552,53 +3640,90 @@
         const isLower = (y >= 17);
         if (isBorder) put(x, y, (x === 0 || x === 15 || y === 0 || y === 31) ? tint(pal.dark, n * 0.5) : tint(pal.panel, n));
         else if (!isLower) {
-          // Frosted creamy-white paper shoji grid (rows 3..16, cols 3..12)
           const grid = (x === 7 || x === 8 || y === 7 || y === 12);
           put(x, y, grid ? '#dbd6c7' : ((pxHash(x, y) > 0.5) ? '#f3f1e7' : '#ece9dc'));
         } else {
-          // Smooth cream birch lower panel w/ subtle plank grooves
           const grove = (y === 17 || y === 18 || x === 3 || x === 12);
           put(x, y, grove ? tint(pal.frame, n) : tint(pal.hi, n * 0.7));
         }
       }
-      // Small dark handle + 3 subtle hinges
       for (const hy of [5, 15, 25]) { put(0, hy, '#474c54'); put(0, hy + 1, '#686e78'); }
       put(13, 16, '#363b42'); put(14, 16, '#363b42'); put(13, 17, '#1f2328');
+    } else if (pal.mode === 'dark_oak') {
+      // Solid 6-panel dark chocolate door w/ brass knob (Image 3)
+      for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) {
+        const n = (pxHash(x, y) - 0.5) * 12;
+        const outerEdge = (x === 0 || x === 15 || y === 0 || y === 31);
+        const inPanelX = (x >= 3 && x <= 6) || (x >= 9 && x <= 12);
+        const inPanelY = (y >= 3 && y <= 7) || (y >= 10 && y <= 14) || (y >= 18 && y <= 22) || (y >= 24 && y <= 28);
+        if (outerEdge) put(x, y, tint(pal.dark, n * 0.5));
+        else if (inPanelX && inPanelY) {
+          const rim = (x === 3 || x === 9 || y === 3 || y === 10 || y === 18 || y === 24);
+          put(x, y, rim ? tint(pal.dark, n * 0.6) : tint(pal.panel, n));
+        } else put(x, y, tint(pal.frame, n));
+      }
+      for (const hy of [5, 15, 25]) { put(0, hy, '#4b5058'); put(1, hy, '#6b7280'); }
+      put(12, 16, hex(pal.knob)); put(13, 16, hex(pal.knob));
     } else {
-      // Exact Minecraft Oak / Iron / Bamboo Door (images (24), (25), (27), (29).jpg):
-      // Upper 2x2 OPEN window holes (transparent pixels!) + 3x2 recessed beveled panels below + 3 steel hinges + L-latch!
+      // Open-window / slat / oval / sakura lattice doors matching reference Image 3!
+      const m = pal.mode;
       for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) {
         const n = (pxHash(x, y) - 0.5) * (tier === 'iron' ? 8 : 14);
         const outerEdge = (x === 0 || x === 15 || y === 0 || y === 31);
-        const frameBar  = (x <= 2 || x >= 13 || y <= 2 || y >= 29 || y === 13 || y === 14 || x === 7 || x === 8);
-        // 4 open 2x2 upper window holes: x=[3..6], [9..12] x y=[3..6], [8..11]
-        const inWinX = (x >= 3 && x <= 6) || (x >= 9 && x <= 12);
-        const inWinY = (y >= 3 && y <= 6) || (y >= 8 && y <= 11);
-        if (inWinX && inWinY) continue; // Genuine transparent window opening!
+        const frameBar  = (x <= 2 || x >= 13 || y <= 2 || y >= 29 || y === 14 || y === 15);
+        if (m === 'acacia' && y >= 3 && y <= 13 && (x === 4 || x === 5 || x === 7 || x === 8 || x === 10 || x === 11)) continue;
+        if (m === 'slat_h' && x >= 3 && x <= 12 && ((y >= 4 && y <= 6) || (y >= 9 && y <= 11) || (y >= 18 && y <= 20) || (y >= 23 && y <= 25))) continue;
+        if (m === 'mangrove' && y >= 4 && y <= 12 && x >= 4 && x <= 11 && !((x === 4 || x === 11) && (y === 4 || y === 12))) continue;
+        if (m === 'sakura' && y >= 3 && y <= 13 && x >= 3 && x <= 12) {
+          const lat = (x === 3 || x === 12 || y === 3 || y === 13 || (x >= 5 && x <= 10 && y >= 6 && y <= 10 && ((x + y) & 1) === 0));
+          if (!lat) continue;
+        }
+        if ((m === 'open' || m === 'bamboo' || m === 'jungle') && y >= 3 && y <= 12 && ((x >= 3 && x <= 6) || (x >= 9 && x <= 12))) {
+          if (y !== 7 && !(m === 'bamboo' && (x === 5 || x === 10)) && !(m === 'jungle' && y === 8)) continue;
+        }
         let c = tint(pal.panel, n);
         if (outerEdge) c = tint(pal.dark, n * 0.5);
-        else if (frameBar) c = (x === 1 || y === 1 || x === 7 || y === 7) ? tint(pal.hi, n * 0.7) : tint(pal.frame, n);
-        else if (y >= 15 && y <= 28) {
-          // 3 stacked pairs of recessed beveled square panels (y 15-18, 20-23, 25-28)
-          const rowMod = (y - 15) % 5;
-          const isDivH = (rowMod === 4);
+        else if (frameBar) c = (x === 1 || y === 1) ? tint(pal.hi, n * 0.7) : tint(pal.frame, n);
+        else if (y >= 16 && y <= 28) {
+          const rowMod = (y - 16) % 5, isDivH = (rowMod === 4);
           const colIn = (x >= 3 && x <= 6) ? (x - 3) : (x - 9);
           if (isDivH) c = tint(pal.frame, n);
-          else if (rowMod === 0 || colIn === 0) c = tint(pal.dark, n * 0.6); // Top-left recessed bevel shadow
-          else if (rowMod === 3 || colIn === 3) c = tint(pal.hi, n * 0.6);   // Bottom-right lit bevel edge
+          else if (rowMod === 0 || colIn === 0) c = tint(pal.dark, n * 0.6);
+          else if (rowMod === 3 || colIn === 3) c = tint(pal.hi, n * 0.6);
           else c = tint(pal.panel, n);
         }
         put(x, y, c);
       }
-      // 3 authentic grey-iron hinges on left edge (x=0..1, y=5..6, 15..16, 25..26)
       for (const hy of [5, 15, 25]) {
         put(0, hy, '#4b5058'); put(1, hy, '#6b7280');
         put(0, hy + 1, '#7c838f'); put(1, hy + 1, '#9ca3af');
       }
-      // Authentic L-shaped iron latch handle on right side (x=11..13, y=15..16)
       put(11, 15, hex(pal.knob)); put(12, 15, hex(pal.knob)); put(13, 15, '#252930');
       put(11, 16, '#252930');
     }
+
+    // Matching 16x16 Trapdoor Texture (with authentic holes/slats/lattice per wood tier matching Image 3!)
+    const tcv = document.createElement('canvas'); tcv.width = 16; tcv.height = 16;
+    const tctx = tcv.getContext('2d');
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const m = pal.mode, n = (pxHash(x + 9, y + 5) - 0.5) * 10;
+      if (x === 0 || x === 15 || y === 0 || y === 15) { tctx.fillStyle = tint(pal.dark, n * 0.5); tctx.fillRect(x, y, 1, 1); continue; }
+      if (x === 1 || x === 14 || y === 1 || y === 14) { tctx.fillStyle = tint(pal.frame, n * 0.8); tctx.fillRect(x, y, 1, 1); continue; }
+      if ((m === 'open') && ((x >= 3 && x <= 6) || (x >= 9 && x <= 12)) && ((y >= 3 && y <= 6) || (y >= 9 && y <= 12))) continue;
+      if (m === 'birch' && x >= 3 && x <= 12 && y >= 3 && y <= 12) {
+        tctx.fillStyle = (x === 7 || x === 8 || y === 7 || y === 8) ? '#dbd6c6' : '#f4f2e8'; tctx.fillRect(x, y, 1, 1); continue;
+      }
+      if ((m === 'jungle' || m === 'acacia') && ((x >= 3 && x <= 5) || (x >= 7 && x <= 8) || (x >= 10 && x <= 12)) && y >= 3 && y <= 12 && !(m === 'jungle' && (y === 7 || y === 8))) continue;
+      if (m === 'mangrove' && x >= 5 && x <= 10 && y >= 5 && y <= 10 && !((x === 5 || x === 10) && (y === 5 || y === 10))) continue;
+      if ((m === 'sakura' || m === 'bamboo') && ((x >= 3 && x <= 4) || (x >= 7 && x <= 8) || (x >= 11 && x <= 12)) && ((y >= 3 && y <= 4) || (y >= 7 && y <= 8) || (y >= 11 && y <= 12))) continue;
+      if (m === 'slat_h' && ((y >= 3 && y <= 5) || (y >= 10 && y <= 12)) && x >= 3 && x <= 12) continue;
+      let col = tint(pal.panel, n);
+      if ((m === 'dark_oak' || m === 'spruce') && (x === 7 || x === 8 || y === 7 || y === 8)) col = tint(pal.dark, -6);
+      if (m === 'spruce' && (y === 3 || y === 12)) col = '#353a42';
+      tctx.fillStyle = col; tctx.fillRect(x, y, 1, 1);
+    }
+    const trapTex = new THREE.CanvasTexture(tcv);
+    trapTex.magFilter = THREE.NearestFilter; trapTex.minFilter = THREE.NearestFilter; trapTex.generateMipmaps = false;
 
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
@@ -3609,7 +3734,6 @@
     texMirror.generateMipmaps = false;
     texMirror.wrapS = THREE.RepeatWrapping; texMirror.repeat.x = -1; texMirror.offset.x = 1;
 
-    // Matching 16x16 Edge/Frame pixel-art texture for the 3/16 thickness sides & window inner reveals!
     const ecv = document.createElement('canvas'); ecv.width = 16; ecv.height = 16;
     const ectx = ecv.getContext('2d');
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
@@ -3624,8 +3748,9 @@
     const isIron = (tier === 'iron');
     const faceMat  = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: isIron ? 0.34 : 0.78, metalness: isIron ? 0.62 : 0.04 });
     const faceMatM = new THREE.MeshStandardMaterial({ map: texMirror, alphaTest: 0.5, side: THREE.DoubleSide, roughness: isIron ? 0.34 : 0.78, metalness: isIron ? 0.62 : 0.04 });
+    const trapMat  = new THREE.MeshStandardMaterial({ map: trapTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: isIron ? 0.34 : 0.78, metalness: isIron ? 0.62 : 0.04 });
     const edgeMat  = new THREE.MeshStandardMaterial({ map: edgeTex, roughness: isIron ? 0.36 : 0.80, metalness: isIron ? 0.58 : 0.04 });
-    const res = { faceMat, faceMatM, edgeMat, mode: pal.mode, pal };
+    const res = { faceMat, faceMatM, trapMat, edgeMat, mode: pal.mode, pal };
     _doorMatCache.set(tier, res);
     return res;
   }
@@ -3837,16 +3962,12 @@
       kind = 'trapdoor';
       const tier = def.doorTier || 'oak';
       const dm = getDoorVoxelMatSet(tier);
-      const fMat = dm.edgeMat;
-      const pMat = _getTrapMat(tier, dm.pal);
       pivot = new THREE.Group();
       pivot.position.set(0.5, 0.09, 0.09);
-      const frN = new THREE.Mesh(_getBoxGeo(0.96, 0.16, 0.16), fMat); frN.position.set(0, 0, 0);
-      const frS = new THREE.Mesh(_getBoxGeo(0.96, 0.16, 0.16), fMat); frS.position.set(0, 0, 0.82);
-      const frW = new THREE.Mesh(_getBoxGeo(0.16, 0.16, 0.82), fMat); frW.position.set(-0.40, 0, 0.41);
-      const frE = new THREE.Mesh(_getBoxGeo(0.16, 0.16, 0.82), fMat); frE.position.set( 0.40, 0, 0.41);
-      const slab = new THREE.Mesh(_getBoxGeo(0.72, 0.14, 0.72), pMat); slab.position.set(0, 0, 0.41);
-      pivot.add(frN, frS, frW, frE, slab);
+      const tMesh = new THREE.Mesh(_getBoxGeo(0.96, 0.18, 0.96), [dm.edgeMat, dm.edgeMat, dm.trapMat, dm.trapMat, dm.edgeMat, dm.edgeMat]);
+      tMesh.position.set(0, 0, 0.41);
+      tMesh.castShadow = !_isMobilePerf; tMesh.receiveShadow = true;
+      pivot.add(tMesh);
       g.add(pivot);
       targetAng = doorOpenState.get(k) ? -1.52 : 0;
     } else if (def.dragonEgg) {
@@ -4061,7 +4182,20 @@
           if (id === B.WHEAT_0 || id === B.WHEAT_1 || id === B.WHEAT_2) {
             setBlockWorld(wx0 + lx, MIN_Y + ly, wz0 + lz, id + 1, true);
             spawnParticles(wx0 + lx + 0.5, MIN_Y + ly + 0.4, wz0 + lz + 0.5, 0x86efac, 3, true);
+          } else if (BLOCK_DEF[id]?.isSapling && Math.random() < 0.08) {
+            growSaplingAt(wx0 + lx, MIN_Y + ly, wz0 + lz, id);
           }
+        }
+      }
+    }
+
+    // 3b) Planted Sapling Growth Timer (grows naturally after targetAge seconds!)
+    if (plantedSaplings.size > 0) {
+      for (const [sk, sap] of plantedSaplings) {
+        if (getBlockWorld(sap.x, sap.y, sap.z) !== sap.id) { plantedSaplings.delete(sk); saplingFertilizeCount.delete(sk); continue; }
+        sap.age += dt;
+        if (sap.age >= sap.targetAge) {
+          if (!growSaplingAt(sap.x, sap.y, sap.z, sap.id)) sap.age = sap.targetAge - 6.0;
         }
       }
     }
@@ -7044,7 +7178,7 @@
 
   let _lastEyesInWater = false, _lastFireHudOn = false;
   function _clearWorldInteractiveCaches(alsoClearChunks = false, wipeWorldState = false) {
-    if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); }
+    if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); plantedSaplings.clear(); saplingFertilizeCount.clear(); }
     else { worldModsByChunk.clear(); activeFires.clear(); }
     clearFluidState();
     exploredChunks.clear(); doorOpenState.clear(); torchAttachDir.clear(); dragonHeadYaw.clear(); windmillHubState.clear(); chestPairMap.clear(); furnaceStateMap.clear(); manualCraftGrid.fill(0);

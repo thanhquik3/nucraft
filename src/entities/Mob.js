@@ -4976,7 +4976,7 @@
       else if (mob.type === 'moobloom' || mob.type === 'wooly_cow') { const bf = mob.burning ? B.COOKED_BEEF : B.RAW_BEEF; spawnDroppedItem(bx, by, bz, bf); spawnDroppedItem(bx, by, bz, B.FLOWER_YELLOW); }
       else if (mob.type === 'cluckshroom') { spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_CHICKEN : B.RAW_CHICKEN); }
       else if (mob.type === 'zombified_piglin') { spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
-      else if (mob.type === 'wither_skeleton') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); }
+      else if (mob.type === 'wither_skeleton') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); if (Math.random() < 0.85) spawnDroppedItem(bx, by, bz, B.BONE, { count: Math.random() < 0.45 ? 2 : 1 }); }
       else if (mob.type === 'shulker') { spawnDroppedItem(bx, by, bz, B.PURPUR_BLOCK); spawnDroppedItem(bx, by, bz, B.VOID_PEARL); }
       else if (mob.type === 'wither_knight') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
       else if (mob.type === 'iron_golem') { spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.FLOWER_RED); }
@@ -5005,7 +5005,7 @@
       else if (mob.type === 'rabbit_brown' || mob.type === 'snow_hare' || mob.type === 'rabbit') {
         spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_RABBIT : B.RAW_RABBIT);
       }
-      else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'desert_skeleton' || mob.type === 'bogged' || mob.type === 'spider_jockey') { spawnDroppedItem(bx, by, bz, B.ARROW); if (Math.random() < 0.28) spawnDroppedItem(bx, by, bz, B.BOW); }
+      else if (mob.type === 'skeleton' || mob.type === 'stray' || mob.type === 'desert_skeleton' || mob.type === 'bogged' || mob.type === 'spider_jockey') { spawnDroppedItem(bx, by, bz, B.ARROW); if (Math.random() < 0.85) spawnDroppedItem(bx, by, bz, B.BONE, { count: Math.random() < 0.45 ? 2 : 1 }); if (Math.random() < 0.28) spawnDroppedItem(bx, by, bz, B.BOW); }
       else if ((mob.type === 'zombie' || mob.type === 'husk' || mob.type === 'frozen_zombie' || mob.type === 'mossy_zombie' || mob.type === 'chicken_jockey') && Math.random() < 0.65) spawnDroppedItem(bx, by, bz, Math.random() < 0.25 ? B.CARROT : (Math.random() < 0.35 ? B.POTATO : B.IRON_INGOT));
       else if (mob.aqua) spawnDroppedItem(bx, by, bz, mob.burning ? (Math.random() < 0.45 ? B.COOKED_SALMON : B.COOKED_FISH) : (Math.random() < 0.45 ? B.RAW_SALMON : B.RAW_FISH));
       else if (!mob.hostile && !mob.villager && !mob.guardian) spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_PORK : B.RAW_PORK);
@@ -5215,6 +5215,9 @@
       return;
     }
     const sel = inventory[player.selectedSlot], def = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
+    if (hitB && def && def.tool === 'axe' && BLOCK_DEF[hitB.id]?.stripTo && typeof tryStripLogWithAxe === 'function') {
+      if (tryStripLogWithAxe(hitB)) return;
+    }
     if (hitB && !(gameMode === 'creative' && def && def.tool === 'sword')) {
       mining.active = true;
       mining.heldDur = 0;

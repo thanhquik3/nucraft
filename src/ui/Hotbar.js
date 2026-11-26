@@ -395,9 +395,9 @@
   const minimapCtx = minimapCanvas.getContext('2d');
   const minimapImg = minimapCtx.createImageData(minimapCanvas.width, minimapCanvas.height);
   const minimapU32 = new Uint32Array(minimapImg.data.buffer);
-  const MAP_COLOR_U32 = new Uint32Array(1024);
+  const MAP_COLOR_U32 = new Uint32Array(2048);
   const DEFAULT_MAP_U32 = 0xff271811;
-  for (let i = 0; i < 1024; i++) {
+  for (let i = 0; i < 2048; i++) {
     const hex = BLOCK_DEF[i]?.mapColor;
     if (hex && hex[0] === '#') {
       const n = parseInt(hex.slice(1), 16);
@@ -1064,6 +1064,11 @@
     lookTouchId = null;
     if (!wasTap) return;
     const mobHit = raycastMob(4.8, tapX, tapY);
+    const _axSlot = inventory[player.selectedSlot], _axDef = (_axSlot && _axSlot.count > 0) ? BLOCK_DEF[_axSlot.id] : null;
+    if (!mobHit && _axDef && _axDef.tool === 'axe' && typeof tryStripLogWithAxe === 'function') {
+      const axHit = raycastBlock(5.4, false, false, tapX, tapY);
+      if (axHit && BLOCK_DEF[axHit.id]?.stripTo && tryStripLogWithAxe(axHit)) return;
+    }
     if (mobileCtrlMode === 'touch_direct') {
       const slot = inventory[player.selectedSlot];
       const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
@@ -2042,6 +2047,23 @@
     return cv;
   }
   function renderIsoSlabCanvas(drawFaceFn) { return renderIsoCubeCanvas(drawFaceFn, 6.7, 9.2); }
+  function renderIsoStairsCanvas(tIdx) {
+    const cv = document.createElement('canvas'); cv.width = 32; cv.height = 32;
+    const bot = renderIsoCubeCanvas((c, face) => {
+      const sx = (tIdx & 7) * TILE_PX, sy = (tIdx >> 3) * TILE_PX;
+      c.drawImage(atlasCanvas, sx, sy + (face === 'top' ? 0 : 8), TILE_PX, face === 'top' ? TILE_PX : 8, 0, 0, 16.35, 16.35);
+    }, 6.7, 9.3);
+    const topStep = renderIsoCubeCanvas((c, face) => {
+      const sx = (tIdx & 7) * TILE_PX, sy = (tIdx >> 3) * TILE_PX;
+      const w = face === 'top' || face === 'right' ? 8 : 16;
+      c.drawImage(atlasCanvas, sx, sy, w, face === 'top' ? 16 : 8, 0, 0, 16.35, 16.35);
+    }, 6.7, 2.6);
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bot, 0, 0);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 18, 22); ctx.clip(); ctx.drawImage(topStep, 0, 0); ctx.restore();
+    return cv;
+  }
 
   function _shadeHex(hex, mult) {
     const v = parseInt(String(hex || '#ef3333').replace('#', ''), 16);
@@ -2091,6 +2113,11 @@
     const def0 = BLOCK_DEF[blockId];
     if (def0 && def0.bed) {
       const cv = renderIsoBedCanvas(def0);
+      _mcIsoCache.set(blockId, cv);
+      return cv;
+    }
+    if (def0 && def0.stairs && def0.tiles) {
+      const cv = renderIsoStairsCanvas(def0.tiles[0]);
       _mcIsoCache.set(blockId, cv);
       return cv;
     }
@@ -3027,7 +3054,7 @@
         const queue = [];
         for (const [kId, def] of Object.entries(BLOCK_DEF)) {
           const bid = Number(kId);
-          if (!bid || _CREATIVE_HIDDEN_IDS.has(bid) || !def || !def.tiles || def.bedFoot || def.slabTop) continue;
+          if (!bid || _CREATIVE_HIDDEN_IDS.has(bid) || !def || !def.tiles || def.bedFoot || def.slabTop || (def.stairs && def.stairDir > 0)) continue;
           if (recipeCat !== 'all' && getCreativeItemCategory(bid, def) !== recipeCat) continue;
           if (q && !(def.name || '').toLowerCase().includes(q)) continue;
           queue.push(bid);

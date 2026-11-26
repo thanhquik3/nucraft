@@ -42,6 +42,12 @@
     [B.AZURE_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.SCULK_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 }
   };
+  for (const wf of WOOD_FAMILIES) {
+    if (wf.fuel > 0) {
+      SMELT_RECIPES[wf.log] = { out: B.CHARCOAL, kind: 'misc', xp: 2, cookTime: 10.0 };
+      SMELT_RECIPES[wf.stripped] = { out: B.CHARCOAL, kind: 'misc', xp: 2, cookTime: 10.0 };
+    }
+  }
   // Exact Minecraft Wiki Fuel Burn Seconds (10s = 1 item in standard Furnace; Blast/Smoker burns 2x faster)
   const FUEL_VALUES = {
     [B.LAVA_BUCKET]: 1000, [B.BLAZE_ROD]: 120, [B.COAL]: 80, [B.CHARCOAL]: 80,
@@ -55,32 +61,34 @@
     [B.OAK_TRAPDOOR]: 15, [B.SPRUCE_TRAPDOOR]: 15, [B.SAKURA_TRAPDOOR]: 15,
     [B.STICK]: 5, [B.WHITE_WOOL]: 5, [B.BAMBOO]: 2.5
   };
+  for (const wf of WOOD_FAMILIES) if (wf.fuel > 0) {
+    FUEL_VALUES[wf.log] = FUEL_VALUES[wf.stripped] = FUEL_VALUES[wf.planks] = 15;
+    FUEL_VALUES[wf.fence] = FUEL_VALUES[wf.stairsN] = FUEL_VALUES[wf.trapdoor] = 15;
+    FUEL_VALUES[wf.door] = 10; FUEL_VALUES[wf.sapling] = 5;
+  }
   // Colored wools (5s) + wooden slabs (7.5s = 0.75 items per Minecraft Wiki; Crimson/Warped/Petrified = 0)
   for (const e of _DYN_COLORED_ENTRIES) if (e.kind === 'wool') FUEL_VALUES[e.id] = 5;
   for (const s of SLAB_SPECS) if (s.fuel > 0) FUEL_VALUES[s.botId] = s.fuel;
 
   const RECIPES = [
     // ===================== CORE ESSENTIALS (2x2 BACKPACK RECIPES MARKED is2x2: true!) =====================
-    { cat: 'blocks', is2x2: true, out: B.PLANKS,          qty: 4, req: [{ anyLog: true, qty: 1 }], grid: [0,0,0, 0,B.OAK_LOG,0, 0,0,0] },
-    { cat: 'misc',   is2x2: true, out: B.STICK,           qty: 4, req: [{ id: B.PLANKS, qty: 2 }], grid: [0,0,0, 0,B.PLANKS,0, 0,B.PLANKS,0] },
+    { cat: 'misc',   is2x2: true, out: B.STICK,           qty: 4, req: [{ anyPlanks: true, id: B.PLANKS, qty: 2 }], grid: [0,0,0, 0,B.PLANKS,0, 0,B.PLANKS,0] },
     { cat: 'misc',   is2x2: true, out: B.STICK,           qty: 2, req: [{ id: B.BAMBOO, qty: 2 }], grid: [0,0,0, 0,B.BAMBOO,0, 0,B.BAMBOO,0] },
     { cat: 'food',   is2x2: true, out: B.COOKIE,          qty: 4, req: [{ id: B.WHEAT, qty: 2 }, { id: B.SWEET_BERRIES, qty: 1 }], grid: [0,0,0, B.WHEAT,B.SWEET_BERRIES,B.WHEAT, 0,0,0] },
     { cat: 'food',                out: B.GOLDEN_CARROT,   qty: 1, req: [{ id: B.CARROT, qty: 1 }, { id: B.GOLD_INGOT, qty: 1 }], grid: [0,B.GOLD_INGOT,0, B.GOLD_INGOT,B.CARROT,B.GOLD_INGOT, 0,B.GOLD_INGOT,0] },
     { cat: 'food',                out: B.PUMPKIN_PIE,     qty: 1, req: [{ id: B.WHEAT, qty: 2 }, { id: B.APPLE, qty: 1 }], grid: [0,0,0, B.WHEAT,B.APPLE,B.WHEAT, 0,0,0] },
     { cat: 'food',                out: B.CAKE_ITEM,       qty: 1, req: [{ id: B.WHEAT, qty: 3 }, { id: B.SWEET_BERRIES, qty: 2 }], grid: [B.SWEET_BERRIES,B.SWEET_BERRIES,0, B.WHEAT,B.WHEAT,B.WHEAT, 0,0,0] },
-    { cat: 'misc',   is2x2: true, out: B.CRAFT_TABLE,     qty: 1, req: [{ id: B.PLANKS, qty: 4 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0, 0,0,0] },
+    { cat: 'misc',   is2x2: true, out: B.CRAFT_TABLE,     qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 4 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.TORCH_BLOCK,     qty: 4, req: [{ anyCoal: true, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.COAL,0, 0,B.STICK,0, 0,0,0] },
-    { cat: 'blocks', is2x2: true, out: B.BAMBOO_PLANKS,   qty: 2, req: [{ id: B.BAMBOO_BLOCK, qty: 1 }], grid: [0,0,0, 0,B.BAMBOO_BLOCK,0, 0,0,0] },
     { cat: 'blocks', is2x2: true, out: B.BAMBOO_SHOOT,    qty: 2, req: [{ id: B.BAMBOO, qty: 1 }], grid: [0,0,0, 0,B.BAMBOO,0, 0,0,0] },
     { cat: 'food',   is2x2: true, out: B.MELON_SLICE,     qty: 4, req: [{ id: B.MELON_BLOCK, qty: 1 }], grid: [0,0,0, 0,B.MELON_BLOCK,0, 0,0,0] },
     { cat: 'blocks', is2x2: true, out: B.IRON_TRAPDOOR,   qty: 1, req: [{ id: B.IRON_INGOT, qty: 4 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,0, 0,0,0] },
     { cat: 'blocks', is2x2: true, out: B.MOSS_BLOCK,      qty: 4, req: [{ id: B.TALL_GRASS, qty: 2 }, { id: B.DIRT, qty: 2 }], grid: [B.TALL_GRASS,B.TALL_GRASS,0, B.DIRT,B.DIRT,0, 0,0,0] },
-    { cat: 'blocks', is2x2: true, out: B.AZURE_PLANKS,    qty: 4, req: [{ id: B.AZURE_LOG, qty: 1 }], grid: [0,0,0, 0,B.AZURE_LOG,0, 0,0,0] },
     // ===================== 3x3 CRAFTING TABLE RECIPES (FURNACES, CHESTS, DOORS, TRAPDOORS, TOOLS & ARMOR!) =====================
     { cat: 'misc',   out: B.FURNACE,         qty: 1, req: [{ id: B.STONE, qty: 8 }],  grid: [B.STONE,B.STONE,B.STONE, B.STONE,0,B.STONE, B.STONE,B.STONE,B.STONE] },
     { cat: 'misc',   out: B.BLAST_FURNACE,   qty: 1, req: [{ id: B.IRON_INGOT, qty: 5 }, { id: B.FURNACE, qty: 1 }, { id: B.SMOOTH_STONE, qty: 3 }], grid: [B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT, B.IRON_INGOT,B.FURNACE,B.IRON_INGOT, B.SMOOTH_STONE,B.SMOOTH_STONE,B.SMOOTH_STONE] },
     { cat: 'misc',   out: B.SMOKER,          qty: 1, req: [{ anyLog: true, qty: 4 }, { id: B.FURNACE, qty: 1 }], grid: [0,B.OAK_LOG,0, B.OAK_LOG,B.FURNACE,B.OAK_LOG, 0,B.OAK_LOG,0] },
-    { cat: 'misc',   out: B.CHEST,             qty: 1, req: [{ id: B.PLANKS, qty: 8 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
+    { cat: 'misc',   out: B.CHEST,             qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 8 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
     { cat: 'misc',   out: B.COPPER_BOX_CHEST,  qty: 1, req: [{ id: B.COPPER_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.COPPER_INGOT,B.COPPER_INGOT,B.COPPER_INGOT, B.COPPER_INGOT,B.CHEST,B.COPPER_INGOT, B.COPPER_INGOT,B.COPPER_INGOT,B.COPPER_INGOT] },
     { cat: 'misc',   out: B.IRON_CHEST,        qty: 1, req: [{ id: B.IRON_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT, B.IRON_INGOT,B.CHEST,B.IRON_INGOT, B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT] },
     { cat: 'misc',   out: B.GOLD_CHEST,        qty: 1, req: [{ id: B.GOLD_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.GOLD_INGOT,B.GOLD_INGOT,B.GOLD_INGOT, B.GOLD_INGOT,B.CHEST,B.GOLD_INGOT, B.GOLD_INGOT,B.GOLD_INGOT,B.GOLD_INGOT] },
@@ -89,19 +97,10 @@
     { cat: 'misc',   out: B.RUBY_BOX_CHEST,    qty: 1, req: [{ id: B.RUBY, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.RUBY,B.RUBY,B.RUBY, B.RUBY,B.CHEST,B.RUBY, B.RUBY,B.RUBY,B.RUBY] },
     { cat: 'misc',   out: B.NETHERITE_CHEST,   qty: 1, req: [{ id: B.TITANIUM_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.TITANIUM_INGOT,B.TITANIUM_INGOT,B.TITANIUM_INGOT, B.TITANIUM_INGOT,B.CHEST,B.TITANIUM_INGOT, B.TITANIUM_INGOT,B.TITANIUM_INGOT,B.TITANIUM_INGOT] },
     { cat: 'misc',   out: B.DREAM_BOX_CHEST,   qty: 1, req: [{ id: B.DREAM_PRISM_GEM, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.DREAM_PRISM_GEM,B.DREAM_PRISM_GEM,B.DREAM_PRISM_GEM, B.DREAM_PRISM_GEM,B.CHEST,B.DREAM_PRISM_GEM, B.DREAM_PRISM_GEM,B.DREAM_PRISM_GEM,B.DREAM_PRISM_GEM] },
-    // 5 Authentic Doors (6 Planks/Ingots -> 3 Doors!) & 4 Authentic Trapdoors (6 Planks -> 2 Trapdoors!)
-    { cat: 'blocks', out: B.OAK_DOOR,        qty: 3, req: [{ id: B.PLANKS, qty: 6 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0] },
-    { cat: 'blocks', out: B.OAK_STAIRS_N,    qty: 4, req: [{ id: B.PLANKS, qty: 6 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,B.PLANKS, 0,0,0] },
-    { cat: 'blocks', out: B.STONE_STAIRS_N,  qty: 4, req: [{ id: B.STONE_BRICK, qty: 6 }], grid: [B.STONE_BRICK,B.STONE_BRICK,0, B.STONE_BRICK,B.STONE_BRICK,B.STONE_BRICK, 0,0,0] },
-    { cat: 'blocks', out: B.TERRACOTTA_STAIRS_N, qty: 4, req: [{ id: B.TERRACOTTA, qty: 6 }], grid: [B.TERRACOTTA,B.TERRACOTTA,0, B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA, 0,0,0] },
-    { cat: 'blocks', out: B.DEEPSLATE_STAIRS_N, qty: 4, req: [{ id: B.DEEPSLATE, qty: 6 }], grid: [B.DEEPSLATE,B.DEEPSLATE,0, B.DEEPSLATE,B.DEEPSLATE,B.DEEPSLATE, 0,0,0] },
-    { cat: 'blocks', out: B.SPRUCE_DOOR,     qty: 3, req: [{ id: B.SPRUCE_LOG, qty: 6 }], grid: [B.SPRUCE_LOG,B.SPRUCE_LOG,0, B.SPRUCE_LOG,B.SPRUCE_LOG,0, B.SPRUCE_LOG,B.SPRUCE_LOG,0] },
-    { cat: 'blocks', out: B.BIRCH_DOOR,      qty: 3, req: [{ id: B.BIRCH_LOG, qty: 6 }], grid: [B.BIRCH_LOG,B.BIRCH_LOG,0, B.BIRCH_LOG,B.BIRCH_LOG,0, B.BIRCH_LOG,B.BIRCH_LOG,0] },
-    { cat: 'blocks', out: B.BAMBOO_DOOR,     qty: 3, req: [{ id: B.BAMBOO_PLANKS, qty: 6 }], grid: [B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,0, B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,0, B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,0] },
-    { cat: 'blocks', out: B.IRON_DOOR,       qty: 3, req: [{ id: B.IRON_INGOT, qty: 6 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,0] },
-    { cat: 'blocks', out: B.OAK_TRAPDOOR,    qty: 2, req: [{ id: B.PLANKS, qty: 6 }], grid: [0,0,0, B.PLANKS,B.PLANKS,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
-    { cat: 'blocks', out: B.SPRUCE_TRAPDOOR, qty: 2, req: [{ id: B.SPRUCE_LOG, qty: 6 }], grid: [0,0,0, B.SPRUCE_LOG,B.SPRUCE_LOG,B.SPRUCE_LOG, B.SPRUCE_LOG,B.SPRUCE_LOG,B.SPRUCE_LOG] },
-    { cat: 'blocks', out: B.SAKURA_TRAPDOOR, qty: 2, req: [{ id: B.SAKURA_LOG, qty: 6 }], grid: [0,0,0, B.SAKURA_LOG,B.SAKURA_LOG,B.SAKURA_LOG, B.SAKURA_LOG,B.SAKURA_LOG,B.SAKURA_LOG] },
+    { cat: 'blocks', out: B.STONE_STAIRS_N,      qty: 4, req: [{ id: B.STONE_BRICK, qty: 6 }], grid: [B.STONE_BRICK,0,0, B.STONE_BRICK,B.STONE_BRICK,0, B.STONE_BRICK,B.STONE_BRICK,B.STONE_BRICK] },
+    { cat: 'blocks', out: B.TERRACOTTA_STAIRS_N, qty: 4, req: [{ id: B.TERRACOTTA, qty: 6 }], grid: [B.TERRACOTTA,0,0, B.TERRACOTTA,B.TERRACOTTA,0, B.TERRACOTTA,B.TERRACOTTA,B.TERRACOTTA] },
+    { cat: 'blocks', out: B.DEEPSLATE_STAIRS_N,  qty: 4, req: [{ id: B.DEEPSLATE, qty: 6 }], grid: [B.DEEPSLATE,0,0, B.DEEPSLATE,B.DEEPSLATE,0, B.DEEPSLATE,B.DEEPSLATE,B.DEEPSLATE] },
+    { cat: 'blocks', out: B.IRON_DOOR,           qty: 3, req: [{ id: B.IRON_INGOT, qty: 6 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,0] },
     { cat: 'food',   out: B.BREAD,           qty: 1, req: [{ id: B.WHEAT, qty: 3 }], grid: [0,0,0, B.WHEAT,B.WHEAT,B.WHEAT, 0,0,0] },
     { cat: 'blocks', out: B.HAY_BALE,        qty: 1, req: [{ id: B.WHEAT, qty: 9 }], grid: [B.WHEAT,B.WHEAT,B.WHEAT, B.WHEAT,B.WHEAT,B.WHEAT, B.WHEAT,B.WHEAT,B.WHEAT] },
     { cat: 'blocks', out: B.MELON_BLOCK,     qty: 1, req: [{ id: B.MELON_SLICE, qty: 9 }], grid: [B.MELON_SLICE,B.MELON_SLICE,B.MELON_SLICE, B.MELON_SLICE,B.MELON_SLICE,B.MELON_SLICE, B.MELON_SLICE,B.MELON_SLICE,B.MELON_SLICE] },
@@ -111,13 +110,13 @@
     { cat: 'misc',   out: B.BUCKET,          qty: 1, req: [{ id: B.IRON_INGOT, qty: 3 }], grid: [0,0,0, B.IRON_INGOT,0,B.IRON_INGOT, 0,B.IRON_INGOT,0] },
     { cat: 'misc',   out: B.LANTERN,         qty: 2, req: [{ id: B.TORCH_BLOCK, qty: 1 }, { id: B.IRON_INGOT, qty: 2 }], grid: [0,B.IRON_INGOT,0, 0,B.TORCH_BLOCK,0, 0,B.IRON_INGOT,0] },
     { cat: 'misc',   out: B.CAMPFIRE,        qty: 1, req: [{ anyLog: true, qty: 3 }, { anyCoal: true, qty: 1 }, { id: B.STICK, qty: 3 }], grid: [0,B.STICK,0, B.STICK,B.COAL,B.STICK, B.OAK_LOG,B.OAK_LOG,B.OAK_LOG] },
-    { cat: 'misc',   out: B.SMITHING_TABLE,  qty: 1, req: [{ id: B.IRON_INGOT, qty: 2 }, { id: B.PLANKS, qty: 4 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0] },
+    { cat: 'misc',   out: B.SMITHING_TABLE,  qty: 1, req: [{ id: B.IRON_INGOT, qty: 2 }, { anyPlanks: true, id: B.PLANKS, qty: 4 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.PLANKS,B.PLANKS,0, B.PLANKS,B.PLANKS,0] },
     { cat: 'misc',   out: B.NETHERITE_INGOT, qty: 1, req: [{ id: B.NETHERITE_SCRAP, qty: 4 }, { id: B.GOLD_INGOT, qty: 4 }], grid: [B.NETHERITE_SCRAP,B.NETHERITE_SCRAP,B.NETHERITE_SCRAP, B.NETHERITE_SCRAP,B.GOLD_INGOT,B.GOLD_INGOT, B.GOLD_INGOT,B.GOLD_INGOT,0] },
     ...WOOL_COLORS.map(c => {
       const wid = B[c.woolKey], bid = B[c.bedKey];
       return { cat: 'misc', out: bid, qty: 1, req: [{ id: wid, qty: 3 }, { anyPlanks: true, id: B.PLANKS, qty: 3 }], grid: [wid, wid, wid, B.PLANKS, B.PLANKS, B.PLANKS, 0, 0, 0] };
     }),
-    { cat: 'misc',   out: B.BOOKSHELF,       qty: 1, req: [{ id: B.PLANKS, qty: 6 }, { id: B.STICK, qty: 3 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.STICK,B.STICK,B.STICK, B.PLANKS,B.PLANKS,B.PLANKS] },
+    { cat: 'misc',   out: B.BOOKSHELF,       qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 6 }, { id: B.STICK, qty: 3 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.STICK,B.STICK,B.STICK, B.PLANKS,B.PLANKS,B.PLANKS] },
     { cat: 'misc',   out: B.ENCHANT_TABLE,   qty: 1, req: [{ id: B.OBSIDIAN, qty: 4 }, { id: B.DIAMOND, qty: 2 }, { id: B.BOOKSHELF, qty: 1 }], grid: [0,B.BOOKSHELF,0, B.DIAMOND,B.OBSIDIAN,B.DIAMOND, B.OBSIDIAN,B.OBSIDIAN,B.OBSIDIAN] },
     { cat: 'misc',   out: B.ANVIL,           qty: 1, req: [{ id: B.IRON_INGOT, qty: 7 }], grid: [B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT, 0,B.IRON_INGOT,0, B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT] },
     { cat: 'misc',   out: B.TNT,             qty: 2, req: [{ id: B.GUNPOWDER, qty: 2 }, { id: B.SAND, qty: 2 }], grid: [B.GUNPOWDER,B.SAND,B.GUNPOWDER, B.SAND,0,B.SAND, 0,0,0] },
@@ -130,34 +129,34 @@
     { cat: 'misc',   out: B.VOID_PEARL,      qty: 1, req: [{ id: B.EMERALD, qty: 1 }, { id: B.OBSIDIAN, qty: 2 }], grid: [0,B.OBSIDIAN,0, 0,B.EMERALD,0, 0,B.OBSIDIAN,0] },
 
     // TOOLS, WEAPONS & UTILITY
-    { cat: 'tools',  out: B.WOOD_PICK,       qty: 1, req: [{ id: B.PLANKS, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, 0,B.STICK,0, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.WOOD_PICK,       qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.STONE_PICK,      qty: 1, req: [{ id: B.STONE, qty: 3 }, { id: B.STICK, qty: 2 }],  grid: [B.STONE,B.STONE,B.STONE, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.DIAMOND_PICK,    qty: 1, req: [{ id: B.DIAMOND, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.DIAMOND,B.DIAMOND,B.DIAMOND, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.RUBY_PICK,       qty: 1, req: [{ id: B.RUBY, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.RUBY,B.RUBY,B.RUBY, 0,B.STICK,0, 0,B.STICK,0] },
-    { cat: 'tools',  out: B.WOOD_AXE,        qty: 1, req: [{ id: B.PLANKS, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.STICK,0, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.WOOD_AXE,        qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,0, B.PLANKS,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.STONE_AXE,       qty: 1, req: [{ id: B.STONE, qty: 3 }, { id: B.STICK, qty: 2 }],  grid: [B.STONE,B.STONE,0, B.STONE,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.IRON_AXE,        qty: 1, req: [{ id: B.IRON_INGOT, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, B.IRON_INGOT,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.DIAMOND_AXE,     qty: 1, req: [{ id: B.DIAMOND, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.DIAMOND,B.DIAMOND,0, B.DIAMOND,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.STONE_SHOVEL,    qty: 1, req: [{ id: B.STONE, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [0,B.STONE,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.IRON_SHOVEL,     qty: 1, req: [{ id: B.IRON_INGOT, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [0,B.IRON_INGOT,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.DIAMOND_SHOVEL,  qty: 1, req: [{ id: B.DIAMOND, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [0,B.DIAMOND,0, 0,B.STICK,0, 0,B.STICK,0] },
-    { cat: 'tools',  out: B.WOOD_HOE,        qty: 1, req: [{ id: B.PLANKS, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,0, 0,B.STICK,0, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.WOOD_HOE,        qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.PLANKS,B.PLANKS,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.STONE_HOE,       qty: 1, req: [{ id: B.STONE, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.STONE,B.STONE,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.IRON_HOE,        qty: 1, req: [{ id: B.IRON_INGOT, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.IRON_INGOT,B.IRON_INGOT,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.GOLD_HOE,        qty: 1, req: [{ id: B.GOLD_INGOT, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.GOLD_INGOT,B.GOLD_INGOT,0, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.DIAMOND_HOE,     qty: 1, req: [{ id: B.DIAMOND, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [B.DIAMOND,B.DIAMOND,0, 0,B.STICK,0, 0,B.STICK,0] },
-    { cat: 'tools',  out: B.WOOD_SWORD,      qty: 1, req: [{ id: B.PLANKS, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.PLANKS,0, 0,B.PLANKS,0, 0,B.STICK,0] },
+    { cat: 'tools',  out: B.WOOD_SWORD,      qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.PLANKS,0, 0,B.PLANKS,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.STONE_SWORD,     qty: 1, req: [{ id: B.STONE, qty: 2 }, { id: B.STICK, qty: 1 }],  grid: [0,B.STONE,0, 0,B.STONE,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.DIAMOND_SWORD,   qty: 1, req: [{ id: B.DIAMOND, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.DIAMOND,0, 0,B.DIAMOND,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.RUBY_SWORD,      qty: 1, req: [{ id: B.RUBY, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.RUBY,0, 0,B.RUBY,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.FIRE_SWORD,      qty: 1, req: [{ id: B.DIAMOND_SWORD, qty: 1 }, { id: B.MAGMA_CORE, qty: 1 }], grid: [0,B.MAGMA_CORE,0, 0,B.DIAMOND_SWORD,0, 0,0,0] },
     { cat: 'tools',  out: B.BOW,             qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.IRON_INGOT, qty: 1 }], grid: [0,B.STICK,B.IRON_INGOT, B.STICK,0,B.IRON_INGOT, 0,B.STICK,0] },
     { cat: 'tools',  out: B.ARROW,           qty: 6, req: [{ id: B.STICK, qty: 2 }, { id: B.STONE, qty: 1 }], grid: [0,B.STONE,0, 0,B.STICK,0, 0,B.STICK,0] },
-    { cat: 'tools',  out: B.SHIELD,          qty: 1, req: [{ id: B.PLANKS, qty: 6 }, { id: B.IRON_INGOT, qty: 1 }], grid: [B.PLANKS,B.IRON_INGOT,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS, 0,B.PLANKS,0] },
+    { cat: 'tools',  out: B.SHIELD,          qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 6 }, { id: B.IRON_INGOT, qty: 1 }], grid: [B.PLANKS,B.IRON_INGOT,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS, 0,B.PLANKS,0] },
     { cat: 'tools',  is2x2: true, out: B.SHEARS, qty: 1, req: [{ id: B.IRON_INGOT, qty: 2 }], grid: [0,0,0, 0,B.IRON_INGOT,0, B.IRON_INGOT,0,0] },
     // Phôi quặng tinh luyện (quái rơi ra) -> nén lại thành khối quặng để dùng cho mọi công thức hiện có
     { cat: 'tools',  out: B.FISHING_ROD,     qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.IRON_INGOT, qty: 1 }], grid: [0,0,B.STICK, 0,B.STICK,B.IRON_INGOT, B.STICK,0,0] },
-    { cat: 'tools',  out: B.BOAT_ITEM,       qty: 1, req: [{ id: B.PLANKS, qty: 5 }], grid: [0,0,0, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
+    { cat: 'tools',  out: B.BOAT_ITEM,       qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 5 }], grid: [0,0,0, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
     { cat: 'tools',  out: B.WATER_BUCKET,    qty: 1, req: [{ id: B.BUCKET, qty: 1 }, { id: B.ICE, qty: 1 }], grid: [0,B.ICE,0, 0,B.BUCKET,0, 0,0,0] },
     { cat: 'tools',  out: B.LAVA_BUCKET,     qty: 1, req: [{ id: B.BUCKET, qty: 1 }, { id: B.MAGMA_CORE, qty: 1 }], grid: [0,B.MAGMA_CORE,0, 0,B.BUCKET,0, 0,0,0] },
     { cat: 'tools',  out: B.SPYGLASS,        qty: 1, req: [{ id: B.GOLD_INGOT, qty: 2 }, { id: B.GLASS, qty: 1 }], grid: [0,B.GLASS,0, 0,B.GOLD_INGOT,0, 0,B.GOLD_INGOT,0] },
@@ -244,23 +243,14 @@
     { cat: 'blocks', out: B.PURPUR_PILLAR,   qty: 2, req: [{ id: B.PURPUR_BLOCK, qty: 2 }], grid: [0,B.PURPUR_BLOCK,0, 0,B.PURPUR_BLOCK,0, 0,0,0] },
     { cat: 'misc',   out: B.END_ROD,         qty: 4, req: [{ id: B.BLAZE_ROD, qty: 1 }, { id: B.CHORUS_PLANT, qty: 1 }], grid: [0,B.BLAZE_ROD,0, 0,B.CHORUS_PLANT,0, 0,0,0] },
     { cat: 'blocks', out: B.BROKEN_GLASS,    qty: 4, req: [{ id: B.GLASS, qty: 2 }], grid: [0,0,0, B.GLASS,0,B.GLASS, 0,0,0] },
-    // v21 Bamboo Block (9x Bamboo!), Bamboo Planks, Sugar Cane & Complete Fences / Stone Walls!
+    // v21 Bamboo Block (9x Bamboo!) & Stone Walls
     { cat: 'blocks', out: B.BAMBOO_BLOCK,    qty: 1, req: [{ id: B.BAMBOO, qty: 9 }], grid: [B.BAMBOO,B.BAMBOO,B.BAMBOO, B.BAMBOO,B.BAMBOO,B.BAMBOO, B.BAMBOO,B.BAMBOO,B.BAMBOO] },
-    { cat: 'blocks', out: B.BAMBOO_PLANKS,   qty: 2, req: [{ id: B.BAMBOO_BLOCK, qty: 1 }], grid: [0,0,0, 0,B.BAMBOO_BLOCK,0, 0,0,0] },
-    { cat: 'blocks', out: B.OAK_FENCE,       qty: 3, req: [{ id: B.PLANKS, qty: 4 }, { id: B.STICK, qty: 2 }], grid: [0,0,0, B.PLANKS,B.STICK,B.PLANKS, B.PLANKS,B.STICK,B.PLANKS] },
-    { cat: 'blocks', out: B.SPRUCE_FENCE,    qty: 3, req: [{ id: B.SPRUCE_LOG, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [0,0,0, B.SPRUCE_LOG,B.STICK,B.SPRUCE_LOG, 0,B.STICK,0] },
-    { cat: 'blocks', out: B.BIRCH_FENCE,     qty: 3, req: [{ id: B.BIRCH_LOG, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [0,0,0, B.BIRCH_LOG,B.STICK,B.BIRCH_LOG, 0,B.STICK,0] },
-    { cat: 'blocks', out: B.SAKURA_FENCE,    qty: 3, req: [{ id: B.SAKURA_LOG, qty: 2 }, { id: B.STICK, qty: 2 }], grid: [0,0,0, B.SAKURA_LOG,B.STICK,B.SAKURA_LOG, 0,B.STICK,0] },
-    { cat: 'blocks', out: B.BAMBOO_FENCE,    qty: 3, req: [{ id: B.BAMBOO_PLANKS, qty: 4 }, { id: B.STICK, qty: 2 }], grid: [0,0,0, B.BAMBOO_PLANKS,B.STICK,B.BAMBOO_PLANKS, B.BAMBOO_PLANKS,B.STICK,B.BAMBOO_PLANKS] },
     { cat: 'blocks', out: B.NETHER_FENCE,    qty: 6, req: [{ id: B.NETHER_BRICK, qty: 6 }], grid: [0,0,0, B.NETHER_BRICK,B.NETHER_BRICK,B.NETHER_BRICK, B.NETHER_BRICK,B.NETHER_BRICK,B.NETHER_BRICK] },
     { cat: 'blocks', out: B.STONE_WALL,      qty: 6, req: [{ id: B.STONE, qty: 6 }], grid: [0,0,0, B.STONE,B.STONE,B.STONE, B.STONE,B.STONE,B.STONE] },
     { cat: 'blocks', out: B.STONE_BRICK_WALL,qty: 6, req: [{ id: B.STONE_BRICK, qty: 6 }], grid: [0,0,0, B.STONE_BRICK,B.STONE_BRICK,B.STONE_BRICK, B.STONE_BRICK,B.STONE_BRICK,B.STONE_BRICK] },
     { cat: 'blocks', out: B.DEEPSLATE_WALL,  qty: 6, req: [{ id: B.DEEPSLATE, qty: 6 }], grid: [0,0,0, B.DEEPSLATE,B.DEEPSLATE,B.DEEPSLATE, B.DEEPSLATE,B.DEEPSLATE,B.DEEPSLATE] },
-    { cat: 'misc',   out: B.CHEST,           qty: 1, req: [{ id: B.BAMBOO_PLANKS, qty: 8 }], grid: [B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS, B.BAMBOO_PLANKS,0,B.BAMBOO_PLANKS, B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS] },
-    { cat: 'misc',   out: B.WINDMILL_HUB,    qty: 1, req: [{ id: B.PLANKS, qty: 4 }, { id: B.WHITE_WOOL, qty: 4 }, { id: B.IRON_INGOT, qty: 1 }], grid: [B.WHITE_WOOL,B.PLANKS,B.WHITE_WOOL, B.PLANKS,B.IRON_INGOT,B.PLANKS, B.WHITE_WOOL,B.PLANKS,B.WHITE_WOOL] },
-    { cat: 'misc',   out: B.CRAFT_TABLE,     qty: 1, req: [{ id: B.BAMBOO_PLANKS, qty: 4 }], grid: [B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,0, B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,0, 0,0,0] },
-    { cat: 'misc',   out: B.BOOKSHELF,       qty: 1, req: [{ id: B.PLANKS, qty: 6 }, { id: B.SUGAR_CANE, qty: 3 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.SUGAR_CANE,B.SUGAR_CANE,B.SUGAR_CANE, B.PLANKS,B.PLANKS,B.PLANKS] },
-    { cat: 'tools',  out: B.BOAT_ITEM,       qty: 1, req: [{ id: B.BAMBOO_PLANKS, qty: 5 }], grid: [0,0,0, B.BAMBOO_PLANKS,0,B.BAMBOO_PLANKS, B.BAMBOO_PLANKS,B.BAMBOO_PLANKS,B.BAMBOO_PLANKS] },
+    { cat: 'misc',   out: B.WINDMILL_HUB,    qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 4 }, { id: B.WHITE_WOOL, qty: 4 }, { id: B.IRON_INGOT, qty: 1 }], grid: [B.WHITE_WOOL,B.PLANKS,B.WHITE_WOOL, B.PLANKS,B.IRON_INGOT,B.PLANKS, B.WHITE_WOOL,B.PLANKS,B.WHITE_WOOL] },
+    { cat: 'misc',   out: B.BOOKSHELF,       qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 6 }, { id: B.SUGAR_CANE, qty: 3 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.SUGAR_CANE,B.SUGAR_CANE,B.SUGAR_CANE, B.PLANKS,B.PLANKS,B.PLANKS] },
 
     // FOOD & POTIONS
     { cat: 'food',   out: B.BREAD,           qty: 2, req: [{ id: B.HAY_BALE, qty: 1 }], grid: [0,0,0, B.HAY_BALE,0,0, 0,0,0] },
@@ -268,7 +258,7 @@
     { cat: 'food',   out: B.COOKED_FISH,     qty: 1, req: [{ id: B.RAW_FISH, qty: 1 }, { id: B.COAL, qty: 1 }], grid: [0,B.RAW_FISH,0, 0,B.COAL,0, 0,0,0] },
     { cat: 'food',   out: B.COCONUT_DRINK,   qty: 2, req: [{ id: B.COCONUT, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.STICK,0, B.COCONUT,B.COCONUT,0, 0,0,0] },
     { cat: 'food',   out: B.WATER_BREATH_POTION, qty: 1, req: [{ id: B.CORAL_PINK, qty: 1 }, { id: B.GLASS, qty: 1 }, { id: B.RAW_FISH, qty: 1 }], grid: [0,B.CORAL_PINK,0, B.GLASS,B.RAW_FISH,0, 0,0,0] },
-    { cat: 'food',   out: B.FOOD,            qty: 2, req: [{ id: B.APPLE, qty: 2 }, { id: B.PLANKS, qty: 1 }], grid: [0,B.APPLE,0, 0,B.APPLE,0, 0,B.PLANKS,0] },
+    { cat: 'food',   out: B.FOOD,            qty: 2, req: [{ id: B.APPLE, qty: 2 }, { anyPlanks: true, id: B.PLANKS, qty: 1 }], grid: [0,B.APPLE,0, 0,B.APPLE,0, 0,B.PLANKS,0] },
     { cat: 'food',   out: B.APPLE,           qty: 2, req: [{ id: B.BERRY_BUSH, qty: 2 }], grid: [0,0,0, B.BERRY_BUSH,B.BERRY_BUSH,0, 0,0,0] },
     { cat: 'blocks', out: B.BAMBOO_SHOOT,    qty: 2, req: [{ id: B.BAMBOO, qty: 1 }], grid: [0,0,0, 0,B.BAMBOO,0, 0,0,0] },
     { cat: 'blocks', out: B.RAIL,            qty: 8, req: [{ id: B.IRON_INGOT, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [B.IRON_INGOT,0,B.IRON_INGOT, B.IRON_INGOT,B.STICK,B.IRON_INGOT, B.IRON_INGOT,0,B.IRON_INGOT] },
@@ -363,7 +353,6 @@
     { cat: 'tools',  out: B.DRAGON_BONE_BOW,  qty: 1, req: [{ id: B.DRAGON_BONE, qty: 3 }, { id: B.DRAGON_SCALE, qty: 2 }], grid: [0,B.DRAGON_BONE,B.DRAGON_SCALE, B.DRAGON_BONE,0,B.DRAGON_SCALE, 0,B.DRAGON_BONE,0] },
     { cat: 'tools',  out: B.DRAGON_SADDLE,    qty: 1, req: [{ id: B.AETHERIUM_ORE, qty: 2 }, { id: B.DRAGON_SCALE, qty: 5 }], grid: [B.DRAGON_SCALE,B.AETHERIUM_ORE,B.DRAGON_SCALE, B.DRAGON_SCALE,B.AETHERIUM_ORE,B.DRAGON_SCALE, B.DRAGON_SCALE,0,0] },
     { cat: 'tools',  out: B.DRAGON_SADDLE,    qty: 1, req: [{ id: B.AETHERIUM_INGOT, qty: 2 }, { id: B.DRAGON_SCALE, qty: 5 }], grid: [B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,B.AETHERIUM_INGOT,B.DRAGON_SCALE, B.DRAGON_SCALE,0,0] },
-    { cat: 'blocks', out: B.PALE_PLANKS,      qty: 4, is2x2: true, req: [{ id: B.PALE_LOG, qty: 1 }], grid: [B.PALE_LOG,0,0, 0,0,0, 0,0,0] },
     { cat: 'tools',  out: B.ELYTRA_PHOENIX,   qty: 1, req: [{ id: B.ELYTRA, qty: 1 }, { id: B.DRAGON_SCALE_FIRE, qty: 4 }, { id: B.BLAZE_ROD, qty: 2 }], grid: [B.DRAGON_SCALE_FIRE,B.ELYTRA,B.DRAGON_SCALE_FIRE, B.DRAGON_SCALE_FIRE,B.BLAZE_ROD,B.DRAGON_SCALE_FIRE, 0,B.BLAZE_ROD,0] },
     ...['FIRE', 'ICE', 'EARTH', 'WATER', 'LEAF', 'ENDER'].flatMap(el => {
       const sc = B['DRAGON_SCALE_' + el];
@@ -376,7 +365,6 @@
     }),
     // v129 Warden Dimension Ignition & 3 Progression Tier Gear Sets
     { cat: 'tools',  is2x2: true, out: B.SOUL_FLINT_AND_STEEL, qty: 1, req: [{ id: B.IRON_INGOT, qty: 1 }, { id: B.ECHO_SHARD, qty: 1 }, { id: B.FLINT, qty: 1 }], grid: [B.IRON_INGOT,B.ECHO_SHARD,0, B.FLINT,0,0, 0,0,0] },
-    { cat: 'blocks', is2x2: true, out: B.SCULK_PLANKS,         qty: 4, req: [{ id: B.SCULK_LOG, qty: 1 }], grid: [B.SCULK_LOG,0,0, 0,0,0, 0,0,0] },
     { cat: 'tools',  out: B.SCULK_CHITIN_SWORD, qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 2 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.UMBRA_INGOT,0, 0,B.UMBRA_INGOT,B.WARDEN_CHITIN, 0,B.STICK,0] },
     { cat: 'tools',  out: B.SCULK_CHITIN_PICK,  qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 3 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.UMBRA_INGOT,B.UMBRA_INGOT,B.UMBRA_INGOT, 0,B.STICK,B.WARDEN_CHITIN, 0,B.STICK,0] },
     { cat: 'tools',  out: B.SCULK_CHITIN_AXE,   qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 3 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 2 }], grid: [B.UMBRA_INGOT,B.UMBRA_INGOT,0, B.UMBRA_INGOT,B.STICK,B.WARDEN_CHITIN, 0,B.STICK,0] },
@@ -398,7 +386,22 @@
       { cat: 'tools', out: B[`${k}_CHEST`],  qty: 1, req: [{ id: mat, qty: 7 }, { id: drop, qty: 1 }], grid: [mat,0,mat, mat,drop,mat, mat,mat,mat] },
       { cat: 'tools', out: B[`${k}_LEGS`],   qty: 1, req: [{ id: mat, qty: 6 }, { id: drop, qty: 1 }], grid: [mat,drop,mat, mat,0,mat, mat,0,mat] },
       { cat: 'tools', out: B[`${k}_BOOTS`],  qty: 1, req: [{ id: mat, qty: 4 }], grid: [0,0,0, mat,0,mat, mat,0,mat] }
-    ])
+    ]),
+    // v141: Complete 17 Wood Families Recipes (Planks from Log & Stripped Log, Stairs, Fences, Doors, Trapdoors) + Bone / Bone Meal / Bone Block
+    ...WOOD_FAMILIES.flatMap(wf => {
+      const pQty = wf.plankQty || 4, P = wf.planks, S = B.STICK;
+      return [
+        { cat: 'blocks', is2x2: true, out: P,           qty: pQty, req: [{ id: wf.log, qty: 1 }],      grid: [0,0,0, 0,wf.log,0, 0,0,0] },
+        { cat: 'blocks', is2x2: true, out: P,           qty: pQty, req: [{ id: wf.stripped, qty: 1 }], grid: [0,0,0, 0,wf.stripped,0, 0,0,0] },
+        { cat: 'blocks',              out: wf.stairsN,  qty: 4,    req: [{ id: P, qty: 6 }],           grid: [P,0,0, P,P,0, P,P,P] },
+        { cat: 'blocks',              out: wf.fence,    qty: 3,    req: [{ id: P, qty: 4 }, { id: S, qty: 2 }], grid: [0,0,0, P,S,P, P,S,P] },
+        { cat: 'blocks',              out: wf.door,     qty: 3,    req: [{ id: P, qty: 6 }],           grid: [P,P,0, P,P,0, P,P,0] },
+        { cat: 'blocks',              out: wf.trapdoor, qty: 2,    req: [{ id: P, qty: 6 }],           grid: [0,0,0, P,P,P, P,P,P] }
+      ];
+    }),
+    { cat: 'misc',   is2x2: true, out: B.BONE_MEAL,  qty: 3, req: [{ id: B.BONE, qty: 1 }],       grid: [0,0,0, 0,B.BONE,0, 0,0,0] },
+    { cat: 'misc',   is2x2: true, out: B.BONE_MEAL,  qty: 9, req: [{ id: B.BONE_BLOCK, qty: 1 }], grid: [0,0,0, 0,B.BONE_BLOCK,0, 0,0,0] },
+    { cat: 'blocks',              out: B.BONE_BLOCK, qty: 1, req: [{ id: B.BONE_MEAL, qty: 9 }],  grid: [B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL] }
   ];
 
   const BIOMES = {
@@ -929,7 +932,7 @@
   /* ============================================================================
    * 2. CRISP 16x16 PBR PIXEL-ART TEXTURE ATLAS + BUMP MAP (8x80 = 640 TILES)
    * ============================================================================ */
-  const ATLAS_COLS = 8, ATLAS_ROWS = 80, TILE_PX = 16;
+  const ATLAS_COLS = 8, ATLAS_ROWS = 104, TILE_PX = 16;
 
   // Canonical 4-Stage Vanilla Minecraft Bow Pixel Sprites (strict 100% silhouette across ALL bows, Icon == 1P == 3P Parity)
   const _STD_BOW_STAGES = [
@@ -4435,6 +4438,173 @@
     drawSpriteMap(574, ARMOR_SPRITE, palW2);
     drawSpriteMap(575, ARMOR_SPRITE, palW2);
     drawSpriteMap(576, ARMOR_SPRITE, palW2);
+
+    // v141 Tiles (577..672): Bone / Bone Meal / Bone Block, Jungle & Dark Oak Logs+Leaves, Planks, Stripped Logs, Doors, Trapdoors & Saplings
+    drawSpriteMap(BONE_TILES.bone, [
+      '................',
+      '..........oo....',
+      '.........oHHo...',
+      '........oHHWWo..',
+      '........oWMMoo..',
+      '.......oWMMo....',
+      '......oWMMo.....',
+      '.....oWMMo......',
+      '....oWMMo.......',
+      '...oWMMo........',
+      '..oHHMo.........',
+      '.oHHWWo.........',
+      '.oWWoo..........',
+      '..oo............',
+      '................',
+      '................'
+    ], { o: '#6b6556', H: '#ffffff', W: '#f3efe0', M: '#d5ceb8' });
+    drawSpriteMap(BONE_TILES.meal, [
+      '................',
+      '................',
+      '........oo......',
+      '.......oHHo.....',
+      '.....ooWWWWo....',
+      '....oHHWWWWMo...',
+      '...oHWWWWMMMWo..',
+      '..oHWWWMMMWWWMo.',
+      '..oWWWWMMWWWWMo.',
+      '...oWWMMMMMWWo..',
+      '....ooMMMMMoo...',
+      '......ooooo.....',
+      '................',
+      '................',
+      '................',
+      '................'
+    ], { o: '#9c9684', H: '#ffffff', W: '#f5f2e8', M: '#dcd6c3' });
+    tilePixels(BONE_TILES.blockSide, (x, y, r) => {
+      if (y === 0 || y === 15) return shade('#c4bea9', (r - 0.5) * 8);
+      if (y === 1 || y === 14) return shade('#dad4c0', (r - 0.5) * 8);
+      const col = x % 4;
+      if (col === 0) return shade('#bab39d', (r - 0.5) * 8);
+      if (col === 2) return shade('#f0ede0', (r - 0.5) * 8);
+      return shade('#e2dcc8', (r - 0.5) * 10);
+    });
+    tilePixels(BONE_TILES.blockTop, (x, y, r) => {
+      const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5), ring = Math.max(dx, dy);
+      if (ring >= 6.5) return shade('#dcd6c2', (r - 0.5) * 8);
+      if (ring >= 4.5) return shade('#eae5d5', (r - 0.5) * 8);
+      if (ring >= 2.5) return shade('#c9c2ad', (r - 0.5) * 8);
+      return shade('#b0a892', (r - 0.5) * 10);
+    });
+
+    tilePixels(JUNGLE_LOG_TILES.top, (x, y, r) => logTopColor(x, y, r, '#4c3e21', '#69562f', '#d8b68c', '#ba946a', '#9c774f'));
+    tilePixels(JUNGLE_LOG_TILES.side, (x, y, r) => {
+      const m = ((x * 5 + y * 11) % 13 === 0) ? '#5b762a' : null;
+      if (m && r > 0.35) return shade(m, (r - 0.5) * 10);
+      const band = (y + ((x >> 2) * 3)) % 5;
+      return shade(band === 0 ? '#45381b' : (band === 2 ? '#6e5a31' : '#594825'), (r - 0.5) * 12);
+    });
+    drawFancyLeaf(JUNGLE_LOG_TILES.leaves, { H: '#6ef03c', M: '#3db826', S: '#258719', D: '#16590e' }, BOTANICAL_LEAF_MASK);
+
+    tilePixels(DARK_OAK_LOG_TILES.top, (x, y, r) => logTopColor(x, y, r, '#24170b', '#362312', '#6b4928', '#52361b', '#3f2813'));
+    tilePixels(DARK_OAK_LOG_TILES.side, (x, y, r) => barkColor(x, y, r, { c: '#422c19', a: '#332010', b: '#26160a', d: '#1a0e05' }));
+    drawFancyLeaf(DARK_OAK_LOG_TILES.leaves, { H: '#4aa632', M: '#2c751e', S: '#1b4f12', D: '#10360a' }, AUTUMN_LEAF_MASK);
+
+    for (const wf of WOOD_FAMILIES) {
+      if (wf.plankPal) {
+        tilePixels(wf.tPlank, (x, y, r) => shade(wf.plankPal[OAK_PLANK_MAP[y][x]] || wf.plankPal.m, (r - 0.5) * 6));
+      }
+      const sp = wf.stripPal;
+      tilePixels(wf.tStripTop, (x, y, r) => {
+        const ring = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
+        if (ring >= 6.5) return shade(sp.ring, (r - 0.5) * 6);
+        if (ring >= 4.5) return shade(sp.c, (r - 0.5) * 6);
+        if (ring >= 2.5) return shade(sp.a, (r - 0.5) * 6);
+        return shade(sp.core, (r - 0.5) * 6);
+      });
+      tilePixels(wf.tStripSide, (x, y, r) => {
+        if (wf.key === 'bamboo' && (y === 4 || y === 12)) return shade(sp.d, (r - 0.5) * 6);
+        const st = ((x * 7 + (y >> 2)) % 5);
+        const col = st === 0 ? sp.d : (st === 1 ? sp.b : (st === 3 ? sp.c : sp.a));
+        return shade(col, ((y & 1) ? 2 : -2) + (r - 0.5) * 8);
+      });
+      // Door & Trapdoor 2D icons matching reference Image 3 (clear cell first so existing tiles are cleanly updated)
+      const clearCell = (idx) => {
+        ctx.clearRect((idx % ATLAS_COLS) * TILE_PX, Math.floor(idx / ATLAS_COLS) * TILE_PX, TILE_PX, TILE_PX);
+      };
+      const dp = wf.doorPal, hex6 = (n) => '#' + n.toString(16).padStart(6, '0');
+      const dF = hex6(dp.frame), dP = hex6(dp.panel), dD = hex6(dp.dark), dH = hex6(dp.hi), dK = hex6(dp.knob);
+      clearCell(wf.tDoor);
+      tilePixels(wf.tDoor, (x, y, r) => {
+        if (x <= 1 || x >= 14) return null;
+        const m = dp.mode;
+        if (m === 'spruce') {
+          if ((y === 2 || y === 7 || y === 13) && x >= 2 && x <= 13) return ((x & 3) === 0) ? '#26292e' : '#3a3e45';
+          if (x >= 10 && x <= 12 && y >= 8 && y <= 10 && (x === 10 || x === 12 || y === 8 || y === 10)) return dK;
+          if (x === 2 || x === 5 || x === 8 || x === 11 || x === 13) return shade(dD, -8);
+          return shade(dP, ((x & 1) ? 5 : -4) + (r - 0.5) * 10);
+        }
+        if (x === 2 || x === 13 || y === 0 || y === 15) return shade(dD, (r - 0.5) * 8);
+        if (x === 11 && (y === 8 || y === 9)) return dK;
+        if (y === 7) return shade(dF, (r - 0.5) * 8);
+        if (m === 'birch') {
+          if (y >= 2 && y <= 6 && x >= 4 && x <= 11) return (x === 7 || x === 8 || y === 4) ? '#dbd6c6' : '#f4f2e8';
+          return shade((y >= 9 && y <= 13 && (x === 4 || x === 11 || y === 9 || y === 13)) ? dF : dP, (r - 0.5) * 8);
+        }
+        if (m === 'sakura' && y >= 2 && y <= 6 && x >= 4 && x <= 11) {
+          return ((x === 5 || x === 7 || x === 10) && (y === 3 || y === 5)) ? '#b9eb9a' : null;
+        }
+        if ((m === 'open' || m === 'bamboo' || m === 'jungle') && y >= 2 && y <= 6 && ((x >= 4 && x <= 6) || (x >= 9 && x <= 11)) && !(m === 'jungle' && y === 4)) return null;
+        if (m === 'acacia' && y >= 2 && y <= 6 && (x === 4 || x === 7 || x === 10)) return null;
+        if (m === 'mangrove' && y >= 2 && y <= 5 && x >= 5 && x <= 10 && !(x === 5 && y === 2) && !(x === 10 && y === 2)) return null;
+        if (m === 'slat_h' && ((y >= 2 && y <= 3) || (y >= 5 && y <= 6) || (y >= 10 && y <= 11)) && x >= 4 && x <= 11) return null;
+        if (y >= 9 && y <= 13 && (x === 4 || x === 11 || y === 9 || y === 13)) return shade(dH, (r - 0.5) * 8);
+        return shade(dP, (r - 0.5) * 10);
+      });
+      clearCell(wf.tTrap);
+      tilePixels(wf.tTrap, (x, y, r) => {
+        const m = dp.mode;
+        if (x === 0 || x === 15 || y === 0 || y === 15) return shade(dD, (r - 0.5) * 6);
+        if (x === 1 || x === 14 || y === 1 || y === 14) return shade(dF, (r - 0.5) * 8);
+        if ((m === 'open') && ((x >= 3 && x <= 6) || (x >= 9 && x <= 12)) && ((y >= 3 && y <= 6) || (y >= 9 && y <= 12))) return null;
+        if (m === 'birch' && x >= 3 && x <= 12 && y >= 3 && y <= 12) return (x === 7 || x === 8 || y === 7 || y === 8) ? '#dbd6c6' : '#f4f2e8';
+        if ((m === 'jungle' || m === 'acacia') && ((x >= 3 && x <= 5) || (x >= 7 && x <= 8) || (x >= 10 && x <= 12)) && y >= 3 && y <= 12 && !(m === 'jungle' && (y === 7 || y === 8))) return null;
+        if (m === 'mangrove' && x >= 5 && x <= 10 && y >= 5 && y <= 10 && !((x === 5 || x === 10) && (y === 5 || y === 10))) return null;
+        if ((m === 'sakura' || m === 'bamboo') && ((x >= 3 && x <= 4) || (x >= 7 && x <= 8) || (x >= 11 && x <= 12)) && ((y >= 3 && y <= 4) || (y >= 7 && y <= 8) || (y >= 11 && y <= 12))) return null;
+        if (m === 'slat_h' && ((y >= 3 && y <= 5) || (y >= 10 && y <= 12)) && x >= 3 && x <= 12) return null;
+        if ((m === 'dark_oak' || m === 'spruce') && (x === 7 || x === 8 || y === 7 || y === 8)) return shade(dD, -8);
+        if (m === 'spruce' && (y === 3 || y === 12)) return '#353a42';
+        return shade(dP, (r - 0.5) * 10);
+      });
+      if (wf.saplingKey) {
+        const sp = wf.stripPal;
+        const sapCols = {
+          oak: ['#6cd943', '#47ad2a', '#246b15'], spruce: ['#48a85e', '#2c7d44', '#164726'],
+          birch: ['#8ef548', '#5cd42a', '#2c7816'], jungle: ['#6ef03c', '#3db826', '#1b6e12'],
+          acacia: ['#9cb82b', '#76911c', '#45590f'], dark_oak: ['#3d8f29', '#256117', '#133d0c'],
+          sakura: ['#ffd4ec', '#ff96ca', '#d14388'], pale: ['#cbd5e1', '#8f98a2', '#5b636e'],
+          palm: ['#7ae048', '#4da83b', '#266b1b'], azure: ['#67c8ff', '#1e88f5', '#0f5bd1'],
+          sift: ['#5eead4', '#39baaa', '#238e83'], nightmare: ['#9d2c4f', '#6e1938', '#4a0f26'],
+          sculk: ['#22d3ee', '#0e7490', '#0b495c']
+        };
+        const [leafHi, lf, leafDk] = sapCols[wf.key] || ['#6cd943', '#47ad2a', '#246b15'];
+        const trunkCol = wf.key === 'birch' ? '#e6e3d8' : (wf.key === 'sakura' ? '#4a2433' : (wf.key === 'dark_oak' ? '#362110' : sp.b));
+        tilePixels(wf.tSapling, (x, y, r) => {
+          if (wf.key === 'spruce') {
+            if ((x === 7 || x === 8) && y >= 10 && y <= 14) return trunkCol;
+            if (y >= 2 && y <= 12 && Math.abs(x - 7.5) <= Math.min(5.2, (y - 1) * 0.55) && !(y % 3 === 0 && Math.abs(x - 7.5) > 2.2)) {
+              return shade((y + x) & 1 ? '#368a46' : '#1b572f', (r - 0.5) * 14);
+            }
+            return null;
+          }
+          if (wf.key === 'acacia' && y >= 6 && y <= 14 && ((y >= 10 && x === 8) || (y >= 6 && y < 10 && x === 6))) return trunkCol;
+          if ((wf.key === 'dark_oak' ? (x === 7 || x === 8) : (x === 7 || (y >= 11 && x === 8))) && y >= 7 && y <= 14) {
+            return (wf.key === 'birch' && (y === 9 || y === 12)) ? '#2a2825' : trunkCol;
+          }
+          const cy = wf.key === 'jungle' ? 5.5 : 5.8, rx = wf.key === 'jungle' ? 3.5 : 5.0, ry = wf.key === 'jungle' ? 4.8 : 4.2;
+          const d = Math.hypot((x - 7.5) / rx, (y - cy) / ry);
+          if (d <= 0.96 && !(d > 0.72 && ((x + y * 3) % 3 === 0))) {
+            return shade(y < cy ? leafHi : (d > 0.65 ? leafDk : lf), (r - 0.5) * 14);
+          }
+          return null;
+        });
+      }
+    }
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
     const bumpCanvas = document.createElement('canvas');
