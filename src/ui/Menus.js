@@ -673,8 +673,9 @@
       sodiumOpts.frameGen = fg;
       saveSodiumOpts();
       document.querySelectorAll('#frameGenSeg .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      if (typeof window._fgReset === 'function') window._fgReset();
       if (typeof resizeViewport === 'function') resizeViewport();
-      showToast(`Frame Ảo: ${fg > 1 ? 'x' + fg : 'Tắt (x1)'}`);
+      showToast(`AI Frame Ảo: ${fg > 1 ? 'x' + fg + ' (Tăng FPS + Làm Nét)' : 'Tắt (x1)'}`);
     });
   });
   document.querySelectorAll('#presetSeg .seg-btn').forEach(btn => {
@@ -683,6 +684,24 @@
       showToast(`Shader: ${btn.textContent}`);
     });
   });
+  const _rtBtn = document.getElementById('btnRayTracing');
+  if (_rtBtn) {
+    const _syncRtBtn = () => {
+      const on = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+      _rtBtn.classList.toggle('active', on);
+      _rtBtn.textContent = on ? tr('BẬT', 'ON') : tr('TẮT', 'OFF');
+      if (typeof envUniforms !== 'undefined' && envUniforms.uRayTracing) envUniforms.uRayTracing.value = on ? 1.0 : 0.0;
+    };
+    _syncRtBtn();
+    _rtBtn.addEventListener('click', () => {
+      sodiumOpts.rayTracing = !sodiumOpts.rayTracing;
+      saveSodiumOpts();
+      _syncRtBtn();
+      window._postFxDirty = true;
+      if (typeof window._fgReset === 'function') window._fgReset();
+      showToast(sodiumOpts.rayTracing ? tr('✨ Ray Tracing: ĐÃ BẬT', '✨ Ray Tracing: ON') : tr('✨ Ray Tracing: ĐÃ TẮT', '✨ Ray Tracing: OFF'));
+    });
+  }
   document.getElementById('btnCloudMode').addEventListener('click', (e) => {
     volumetricClouds = !volumetricClouds;
     e.currentTarget.classList.toggle('active', volumetricClouds);
@@ -1322,6 +1341,8 @@
     if (coordsBtn && typeof coordsVisible !== 'undefined') coordsBtn.textContent = coordsVisible ? tr('📍 Tọa Độ HUD: BẬT', '📍 HUD Coords: ON') : tr('📍 Tọa Độ HUD: TẮT', '📍 HUD Coords: OFF');
     const profBtn = document.getElementById('btnToggleProfanity');
     if (profBtn && typeof profanityFilterOn !== 'undefined') profBtn.textContent = profanityFilterOn ? tr('🛡️ Lọc Từ Thô Tục: BẬT', '🛡️ Chat Filter: ON') : tr('🛡️ Lọc Từ Thô Tục: TẮT', '🛡️ Chat Filter: OFF');
+    const rtBtn = document.getElementById('btnRayTracing');
+    if (rtBtn && typeof sodiumOpts !== 'undefined') rtBtn.textContent = sodiumOpts.rayTracing ? tr('BẬT', 'ON') : tr('TẮT', 'OFF');
     const cloudBtn = document.getElementById('btnCloudMode');
     if (cloudBtn && typeof volumetricClouds !== 'undefined') cloudBtn.textContent = volumetricClouds ? tr('☁️ Mây Volumetric', '☁️ Volumetric Clouds') : tr('🧊 Mây Khối Luanti', '🧊 Luanti Block Clouds');
     const texBtn = document.getElementById('btnTexFilter');
@@ -2371,6 +2392,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       document.querySelector('#qualitySeg .seg-btn[data-val="ultra"]')?.click();
       document.querySelector('#frameGenSeg .seg-btn[data-fg="1"]')?.click();
       document.querySelector('#presetSeg .seg-btn[data-preset="eclipse"]')?.click();
+      if (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing) document.getElementById('btnRayTracing')?.click();
       if (!volumetricClouds) document.getElementById('btnCloudMode')?.click();
       if (!bumpEnabled) document.getElementById('btnTexFilter')?.click();
       if (typeof sodiumOpts !== 'undefined') {

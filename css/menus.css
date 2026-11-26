@@ -2305,15 +2305,13 @@
     justify-content: center !important;
   }
   #menuModal .gm-content #sodiumExtraSeg {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)) !important;
+    display: flex !important;
+    flex-direction: column !important;
     gap: 6px !important;
   }
   #menuModal .gm-content #sodiumExtraSeg .seg-btn {
-    flex: none !important;
     width: 100% !important;
-    min-height: 36px !important;
-    padding: 6px 8px !important;
+    min-height: 38px !important;
   }
   #menuModal .gm-content .mc-btn {
     min-height: 36px !important;
@@ -4649,7 +4647,8 @@
 #menuModal.from-lobby:not(.pause-mode):not(.hidden),
 #menuModal:not(.pause-mode):not(.hidden) {
   padding: 0 !important;
-  background: rgba(2, 10, 16, 0.86) !important;
+  background: radial-gradient(ellipse at 50% 78%, rgba(14, 96, 128, 0.42), rgba(2, 10, 16, 0.90) 70%) !important;
+  backdrop-filter: blur(8px) saturate(1.18) !important;
 }
 .sr-only {
   position: absolute !important;
@@ -4660,27 +4659,65 @@
   white-space: nowrap !important;
 }
 
+@keyframes mcdPanelIn {
+  from { opacity: 0; transform: scale(0.985) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes mcdPaneIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes mcdMotesDrift {
+  0%   { background-position: 0 0, 0 0, 0 0; opacity: 0.72; }
+  50%  { background-position: 28px -36px, -22px -48px, 12px -24px; opacity: 0.95; }
+  100% { background-position: 56px -72px, -44px -96px, 24px -48px; opacity: 0.72; }
+}
+
 /* AUTHENTIC MINECRAFT DUNGEONS SETTINGS SHELL (#menuModal:not(.pause-mode)) */
 #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
+  position: relative !important;
   scrollbar-gutter: auto !important;
   gap: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  width: min(1040px, 96vw) !important;
-  height: min(690px, 94dvh) !important;
+  width: min(1060px, 96vw) !important;
+  height: min(700px, 94dvh) !important;
   max-height: 94dvh !important;
   display: flex !important;
   flex-direction: column !important;
-  background-color: #061b26 !important;
+  background-color: #051722 !important;
   background-image:
-    linear-gradient(180deg, rgba(11, 52, 70, 0.72) 0%, rgba(4, 21, 32, 0.92) 70%, rgba(2, 13, 21, 0.98) 100%),
-    repeating-linear-gradient(90deg, rgba(35, 118, 148, 0.05) 0 28px, transparent 28px 56px),
-    repeating-linear-gradient(0deg, rgba(35, 118, 148, 0.04) 0 28px, transparent 28px 56px) !important;
-  border: 2px solid #0e3a4b !important;
+    radial-gradient(ellipse at 32% 100%, rgba(18, 124, 152, 0.34) 0%, transparent 56%),
+    radial-gradient(ellipse at 78% 12%, rgba(28, 102, 134, 0.24) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(10, 48, 66, 0.78) 0%, rgba(5, 25, 38, 0.92) 64%, rgba(2, 13, 22, 0.98) 100%),
+    repeating-linear-gradient(90deg, rgba(44, 138, 170, 0.065) 0 24px, rgba(10, 46, 64, 0.05) 24px 48px),
+    repeating-linear-gradient(0deg, rgba(44, 138, 170, 0.055) 0 24px, transparent 24px 48px) !important;
+  border: 2px solid #165166 !important;
   border-radius: 0 !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(120, 210, 235, 0.14) !important;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.88), inset 0 1px 0 rgba(145, 224, 248, 0.20), inset 0 -1px 0 rgba(56, 189, 248, 0.14) !important;
   color: #e6f4f8 !important;
+  animation: mcdPanelIn 0.20s cubic-bezier(0.22, 1, 0.36, 1) both !important;
   box-sizing: border-box !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(2px 2px at 18% 76%, rgba(125, 232, 252, 0.42), transparent 70%),
+    radial-gradient(2px 2px at 44% 52%, rgba(74, 222, 128, 0.34), transparent 70%),
+    radial-gradient(3px 3px at 74% 82%, rgba(96, 195, 240, 0.36), transparent 70%),
+    radial-gradient(2px 2px at 86% 38%, rgba(186, 230, 253, 0.38), transparent 70%);
+  background-size: 220px 220px, 280px 280px, 320px 320px;
+  animation: mcdMotesDrift 16s linear infinite;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-topbar,
+#menuModal:not(.pause-mode):not(.hidden) .gm-body,
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer {
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-topbar {
@@ -4773,9 +4810,9 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab.active {
   color: #ffffff !important;
-  background: linear-gradient(180deg, transparent 58%, rgba(240, 120, 24, 0.18) 100%) !important;
-  border-bottom-color: #f07818 !important;
-  box-shadow: inset 0 -3px 0 #f07818 !important;
+  background: linear-gradient(180deg, rgba(240, 120, 24, 0.04) 20%, rgba(240, 120, 24, 0.24) 100%) !important;
+  border-bottom-color: #fb923c !important;
+  box-shadow: inset 0 -3px 0 #f97316, 0 2px 12px rgba(249, 115, 22, 0.28) !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-body {
@@ -4818,6 +4855,7 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-pane.active {
   display: flex !important;
+  animation: mcdPaneIn 0.18s ease both !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-section {
@@ -4865,9 +4903,9 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row:hover,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row:focus-within {
-  border-color: #bceaf7;
-  background: rgba(20, 74, 98, 0.52);
-  box-shadow: inset 0 0 0 1px rgba(188, 234, 247, 0.28);
+  border-color: #c2f0fc;
+  background: rgba(18, 70, 94, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(194, 240, 252, 0.34), 0 0 12px rgba(56, 189, 248, 0.16);
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row-col {
   flex-direction: column;
@@ -4951,15 +4989,15 @@
 #menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .seg-btn, .spawn-btn):active {
   transform: translateY(1px) !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active,
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-green,
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active:not(.mcd-toggle),
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-green:not(.mcd-toggle),
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
   background: #13684a !important;
   border-color: #34d399 !important;
   color: #ffffff !important;
   box-shadow: inset 0 1px 0 rgba(167, 243, 208, 0.25) !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active::after {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active:not(.mcd-toggle)::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -4980,65 +5018,86 @@
   color: #d5fbf4 !important;
 }
 
-/* Emerald ON/OFF Switch Pill Style matching Screenshots 3, 4, 5 */
+/* Emerald-Right (ON) <-> Slate-Gray-Left (OFF) Sliding Switch Style matching Minecraft Dungeons */
 #menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  width: 100% !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle {
   position: relative !important;
   width: auto !important;
   min-width: 170px !important;
-  min-height: 36px !important;
-  padding: 6px 68px 6px 12px !important;
+  min-height: 38px !important;
+  padding: 8px 74px 8px 14px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
   text-align: left !important;
-  background: rgba(7, 30, 42, 0.56) !important;
+  background: rgba(7, 29, 42, 0.58) !important;
   border: 1.5px solid rgba(56, 128, 152, 0.30) !important;
-  color: #dff3f8 !important;
+  border-left: 3px solid #475569 !important;
+  color: #d8eef4 !important;
   box-shadow: none !important;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active,
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green {
+  background: rgba(9, 38, 52, 0.66) !important;
+  border-color: rgba(52, 211, 153, 0.42) !important;
+  border-left: 3px solid #10c954 !important;
+  color: #ffffff !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle:hover {
+  border-color: #c2f0fc !important;
+  background: rgba(18, 70, 94, 0.56) !important;
+  box-shadow: inset 0 0 0 1px rgba(194, 240, 252, 0.34), 0 0 12px rgba(56, 189, 248, 0.16) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list .mcd-toggle {
   width: 100% !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle::before {
-  content: "OFF";
-  position: absolute;
-  right: 54px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-display);
-  font-size: 9.5px;
-  letter-spacing: 0.4px;
-  color: #90adb8;
+  content: "" !important;
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 44px !important;
+  height: 22px !important;
+  border-radius: 1px !important;
+  background-color: #334155 !important;
+  background-image: radial-gradient(circle at 33px 11px, transparent 3px, #94a3b8 3.2px, #94a3b8 4.4px, transparent 4.6px) !important;
+  border: 1.5px solid #526375 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55) !important;
+  transition: background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::before,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::before {
-  content: "ON";
-  color: #ffffff;
+  background-color: #10c954 !important;
+  background-image: linear-gradient(90deg, transparent 9px, #ffffff 9px, #ffffff 11px, transparent 11px) !important;
+  border-color: #34d399 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 10px rgba(16, 201, 84, 0.45) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle::after {
   content: "" !important;
   position: absolute !important;
   left: auto !important;
-  right: 10px !important;
+  right: 36px !important;
   top: 50% !important;
   bottom: auto !important;
-  transform: translateY(-50%) !important;
-  width: 36px !important;
-  height: 18px !important;
-  background: linear-gradient(90deg, #e2e8f0 0 15px, #142630 15px 36px) !important;
-  border: 1.5px solid #486878 !important;
+  width: 18px !important;
+  height: 20px !important;
   border-radius: 1px !important;
+  background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%) !important;
+  border: 1.5px solid #0f172a !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 4px rgba(0, 0, 0, 0.65) !important;
+  transform: translateY(-50%) translateX(0px) !important;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::after,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::after {
-  background: linear-gradient(90deg, #00c853 0 20px, #f8fafc 20px 36px) !important;
-  border-color: #22c55e !important;
+  transform: translateY(-50%) translateX(22px) !important;
 }
 
 /* Audio Blue Sliders matching Screenshot 2 */

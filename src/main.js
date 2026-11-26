@@ -1205,15 +1205,24 @@
 
     const wasHeldVis = heldPivot.visible, wasWeatherVis = weatherLines.visible, wasMoteVis = _motePoints.visible;
     const wasEclipseGrassVis = (typeof eclipseGrassMesh !== 'undefined') ? eclipseGrassMesh.visible : false;
+    const wasEclipseGrassFarVis = (typeof eclipseGrassFarMesh !== 'undefined') ? eclipseGrassFarMesh.visible : false;
+    const wasHighlightVis = (typeof highlightMesh !== 'undefined') ? highlightMesh.visible : false;
+    const wasCrackVis = (typeof crackMesh !== 'undefined') ? crackMesh.visible : false;
+    const wasPartVis = (typeof _partInstMesh !== 'undefined') ? _partInstMesh.visible : false;
     const prevShadowEnabled = renderer.shadowMap.enabled;
     heldPivot.visible = false; weatherLines.visible = false; _motePoints.visible = false;
     if (typeof eclipseGrassMesh !== 'undefined') eclipseGrassMesh.visible = false;
+    if (typeof eclipseGrassFarMesh !== 'undefined') eclipseGrassFarMesh.visible = false;
+    if (typeof highlightMesh !== 'undefined') highlightMesh.visible = false;
+    if (typeof crackMesh !== 'undefined') crackMesh.visible = false;
+    if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = false;
     renderer.shadowMap.enabled = false;
     _reflHiddenChunks.length = 0;
     const reflMaxChunkDistSq = Math.max(25, (renderDistance + 2) * (renderDistance + 2));
     for (const ch of chunks.values()) {
       if (ch.waterMesh && ch.waterMesh.visible) { ch.waterMesh.visible = false; _reflHiddenChunks.push(ch.waterMesh); }
       if (ch.plantMesh && ch.plantMesh.visible) { ch.plantMesh.visible = false; _reflHiddenChunks.push(ch.plantMesh); }
+      if (ch.lavaMesh && ch.lavaMesh.visible) { ch.lavaMesh.visible = false; _reflHiddenChunks.push(ch.lavaMesh); }
       const dcx = ch.cx - pcx, dcz = ch.cz - pcz;
       if (dcx * dcx + dcz * dcz > reflMaxChunkDistSq) {
         if (ch.mesh && ch.mesh.visible) { ch.mesh.visible = false; _reflHiddenChunks.push(ch.mesh); }
@@ -1221,16 +1230,37 @@
       }
     }
     _reflHiddenMobs.length = 0;
+    const reflCutY = WATER_LEVEL + 0.72;
     for (let mi = 0; mi < mobs.length; mi++) {
       const m = mobs[mi];
       if (m && m.group && m.group.visible) {
         const dx = m.x - player.x, dz = m.z - player.z;
-        if (dx * dx + dz * dz > 1764) {
+        const mTop = (m.y || 0) + (m.hitboxH || 1.8);
+        if (dx * dx + dz * dz > 1764 || mTop < reflCutY) {
           m.group.visible = false;
           _reflHiddenMobs.push(m.group);
         }
       }
     }
+    if (typeof droppedItems !== 'undefined') {
+      for (let di = 0; di < droppedItems.length; di++) {
+        const d = droppedItems[di];
+        if (d && d.mesh && d.mesh.visible && (d.y || 0) < WATER_LEVEL + 0.65) {
+          d.mesh.visible = false;
+          _reflHiddenMobs.push(d.mesh);
+        }
+      }
+    }
+    if (typeof projectiles !== 'undefined') {
+      for (let pi = 0; pi < projectiles.length; pi++) {
+        const pr = projectiles[pi];
+        if (pr && pr.mesh && pr.mesh.visible && (pr.y || 0) < WATER_LEVEL + 0.65) {
+          pr.mesh.visible = false;
+          _reflHiddenMobs.push(pr.mesh);
+        }
+      }
+    }
+    if (envUniforms.uReflClipY) envUniforms.uReflClipY.value = reflCutY;
     renderer.clippingPlanes = _REFL_CLIP_ARR;
     renderer.setRenderTarget(reflRT);
     renderer.setClearColor(envUniforms.uFogColor.value, 1);
@@ -1238,19 +1268,71 @@
     renderer.render(scene, reflCam);
     renderer.setRenderTarget(null);
     renderer.clippingPlanes = _EMPTY_CLIP_ARR;
+    if (envUniforms.uReflClipY) envUniforms.uReflClipY.value = -9999.0;
     renderer.shadowMap.enabled = prevShadowEnabled;
     for (let i = 0; i < _reflHiddenChunks.length; i++) _reflHiddenChunks[i].visible = true;
     for (let i = 0; i < _reflHiddenMobs.length; i++) _reflHiddenMobs[i].visible = true;
     if (typeof eclipseGrassMesh !== 'undefined') eclipseGrassMesh.visible = wasEclipseGrassVis;
+    if (typeof eclipseGrassFarMesh !== 'undefined') eclipseGrassFarMesh.visible = wasEclipseGrassFarVis;
+    if (typeof highlightMesh !== 'undefined') highlightMesh.visible = wasHighlightVis;
+    if (typeof crackMesh !== 'undefined') crackMesh.visible = wasCrackVis;
+    if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = wasPartVis;
     heldPivot.visible = wasHeldVis; weatherLines.visible = wasWeatherVis; _motePoints.visible = wasMoteVis;
   }
 
-  let _fgPrimed = false, _fgYaw = 9e9, _fgPitch = 9e9, _fgX = 0, _fgY = 0, _fgZ = 0;
-  function renderMainScene(rawDt = 0.016) {
+  let _fgPrimed = false, _fgSubIdx = 0, _fgNatYaw = 0, _fgNatPitch = 0, _fgNatX = 0, _fgNatY = 0, _fgNatZ = 0, _fgNatFov = 72;
+  let _fgStatNative = 0, _fgStatSynth = 0;
+  window._fgReset = () => { _fgPrimed = false; _fgSubIdx = 0; };
+  function _wrapAng(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  }
+  function _shouldRunAiSynthFrame(fgMode, worldSimActive) {
+    if (fgMode <= 1 || !worldSimActive || _useDirectRender() || !_fgPrimed || !fgRtA || !fgRtB || typeof fgBlendMat === 'undefined') return false;
+    const maxSynth = (fgMode >= 4) ? 2 : 1;
+    if (_fgSubIdx >= maxSynth) return false;
+    const dYaw = Math.abs(_wrapAng(camera.rotation.y - _fgNatYaw));
+    const dPitch = Math.abs(camera.rotation.x - _fgNatPitch);
+    if (dYaw + dPitch > 0.14) return false;
+    if (Math.hypot(camera.position.x - _fgNatX, camera.position.y - _fgNatY, camera.position.z - _fgNatZ) > 0.65) return false;
+    if (Math.abs((camera.fov || 72) - _fgNatFov) > 1.2) return false;
+    if ((typeof player !== 'undefined' && player && ((player.swingT || 0) > 0.01 || player.bowDrawing)) || window._chunkBuiltThisFrame) return false;
+    return true;
+  }
+  function renderMainScene(rawDt = 0.016, isAiSynth = false) {
     if (!_useDirectRender()) {
       const isUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
       const fgMode = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
       if (!sceneRT || (isUltra && !bloomWide1) || (fgMode > 1 && !fgRtA)) resizeViewport();
+      if (isAiSynth && fgMode > 1 && fgRtA && fgRtB && typeof fgBlendMat !== 'undefined') {
+        const dYaw = _wrapAng(camera.rotation.y - _fgNatYaw);
+        const dPitch = camera.rotation.x - _fgNatPitch;
+        const cp = Math.cos(camera.rotation.x);
+        const dFwd = -(camera.position.x - _fgNatX) * Math.sin(camera.rotation.y) * cp
+          + (camera.position.y - _fgNatY) * Math.sin(camera.rotation.x)
+          - (camera.position.z - _fgNatZ) * Math.cos(camera.rotation.y) * cp;
+        const vFovRad = (camera.fov || 72) * Math.PI / 180;
+        const hFovRad = 2 * Math.atan(Math.tan(vFovRad * 0.5) * (camera.aspect || 1.777));
+        const uOff = Math.max(-0.08, Math.min(0.08, -dYaw / Math.max(0.35, hFovRad)));
+        const vOff = Math.max(-0.08, Math.min(0.08, dPitch / Math.max(0.35, vFovRad)));
+        const zoomOff = Math.max(-0.025, Math.min(0.025, -dFwd * 0.028));
+        const curTex = (fgPing ? fgRtA : fgRtB).texture;
+        const prvTex = (fgPing ? fgRtB : fgRtA).texture;
+        postQuad.material = fgBlendMat;
+        fgBlendMat.uniforms.tCur.value = curTex;
+        fgBlendMat.uniforms.tPrev.value = prvTex;
+        fgBlendMat.uniforms.uReprojUV.value.set(uOff, vOff);
+        fgBlendMat.uniforms.uZoom.value = zoomOff;
+        fgBlendMat.uniforms.uIsSynth.value = 1.0;
+        fgBlendMat.uniforms.uFlowAmt.value = fgMode >= 4 ? 0.85 : 0.65;
+        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.52 : 0.44;
+        renderer.setRenderTarget(null);
+        renderer.render(postScene, postCam);
+        _fgSubIdx++; _fgStatSynth++;
+        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.66 : 0.76 };
+        return;
+      }
       renderer.setRenderTarget(sceneRT);
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
@@ -1321,7 +1403,7 @@
         }
       }
 
-      // Pass 4: BSL / Complementary ACES Filmic Split-Tone Color Grading Compositor + Optional Frame Ao
+      // Pass 4: BSL / Complementary ACES / Eclipse AgX Compositor + True AI Frame Gen + RCAS Super-Resolution
       postQuad.material = compositeMat;
       compositeMat.uniforms.tScene.value = sceneRT.texture;
       compositeMat.uniforms.tBloom.value = bloomRT1.texture;
@@ -1332,20 +1414,24 @@
         const prvRt = fgPing ? fgRtA : fgRtB;
         renderer.setRenderTarget(curRt);
         renderer.render(postScene, postCam);
-        const camPan = _fgPrimed ? (Math.abs(camera.rotation.y - _fgYaw) + Math.abs(camera.rotation.x - _fgPitch) + Math.hypot(camera.position.x - _fgX, camera.position.z - _fgZ) * 0.18) : 99;
-        const baseMix = (fgMode >= 4) ? 0.36 : 0.24;
-        const mixW = _fgPrimed ? Math.max(0, baseMix * (1.0 - Math.min(1.0, camPan / 0.045))) : 0.0;
         postQuad.material = fgBlendMat;
         fgBlendMat.uniforms.tCur.value = curRt.texture;
         fgBlendMat.uniforms.tPrev.value = prvRt.texture;
-        fgBlendMat.uniforms.uFgMix.value = mixW;
+        fgBlendMat.uniforms.uReprojUV.value.set(0, 0);
+        fgBlendMat.uniforms.uZoom.value = 0.0;
+        fgBlendMat.uniforms.uIsSynth.value = 0.0;
+        fgBlendMat.uniforms.uFlowAmt.value = 0.0;
+        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.52 : 0.44;
         renderer.setRenderTarget(null);
         renderer.render(postScene, postCam);
-        fgPing ^= 1; _fgPrimed = true;
-        _fgYaw = camera.rotation.y; _fgPitch = camera.rotation.x;
-        _fgX = camera.position.x; _fgY = camera.position.y; _fgZ = camera.position.z;
+        fgPing ^= 1; _fgPrimed = true; _fgSubIdx = 0; _fgStatNative++;
+        _fgNatYaw = camera.rotation.y; _fgNatPitch = camera.rotation.x;
+        _fgNatX = camera.position.x; _fgNatY = camera.position.y; _fgNatZ = camera.position.z;
+        _fgNatFov = camera.fov || 72;
+        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.66 : 0.76 };
       } else {
-        _fgPrimed = false;
+        _fgPrimed = false; _fgSubIdx = 0;
+        window._fgStats = { mode: 1, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: 1.0 };
         renderer.setRenderTarget(null);
         renderer.render(postScene, postCam);
       }
@@ -1533,8 +1619,9 @@
         : (currentDimension === 'nether' ? _locB(curBio)
         : (player.eyesInWater ? (trueY <= -450 ? _tr('🌊 Vực Hadal -700m', '🌊 Hadal Trench -700m') : (trueY <= -200 ? _tr('🌊 Vực Đêm Sâu', '🌊 Midnight Zone') : (trueY <= -60 ? _tr('🌊 Tầng Chạng Vạng', '🌊 Twilight Zone') : _tr('🌊 Đại Dương Rộng Lớn', '🌊 Deep Ocean'))))
         : _locB(ugBioHud || curBio)))));
+      const _fgTag = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1) ? ` AI-FG x${sodiumOpts.frameGen | 0}` : '';
       const fpsTag = (sodiumOpts.fpsHud && window._nucraftFps)
-        ? ` • ${window._nucraftFps} FPS (E:${mobs.length - _culledEntitiesCount}/${mobs.length} C:${chunks.size})`
+        ? ` • ${window._nucraftFps} FPS${_fgTag} (E:${mobs.length - _culledEntitiesCount}/${mobs.length} C:${chunks.size})`
         : '';
       const nextCoords = `${_tr('Vị trí', 'Position')}: ${Math.floor(player.x)}, ${trueY}, ${Math.floor(player.z)}${fpsTag}`;
       let _hudTxtChanged = false;
@@ -1568,33 +1655,39 @@
     }
 
     if (!worldPaused) {
-      if (renderer.shadowMap.enabled) {
-        _shadowAcc += rawDt;
-        let _hasActiveFlyingBoss = false;
-        if (typeof mobs !== 'undefined' && typeof IS_DRAGON_MOB !== 'undefined') {
-          for (let mi = 0; mi < mobs.length; mi++) {
-            const mb = mobs[mi];
-            if (mb && !mb._dead && (IS_DRAGON_MOB.has(mb.type) || (mb.isBoss && mb.flying)) && Math.hypot(mb.x - player.x, mb.z - player.z) < 150) {
-              _hasActiveFlyingBoss = true; break;
+      const fgModeNow = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
+      const _runAiSynth = _shouldRunAiSynthFrame(fgModeNow, worldSimActive);
+      if (_runAiSynth) {
+        renderMainScene(rawDt, true);
+      } else {
+        if (renderer.shadowMap.enabled) {
+          _shadowAcc += rawDt;
+          let _hasActiveFlyingBoss = false;
+          if (typeof mobs !== 'undefined' && typeof IS_DRAGON_MOB !== 'undefined') {
+            for (let mi = 0; mi < mobs.length; mi++) {
+              const mb = mobs[mi];
+              if (mb && !mb._dead && (IS_DRAGON_MOB.has(mb.type) || (mb.isBoss && mb.flying)) && Math.hypot(mb.x - player.x, mb.z - player.z) < 150) {
+                _hasActiveFlyingBoss = true; break;
+              }
             }
           }
+          const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
+          const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
+          const shInterval = _hasActiveFlyingBoss
+            ? 0.0
+            : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.16 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0));
+          if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
+            _shadowAcc = 0;
+            renderer.shadowMap.needsUpdate = true;
+            _lastShX = player.x; _lastShZ = player.z; _lastShTime = dayTime;
+          }
         }
-        const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
-        const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
-        const shInterval = _hasActiveFlyingBoss
-          ? 0.0
-          : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.16 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0));
-        if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
-          _shadowAcc = 0;
-          renderer.shadowMap.needsUpdate = true;
-          _lastShX = player.x; _lastShZ = player.z; _lastShTime = dayTime;
-        }
+        updateSunShadowFrustum(!!renderer.shadowMap.needsUpdate);
+        renderWaterReflectionPass(inLobby, rawDt);
+        renderMainScene(rawDt, false);
       }
-      updateSunShadowFrustum(!!renderer.shadowMap.needsUpdate);
-      renderWaterReflectionPass(inLobby, rawDt);
-      renderMainScene(rawDt);
     } else if ((frameCounter & 15) === 0) {
-      renderMainScene(rawDt);
+      renderMainScene(rawDt, false);
     }
     const _frameWorkMs = performance.now() - _tFrameStart;
     window._nucraftCpuMs = window._nucraftCpuMs ? (window._nucraftCpuMs * 0.85 + _frameWorkMs * 0.15) : _frameWorkMs;
