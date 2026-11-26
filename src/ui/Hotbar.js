@@ -1476,11 +1476,32 @@
   function _clientToStagePos(cx, cy) {
     return isRotated90 ? { x: cy, y: stageH - cx } : { x: cx, y: cy };
   }
+  let _dragTargetsKey = '', _rcRefreshRaf = 0;
+  function invalidateDragTargets() { _dragTargetsKey = ''; }
+  function _scheduleRecipeRefresh() {
+    if (_rcRefreshRaf) return;
+    _rcRefreshRaf = requestAnimationFrame(() => {
+      _rcRefreshRaf = 0;
+      const im = document.getElementById('invModal');
+      if (im && !im.classList.contains('hidden')) renderCrafting3x3();
+    });
+  }
+  function _syncInvDropFast(updateCraft = false, updateEquip = false) {
+    syncInvSlotsUI();
+    if (updateCraft) renderCrafting3x3();
+    if (updateEquip) renderEquipmentUI();
+    if (!updateCraft && gameMode !== 'creative') _scheduleRecipeRefresh();
+  }
   function _refreshInvPanelRects() {
     _dragMainRect = document.getElementById('mainInvPanel')?.getBoundingClientRect() || null;
     _dragBookRect = document.getElementById('recipeBookWrap')?.getBoundingClientRect() || null;
   }
   function _snapshotDragTargets(modalName) {
+    const cg = (modalName === 'chest') ? document.getElementById('chestGrid') : null;
+    const rbVis = (modalName === 'inv') ? (document.getElementById('recipeBookWrap')?.style.display || '') : '';
+    const chTag = cg ? `${cg.scrollTop}_${_activeChestBlockId}_${_activeChestArrs.length}` : '';
+    const key = `${modalName}|${stageW}x${stageH}|${isRotated90 ? 1 : 0}|${invMode}|${rbVis}|${chTag}`;
+    if (_dragTargetsKey === key && _dragTargets.length > 0) return;
     _dragTargets.length = 0;
     const pushNode = (el, kind, extra) => {
       const r = el.getBoundingClientRect();
@@ -1488,9 +1509,12 @@
       _dragTargets.push({ el, kind, left: r.left, right: r.right, top: r.top, bottom: r.bottom, ...extra });
     };
     if (modalName === 'chest') {
-      const cg = document.getElementById('chestGrid');
       const cgR = cg ? cg.getBoundingClientRect() : null;
       if (cg) {
+        if (!cg._scrollInvalidHooked) {
+          cg._scrollInvalidHooked = true;
+          cg.addEventListener('scroll', invalidateDragTargets, { passive: true });
+        }
         for (let i = 0; i < _chestSlotUI.length; i++) {
           const el = _chestSlotUI[i].div;
           if (el.style.display === 'none') continue;
@@ -1503,6 +1527,7 @@
       }
       for (let i = 0; i < _chestBpUI.length; i++) pushNode(_chestBpUI[i].div, 'chestInv', { idx: i + 9 });
       for (let i = 0; i < _chestHbUI.length; i++) pushNode(_chestHbUI[i].div, 'chestInv', { idx: i });
+      _dragTargetsKey = key;
       return;
     }
     if (modalName === 'furnace') {
@@ -1512,6 +1537,7 @@
       if (fFuel) pushNode(fFuel, 'furnSlot', { eqKey: 'fuelSlot' });
       for (let i = 0; i < _furnBpUI.length; i++) pushNode(_furnBpUI[i].div, 'furnInv', { idx: i + 9 });
       for (let i = 0; i < _furnHbUI.length; i++) pushNode(_furnHbUI[i].div, 'furnInv', { idx: i });
+      _dragTargetsKey = key;
       return;
     }
     _refreshInvPanelRects();
@@ -1525,6 +1551,7 @@
       else if (el.hasAttribute('data-eq')) pushNode(el, 'equip', { eqKey: el.dataset.eq });
       else pushNode(el, 'charPreview', {});
     }
+    _dragTargetsKey = key;
   }
   function _hitTestDragTarget(cx, cy) {
     let best = null, bestD2 = Infinity;
@@ -1620,6 +1647,7 @@
       if (invDrag.sourceType === 'creative') resetInvDragState();
       return false;
     }
+    _snapshotDragTargets(invDrag.modal);
     invDrag.moved = true;
     if (invDrag.originEl) invDrag.originEl.classList.add('dragging-src');
     if (invDragGhostEl && invDragGhostCtx) {
@@ -1633,11 +1661,10 @@
   function _flushInvDragFrame() {
     _invDragRaf = 0;
     if (!invDrag.active || !invDrag.moved || !invDragGhostEl) return;
-    _setDragGhostTransform(_dragCurX, _dragCurY);
     const dist = Math.hypot(_dragCurX - invDrag.startX, _dragCurY - invDrag.startY);
     const tgt = _hitTestDragTarget(_dragCurX, _dragCurY);
     const dropEl = tgt ? tgt.el : null;
-    if (dist > 20 || (dropEl && dropEl !== invDrag.originEl) || !dropEl) invDrag.leftOrigin = true;
+    if (dist > 18 || (dropEl && dropEl !== invDrag.originEl) || !dropEl) invDrag.leftOrigin = true;
     if (invDrag.modal === 'inv') {
       const isCreativeCatalog = (gameMode === 'creative' && invMode === 'backpack');
       const inBookTrash = !!(isCreativeCatalog && invDrag.sourceType !== 'creative' && _inRect(_dragBookRect, _dragCurX, _dragCurY));
@@ -1662,12 +1689,10 @@
     invDrag.startX = _dragCurX = e.clientX; invDrag.startY = _dragCurY = e.clientY;
     invDrag.pointerId = e.pointerId; invDrag.pointerType = e.pointerType || 'mouse';
     invDrag.originEl = originEl || (e.currentTarget && e.currentTarget.classList ? e.currentTarget : null);
-    _snapshotDragTargets(modal);
   }
   function resetInvDragState() {
     invDrag.active = false; invDrag.moved = false; invDrag.leftOrigin = false; invDrag.modal = 'inv'; invDrag.sourceType = 'inv';
     invDrag.idx = -1; invDrag.eqKey = ''; invDrag.creativeId = 0; invDrag.pointerId = null;
-    _dragTargets.length = 0; _dragMainRect = null; _dragBookRect = null;
     endInvDragVisual();
   }
   window.addEventListener('pointercancel', (e) => {
@@ -1678,13 +1703,15 @@
     _dragCurX = e.clientX; _dragCurY = e.clientY;
     if (!invDrag.moved) {
       const dx = _dragCurX - invDrag.startX, dy = _dragCurY - invDrag.startY;
-      const thresh = invDrag.pointerType === 'touch' ? 8 : 5;
+      const thresh = invDrag.pointerType === 'touch' ? 6 : 4;
       if (Math.hypot(dx, dy) <= thresh) return;
       if (invDrag.sourceType === 'creative' && invDrag.pointerType === 'touch' && Math.abs(dy) > Math.abs(dx) * 1.1) {
         resetInvDragState();
         return;
       }
       if (!_beginInvDragGhost(_dragCurX, _dragCurY)) return;
+    } else {
+      _setDragGhostTransform(_dragCurX, _dragCurY);
     }
     if (!_invDragRaf) _invDragRaf = requestAnimationFrame(_flushInvDragFrame);
   }, { passive: true });
@@ -1800,7 +1827,8 @@
       else if (srcType === 'craft' && fromIdx >= 0) manualCraftGrid[fromIdx] = 0;
       else if (srcType === 'equip' && fromEq) { player.equip[fromEq] = 0; if (player.equipMeta) player.equipMeta[fromEq] = null; recalcPlayerArmor(); }
       swapIdx = -1; creativePickId = 0; selectedEquipSlot = null;
-      playSfx('pickup'); renderInventoryModal(); renderHotbar();
+      playSfx('pickup'); _syncInvDropFast(srcType === 'craft', srcType === 'equip');
+      if (srcType === 'inv' && fromIdx < 9) renderHotbar();
       showToast('🗑️ Đã xóa vật phẩm (Sáng Tạo)');
       return;
     }
@@ -1825,17 +1853,17 @@
           if (it.count <= 0) _clearSlotObj(it);
           if (oldCraft > 0) addItemToInventory(oldCraft, 1);
           selectedRecipe = null; swapIdx = -1;
-          playSfx('pickup'); renderInventoryModal(); renderHotbar();
+          playSfx('pickup'); _syncInvDropFast(true, false); if (fromIdx < 9) renderHotbar();
         } else if (srcType === 'creative' && cId > 0) {
           if (manualCraftGrid[toCraft] > 0 && gameMode !== 'creative') addItemToInventory(manualCraftGrid[toCraft], 1);
           manualCraftGrid[toCraft] = cId;
           selectedRecipe = null; creativePickId = 0;
-          playSfx('pickup'); renderInventoryModal(); renderHotbar();
+          playSfx('pickup'); _syncInvDropFast(true, false);
         } else if (srcType === 'craft' && fromIdx >= 0 && fromIdx !== toCraft) {
           const tmp = manualCraftGrid[toCraft] || 0;
           manualCraftGrid[toCraft] = manualCraftGrid[fromIdx] || 0;
           manualCraftGrid[fromIdx] = tmp;
-          playSfx('pickup'); renderInventoryModal(); renderHotbar();
+          playSfx('pickup'); _syncInvDropFast(true, false);
         }
       }
       return;
@@ -1849,7 +1877,7 @@
         if (targetEq) {
           equipItemToSlot(targetEq, fromIdx);
           swapIdx = -1; selectedEquipSlot = null;
-          renderInventoryModal(); renderHotbar();
+          _syncInvDropFast(false, true); if (fromIdx < 9) renderHotbar();
         } else showToast('🛡️ Chỉ mặc được Mũ, Áo, Quần, Giày hoặc Khiên/Đuốc!');
       } else if (srcType === 'creative' && cId > 0) {
         const targetEq = getAutoEquipSlotForItem(cId, prefEq);
@@ -1857,7 +1885,7 @@
           player.equip[targetEq] = cId;
           if (player.equipMeta) player.equipMeta[targetEq] = null;
           recalcPlayerArmor(); creativePickId = 0;
-          playSfx('equip'); renderInventoryModal(); renderHotbar();
+          playSfx('equip'); _syncInvDropFast(false, true);
           showToast(`🛡️ Đã trang bị ${BLOCK_DEF[cId]?.name || 'Giáp'}!`);
         } else showToast('🛡️ Vật phẩm này không phải giáp/trang bị!');
       }
@@ -1873,21 +1901,21 @@
         _swapOrMergeSlots(inventory[fromIdx], inventory[toIdx]);
         swapIdx = -1; playSfx('pickup');
         // Fast partial re-render: skip full recipe catalog DOM scan on simple inv->inv move!
-        syncInvSlotsUI();
+        _syncInvDropFast(false, false);
         if (fromIdx < 9 || toIdx < 9) renderHotbar();
       } else if (srcType === 'creative' && cId > 0) {
         const cDef = BLOCK_DEF[cId];
         const qty = (cDef?.tool || cDef?.armorSlot || cId === B.SHIELD) ? 1 : 99;
         setSlotItem(toIdx, cId, qty);
         creativePickId = 0; swapIdx = -1;
-        playSfx('pickup'); renderInventoryModal(); renderHotbar();
+        playSfx('pickup'); _syncInvDropFast(false, false); if (toIdx < 9) renderHotbar();
       } else if (srcType === 'craft' && fromIdx >= 0 && manualCraftGrid[fromIdx] > 0) {
         const cid = manualCraftGrid[fromIdx], dst = inventory[toIdx];
         if (dst.count <= 0) { setSlotItem(toIdx, cid, 1); manualCraftGrid[fromIdx] = 0; }
         else if (dst.id === cid && dst.count < 99 && !BLOCK_DEF[cid]?.tool && !dst.ench && !dst.trim) { dst.count++; manualCraftGrid[fromIdx] = 0; }
         else if (dst.count === 1) { const sw = dst.id; setSlotItem(toIdx, cid, 1); manualCraftGrid[fromIdx] = sw; }
         else { addItemToInventory(cid, 1); manualCraftGrid[fromIdx] = 0; }
-        swapIdx = -1; playSfx('pickup'); renderInventoryModal(); renderHotbar();
+        swapIdx = -1; playSfx('pickup'); _syncInvDropFast(true, false); if (toIdx < 9) renderHotbar();
       } else if (srcType === 'equip' && fromEq && player.equip[fromEq]) {
         const eqId = player.equip[fromEq], dst = inventory[toIdx];
         const em = player.equipMeta && player.equipMeta[fromEq];
@@ -1907,7 +1935,7 @@
         } else {
           unequipArmorSlot(fromEq); return;
         }
-        recalcPlayerArmor(); playSfx('equip'); renderInventoryModal(); renderHotbar();
+        recalcPlayerArmor(); playSfx('equip'); _syncInvDropFast(false, true); if (toIdx < 9) renderHotbar();
       }
     }
   });
@@ -2373,6 +2401,33 @@
       return;
     }
 
+    // 0e) Isometric Minecraft Cactus Block Icon matching reference (14/16 fluted column + protruding edge spines!)
+    if (blockId === B.CACTUS) {
+      if (!drawBlockPreview._cactusIcon) {
+        const ccv = document.createElement('canvas'); ccv.width = 32; ccv.height = 32;
+        const cc = ccv.getContext('2d');
+        cc.imageSmoothingEnabled = false;
+        const isoC = renderIsoCubeCanvas((c, face) => {
+          const tile = (face === 'top') ? 184 : 17;
+          const sx = (tile & 7) * TILE_PX, sy = (tile >> 3) * TILE_PX;
+          c.drawImage(atlasCanvas, sx, sy, TILE_PX, TILE_PX, 0, 0, 16.35, 16.35);
+        }, 12.6, 3.4);
+        cc.drawImage(isoC, 0, 0, 32, 32, 2, 1, 28, 30);
+        // Protruding 3D pixel spine clusters on outer silhouette edges & fluted front corner matching d77e060b.png
+        const sp = [
+          [2, 9, '#3e7f2c'], [3, 9, '#d8ecc4'], [2, 15, '#1b4719'], [3, 15, '#d8ecc4'], [2, 21, '#265c20'], [3, 21, '#dfefc9'],
+          [28, 12, '#3e7f2c'], [27, 12, '#d8ecc4'], [29, 17, '#1b4719'], [28, 17, '#dfefc9'], [27, 23, '#3e7f2c'], [26, 23, '#d8ecc4'],
+          [14, 15, '#183615'], [15, 15, '#e2f2cd'], [16, 15, '#3b7d29'],
+          [14, 21, '#183615'], [15, 21, '#e2f2cd'], [16, 21, '#dfefc9'], [15, 26, '#d8ecc4'],
+          [9, 19, '#dfefc9'], [21, 13, '#dfefc9'], [22, 19, '#d8ecc4'], [9, 13, '#d8ecc4']
+        ];
+        for (const [sx, sy, col] of sp) { cc.fillStyle = col; cc.fillRect(sx, sy, 1, 1); }
+        drawBlockPreview._cactusIcon = ccv;
+      }
+      c2d.drawImage(drawBlockPreview._cactusIcon, 0, 0, 32, 32, 0, 0, W, H);
+      return;
+    }
+
     // 1) Official Minecraft 1.21.1 16x16 Flat Item Texture (skip storage chests & custom-textured blocks so they always show isometric 3D block icons!)
     const itemIm = (key && !def.chest && !def.customAtlasTex) ? _mcItemImgs.get(key) : null;
     if (itemIm && itemIm.complete && itemIm.naturalWidth > 0) {
@@ -2433,13 +2488,30 @@
     (dock || hotbarEl).appendChild(bagSlot);
   }
 
+  function _syncSelectedHotbarHUD() {
+    syncSpyglassZoomState();
+    const sel = inventory[player.selectedSlot], def = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
+    const _lblEl = document.getElementById('itemLabel');
+    if (player._lastLabelSlot === undefined) {
+      player._lastLabelSlot = player.selectedSlot;
+      if (_lblEl) _lblEl.textContent = '';
+    } else if (player._lastLabelSlot !== player.selectedSlot) {
+      player._lastLabelSlot = player.selectedSlot;
+      if (_lblEl) _lblEl.textContent = def ? (((typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(sel.id) : def.name) + (sel && sel.ench ? ' ✦' : '')) : '';
+      player.itemLabelT = 2.0;
+    }
+    updateHeldViewModel(sel && sel.count > 0 ? sel.id : B.AIR, sel && sel.count > 0 ? sel : null);
+  }
   function selectHotbarSlot(idx) {
     if (idx < 0 || idx > 8) return;
-    if (player.selectedSlot !== idx) {
+    const prev = player.selectedSlot;
+    if (prev !== idx) {
       player.selectedSlot = idx;
+      if (slotIcons[prev]?.slot) slotIcons[prev].slot.classList.remove('active');
+      if (slotIcons[idx]?.slot) slotIcons[idx].slot.classList.add('active');
       if (typeof playItemSwitchSfx === 'function') playItemSwitchSfx(inventory[idx]?.id || 0);
     }
-    renderHotbar();
+    _syncSelectedHotbarHUD();
   }
 
   const _EQ_EMPTY_TIP = { helmet: 'Mũ', chest: 'Áo', legs: 'Quần', boots: 'Giày', offhand: 'Tay trái' };
@@ -2462,7 +2534,6 @@
     }
   }
   function renderHotbar() {
-    syncSpyglassZoomState();
     for (let i = 0; i < 9; i++) {
       const item = inventory[i], ui = slotIcons[i];
       if (!ui) continue;
@@ -2493,17 +2564,7 @@
         ui.dur.style.display = 'none';
       }
     }
-    const sel = inventory[player.selectedSlot], def = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
-    const _lblEl = document.getElementById('itemLabel');
-    if (player._lastLabelSlot === undefined) {
-      player._lastLabelSlot = player.selectedSlot;
-      _lblEl.textContent = '';
-    } else if (player._lastLabelSlot !== player.selectedSlot) {
-      player._lastLabelSlot = player.selectedSlot;
-      _lblEl.textContent = def ? (((typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(sel.id) : def.name) + (sel && sel.ench ? ' ✦' : '')) : '';
-      player.itemLabelT = 2.0;
-    }
-    updateHeldViewModel(sel && sel.count > 0 ? sel.id : B.AIR, sel && sel.count > 0 ? sel : null);
+    _syncSelectedHotbarHUD();
   }
 
   const manualCraftGrid = new Int16Array(9);
@@ -3183,6 +3244,7 @@
 
   function openInventoryModal(mode = 'backpack') {
     refundManualCraftGrid();
+    invalidateDragTargets();
     invMode = (mode === 'table') ? 'table' : 'backpack';
     isPlaying = false; mining.active = false; clearMoveKeys(); swapIdx = -1; selectedEquipSlot = null; creativePickId = 0; resetInvDragState();
     playSfx('ui_open');
@@ -3197,10 +3259,11 @@
     modal.scrollLeft = 0; modal.scrollTop = 0;
     document.documentElement.scrollLeft = 0; document.documentElement.scrollTop = 0;
     updateMobileUiScale();
-    requestAnimationFrame(updateMobileUiScale);
+    requestAnimationFrame(() => { updateMobileUiScale(); invalidateDragTargets(); });
   }
   function closeInventoryModal() {
     if (_rcChunkRaf) { cancelAnimationFrame(_rcChunkRaf); _rcChunkRaf = 0; }
+    invalidateDragTargets();
     hideMcTooltip(); refundManualCraftGrid(); swapIdx = -1; creativePickId = 0; selectedEquipSlot = null; resetInvDragState();
     playSfx('ui_close');
     const modal = document.getElementById('invModal');

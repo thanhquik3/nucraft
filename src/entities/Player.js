@@ -1041,7 +1041,7 @@
       clone.position.set(0.0, 0.06, 0.10);
       clone.rotation.set(0.22, -Math.PI * 0.45, 0.06);
       rig.handHold.add(clone);
-    } else if (def.bucket || def.chest || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.CAMPFIRE || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CACTUS || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
+    } else if (def.bucket || def.chest || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.CAMPFIRE || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(def.bucket ? 1.02 : 0.96);
       clone.position.set(0.0, 0.03, 0.13);

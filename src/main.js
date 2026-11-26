@@ -126,7 +126,7 @@
 
   const colDayTop = new THREE.Color(0x3a7fe0), colDayHor = new THREE.Color(0x9bc4e8);
   const colSunsetTop = new THREE.Color(0x2a2764), colSunsetHor = new THREE.Color(0xf4823c);
-  const colNightTop = new THREE.Color(0x040a1a), colNightHor = new THREE.Color(0x0e1e3c);
+  const colNightTop = new THREE.Color(0x030816), colNightHor = new THREE.Color(0x0b1936);
   const colStormTop = new THREE.Color(0x28323d), colStormHor = new THREE.Color(0x525e6c);
   const colWhite = new THREE.Color(0xffffff), _tmpTop = new THREE.Color(), _tmpHor = new THREE.Color();
   const _colSkyFillSoft = new THREE.Color(0xdce9fa), _colCityMistWarm = new THREE.Color(0xd8c3a5);
@@ -503,7 +503,7 @@
     const inOverworld = (currentDimension === 'overworld');
     const biome = getPlayerBiome();
     const inChillWheat = (inOverworld && biome === BIOMES.WHEAT_VALLEY);
-    const isColdBio = (biome === BIOMES.SNOW || biome === BIOMES.ALPINE_PEAKS);
+    const isColdBio = (biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.ALPINE_PEAKS);
     const isSandBio = (biome === BIOMES.DESERT || biome === BIOMES.MESA);
     if (weatherMode === 'auto') {
       autoWeatherTimer -= dt;
@@ -904,8 +904,10 @@
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);
       else if (activeWeatherKind === 'fog') envUniforms.uFogColor.value.lerp(_colDenseFog, 0.74 * rainIntensity);
       else if (activeWeatherKind === 'ashfall') envUniforms.uFogColor.value.lerp(_colAshFog, 0.74 * rainIntensity);
-      const baseStart = renderDistance * (13.2 - rainIntensity * 3.8 - nightFogMul * 2.4);
-      const baseEnd   = renderDistance * (22.0 - rainIntensity * 5.2 - nightFogMul * 3.2);
+      const maxChunkFog = Math.max(46, (renderDistance - 0.25) * 16.0);
+      const rawEnd = renderDistance * (16.4 - rainIntensity * 3.8 - nightFogMul * 1.8);
+      const baseEnd = Math.min(maxChunkFog, rawEnd);
+      const baseStart = Math.min(baseEnd * 0.58, renderDistance * (10.2 - rainIntensity * 2.8 - nightFogMul * 1.4));
       envUniforms.uFogStart.value = inMegaCity ? 64.0 : Math.max(22.0, baseStart);
       envUniforms.uFogEnd.value   = inMegaCity ? Math.max(165.0, renderDistance * 52.0) : Math.max(48.0, baseEnd);
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
@@ -960,6 +962,7 @@
     scene.fog.color.copy(envUniforms.uFogColor.value);
     scene.fog.near = envUniforms.uFogStart.value;
     scene.fog.far = envUniforms.uFogEnd.value;
+    renderer.setClearColor(envUniforms.uFogColor.value, 1);
 
     // Warm Cream-Gold Sunlight + Smooth Midday Zenith Dampening (fresh, warm, zero midday/white-block glare!)
     const noonSoft = 1.0 - 0.24 * Math.max(0, (sunY - 0.50) / 0.50);
@@ -983,7 +986,7 @@
       ? Math.max(0.06, Math.exp(-diveDepth * 0.018))
       : (depthOffset > 0 ? 0.10 : Math.max(0.12, Math.min(1, (player.y + 8) / 10)));
     if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = surfaceFactor;
-    const albedoDamp = (curBiome === BIOMES.DESERT || curBiome === BIOMES.MESA) ? 0.88 : ((curBiome === BIOMES.SNOW || curBiome === BIOMES.ALPINE_PEAKS) ? 0.90 : 1.0);
+    const albedoDamp = (curBiome === BIOMES.DESERT || curBiome === BIOMES.MESA) ? 0.88 : ((curBiome === BIOMES.SNOW || curBiome === BIOMES.SNOWY_PLAINS || curBiome === BIOMES.ALPINE_PEAKS) ? 0.90 : 1.0);
     const isNightShadow = (sunY < -0.04);
     const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
     const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
@@ -1192,7 +1195,7 @@
     envUniforms.uUsePlanarRefl.value = 1.0;
 
     const waterY = WATER_LEVEL + 0.86;
-    const reflFar = Math.min(camera.far, Math.max(128, renderDistance * 28 + 44));
+    const reflFar = Math.max(720, camera.far);
     if (reflCam.aspect !== camera.aspect || reflCam.fov !== camera.fov || reflCam.far !== reflFar) {
       reflCam.aspect = camera.aspect; reflCam.fov = camera.fov; reflCam.far = reflFar; reflCam.updateProjectionMatrix();
     }

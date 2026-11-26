@@ -80,7 +80,7 @@
         b === BIOMES.MANGROVE_SWAMP || b === BIOMES.MARSH_RUINS || b === BIOMES.BEACH_PALM ||
         b === BIOMES.TROPICAL_COAST || b === BIOMES.ABANDONED_CITY) return false;
     if (b === BIOMES.ALPINE_PEAKS || b === BIOMES.CLOUD_PEAKS || b === BIOMES.HIGHLAND_PLATEAU || b === BIOMES.SAKURA ||
-        b === BIOMES.SNOW || b === BIOMES.BADLANDS_SPIRES || b === BIOMES.VOLCANIC_BASALT) return true;
+        b === BIOMES.SNOW || b === BIOMES.SNOWY_PLAINS || b === BIOMES.BADLANDS_SPIRES || b === BIOMES.VOLCANIC_BASALT) return true;
     return typeof getTerrainHeight === 'function' && getTerrainHeight(wx, wz, b) >= 12;
   }
 
@@ -422,13 +422,15 @@
     const elev = fbm2D(bx * 0.00072, bz * 0.00072, 2, 0.5, 2.0, worldSeed + 303);
     if (elev > 0.78) return BIOMES.MEGA_SNOW_PEAKS;
     if (elev > 0.71) return BIOMES.CLOUD_PEAKS;
+    const plainBand = fbm2D(bx * 0.00058, bz * 0.00058, 2, 0.5, 2.0, worldSeed + 641);
     if (heat < 0.28 && elev > 0.50) return elev > 0.62 ? BIOMES.MEGA_SNOW_PEAKS : BIOMES.ALPINE_PEAKS;
-    if (heat < 0.29) return BIOMES.SNOW;
+    if (heat < 0.29) return (elev < 0.48 && plainBand > 0.42) ? BIOMES.SNOWY_PLAINS : BIOMES.SNOW;
     if (heat < 0.36 && humid > 0.56) return BIOMES.REDWOOD_ANCIENT;
     if (heat < 0.40) {
       if (heat >= 0.31 && humid > 0.62) return BIOMES.GIANT_TREES;
       if (heat >= 0.29 && humid >= 0.44 && humid <= 0.62 && elev < 0.56) return BIOMES.PINE_VALLEY;
-      return humid > 0.48 ? BIOMES.TAIGA : BIOMES.SNOW;
+      if (humid > 0.48) return BIOMES.TAIGA;
+      return plainBand > 0.46 ? BIOMES.SNOWY_PLAINS : BIOMES.SNOW;
     }
     if (heat > 0.73 && elev > 0.62) return BIOMES.VOLCANIC_BASALT;
     if (heat > 0.70 && elev < 0.36 && humid < 0.37) return BIOMES.BADLANDS_CRATER;
@@ -442,9 +444,8 @@
       if (spookyBand > 0.58) return BIOMES.PALE_GARDEN;
       if (spookyBand < 0.34 && heat >= 0.40 && heat <= 0.60) return BIOMES.DARK_FOREST;
     }
-    const plainBand = fbm2D(bx * 0.00058, bz * 0.00058, 2, 0.5, 2.0, worldSeed + 641);
     if (heat >= 0.47 && heat <= 0.61 && humid >= 0.30 && humid <= 0.42 && elev < 0.52) return BIOMES.WHEAT_VALLEY;
-    if (elev < 0.53 && heat >= 0.36 && heat <= 0.64 && (humid < 0.44 || (plainBand > 0.52 && humid < 0.60))) return plainBand > 0.68 ? BIOMES.LUSH_STEPPE : BIOMES.PLAINS;
+    if (elev < 0.53 && heat >= 0.36 && heat <= 0.64 && (humid < 0.44 || (plainBand > 0.52 && humid < 0.60))) return plainBand > 0.68 ? BIOMES.LUSH_STEPPE : (plainBand > 0.50 ? BIOMES.GREEN_PLAINS : BIOMES.PLAINS);
     if (heat > 0.57 && humid > 0.67) return BIOMES.BAMBOO_JUNGLE;
     if (heat > 0.51 && heat <= 0.64 && humid > 0.62 && elev < 0.56) return BIOMES.GIANT_JUNGLE;
     if (heat > 0.59 && heat <= 0.74 && humid > 0.60) return BIOMES.DAPPLED_FOREST;
@@ -485,9 +486,14 @@
     if (biome === BIOMES.ABYSS_TRENCH || biome === BIOMES.DEEP_OCEAN) {
       h = Math.max(-44, getOceanFloorTrueY(wx, wz, biome));
     }
-    else if (biome === BIOMES.PLAINS) {
+    else if (biome === BIOMES.PLAINS || biome === BIOMES.GREEN_PLAINS) {
       const pond = valueNoise2D(wx * 0.028, wz * 0.028, worldSeed + 643);
-      h = (pond < 0.14 && cont < 0.36) ? (WATER_LEVEL - 2.0 + pond * 6) : (1.5 + cont * 5.2 + detail * 0.9);
+      const amp = (biome === BIOMES.GREEN_PLAINS) ? 4.4 : 5.2;
+      h = (pond < 0.14 && cont < 0.36) ? (WATER_LEVEL - 2.0 + pond * 6) : (1.5 + cont * amp + detail * 0.75);
+    }
+    else if (biome === BIOMES.SNOWY_PLAINS) {
+      const snBay = valueNoise2D(wx * 0.024, wz * 0.024, worldSeed + 649);
+      h = (snBay < 0.15 && cont < 0.42) ? (WATER_LEVEL - 2.0 + snBay * 5.5) : (1.5 + cont * 4.4 + detail * 0.65);
     }
     else if (biome === BIOMES.MUSHROOM_ISLAND) h = 1 + cont * 9 + detail * 1.8;
     else if (biome === BIOMES.BEACH_PALM) h = -2.5 + cont * 7.2 + detail * 1.2;
@@ -1918,6 +1924,25 @@
       else { emitBox(0.0, 0.0, 1 - lw, lw, 0.1875, 1.0, 8, 8, 8); emitBox(1 - lw, 0.0, 1 - lw, 1.0, 0.1875, 1.0, 8, 8, 8); }
     } else if (def.cactus) {
       emitBox(0.0625, 0.0, 0.0625, 0.9375, 1.0, 0.9375, tTop, tSide, tBot);
+      const su0 = TILE_U0[V142_TILES.cactusSpine], su1 = TILE_U1[V142_TILES.cactusSpine];
+      const sv0 = TILE_V0[V142_TILES.cactusSpine], sv1 = TILE_V1[V142_TILES.cactusSpine];
+      // Rigid 3D diagonal thorn fins protruding outward from the 4 fluted corners
+      const sQuads = [
+        [[0.065, 0, 0.065], [-0.025, 0, -0.025], [-0.025, 1, -0.025], [0.065, 1, 0.065]],
+        [[0.935, 0, 0.065], [1.025, 0, -0.025], [1.025, 1, -0.025], [0.935, 1, 0.065]],
+        [[0.935, 0, 0.935], [1.025, 0, 1.025], [1.025, 1, 1.025], [0.935, 1, 0.935]],
+        [[0.065, 0, 0.935], [-0.025, 0, 1.025], [-0.025, 1, 1.025], [0.065, 1, 0.935]]
+      ];
+      for (let q = 0; q < 4; q++) {
+        const qr = sQuads[q];
+        pPos.push(wx+qr[0][0],wy+qr[0][1],wz+qr[0][2], wx+qr[1][0],wy+qr[1][1],wz+qr[1][2], wx+qr[2][0],wy+qr[2][1],wz+qr[2][2], wx+qr[3][0],wy+qr[3][1],wz+qr[3][2]);
+        pNorm.push(0,1,0, 0,1,0, 0,1,0, 0,1,0);
+        pUvs.push(su0, sv1, su1, sv1, su1, sv0, su0, sv0);
+        pSway.push(0.0, 0.0, 0.0, 0.0);
+        pSkyShade.push(0.95, 0.95, 0.95, 0.95);
+        pBLights.push(lr,lg,lb, lr,lg,lb, lr,lg,lb, lr,lg,lb);
+        pIndices.push(st.pCount, st.pCount+1, st.pCount+2, st.pCount, st.pCount+2, st.pCount+3); st.pCount += 4;
+      }
     } else if (def.bamboo) {
       const jx = (hash2i(wx, wz, 719) - 0.5) * 0.24, jz = (hash2i(wx + 19, wz - 11, 727) - 0.5) * 0.24;
       const cx0 = Math.max(0.12, Math.min(0.64, 0.375 + jx)), cz0 = Math.max(0.12, Math.min(0.64, 0.375 + jz));

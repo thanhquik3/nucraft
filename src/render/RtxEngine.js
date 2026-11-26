@@ -314,7 +314,7 @@
           vec3 activeColF = fSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
           float noonTame = 1.0 - smoothstep(0.45, 0.92, fSun.y) * mix(0.68, 0.42, uEclipseMode);
           float sunScatter = pow(max(dot(viewDirF, activeSunF), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (fSun.y > -0.05 ? smoothstep(-0.1, 0.25, fSun.y) * noonTame : 0.35);
-          vec3 fogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, fSun.y));
+          vec3 fogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, fSun.y));
           vec3 scatterCol = mix(fogBase, min(activeColF * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), sunScatter * mix(0.18, 0.50, max(uChillMode, uEclipseMode)));
           float blLumaT = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
           float lightFogResistT = 1.0 - clamp(blLumaT * 0.72, 0.0, 0.76);
@@ -530,7 +530,7 @@
           vec3 activeColP = pSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
           float pNoonTame = 1.0 - smoothstep(0.45, 0.92, pSun.y) * mix(0.68, 0.42, uEclipseMode);
           float pScatter = pow(max(dot(viewDirP, activeSunP), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (pSun.y > -0.05 ? smoothstep(-0.1, 0.25, pSun.y) * pNoonTame : 0.35);
-          vec3 pFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, pSun.y));
+          vec3 pFogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, pSun.y));
           float blLumaP = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
           float lightFogResistP = 1.0 - clamp(blLumaP * 0.72, 0.0, 0.74);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(pFogBase, min(activeColP * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), pScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogP * lightFogResistP);
@@ -709,7 +709,7 @@
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
     uniforms: {
-      uSunDir: envUniforms.uSunDir, uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon,
+      uSunDir: envUniforms.uSunDir, uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon, uFogColor: envUniforms.uFogColor,
       uSunColor: envUniforms.uSunColor, uTime: envUniforms.uTime,
       uCloudCover: envUniforms.uCloudCover, uVolumetricClouds: envUniforms.uVolumetricClouds,
       uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth,
@@ -718,7 +718,7 @@
     vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * (modelViewMatrix * vec4(position, 1.0)); }`,
     fragmentShader: `
       precision mediump float;
-      uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor;
+      uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor, uFogColor;
       uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uWaterDepth, uChillMode, uDlssMode, uEclipseMode;
       varying vec3 vDir;
       float cHash(vec2 p) { return fract(sin(dot(mod(p, 289.0), vec2(127.1, 311.7))) * 43758.5453); }
@@ -836,37 +836,59 @@
           gl_FragColor = vec4(colUW, 1.0);
           return;
         }
-        vec3 col = mix(uSkyHorizon, uSkyTop, pow(max(h, 0.0001), mix(0.44, 0.28, uChillMode)));
+        vec3 col = mix(uSkyHorizon, uSkyTop, pow(max(h, 0.0001), mix(0.46, 0.30, uChillMode)));
         vec3 sunN = normalize(uSunDir);
         float sunDot = max(dot(d, sunN), 0.0), sunUp = smoothstep(-0.14, 0.25, sunN.y);
-        // 3-Band Rayleigh + Mie Sunset Horizon Band & Deep Twilight Rose-Violet Mid-Sky
-        float chillBand = uChillMode * exp(-max(h, 0.0) * 8.2) * sunUp;
-        col = mix(col, vec3(0.48, 0.27, 0.44), uChillMode * exp(-pow((h - 0.14) * 5.6, 2.0)) * 0.48 * sunUp);
-        col += vec3(0.95, 0.50, 0.24) * chillBand * (0.14 + 0.32 * pow(sunDot, 2.0));
-        // Creamy-Gold Mie Forward Scattering Corona + Crisp Sun Disc
-        float mieBoost = 1.0 + uChillMode * 0.45 + uDlssMode * 0.32;
-        col += uSunColor * (pow(sunDot, 6.0) * 0.12 + pow(sunDot, 24.0) * 0.24 + pow(sunDot, 96.0) * 0.36) * sunUp * mieBoost;
-        col += uSunColor * smoothstep(0.9960, 0.9990, sunDot) * (1.28 + 0.16 * uDlssMode) * sunUp;
+        float horClip = smoothstep(-0.025, 0.045, d.y);
+        float sunsetK = smoothstep(-0.12, 0.16, sunN.y) * (1.0 - smoothstep(0.18, 0.52, sunN.y));
+        // Rayleigh + Mie golden sunset belt & deep twilight violet mid-sky
+        float chillBand = max(uChillMode, sunsetK * 0.75) * exp(-max(h, 0.0) * 7.8) * sunUp;
+        col = mix(col, vec3(0.48, 0.27, 0.44), uChillMode * exp(-pow((h - 0.14) * 5.6, 2.0)) * 0.46 * sunUp);
+        col += mix(vec3(0.95, 0.52, 0.24), vec3(1.0, 0.44, 0.18), sunsetK) * chillBand * (0.14 + 0.34 * pow(sunDot, 2.0));
+        // Realistic Solar Atmosphere: Mie Haze + Tight Luminous Corona + Limb-Darkened Photosphere Disc
+        float mieBoost = 1.0 + uChillMode * 0.42 + uDlssMode * 0.28 + sunsetK * 0.32;
+        col += uSunColor * (pow(sunDot, 5.0) * 0.14 + pow(sunDot, 22.0) * 0.25) * sunUp * mieBoost * horClip;
+        col += uSunColor * (pow(sunDot, 140.0) * 0.55 + pow(sunDot, 520.0) * 0.85) * sunUp * horClip;
+        float sunDisc = smoothstep(0.9984, 0.99935, sunDot) * horClip;
+        if (sunDisc > 0.005) {
+          vec3 sunCoreCol = mix(uSunColor * 1.15, vec3(1.0, 0.985, 0.93), smoothstep(0.9989, 0.9998, sunDot));
+          col = mix(col, sunCoreCol * (1.55 + 0.16 * uDlssMode), sunDisc * sunUp);
+        }
 
+        // Textured Lunar Disc (subtle Maria craters + crisp silver limb)
         float moonDot = max(dot(d, -sunN), 0.0);
         float moonPresence = smoothstep(0.18, -0.06, sunN.y);
-        col += vec3(0.32, 0.58, 0.95) * moonPresence * (pow(moonDot, 14.0) * 0.42 + pow(moonDot, 50.0) * 0.72) * (1.0 + 0.25 * uDlssMode);
-        float moonDisc = smoothstep(0.9958, 0.9985, moonDot);
-        if (moonDisc > 0.01) col += vec3(0.92, 0.96, 1.0) * moonDisc * 1.25;
+        col += vec3(0.32, 0.58, 0.95) * moonPresence * (pow(moonDot, 14.0) * 0.36 + pow(moonDot, 56.0) * 0.62) * (1.0 + 0.22 * uDlssMode) * horClip;
+        float moonDisc = smoothstep(0.9964, 0.9986, moonDot) * horClip;
+        if (moonDisc > 0.01) {
+          vec3 mRight = normalize(cross(vec3(0.0, 1.0, 0.01), -sunN));
+          vec3 mUp = cross(-sunN, mRight);
+          vec2 mUv = vec2(dot(d, mRight), dot(d, mUp)) * 18.0;
+          float maria = fbmFast(mUv * 4.5);
+          vec3 mCol = mix(vec3(0.76, 0.82, 0.92), vec3(0.95, 0.97, 1.0), smoothstep(0.28, 0.72, maria));
+          col = mix(col, mCol * (1.18 + 0.10 * moonPresence), moonDisc * (0.28 + 0.72 * moonPresence));
+        }
 
         float twilightStars = max(uChillMode, uDlssMode * 0.55) * smoothstep(0.24, 0.72, h) * 0.62;
-        float nightMask = max(smoothstep(0.10, -0.18, sunN.y) * smoothstep(0.05, 0.32, h), twilightStars);
+        float nightMask = max(smoothstep(0.10, -0.18, sunN.y) * smoothstep(0.03, 0.28, h), twilightStars);
         if (nightMask > 0.01) {
-          // Crisp delicate twinkling pinpoint stars (zero chunky blocks!)
+          // Delicate Milky Way arch + 2-tier twinkling pinpoint stars
+          float mwCoord = (d.x * 0.55 + d.y * 0.45 - d.z * 0.70);
+          float mwBand = exp(-mwCoord * mwCoord * 12.0) * smoothstep(0.10, -0.18, sunN.y) * smoothstep(0.06, 0.32, h);
+          if (mwBand > 0.01) {
+            float mwDust = fbmFast(d.xz / (d.y + 0.45) * 2.4 + vec2(3.1, -1.7));
+            col += vec3(0.11, 0.16, 0.28) * mwBand * smoothstep(0.32, 0.78, mwDust) * 0.85;
+          }
           vec2 stGrid = d.xz / (d.y + 0.35) * 185.0;
           vec2 stCell = floor(stGrid);
           vec2 stLocal = fract(stGrid) - 0.5;
           float stR = cHash(stCell);
-          if (stR > 0.988) {
+          if (stR > 0.986) {
             float dotStar = smoothstep(0.34, 0.04, length(stLocal));
-            col += vec3(0.92, 0.96, 1.0) * dotStar * nightMask * (0.60 + 0.40 * sin(uTime * 3.0 + stR * 120.0)) * (1.45 + 0.35 * uDlssMode);
+            vec3 stTint = mix(vec3(0.84, 0.92, 1.0), vec3(1.0, 0.94, 0.82), fract(stR * 73.1));
+            col += stTint * dotStar * nightMask * (0.60 + 0.40 * sin(uTime * 3.0 + stR * 120.0)) * (1.42 + 0.32 * uDlssMode);
           }
-          // Authentic Shimmering Aurora Borealis + Eclipse Nimitz Curtain Aurora (rendered BEFORE clouds for dark cloud silhouettes!)
+          // Aurora Borealis + Eclipse Nimitz Curtain Aurora
           if (d.y > 0.02 && smoothstep(0.10, -0.18, sunN.y) > 0.04) {
             float nightAur = smoothstep(0.10, -0.18, sunN.y);
             if (uEclipseMode > 0.5) {
@@ -889,38 +911,47 @@
           }
         }
 
-        // Dual-Layer Realistic Sky Clouds: High-Altitude Wispy Sunset Cirrus + Sculpted Puffy Cumulus!
+        // Fast Multi-Layer Clouds: Wispy Cirrus + 2-Tap Self-Shadowed Sculpted Cumulus (60 FPS Mobile!)
         float cloudAlpha = 0.0;
-        if (uVolumetricClouds > 0.5 && d.y > 0.02) {
+        if (uVolumetricClouds > 0.5 && d.y > 0.015) {
           vec3 lightD = sunN.y > -0.05 ? sunN : -sunN;
-          vec2 ciUv = (d.xz / (d.y + 0.26)) * vec2(0.85, 2.35) + vec2(uTime * 0.008, uTime * 0.004);
-          float ci = smoothstep(0.54, 0.88, fbmFast(ciUv)) * smoothstep(0.03, 0.25, d.y) * smoothstep(0.95, 0.38, d.y);
+          vec2 ciUv = (d.xz / (d.y + 0.28)) * vec2(0.82, 2.25) + vec2(uTime * 0.008, uTime * 0.004);
+          float ci = smoothstep(0.53, 0.88, fbmFast(ciUv)) * smoothstep(0.025, 0.24, d.y) * smoothstep(0.95, 0.38, d.y);
           if (ci > 0.01) {
-            vec3 ciCol = mix(mix(uSkyHorizon * 0.85, vec3(0.34, 0.36, 0.54), 0.42), uSunColor * 1.06, pow(sunDot, 2.5) * 0.78);
-            float ciFade = mix(0.28, 0.48, max(uChillMode, max(uDlssMode * 0.65, uEclipseMode * 0.75))) * sunUp;
+            vec3 ciDay = mix(mix(uSkyHorizon * 0.88, vec3(0.38, 0.40, 0.58), 0.36), uSunColor * 1.08, pow(sunDot, 2.2) * 0.76);
+            vec3 ciCol = mix(vec3(0.22, 0.30, 0.46), ciDay, sunUp);
+            float ciFade = mix(0.26, 0.46, max(uChillMode, max(uDlssMode * 0.60, uEclipseMode * 0.72))) * (0.28 + 0.72 * sunUp);
             col = mix(col, ciCol, ci * ciFade);
-            cloudAlpha = max(cloudAlpha, ci * ciFade * 0.6);
+            cloudAlpha = max(cloudAlpha, ci * ciFade * 0.55);
           }
-          vec2 pUv = (d.xz / (d.y + 0.18)) * 1.45 + vec2(uTime * 0.014, uTime * 0.007);
+          vec2 pBaseUv = (d.xz / (d.y + 0.18)) * 1.42 + vec2(uTime * 0.013, uTime * 0.006);
+          float warp1 = fbmFast(pBaseUv * 0.65);
+          vec2 pUv = pBaseUv + vec2(warp1 - 0.5, warp1 * 0.7 - 0.35) * 0.26;
           float f1 = fbmFast(pUv);
-          float dens = smoothstep(0.64 - uCloudCover * 0.45, 0.89 - uCloudCover * 0.30, f1);
-          float horFade = smoothstep(0.02, 0.20, d.y);
+          float dens = smoothstep(0.62 - uCloudCover * 0.44, 0.88 - uCloudCover * 0.30, f1);
+          float horFade = smoothstep(0.015, 0.22, d.y);
           if (dens > 0.01) {
-            vec2 lStep = lightD.xz / (abs(lightD.y) + 0.42) * 0.15;
-            float fSun = fbmFast(pUv + lStep);
-            float lit = clamp(0.62 + (f1 - fSun) * (2.5 + 0.45 * max(uDlssMode, uEclipseMode)), 0.14, 1.0);
-            float silverRim = pow(sunDot, mix(6.5, 4.2, uEclipseMode)) * (1.0 - dens * 0.40) * mix(0.22, 0.54, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode))) * sunUp;
-            vec3 dayBright = mix(vec3(0.90, 0.88, 0.85), uSunColor * mix(1.02, 1.12, uEclipseMode), mix(0.34, 0.72, max(uChillMode, max(uDlssMode * 0.35, uEclipseMode * 0.82))));
-            vec3 dayShade  = mix(mix(vec3(0.46, 0.54, 0.70), uSkyHorizon * 0.78, 0.34), mix(vec3(0.30, 0.27, 0.48), vec3(0.28, 0.33, 0.44), uEclipseMode), max(uChillMode * 0.75, uEclipseMode * 0.85));
-            vec3 nightCloudDark = mix(vec3(0.07, 0.12, 0.24), vec3(0.045, 0.06, 0.105), uEclipseMode);
-            vec3 nightCloudLit  = mix(vec3(0.24, 0.36, 0.56), vec3(0.16, 0.20, 0.30), uEclipseMode);
+            vec2 lStep = lightD.xz / (abs(lightD.y) + 0.42) * 0.14;
+            float fSun1 = fbmFast(pUv + lStep);
+            float fSun2 = fbmFast(pUv + lStep * 2.2);
+            float lit = clamp(0.64 + (f1 - fSun1) * (2.2 + 0.40 * max(uDlssMode, uEclipseMode)) + (f1 - fSun2) * 0.95, 0.14, 1.0);
+            float fwdDot = sunN.y > -0.05 ? sunDot : moonDot;
+            float silverRim = pow(fwdDot, mix(6.5, 4.0, uEclipseMode)) * (1.0 - dens * 0.42) * mix(0.24, 0.56, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode))) * max(sunUp, moonPresence * 0.42);
+            vec3 dayBright = mix(vec3(0.94, 0.93, 0.91), uSunColor * mix(1.04, 1.14, uEclipseMode), mix(0.32, 0.72, max(uChillMode, max(uDlssMode * 0.35, uEclipseMode * 0.80))));
+            vec3 dayShade  = mix(mix(vec3(0.50, 0.58, 0.74), uSkyHorizon * 0.82, 0.36), mix(vec3(0.32, 0.28, 0.48), vec3(0.30, 0.35, 0.46), uEclipseMode), max(uChillMode * 0.72, uEclipseMode * 0.82));
+            vec3 nightCloudDark = mix(vec3(0.06, 0.11, 0.22), vec3(0.045, 0.06, 0.105), uEclipseMode);
+            vec3 nightCloudLit  = mix(vec3(0.22, 0.34, 0.54), vec3(0.16, 0.20, 0.30), uEclipseMode);
             vec3 cCol = mix(mix(nightCloudDark, dayShade, sunUp), mix(nightCloudLit, dayBright, sunUp), lit);
-            cCol += uSunColor * silverRim;
+            cCol += mix(vec3(0.55, 0.72, 0.96), uSunColor, sunUp) * silverRim;
             float cumAlpha = dens * mix(0.88, 0.94, uEclipseMode) * horFade;
             cloudAlpha = max(cloudAlpha, cumAlpha);
             col = mix(col, cCol, cumAlpha);
           }
         }
+        // Seamless horizon continuity: lock sky horizon band to exact uFogColor so terrain edges never cut at night/day
+        float horSkirt = smoothstep(0.09, -0.02, d.y);
+        col = mix(col, uFogColor, horSkirt);
+        if (d.y < -0.06) col = mix(col, uFogColor * 0.86, smoothstep(-0.06, -0.34, d.y));
         gl_FragColor = vec4(col, uVolumetricClouds > 0.5 ? clamp(cloudAlpha * 0.62, 0.0, 0.74) : 0.0);
       }`
   });
@@ -1253,7 +1284,7 @@
           vec3 vDirW = normalize(vWorldPos - cameraPosition);
           float wNoonTame = 1.0 - smoothstep(0.45, 0.92, sunD.y) * mix(0.68, 0.42, uEclipseMode);
           float wScatter = pow(max(dot(vDirW, activeLightDir), 0.0), mix(7.0, 4.0, uEclipseMode)) * activeStrength;
-          vec3 wFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, sunD.y));
+          vec3 wFogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, sunD.y));
           vec3 wSunGlow = mix(min(activeLightCol * 0.90, vec3(0.90, 0.84, 0.74)), min(activeLightCol * 1.08, vec3(1.0, 0.90, 0.72)), uEclipseMode);
           vec3 scatterFogW = mix(wFogBase, wSunGlow, wScatter * (mix(0.18, 0.46, uEclipseMode) * sunUp * wNoonTame + 0.14 * nightK));
           gl_FragColor = vec4(mix(col, scatterFogW, fogF), alpha);
@@ -2937,14 +2968,33 @@
       return g;
     }
     if (blockId === B.CACTUS) {
+      if (!build3DSculptedSpecialItem._cacMats) {
+        build3DSculptedSpecialItem._cacMats = {
+          tip: new THREE.MeshStandardMaterial({ color: 0xdfefc9, roughness: 0.72 }),
+          base: new THREE.MeshStandardMaterial({ color: 0x295e23, roughness: 0.85 })
+        };
+      }
+      const cm = build3DSculptedSpecialItem._cacMats;
       const g = new THREE.Group();
       const [tTop, tSide, tBot] = _itemDef.tiles || [184, 17, 184];
-      const core = _makeAtlasBox(0.225, 0.27, 0.225, tTop, tSide, tBot);
-      const spineMat = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.85 });
-      for (const sy of [-0.07, 0.06]) {
-        const sx = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.018, 0.018), spineMat); sx.position.set(0, sy, 0.055);
-        const sz = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 0.245), spineMat); sz.position.set(-0.055, sy, 0);
-        g.add(sx, sz);
+      const core = _makeAtlasBox(0.228, 0.26, 0.228, tTop, tSide, tBot);
+      const spGeo = new THREE.BoxGeometry(0.014, 0.013, 0.013);
+      // Staggered protruding needle clusters along ribs matching 2D isometric icon
+      const spOffsets = [
+        [ 0.120,  0.070, -0.045, true], [ 0.120, -0.015,  0.045, true], [ 0.120, -0.080, -0.035, true],
+        [-0.120,  0.055,  0.035, true], [-0.120, -0.055, -0.045, true],
+        [-0.045,  0.070,  0.120, false],[ 0.045, -0.015,  0.120, false],[-0.035, -0.080,  0.120, false],
+        [ 0.035,  0.055, -0.120, false],[-0.045, -0.055, -0.120, false]
+      ];
+      for (const [sx, sy, sz, onX] of spOffsets) {
+        const sp = new THREE.Mesh(spGeo, cm.tip);
+        sp.position.set(sx, sy, sz);
+        if (onX) sp.scale.set(1.25, 0.85, 0.85); else sp.scale.set(0.85, 0.85, 1.25);
+        g.add(sp);
+        const sb = new THREE.Mesh(spGeo, cm.base);
+        sb.position.set(sx * 0.92, sy, sz * 0.92);
+        sb.scale.setScalar(0.82);
+        g.add(sb);
       }
       g.add(core);
       g.rotation.order = 'YXZ';
@@ -3931,12 +3981,12 @@
         else if (id === B.BLUE_GRASS) { cr = 0.18; cg = 0.62; cb = 0.58; }
         else if (id === B.MOSS_BLOCK) { cr = 0.30; cg = 0.54; cb = 0.18; }
         else if (typeof BIOMES !== 'undefined' && bio) {
-          if (bio === BIOMES.PLAINS || bio === BIOMES.LUSH_STEPPE || bio === BIOMES.FLOWER_MEADOW || bio === BIOMES.HIGHLAND_PLATEAU) {
+          if (bio === BIOMES.PLAINS || bio === BIOMES.GREEN_PLAINS || bio === BIOMES.LUSH_STEPPE || bio === BIOMES.FLOWER_MEADOW || bio === BIOMES.HIGHLAND_PLATEAU) {
             cr = 0.38; cg = 0.68; cb = 0.24;
           } else if (bio === BIOMES.DARK_FOREST) { cr = 0.24; cg = 0.48; cb = 0.18; }
           else if (bio === BIOMES.PALE_GARDEN) { cr = 0.46; cg = 0.52; cb = 0.48; }
           else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.36; cg = 0.20; cb = 0.32; }
-          else if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.30; cg = 0.54; cb = 0.34; }
+          else if (bio === BIOMES.SNOW || bio === BIOMES.SNOWY_PLAINS || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.30; cg = 0.54; cb = 0.34; }
           else if (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST) {
             cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.95 : 0.90;
             cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.58 : 0.44;

@@ -400,6 +400,57 @@
       });
       anim.wings.push({ p: wp, outer: wingMap[wk + '_outer'] || null, dir, isDragonWing: isDragonType, hangDown });
     }
+    if (isDragonType) {
+      const DRG_PAL = {
+        ice_dragon:   { ridge: 0x67e8f9, horn: 0xbae6fd, glow: 0x38bdf8 },
+        fire_dragon:  { ridge: 0xf97316, horn: 0xc2b29b, glow: 0xfbbf24 },
+        earth_dragon: { ridge: 0x10b981, horn: 0x292524, glow: 0x34d399 },
+        water_dragon: { ridge: 0x22d3ee, horn: 0x67e8f9, glow: 0x06b6d4 },
+        leaf_dragon:  { ridge: 0x84cc16, horn: 0x713f12, glow: 0xbef264 },
+        tree_dragon:  { ridge: 0xa3e635, horn: 0x451a03, glow: 0xfacc15 }
+      };
+      const dp = DRG_PAL[type] || { ridge: 0xd946ef, horn: 0x3b3348, glow: 0xf0abfc };
+      const ridgeMat = _getCuteBoxMats(`drg_r_${dp.ridge.toString(16)}`, { tex: _getNoiseTex('voxel'), color: dp.ridge, rough: 0.45 });
+      const hornMat = _getCuteBoxMats(`drg_h_${dp.horn.toString(16)}`, { tex: _getNoiseTex('voxel'), color: dp.horn, rough: 0.55 });
+      const mkDrgAcc = (parent, w, h, d, mat, x, y, z, rx = 0, rz = 0) => {
+        if (!parent) return null;
+        const am = new THREE.Mesh(_getBoxGeo(w, h, d), mat);
+        am.userData.sharedGeo = true;
+        am.position.set(x, y, z);
+        if (rx) am.rotation.x = rx;
+        if (rz) am.rotation.z = rz;
+        am.castShadow = castSh;
+        parent.add(am);
+        parts.push(am);
+        return am;
+      };
+      // Tapered dorsal voxel crests along spine
+      const spinePar = anim.torso || g;
+      for (let si = 0; si < 4; si++) {
+        mkDrgAcc(spinePar, 0.08, 0.24 - si * 0.025, 0.16, ridgeMat, 0, 0.42 - si * 0.01, 0.48 - si * 0.34, -0.22);
+      }
+      // Twin swept brow horns, cheek spurs & mouth breath-core crystal
+      if (anim.head) {
+        for (const sx of [-1, 1]) {
+          mkDrgAcc(anim.head, 0.09, 0.11, 0.38, hornMat, sx * 0.22, 0.34, -0.18, 0.32, sx * -0.14);
+          mkDrgAcc(anim.head, 0.07, 0.08, 0.20, hornMat, sx * 0.34, 0.08, -0.04, 0.10, sx * -0.22);
+        }
+        const bcMat = new THREE.MeshStandardMaterial({
+          color: dp.glow, emissive: dp.glow, emissiveIntensity: 0.38, roughness: 0.25, metalness: 0.15
+        });
+        const bcMesh = new THREE.Mesh(_getBoxGeo(0.18, 0.12, 0.22), bcMat);
+        bcMesh.userData.sharedGeo = true;
+        bcMesh.position.set(0, -0.05, 0.34);
+        anim.head.add(bcMesh);
+        anim.breathCore = bcMesh;
+        anim.breathCoreMat = bcMat;
+      }
+      // Wing-elbow claw spurs
+      for (const wg of anim.wings) {
+        const elbow = wg.outer || wg.p;
+        if (elbow) mkDrgAcc(elbow, 0.10, 0.08, 0.22, hornMat, wg.dir * 0.32, 0.05, 0.28, -0.35, wg.dir * -0.20);
+      }
+    }
     if (anim.wings.length === 0 && (type === 'flamingo' || (typeof ANIMAL_MAP !== 'undefined' && ANIMAL_MAP.get(type)?.fly))) {
       const parentWing = anim.torso || g;
       const spW = (typeof ANIMAL_MAP !== 'undefined') ? ANIMAL_MAP.get(type) : null;
@@ -3483,7 +3534,8 @@
       [BIOMES.BIRCH_ANCIENT.id]: 'birch', [BIOMES.LAVENDER_MEADOW.id]: 'meadow',
       [BIOMES.AUTUMN_GOLDEN.id]: 'autumn', [BIOMES.AUTUMN_DEEP.id]: 'autumn',
       [BIOMES.BLUE_FOREST.id]: 'lush', [BIOMES.WHEAT_VALLEY.id]: 'plains',
-      [BIOMES.PINE_VALLEY.id]: 'taiga', [BIOMES.GIANT_JUNGLE.id]: 'weeping'
+      [BIOMES.PINE_VALLEY.id]: 'taiga', [BIOMES.GIANT_JUNGLE.id]: 'weeping',
+      [BIOMES.GREEN_PLAINS.id]: 'plains', [BIOMES.SNOWY_PLAINS.id]: 'snow'
     };
     const tag = tagMap[biomeObj.id] || 'plains';
     const pool = ANIMAL_SPECIES.filter(sp => (sp[10].includes('a') === wantAqua) && sp[9].includes(tag));
@@ -4349,7 +4401,7 @@
         else if (isUnder && r < 0.14) type = 'rascal';
         else if (!isUnder && r < 0.08 && skyCnt < skyCap) { type = 'phantom_drake'; spawnY += 7; }
         else if (biome === BIOMES.DESERT && r < 0.36) type = Math.random() < 0.5 ? 'husk' : 'desert_skeleton';
-        else if ((biome === BIOMES.SNOW || biome === BIOMES.TAIGA || biome === BIOMES.ALPINE_PEAKS) && r < 0.44) {
+        else if ((biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.TAIGA || biome === BIOMES.ALPINE_PEAKS) && r < 0.44) {
           const rs = Math.random();
           type = rs < 0.25 ? 'frozen_zombie' : (rs < 0.50 ? 'icy_creeper' : (rs < 0.72 ? 'iceologer' : (Math.random() < 0.14 ? 'spider_jockey' : 'stray')));
         }
@@ -4358,7 +4410,7 @@
           type = rm < 0.28 ? 'mossy_zombie' : (rm < 0.56 ? 'bogged' : (rm < 0.78 ? 'witch' : 'slime'));
         }
         else if ((biome === BIOMES.BEACH_PALM || biome === BIOMES.DEEP_OCEAN) && r < 0.36) type = 'drowned';
-        else if (biome === BIOMES.SNOW || biome === BIOMES.ALPINE_PEAKS) {
+        else if (biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.ALPINE_PEAKS) {
           if (Math.random() < 0.14) type = 'snow_golem';
         }
         if (!type && r < 0.22) type = Math.random() < 0.14 ? 'chicken_jockey' : 'zombie';
@@ -4386,7 +4438,7 @@
         else if ((biome === BIOMES.FOREST || biome === BIOMES.TAIGA || biome === BIOMES.AUTUMN) && r < 0.80) type = Math.random() < 0.40 ? 'antler_deer' : (Math.random() < 0.45 ? 'cinnamon_ferret' : (Math.random() < 0.5 ? 'moss_golem' : 'wolf'));
         else if ((biome === BIOMES.BEACH_PALM) && r < 0.78) type = 'blue_crab';
         else if ((biome === BIOMES.PLATEAU || biome === BIOMES.MESA || biome === BIOMES.DESERT) && r < 0.76) { type = r < 0.68 ? 'armadillo' : 'vulture'; if (type === 'vulture') spawnY += 4.5; }
-        else if ((biome === BIOMES.SAKURA || biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW || biome === BIOMES.LUSH_GROVE || biome === BIOMES.PLAINS) && r < 0.84) {
+        else if ((biome === BIOMES.SAKURA || biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW || biome === BIOMES.LUSH_GROVE || biome === BIOMES.PLAINS || biome === BIOMES.GREEN_PLAINS) && r < 0.84) {
           const plPool = ['plush_slime_mint', 'plush_strawberry_slime', 'plush_allay_lavender', 'plush_bear_teal', 'plush_panda_berry', 'plush_duckling_bow', 'plush_chicken_daisy', 'plush_pig_crown', 'plush_cow_flower', 'plush_sheep_sakura', 'plush_fox_berry', 'plush_wolf_bow', 'plush_llama_bow', 'plush_turtle_flower', 'plush_axolotl_hat'];
           type = plPool[(Math.random() * plPool.length) | 0];
           if (type === 'plush_allay_lavender') spawnY += 2.2;
@@ -7283,7 +7335,8 @@
             const atkPitch = isPillager ? (-atkPhase * 0.20) : (isRavager ? (atkPhase * 0.34) : (atkPhase * (isHeavy ? 0.48 : 0.34)));
             m.anim.torso.rotation.y = (!isQuad && !isDragon && !m.flying) ? Math.sin(wp) * (isPillager ? 0.07 : 0.16) * mv : 0;
             m.anim.torso.rotation.z = (!m.flying && !m.skyBird) ? (Math.sin(wp) * (isHeavy ? 0.098 : 0.072) * mv + idleBreath * 0.55) : (turnBank * 0.5);
-            m.anim.torso.rotation.x = (isDragon ? (isRidingThis ? (m._flyPitch || 0) : (m.swoopT > 0 ? 0.34 : (!m.flying ? (-0.12 + idleBreath * 0.8) : ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.04)))) : (m.skyBird ? ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.05) : (idleBreath + (m.sitting ? -0.24 : quadPitch + jumpPitch + swimPitch)))) + atkPitch;
+            const drgTorsoP = m._drgSwooping ? 0.34 : (m._drgGliding ? ((m._flyPitch || 0) + 0.03) : (!m.flying ? (-0.12 + idleBreath * 0.8) : ((m._flyPitch || 0) + Math.sin(m._drgWingPhase || wingCycle) * 0.045)));
+            m.anim.torso.rotation.x = (isDragon ? (isRidingThis ? (m._flyPitch || 0) : drgTorsoP) : (m.skyBird ? ((m._flyPitch || 0) + Math.sin(wingCycle) * 0.05) : (idleBreath + (m.sitting ? -0.24 : quadPitch + jumpPitch + swimPitch)))) + atkPitch;
           }
         }
         const isMidJump = (!m.flying && !m.skyBird && !m.aqua && swimT < 0.35 && !m.onGround && Math.abs(m.vy) > 0.65);
@@ -7295,9 +7348,10 @@
             lg.p.rotation.y = Math.sin(wp * 1.45 + li * 0.9) * (0.10 + 0.58 * mv) * lg.dir;
             lg.p.rotation.z = Math.max(0, Math.cos(wp * 1.45 + li * 0.9)) * 0.22 * mv * (lg.dir > 0 ? 1 : -1);
           } else if (isDragon) {
-            lg.p.rotation.x = m.flying
-              ? (0.52 + Math.sin(wingCycle + li * 0.6) * 0.16)
+            const drgLgTarget = m.flying
+              ? (m._drgSwooping ? 0.82 : (0.58 + Math.sin((m._drgWingPhase || wingCycle) + li * 0.55) * 0.14))
               : (m.sitting ? -0.45 : (Math.sin(wpW) * (li % 2 === 0 ? 1 : -1) * (0.04 + mv * 0.78)));
+            lg.p.rotation.x += (drgLgTarget - lg.p.rotation.x) * Math.min(1, dt * 11.0);
           } else if (m.flying || m.skyBird) {
             // Flying birds & airborne mobs tuck legs cleanly backward instead of walking in midair!
             const tuckFlight = (m.type === 'flamingo' || m.type === 'heron') ? (1.32 + Math.sin(wingCycle) * 0.05) : (0.85 + Math.sin(wingCycle) * 0.06);
@@ -7436,27 +7490,56 @@
           if (!wg || !wg.p || !wg.p.rotation) continue;
           if (wg.isDragonWing) {
             const perched = (!m.flying || m.sitting);
+            const spdDrg = Math.hypot(m.vx || 0, m.vz || 0);
+            const swooping = (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
+            const gliding = (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
+            if (wi === 0) {
+              const drgFreq = perched ? 1.9 : (gliding ? 1.8 : (swooping ? 2.6 : 4.8));
+              m._drgWingPhase = (m._drgWingPhase || (i * 1.37)) + dt * drgFreq;
+              m._drgGliding = gliding;
+              m._drgSwooping = swooping;
+            }
+            const dPhase = m._drgWingPhase || (elapsed * 4.4 + i * 1.1);
             if (perched) {
-              const breathe = Math.sin(elapsed * 2.2 + i) * 0.04;
-              const foldIn = wg.dir * (0.28 + breathe);
+              const breathe = Math.sin(dPhase) * 0.04;
+              const foldIn = wg.dir * (0.30 + breathe);
               wg.p.rotation.z += (foldIn - wg.p.rotation.z) * Math.min(1, dt * 10.0);
-              wg.p.rotation.y += (wg.dir * 0.72 - wg.p.rotation.y) * Math.min(1, dt * 10.0);
+              wg.p.rotation.y += (wg.dir * 0.74 - wg.p.rotation.y) * Math.min(1, dt * 10.0);
               if (wg.outer) {
-                wg.outer.rotation.z += (wg.dir * -0.88 - wg.outer.rotation.z) * Math.min(1, dt * 10.0);
-                wg.outer.rotation.y += (wg.dir * 0.35 - wg.outer.rotation.y) * Math.min(1, dt * 10.0);
+                wg.outer.rotation.z += (wg.dir * -0.92 - wg.outer.rotation.z) * Math.min(1, dt * 10.0);
+                wg.outer.rotation.y += (wg.dir * 0.36 - wg.outer.rotation.y) * Math.min(1, dt * 10.0);
+              }
+            } else if (swooping) {
+              const tZ = wg.dir * (0.42 + Math.sin(dPhase) * 0.08);
+              const tY = wg.dir * -0.45;
+              const eZ = wg.dir * (-0.58 + Math.sin(dPhase - 0.5) * 0.07);
+              wg.p.rotation.z += (tZ - wg.p.rotation.z) * Math.min(1, dt * 12.0);
+              wg.p.rotation.y += (tY - wg.p.rotation.y) * Math.min(1, dt * 12.0);
+              if (wg.outer) {
+                wg.outer.rotation.z += (eZ - wg.outer.rotation.z) * Math.min(1, dt * 12.0);
+                wg.outer.rotation.y += (wg.dir * 0.28 - wg.outer.rotation.y) * Math.min(1, dt * 12.0);
+              }
+            } else if (gliding) {
+              const glideRoll = Math.sin(dPhase) * 0.07;
+              const tZ = wg.dir * (0.16 + glideRoll);
+              const eZ = wg.dir * (-0.10 + Math.sin(dPhase - 0.55) * 0.09);
+              wg.p.rotation.z += (tZ - wg.p.rotation.z) * Math.min(1, dt * 9.0);
+              wg.p.rotation.y += (wg.dir * 0.04 - wg.p.rotation.y) * Math.min(1, dt * 9.0);
+              if (wg.outer) {
+                wg.outer.rotation.z += (eZ - wg.outer.rotation.z) * Math.min(1, dt * 9.0);
+                wg.outer.rotation.y += (wg.dir * 0.06 - wg.outer.rotation.y) * Math.min(1, dt * 9.0);
               }
             } else {
-              // Organic 2-joint dragon power stroke: fast downstroke, graceful upbeat & delayed elbow whip!
-              const wPhase = elapsed * 4.4 + i * 1.1;
-              const rawWave = Math.sin(wPhase) - 0.18 * Math.sin(wPhase * 2.0);
-              const elbowWave = Math.sin(wPhase - 0.68) - 0.14 * Math.sin((wPhase - 0.68) * 2.0);
+              // Continuous 2-joint dragon figure-8 power stroke & delayed outer wing whip
+              const rawWave = Math.sin(dPhase) - 0.18 * Math.sin(dPhase * 2.0);
+              const elbowWave = Math.sin(dPhase - 0.78) - 0.14 * Math.sin((dPhase - 0.78) * 2.0);
               if (wi === 0 && typeof player !== 'undefined' && player.ridingDragon === m && rawWave > 0.72 && (m._lastFlapT || 0) < elapsed - 0.55) {
                 m._lastFlapT = elapsed;
                 playSfx('wing_flap');
               }
-              const tZ = wg.dir * (0.10 + rawWave * 0.62);
-              const tY = wg.dir * (0.12 + Math.cos(wPhase) * 0.16);
-              const eZ = wg.dir * (-0.18 + elbowWave * 0.56);
+              const tZ = wg.dir * (0.10 + rawWave * 0.64);
+              const tY = wg.dir * (0.12 + Math.cos(dPhase) * 0.17);
+              const eZ = wg.dir * (-0.18 + elbowWave * 0.58);
               wg.p.rotation.z += (tZ - wg.p.rotation.z) * Math.min(1, dt * 16.0);
               wg.p.rotation.y += (tY - wg.p.rotation.y) * Math.min(1, dt * 14.0);
               if (wg.outer) {
@@ -7484,11 +7567,24 @@
           if (m.aqua) {
             m.anim.tail.rotation.y = Math.sin(elapsed * 6.4 + i - 1.15) * 0.54;
             m.anim.tail.rotation.x = Math.cos(elapsed * 3.2 + i) * 0.08;
+          } else if (isDragon) {
+            const dTailPh = m._drgWingPhase || (elapsed * 4.4 + i);
+            const yawMul = m._drgSwooping ? 0.45 : (m._drgGliding ? 0.68 : 1.0);
+            m.anim.tail.rotation.y = Math.sin(dTailPh) * 0.24 * yawMul;
+            m.anim.tail.rotation.x = Math.cos(dTailPh - 0.6) * 0.12 - (m._flyPitch || 0) * 0.35;
+            if (m.anim.tail2) {
+              m.anim.tail2.rotation.y = Math.sin(dTailPh - 0.68) * 0.26 * yawMul;
+              m.anim.tail2.rotation.x = Math.cos(dTailPh - 1.28) * 0.13;
+            }
+            if (m.anim.tail3) {
+              m.anim.tail3.rotation.y = Math.sin(dTailPh - 1.36) * 0.30 * yawMul;
+              m.anim.tail3.rotation.x = Math.cos(dTailPh - 1.96) * 0.11;
+            }
           } else {
-            const tailFreq = isDragon ? 4.4 : (m.tamed ? 11.5 : (mv > 0.2 ? 8.2 : 3.8));
-            const tailAmp = isDragon ? 0.26 : (m.tamed ? 0.58 : (mv > 0.2 ? 0.44 : 0.24));
+            const tailFreq = m.tamed ? 11.5 : (mv > 0.2 ? 8.2 : 3.8);
+            const tailAmp = m.tamed ? 0.58 : (mv > 0.2 ? 0.44 : 0.24);
             m.anim.tail.rotation.y = Math.sin(elapsed * tailFreq + i) * tailAmp;
-            m.anim.tail.rotation.x = isDragon ? Math.cos(wingCycle - 0.8) * 0.14 : (m.tamed ? 0.28 : -0.06 + dblBounce * 0.14);
+            m.anim.tail.rotation.x = m.tamed ? 0.28 : -0.06 + dblBounce * 0.14;
             if (m.anim.tail2) {
               m.anim.tail2.rotation.y = Math.sin(elapsed * tailFreq + i - 0.8) * 0.24;
               m.anim.tail2.rotation.x = Math.cos(wingCycle - 1.5) * 0.12;
@@ -7499,7 +7595,10 @@
           }
         }
         if (m.anim.neck1 && isDragon) {
-          m.anim.neck1.rotation.x = Math.sin(elapsed * 2.4 + i) * 0.05 + (m.flying ? -0.06 : 0);
+          const dNeckPh = m._drgWingPhase || (elapsed * 2.4 + i);
+          const torsoPitch = m.anim.torso ? m.anim.torso.rotation.x : 0;
+          const targetNX = -torsoPitch * 0.55 + Math.sin(dNeckPh * 0.65) * 0.06 + (atkPhase > 0.05 ? -0.18 * atkPhase : 0) + (m.flying ? -0.06 : 0.04);
+          m.anim.neck1.rotation.x += (targetNX - m.anim.neck1.rotation.x) * Math.min(1, dt * 10.0);
         }
         if (m.anim.core) {
           if (m.type === 'cave_warden') {
@@ -7518,7 +7617,13 @@
         if (m.anim.jaw) {
           const enderGape = (isEnderman && m.provoked > 0) ? (0.48 + Math.sin(elapsed * 24 + i) * 0.12) : 0;
           const ravRoar = isRavager ? (atkPhase * 0.58 + (mv > 0.3 ? Math.abs(Math.sin(wp)) * 0.18 : 0.03)) : 0;
-          m.anim.jaw.rotation.x = enderGape + ravRoar + (!isRavager && atkPhase > 0.05 ? 0.60 * atkPhase : 0) + (!isRavager && m.hostile && dist < (isDragon ? 45 : 10) ? 0.12 + Math.abs(Math.sin(elapsed * 4.5 + i)) * 0.30 : 0.03);
+          const jawOpen = enderGape + ravRoar + (!isRavager && atkPhase > 0.05 ? 0.60 * atkPhase : 0) + (!isRavager && m.hostile && dist < (isDragon ? 45 : 10) ? 0.12 + Math.abs(Math.sin(elapsed * 4.5 + i)) * 0.30 : 0.03);
+          m.anim.jaw.rotation.x = jawOpen;
+          if (isDragon && m.anim.breathCoreMat) {
+            const roarGlow = (atkPhase > 0.05 || jawOpen > 0.24) ? (1.4 + Math.sin(elapsed * 16.0 + i) * 0.6 + atkPhase * 0.8) : (0.38 + Math.sin(elapsed * 3.2 + i) * 0.12);
+            m.anim.breathCoreMat.emissiveIntensity = roarGlow;
+            if (m.anim.breathCore) m.anim.breathCore.scale.setScalar(atkPhase > 0.05 ? 1.25 : 1.0);
+          }
         }
         if (m.anim.head) {
           if (m.type === 'shulker') {

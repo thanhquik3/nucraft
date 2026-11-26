@@ -441,10 +441,21 @@
     wf.slabTop = slab.topId;
   }
 
+  // v142 Snowy Dirt, Snowy White Grass & Cactus Flower + Atlas Tiles
+  B.SNOWY_DIRT    = _dynBlockId++;
+  B.SNOWY_GRASS   = _dynBlockId++;
+  B.CACTUS_FLOWER = _dynBlockId++;
+  const V142_TILES = {
+    snowyDirtSide: _nextTile++,
+    snowyGrass:    _nextTile++,
+    cactusFlower:  _nextTile++,
+    cactusSpine:   _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

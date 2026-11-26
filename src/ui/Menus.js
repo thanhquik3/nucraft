@@ -256,6 +256,8 @@
       giant_jungle:{ biome: BIOMES.GIANT_JUNGLE,     needWater: true,  time: 0.35,  preset: 'bsl',     pitch: 0.03, msg: '🌴 Rừng Nhiệt Đới Đại Thụ & Dây Leo Rủ' },
       highland:    { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.01, msg: '⛰️ Cao Nguyên Đá Dựng & Mây Trời' },
       lush_steppe: { biome: BIOMES.LUSH_STEPPE,      needWater: false, time: 0.32,  preset: 'bliss',   pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Mênh Mông' },
+      green_plains:{ biome: BIOMES.GREEN_PLAINS,     needWater: false, time: 0.32,  preset: 'bsl',     pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Tươi Mát' },
+      snowy_plains:{ biome: BIOMES.SNOWY_PLAINS,     needWater: true,  time: 0.31,  preset: 'bsl',     pitch: -0.02,msg: '❄️ Đồng Bằng Tuyết Trắng Bất Tận' },
       dark_forest: { biome: BIOMES.DARK_FOREST,      needWater: false, time: 0.36,  preset: 'moonlit', pitch: 0.01, msg: '🌑 Rừng Tối Cây Cổ Thụ Rậm Rạp' },
       pale_garden: { biome: BIOMES.PALE_GARDEN,      needWater: false, time: 0.38,  preset: 'moonlit', pitch: 0.01, msg: '🤍 Khu Rừng Nhợt Nhạt & Sương Mù Lạnh' },
       nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: 0.76, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' }
@@ -337,12 +339,17 @@
         } else {
           const prefY = (targetKey === 'snow' || targetKey === 'winter_cabin') ? moonYawAt(cfg.time) : ((targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'ocean_ruins' || targetKey === 'abyss_trench' || targetKey === 'pine_valley' || targetKey === 'wheat_valley') ? 0.0 : sunYawAt(cfg.time));
           const fx = -Math.sin(prefY), fz = -Math.cos(prefY);
-          if (targetKey === 'snow' || targetKey === 'winter_cabin') {
-            if (getBiomeAt(wx + 10, wz) !== BIOMES.SNOW || getBiomeAt(wx - 10, wz) !== BIOMES.SNOW ||
-                getBiomeAt(wx, wz + 10) !== BIOMES.SNOW || getBiomeAt(wx, wz - 10) !== BIOMES.SNOW) continue;
+          if (targetKey === 'snow' || targetKey === 'winter_cabin' || targetKey === 'snowy_plains') {
+            const wantB = (targetKey === 'snowy_plains') ? BIOMES.SNOWY_PLAINS : BIOMES.SNOW;
+            if (getBiomeAt(wx + 10, wz) !== wantB || getBiomeAt(wx - 10, wz) !== wantB ||
+                getBiomeAt(wx, wz + 10) !== wantB || getBiomeAt(wx, wz - 10) !== wantB) continue;
             const x8 = wx + Math.round(fx * 9), z8 = wz + Math.round(fz * 9);
             const h8 = getTerrainHeight(x8, z8, getBiomeAt(x8, z8));
-            if (h8 <= WATER_LEVEL || Math.abs(h8 - h) > 5) continue;
+            if (targetKey !== 'snowy_plains' && (h8 <= WATER_LEVEL || Math.abs(h8 - h) > 5)) continue;
+            if (targetKey === 'snowy_plains' && Math.abs(h8 - h) > 6) continue;
+          } else if (targetKey === 'green_plains') {
+            if (getBiomeAt(wx + 12, wz) !== BIOMES.GREEN_PLAINS || getBiomeAt(wx - 12, wz) !== BIOMES.GREEN_PLAINS ||
+                getBiomeAt(wx, wz + 12) !== BIOMES.GREEN_PLAINS || getBiomeAt(wx, wz - 12) !== BIOMES.GREEN_PLAINS) continue;
           } else if (targetKey === 'blue_forest') {
             if (getBiomeAt(wx + 12, wz) !== BIOMES.BLUE_FOREST || getBiomeAt(wx - 12, wz) !== BIOMES.BLUE_FOREST ||
                 getBiomeAt(wx, wz + 12) !== BIOMES.BLUE_FOREST || getBiomeAt(wx, wz - 12) !== BIOMES.BLUE_FOREST) continue;
@@ -1272,6 +1279,8 @@
     ancient_city:   { label: '👁️ Ancient City',     desc: 'Deep mountain cavern city with the ancient stone portal, soul lanterns, wool carpets, and Wardens.' },
     highland:       { label: '⛰️ Highland Plateau', desc: 'Sweeping high plateaus and clay mountain cliffs rising into sunlit clouds.' },
     lush_steppe:    { label: '🌿 Lush Steppe',      desc: 'Vast rolling grass plains built for villages, windmills, and open exploration.' },
+    green_plains:   { label: '🌿 Green Plains',     desc: 'Lush flat emerald grassland blanketed in tall grass, meadows, and villages.' },
+    snowy_plains:   { label: '❄️ Snowy Plains',     desc: 'Broad snowy flats with frosted white grass, frozen lakes, and snow-draped earth.' },
     dark_forest:    { label: '🌑 Dark Forest',      desc: 'Dense dark oak canopy with red mushrooms and dappled twilight shade.' },
     pale_garden:    { label: '🤍 Pale Garden',      desc: 'Eerie pale woods shrouded in silver mist with pale oak trunks and moss carpets.' },
     nightmare_woods:{ label: '🕸️ Nightmare Woods',  desc: 'Cursed twilight forest cloaked in heavy crimson mist that restricts far visibility.' },
@@ -1516,6 +1525,8 @@ const ORE_BIOME_PREVIEWS = {
   ancient_city:   { label: '👁️ Thành Phố Cổ',     desc: 'Thành phố cổ đại sâu dưới lòng núi với đại cổng đá cổ, lửa xanh, thảm len và Warden canh giữ.', sky1: '#040911', sky2: '#0c2736', grass: '#09242e', dirt: '#1f222b', water: '#0891b2', tree: '#22d3ee', trunk: '#2a2e38', accent: '#22d3ee', kind: 'sift' },
   highland:       { label: '⛰️ Cao Nguyên',        desc: 'Vùng cao nguyên rộng lớn với vách núi đất sét, thảm cỏ cao và tầm nhìn bao quát biển mây.',                 sky1: '#2672d6', sky2: '#c5e2fa', grass: '#65a30d', dirt: '#a16244', water: '#2584c6', tree: '#4d7c0f', trunk: '#6d4c2f', accent: '#e7e5e4', kind: 'trees' },
   lush_steppe:    { label: '🌿 Đồng Bằng Xanh',    desc: 'Đồng bằng cỏ xanh trải dài 2000–5000m thích hợp xây thành quách, làng mạc và trang trại lúa.',              sky1: '#217ef0', sky2: '#d5f2ff', grass: '#58b942', dirt: '#448c2d', water: '#2aa4e0', tree: '#4ea832', trunk: '#6d4c2f', accent: '#fde047', kind: 'trees' },
+  green_plains:   { label: '🌿 Đồng Bằng Cỏ Xanh', desc: 'Thảo nguyên cỏ xanh mướt rộng thoáng với thảm cỏ rậm, làng mạc và đàn vật nuôi tự nhiên.',              sky1: '#2b88f2', sky2: '#d8f1ff', grass: '#59be3f', dirt: '#6f4c30', water: '#2aa4e0', tree: '#52aa36', trunk: '#6d4c2f', accent: '#86efac', kind: 'trees' },
+  snowy_plains:   { label: '❄️ Đồng Bằng Tuyết',   desc: 'Đồng bằng tuyết trắng mênh mông với đất tuyết, cỏ tuyết trắng, hồ băng và thông thưa.',                 sky1: '#75afe8', sky2: '#e9f6ff', grass: '#eff8ff', dirt: '#7a583b', water: '#7dd3fc', tree: '#265c3a', trunk: '#4b331c', accent: '#e0f2fe', kind: 'snow' },
   dark_forest:    { label: '🌑 Rừng Tối',          desc: 'Rừng sồi đen tán rậm rạp phủ bóng râm âm u cùng nấm đỏ khổng lồ và thảm rêu cổ thụ.',                     sky1: '#141e26', sky2: '#2d3b32', grass: '#2c4c26', dirt: '#3f2e21', water: '#1e3a4c', tree: '#1e3a1a', trunk: '#3b2416', accent: '#ef4444', kind: 'trees' },
   pale_garden:    { label: '🤍 Rừng Nhợt Nhạt',    desc: 'Khu rừng sồi trắng nhợt nhạt bao phủ bởi rêu xám bạc và lớp sương mù lạnh buốt giăng lối.',                sky1: '#64748b', sky2: '#cbd5e1', grass: '#94a3b8', dirt: '#64748b', water: '#475569', tree: '#cbd5e1', trunk: '#94a3b8', accent: '#e2e8f0', kind: 'trees' },
   nightmare_woods:{ label: '🕸️ Rừng Ác Mộng',      desc: 'Khu rừng ma quái chìm trong màn sương tím sẫm đặc quánh làm hạn chế tầm nhìn ở xa!',                        sky1: '#09030b', sky2: '#3b0724', grass: '#3b152a', dirt: '#1f0b18', water: '#581c87', tree: '#4c0519', trunk: '#1c1917', accent: '#f43f5e', kind: 'sift' },
@@ -3262,6 +3273,8 @@ function _buildBiomeDioramaScene(biomeKey) {
     giant_jungle:   { skyTop: '#1a6fd6', skyMid: '#68bee8', skyBot: '#d4f0e8', fog: 0xbadfd8, sun: 0xffe9c4, amb: 0x99dec8, gnd: 0x284722, fluid: 0x1c7db8, fluidSpec: 0xffe9c4, fluidAlpha: 0.76, clouds: true, sunX: 0.66, sunY: 0.19, rayTint: 'rgba(255,228,165,0.24)', mistRgba: 'rgba(205,238,228,0.22)' },
     highland:       { skyTop: '#1f70db', skyMid: '#72b8f5', skyBot: '#e3f1ff', fog: 0xcbe3fa, sun: 0xffefc4, amb: 0xb0d8ff, gnd: 0x5c4028, fluid: 0x2584c6, fluidSpec: 0xffffff, fluidAlpha: 0.78, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,240,190,0.26)', mistRgba: 'rgba(220,238,255,0.24)' },
     lush_steppe:    { skyTop: '#217ef0', skyMid: '#7accff', skyBot: '#eef9ff', fog: 0xd4f0ff, sun: 0xfff1c4, amb: 0xb7e4ff, gnd: 0x42662b, fluid: 0x269be6, fluidSpec: 0xffffff, fluidAlpha: 0.76, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,244,185,0.28)', mistRgba: 'rgba(232,248,255,0.22)' },
+    green_plains:   { skyTop: '#2684f2', skyMid: '#82d2ff', skyBot: '#edf8ff', fog: 0xd4f0ff, sun: 0xfff2c6, amb: 0xbbe6ff, gnd: 0x487630, fluid: 0x29a0ea, fluidSpec: 0xffffff, fluidAlpha: 0.78, clouds: true, sunX: 0.72, sunY: 0.19, rayTint: 'rgba(255,244,185,0.28)', mistRgba: 'rgba(232,248,255,0.22)' },
+    snowy_plains:   { skyTop: '#5e96dc', skyMid: '#b5d7f5', skyBot: '#edf6ff', fog: 0xdeedfa, sun: 0xfef9e7, amb: 0xd0e6fb, gnd: 0xdfeefa, fluid: 0x6ec3f0, fluidSpec: 0xffffff, fluidAlpha: 0.85, clouds: true, sunX: 0.64, sunY: 0.16, rayTint: 'rgba(230,245,255,0.24)', mistRgba: 'rgba(235,246,255,0.30)' },
     dark_forest:    { skyTop: '#162026', skyMid: '#2f4538', skyBot: '#6d8272', fog: 0x35473a, sun: 0xd1fae5, amb: 0x5d7a64, gnd: 0x1e2e1a, fluid: 0x1e3a4c, fluidSpec: 0x94a3b8, fluidAlpha: 0.82, clouds: true, sunX: 0.65, sunY: 0.20, rayTint: 'rgba(180,220,190,0.18)', mistRgba: 'rgba(55,75,60,0.28)' },
     pale_garden:    { skyTop: '#475569', skyMid: '#94a3b8', skyBot: '#e2e8f0', fog: 0xb8c0cc, sun: 0xe2e8f0, amb: 0xcbd5e1, gnd: 0x64748b, fluid: 0x64748b, fluidSpec: 0xffffff, fluidAlpha: 0.80, clouds: true, sunX: 0.55, sunY: 0.22, rayTint: 'rgba(226,232,240,0.22)', mistRgba: 'rgba(203,213,225,0.34)' },
     nightmare_woods:{ skyTop: '#07020a', skyMid: '#26061b', skyBot: '#4a0b2c', fog: 0x240718, sun: 0xf43f5e, amb: 0x9d174d, gnd: 0x1a0612, fluid: 0x581c87, fluidSpec: 0xf43f5e, fluidAlpha: 0.84, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(244,63,94,0.22)', mistRgba: 'rgba(76,5,25,0.40)' },
@@ -3407,6 +3420,25 @@ function _buildBiomeDioramaScene(biomeKey) {
     placeTree(4, 5, 13, B_.BIRCH_LOG || B_.OAK_LOG, B_.BIRCH_LEAVES || B_.OAK_LEAVES, 4);
     placeTree(19, 6, 11, B_.OAK_LOG, B_.OAK_LEAVES, 5);
     placeTree(7, 6, 4, B_.OAK_LOG, B_.OAK_LEAVES, 4);
+  } else if (biomeKey === 'snowy_plains') {
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.DIRT);
+      const bay = Math.hypot((x - 16) * 0.9, (z - 16) * 0.85) < 5.6;
+      if (bay) {
+        setB(x, 2, z, B_.DIRT);
+        setB(x, 3, z, B_.ICE);
+      } else {
+        const h = (z < 7 && x < 10) ? 5 : 4;
+        for (let y = 2; y < h; y++) setB(x, y, z, B_.DIRT);
+        setB(x, h, z, B_.SNOWY_DIRT || B_.SNOW);
+      }
+    }
+    for (const [sx, sy, sz] of [[5, 6, 4], [18, 5, 6]]) {
+      for (let y = 0; y < 5; y++) setB(sx, sy + y, sz, B_.SPRUCE_LOG || B_.OAK_LOG);
+      fillBox(sx - 2, sy + 2, sz - 2, sx + 2, sy + 2, sz + 2, B_.SPRUCE_LEAVES || B_.OAK_LEAVES);
+      fillBox(sx - 1, sy + 3, sz - 1, sx + 1, sy + 4, sz + 1, B_.SPRUCE_LEAVES || B_.OAK_LEAVES);
+      setB(sx, sy + 5, sz, B_.SNOW);
+    }
   } else if (biomeKey === 'alpine') {
     for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
       setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.STONE);
@@ -3630,7 +3662,7 @@ function _buildBiomeDioramaScene(biomeKey) {
       fillBox(tx - 3, 4 + th, tz - 3, tx + 3, 5 + th, tz + 3, B_.OAK_LEAVES);
       for (let vy = 6; vy < 4 + th; vy++) { setB(tx - 2, vy, tz + 2, B_.VINE); setB(tx + 2, vy, tz - 1, B_.VINE); }
     }
-  } else if (biomeKey === 'highland' || biomeKey === 'lush_steppe') {
+  } else if (biomeKey === 'highland' || biomeKey === 'lush_steppe' || biomeKey === 'green_plains') {
     fluidY = -99;
     const isH = (biomeKey === 'highland');
     for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
@@ -3868,7 +3900,7 @@ function _buildBiomeDioramaScene(biomeKey) {
   // Lightweight distant horizon silhouette landmarks so wide vistas feel boundless
   if (!isEnclosedCave && biomeKey !== 'dim_end') {
     const hMat = new THREE.MeshLambertMaterial({
-      color: biomeKey === 'wheat_valley' ? 0x9c6d1b : (biomeKey === 'desert' ? 0xc29e5a : (biomeKey === 'alpine' ? 0x94a3b8 : (biomeKey === 'dim_nether' ? 0x3b0d08 : (biomeKey === 'dim_sift' ? 0x312e81 : 0x325e34))))
+      color: biomeKey === 'wheat_valley' ? 0x9c6d1b : (biomeKey === 'desert' ? 0xc29e5a : ((biomeKey === 'alpine' || biomeKey === 'snowy_plains') ? 0xbcd4ea : (biomeKey === 'dim_nether' ? 0x3b0d08 : (biomeKey === 'dim_sift' ? 0x312e81 : 0x325e34))))
     });
     const hillSpecs = biomeKey === 'wheat_valley'
       ? [[-14, 5.2, -20, 12, 3.2, 10], [36, 5.4, -24, 14, 3.4, 12], [12, 4.6, -42, 48, 2.2, 14], [-8, 8.8, -16, 4.2, 7.6, 4.2], [-8, 10.6, -13.6, 9.2, 1.4, 0.8], [-8, 10.6, -13.6, 1.4, 9.2, 0.8], [32, 9.0, -32, 4.6, 8.2, 4.6], [32, 11.2, -29.4, 9.6, 1.4, 0.8], [32, 11.2, -29.4, 1.4, 9.6, 0.8]]

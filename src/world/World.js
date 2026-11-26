@@ -527,11 +527,11 @@
         }
       }
     } else if (style === 'cactus') {
-      const ch = 4 + (r0 > 0.5 ? 1 : 0);
+      const ch = 1 + Math.floor(r0 * 4); // Authentic 1-4 block straight cactus column
       for (let i = 0; i < ch; i++) setLocalSafe(data, lx, baseWy + i, lz, B.CACTUS, true);
-      const axis = r0 > 0.5 ? 1 : 0, dx1 = axis ? 1 : 0, dz1 = axis ? 0 : 1;
-      setLocalSafe(data, lx + dx1, baseWy + 2, lz + dz1, B.CACTUS, true); setLocalSafe(data, lx + dx1, baseWy + 3, lz + dz1, B.CACTUS, true);
-      setLocalSafe(data, lx - dx1, baseWy + 1, lz - dz1, B.CACTUS, true); setLocalSafe(data, lx - dx1, baseWy + 2, lz - dz1, B.CACTUS, true); setLocalSafe(data, lx - dx1, baseWy + 3, lz - dz1, B.CACTUS, true);
+      if (hash2i(wx + 19, wz - 23, worldSeed + 79) > 0.74) {
+        setLocalSafe(data, lx, baseWy + ch, lz, B.CACTUS_FLOWER, false);
+      }
     } else if (style === 'crimson_fungus' || style === 'warped_fungus') {
       // Detailed Multi-Tier Sculpted Nether Giant Fungus (flared roots, thick curved stem, layered dome cap, glowing shroomlights & weeping wart vines!)
       const isWarped = (style === 'warped_fungus');
@@ -2344,7 +2344,7 @@
           B.TERRACOTTA_YELLOW, B.TERRACOTTA_RED, B.TERRACOTTA_ORANGE, B.TERRACOTTA
         ];
         const canSurfaceCave = (h >= WATER_LEVEL + 4 && !isWheatMegaPlain(wx, wz) &&
-          biome !== BIOMES.PLAINS && biome !== BIOMES.WHEAT_VALLEY &&
+          biome !== BIOMES.PLAINS && biome !== BIOMES.GREEN_PLAINS && biome !== BIOMES.SNOWY_PLAINS && biome !== BIOMES.WHEAT_VALLEY &&
           biome !== BIOMES.BEACH_PALM && biome !== BIOMES.TROPICAL_COAST &&
           biome !== BIOMES.MANGROVE_SWAMP && biome !== BIOMES.SWAMP &&
           (Math.abs(wx) > 20 || Math.abs(wz) > 20));
@@ -2421,6 +2421,8 @@
               else if (biome === BIOMES.CLOUD_PEAKS) id = h >= 44 ? ((hash2i(wx, wz, worldSeed + 523) > 0.72) ? B.PACKED_ICE : B.SNOW) : (h >= 24 ? (hash2i(wx, wz, worldSeed + 529) > 0.40 ? B.STONE : B.SNOW) : B.GRASS);
               else if (biome === BIOMES.ALPINE_PEAKS) id = (h >= 28 && hash2i(wx, wz, worldSeed + 523) > 0.72) ? B.PACKED_ICE : (h >= 20 ? B.SNOW : B.GRASS);
               else if (biome === BIOMES.SNOW) id = B.SNOW;
+              else if (biome === BIOMES.SNOWY_PLAINS) id = B.SNOWY_DIRT;
+              else if (biome === BIOMES.GREEN_PLAINS) id = B.GRASS;
               else if (biome === BIOMES.PALE_GARDEN) id = B.PALE_MOSS;
               else if (biome === BIOMES.NIGHTMARE_WOODS) id = (hash2i(wx, wz, worldSeed + 531) > 0.85 ? B.SCULK : B.NIGHTMARE_MOSS);
               else if (biome === BIOMES.DARK_FOREST) id = (hash2i(wx, wz, worldSeed + 533) > 0.56 ? B.AUTUMN_PODZOL : B.GRASS);
@@ -2455,7 +2457,7 @@
               else id = B.GRASS;
             }
           }
-          if (wy > h && wy <= WATER_LEVEL) id = ((biome === BIOMES.SNOW || biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && wy === WATER_LEVEL) ? B.ICE : B.WATER;
+          if (wy > h && wy <= WATER_LEVEL) id = ((biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && wy === WATER_LEVEL) ? B.ICE : B.WATER;
           data[(ly << 8) | (lz << 4) | lx] = id;
         }
         // Varied Subterranean Biome Caves below the surface (lazy-evaluated only when column has cave air!)
@@ -2619,7 +2621,7 @@
             const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
           }
         }
-        if (!placedSugarCane && (biome === BIOMES.PLAINS || biome === BIOMES.FOREST || biome === BIOMES.SAKURA || biome === BIOMES.SWAMP || biome === BIOMES.MANGROVE_SWAMP || biome === BIOMES.HIGHLAND_PLATEAU || biome === BIOMES.CLOUD_PEAKS || biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP || biome === BIOMES.LUSH_GROVE || biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW || biome === BIOMES.BAMBOO_JUNGLE || biome === BIOMES.TAIGA || biome === BIOMES.REDWOOD_ANCIENT || biome === BIOMES.WEEPING_GROVE || biome === BIOMES.BIRCH_ANCIENT
+        if (!placedSugarCane && (biome === BIOMES.PLAINS || biome === BIOMES.GREEN_PLAINS || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.FOREST || biome === BIOMES.SAKURA || biome === BIOMES.SWAMP || biome === BIOMES.MANGROVE_SWAMP || biome === BIOMES.HIGHLAND_PLATEAU || biome === BIOMES.CLOUD_PEAKS || biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP || biome === BIOMES.LUSH_GROVE || biome === BIOMES.FLOWER_MEADOW || biome === BIOMES.LAVENDER_MEADOW || biome === BIOMES.BAMBOO_JUNGLE || biome === BIOMES.TAIGA || biome === BIOMES.REDWOOD_ANCIENT || biome === BIOMES.WEEPING_GROVE || biome === BIOMES.BIRCH_ANCIENT
             || biome === BIOMES.GLOWSHROOM_GROVE || biome === BIOMES.DAPPLED_FOREST || biome === BIOMES.MARSH_RUINS || biome === BIOMES.TROPICAL_COAST || biome === BIOMES.GIANT_TREES || biome === BIOMES.MANOR_GARDEN
             || biome === BIOMES.BLUE_FOREST || biome === BIOMES.WHEAT_VALLEY || biome === BIOMES.PINE_VALLEY || biome === BIOMES.GIANT_JUNGLE)) {
           const rf = hash2i(wx, wz, worldSeed + 613);
@@ -2693,6 +2695,16 @@
           } else if (biome === BIOMES.DAPPLED_FOREST && rf > 0.52) {
             setLocalSafe(data, lx, h + 1, lz, rf > 0.88 ? B.BLUEBERRY : (rf > 0.72 ? B.AUTUMN_BUSH : (rf > 0.60 ? B.AUTUMN_GRASS : B.CLOVER_PATCH)), false);
             const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
+          } else if (biome === BIOMES.GREEN_PLAINS) {
+            if (surfTopId === B.GRASS && rf > 0.24) {
+              setLocalSafe(data, lx, h + 1, lz, rf > 0.96 ? B.FLOWER_YELLOW : (rf > 0.92 ? B.OXEYE_DAISY : (rf > 0.88 ? B.FLOWER_RED : (rf > 0.72 ? B.WILD_TALL_GRASS : (rf > 0.52 ? B.BUSH_GRASS : (rf > 0.38 ? B.SHORT_GRASS : B.TALL_GRASS))))), false);
+              const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
+            }
+          } else if (biome === BIOMES.SNOWY_PLAINS) {
+            if (surfTopId === B.SNOWY_DIRT && rf > 0.82) {
+              setLocalSafe(data, lx, h + 1, lz, B.SNOWY_GRASS, false);
+              const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
+            }
           } else if ((biome !== BIOMES.CLOUD_PEAKS && biome !== BIOMES.ALPINE_PEAKS || surfTopId === B.GRASS) && rf > grassGate) {
             setLocalSafe(data, lx, h + 1, lz, (biome === BIOMES.FOREST && rf > 0.982) ? B.MELON_BLOCK : ((biome === BIOMES.TAIGA && rf > 0.95) ? B.BLUEBERRY : (rf > 0.96 ? B.BERRY_BUSH : (rf > 0.90 ? B.WILD_TALL_GRASS : (rf > 0.83 ? B.BUSH_GRASS : (rf > 0.77 ? B.SHORT_GRASS : (rf > 0.72 ? B.FERN : (rf > 0.67 ? B.OXEYE_DAISY : (rf > 0.63 ? B.BLUE_ORCHID : (rf > 0.59 ? B.CLOVER_PATCH : B.TALL_GRASS))))))))), false);
             const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
@@ -2721,12 +2733,13 @@
           else if (biome === BIOMES.HIGHLAND_PLATEAU && rTree > 0.978) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 913) > 0.5 ? 'baobab' : 'sculpted_birch'); placed = true; }
           else if (biome === BIOMES.FOREST && rTree > 0.956) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && rTree > 0.988) ? 'broadleaf' : (hash2i(wx, wz, worldSeed + 911) > 0.72 ? 'canopy_jungle' : (hash2i(wx, wz, worldSeed + 912) > 0.44 ? 'sculpted_birch' : 'apple'))); placed = true; }
           else if (biome === BIOMES.PLAINS && surfTopId === B.GRASS && rTree > 0.996) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
+          else if (biome === BIOMES.GREEN_PLAINS && surfTopId === B.GRASS && rTree > 0.9988) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
           else if (biome === BIOMES.SAKURA && rTree > 0.942) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'sakura'); placed = true; }
           else if ((biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP) && rTree > 0.950) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, biome === BIOMES.AUTUMN_GOLDEN ? 'acacia' : (hash2i(wx, wz, worldSeed + 917) > 0.30 ? 'autumn_maple' : 'acacia')); placed = true; }
           else if (biome === BIOMES.LUSH_GROVE && rTree > 0.950) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && hash2i(wx, wz, worldSeed + 919) > 0.55) ? 'ancient_vine_tree' : 'canopy_jungle'); placed = true; }
           else if ((biome === BIOMES.FOREST || biome === BIOMES.LUSH_GROVE) && rTree > 0.938 && rTree <= 0.946) { placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true; }
           else if (biome === BIOMES.FLOWER_MEADOW && rTree > 0.980) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 921) > 0.50 ? 'sakura' : 'sculpted_birch'); placed = true; }
-          else if ((biome === BIOMES.SNOW || biome === BIOMES.TAIGA) && rTree > (biome === BIOMES.TAIGA ? 0.950 : 0.964)) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && biome === BIOMES.TAIGA && rTree > 0.978) ? 'giant_redwood' : 'pine'); placed = true; }
+          else if ((biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.TAIGA) && rTree > (biome === BIOMES.SNOWY_PLAINS ? 0.990 : (biome === BIOMES.TAIGA ? 0.950 : 0.964))) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && biome === BIOMES.TAIGA && rTree > 0.978) ? 'giant_redwood' : 'pine'); placed = true; }
           else if (biome === BIOMES.SWAMP && rTree > 0.972) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 925) > 0.5 ? 'willow' : 'mangrove'); placed = true; }
           else if (biome === BIOMES.DESERT && rTree > 0.984) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'cactus'); placed = true; }
           else if (biome === BIOMES.BLUE_FOREST && surfTopId === B.BLUE_GRASS && rTree > 0.940) {
@@ -5285,8 +5298,9 @@
         if (Math.hypot(vcx, vcz) < 42) continue;
         if (hash2i(vx, vz, worldSeed + 2551) <= 0.64) continue;
         if (vcx + 22 < wx0 || vcx - 22 >= wx0 + 16 || vcz + 22 < wz0 || vcz - 22 >= wz0 + 16) continue;
-        if (getBiomeAt(vcx, vcz) !== BIOMES.PLAINS) continue;
-        const baseY = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(vcx, vcz, BIOMES.PLAINS)));
+        const vBio = getBiomeAt(vcx, vcz);
+        if (vBio !== BIOMES.PLAINS && vBio !== BIOMES.GREEN_PLAINS) continue;
+        const baseY = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(vcx, vcz, vBio)));
         // Central stone well + gravel cross-roads
         for (let r = -12; r <= 12; r++) {
           putLocal(vcx + r, baseY, vcz, (Math.abs(r) & 1) ? B.GRAVEL : B.DIRT);
@@ -5313,7 +5327,7 @@
         const huts = [[vcx - 9, vcz - 8, 1], [vcx + 4, vcz - 8, 1], [vcx - 9, vcz + 4, -1]];
         for (let hi = 0; hi < huts.length; hi++) {
           const [hx, hz, doorDir] = huts[hi];
-          const hy = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(hx + 3, hz + 3, BIOMES.PLAINS)));
+          const hy = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(hx + 3, hz + 3, vBio)));
           for (let dz = 0; dz <= 5; dz++) for (let dx = 0; dx <= 5; dx++) {
             for (let fy = hy - 2; fy < hy; fy++) putLocal(hx + dx, fy, hz + dz, B.STONE_BRICK);
             putLocal(hx + dx, hy, hz + dz, B.PLANKS);

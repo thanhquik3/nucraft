@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -33,7 +33,7 @@ const {
     END_CRYSTAL_BLOCK: 'End Crystal', TOTEM_UNDYING: 'Totem of Undying', SMITHING_TABLE: 'Smithing Table',
     END_GATEWAY: 'End Gateway', END_STONE_BRICKS: 'End Stone Bricks', PURPUR_PILLAR: 'Purpur Pillar',
     END_ROD: 'End Rod', DRAGON_HEAD: 'Dragon Head', ELYTRA: 'Elytra', ENDER_DRAGON_EGG: 'Dragon Egg',
-    WINDMILL_HUB: 'Windmill Hub'
+    WINDMILL_HUB: 'Windmill Hub', SNOWY_DIRT: 'Snowy Dirt', SNOWY_GRASS: 'Snowy Grass', CACTUS_FLOWER: 'Cactus Flower'
   };
   function getLocalizedBlockName(id) {
     const d = BLOCK_DEF[id];
@@ -55,7 +55,8 @@ const {
     'Đồng Tro Núi Lửa': 'Volcanic Basalt', 'Rừng Xanh Lam': 'Blue Forest', 'Cánh Đồng Lúa': 'Wheat Field',
     'Thung Lũng Thông': 'Pine Valley', 'Rừng Đại Thụ': 'Giant Jungle', 'Thành Phố Cổ': 'Ancient City',
     'Biển Sâu': 'Deep Ocean', 'Vực Biển Sâu': 'Abyssal Trench', 'Rừng Đỏ Địa Ngục': 'Crimson Forest',
-    'Rừng Lục Địa Ngục': 'Warped Forest', 'Đất Hoang Địa Ngục': 'Nether Wastes', 'Khu Kết Thúc': 'The End'
+    'Rừng Lục Địa Ngục': 'Warped Forest', 'Đất Hoang Địa Ngục': 'Nether Wastes', 'Khu Kết Thúc': 'The End',
+    'Đồng Bằng Cỏ Xanh': 'Green Plains', 'Đồng Bằng Tuyết': 'Snowy Plains'
   };
   function getLocalizedBiomeName(bio) {
     const n = (typeof bio === 'string') ? bio : (bio && bio.name) || '';
@@ -94,7 +95,7 @@ const {
     [B.SAKURA_LOG]:    { name: 'Gỗ Anh Đào',          hard: 0.90, solid: true,  wood: true, isLog: true, drop: B.SAKURA_LOG, tiles: [90, 14, 90], mapColor: '#4a2b36' },
     [B.SAKURA_LEAVES]: { name: 'Hoa Anh Đào',         hard: 0.25, solid: true,  foliage: true, sakuraLeaf: true, shearsOnly: true, drop: B.SAKURA_LEAVES, tiles: [15, 15, 15], mapColor: '#ff96c9' },
     [B.BIRCH_LOG]:     { name: 'Gỗ Bạch Dương',       hard: 0.90, solid: true,  wood: true, isLog: true, drop: B.BIRCH_LOG, tiles: [4, 16, 4], mapColor: '#dfd9ce' },
-    [B.CACTUS]:        { name: 'Xương Rồng',          hard: 0.45, solid: true, cactus: true, trans: true, drop: B.CACTUS, tiles: [184, 17, 184], mapColor: '#2d7a36' },
+    [B.CACTUS]:        { name: 'Xương Rồng',          hard: 0.45, solid: true, cactus: true, trans: true, customAtlasTex: true, drop: B.CACTUS, tiles: [184, 17, 184], mapColor: '#2d7a36' },
     [B.TERRACOTTA]:    { name: 'Đất Nung Đỏ',         hard: 1.15, solid: true,  rock: true, drop: B.TERRACOTTA,    tiles: [18, 18, 18], mapColor: '#b85c3e' },
     [B.SANDSTONE]:     { name: 'Đá Sa Thạch',         hard: 1.05, solid: true,  rock: true, drop: B.SANDSTONE,     tiles: [19, 19, 19], mapColor: '#d1b578' },
     [B.GOLD_ORE]:      { name: 'Quặng Vàng',          hard: 2.10, solid: true,  rock: true, oreBlock: true, reqTier: 3, drop: B.RAW_GOLD, tiles: [20, 20, 20], mapColor: '#e8c443' },
@@ -798,6 +799,23 @@ const {
   BLOCK_DEF[B.ORANGE_MAPLE_LEAVES].saplingDrop  = B.OAK_SAPLING;
   BLOCK_DEF[B.COBALT_LEAVES].saplingDrop        = B.AZURE_SAPLING;
   BLOCK_DEF[B.LULLABY_LEAVES].saplingDrop       = B.SIFT_SAPLING;
+
+  // v142 Snowy Dirt, Frosted White Snowy Grass & Cactus Flower
+  BLOCK_DEF[B.SNOWY_DIRT] = {
+    name: 'Đất Tuyết', nameEn: 'Snowy Dirt',
+    hard: 0.55, solid: true, dirt: true, customAtlasTex: true,
+    drop: B.SNOWY_DIRT, tiles: [9, V142_TILES.snowyDirtSide, 2], mapColor: '#dcecf7'
+  };
+  BLOCK_DEF[B.SNOWY_GRASS] = {
+    name: 'Cỏ Tuyết Trắng', nameEn: 'Snowy Grass',
+    hard: 0.05, solid: false, cross: true, trans: true, foliage: true, shearsOnly: true, customAtlasTex: true,
+    drop: B.SNOWY_GRASS, tiles: [V142_TILES.snowyGrass, V142_TILES.snowyGrass, V142_TILES.snowyGrass], mapColor: '#eef6ff'
+  };
+  BLOCK_DEF[B.CACTUS_FLOWER] = {
+    name: 'Hoa Xương Rồng', nameEn: 'Cactus Flower',
+    hard: 0.05, solid: false, cross: true, trans: true, foliage: true, customAtlasTex: true,
+    drop: B.CACTUS_FLOWER, tiles: [V142_TILES.cactusFlower, V142_TILES.cactusFlower, V142_TILES.cactusFlower], mapColor: '#f472b6'
+  };
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];

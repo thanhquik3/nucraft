@@ -4647,8 +4647,8 @@
 #menuModal:not(.pause-mode):not(.hidden) {
   padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)) !important;
   overflow: hidden !important;
-  background: radial-gradient(ellipse at 50% 78%, rgba(14, 96, 128, 0.42), rgba(2, 10, 16, 0.90) 70%) !important;
-  backdrop-filter: blur(8px) saturate(1.18) !important;
+  background: rgba(12, 14, 18, 0.78) !important;
+  backdrop-filter: none !important;
 }
 .sr-only {
   position: absolute !important;
@@ -4664,16 +4664,11 @@
   to   { opacity: 1; }
 }
 @keyframes mcdPaneIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes mcdMotesDrift {
-  0%   { background-position: 0 0, 0 0, 0 0; opacity: 0.72; }
-  50%  { background-position: 28px -36px, -22px -48px, 12px -24px; opacity: 0.95; }
-  100% { background-position: 56px -72px, -44px -96px, 24px -48px; opacity: 0.72; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-/* AUTHENTIC MINECRAFT DUNGEONS SETTINGS SHELL (#menuModal:not(.pause-mode)) */
+/* AUTHENTIC MINECRAFT ORE SETTINGS SHELL (#menuModal:not(.pause-mode)) */
 #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
   position: relative !important;
   scrollbar-gutter: auto !important;
@@ -4691,33 +4686,18 @@
   touch-action: manipulation;
   display: flex !important;
   flex-direction: column !important;
-  background-color: #051722 !important;
-  background-image:
-    radial-gradient(ellipse at 32% 100%, rgba(18, 124, 152, 0.34) 0%, transparent 56%),
-    radial-gradient(ellipse at 78% 12%, rgba(28, 102, 134, 0.24) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(10, 48, 66, 0.78) 0%, rgba(5, 25, 38, 0.92) 64%, rgba(2, 13, 22, 0.98) 100%),
-    repeating-linear-gradient(90deg, rgba(44, 138, 170, 0.065) 0 24px, rgba(10, 46, 64, 0.05) 24px 48px),
-    repeating-linear-gradient(0deg, rgba(44, 138, 170, 0.055) 0 24px, transparent 24px 48px) !important;
-  border: 2px solid #165166 !important;
+  background-color: #313233 !important;
+  background-image: linear-gradient(180deg, #353638 0%, #2a2b2d 100%) !important;
+  border: 2px solid #1e1e1f !important;
   border-radius: 0 !important;
-  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.88), inset 0 1px 0 rgba(145, 224, 248, 0.20), inset 0 -1px 0 rgba(56, 189, 248, 0.14) !important;
-  color: #e6f4f8 !important;
-  animation: mcdPanelIn 0.20s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+  box-shadow: inset 2px 2px 0 #48494a, inset -2px -2px 0 #1e1e1f, 0 22px 54px rgba(0, 0, 0, 0.82) !important;
+  color: #f2f4f7 !important;
+  animation: mcdPanelIn 0.14s ease both !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    radial-gradient(2px 2px at 18% 76%, rgba(125, 232, 252, 0.42), transparent 70%),
-    radial-gradient(2px 2px at 44% 52%, rgba(74, 222, 128, 0.34), transparent 70%),
-    radial-gradient(3px 3px at 74% 82%, rgba(96, 195, 240, 0.36), transparent 70%),
-    radial-gradient(2px 2px at 86% 38%, rgba(186, 230, 253, 0.38), transparent 70%);
-  background-size: 220px 220px, 280px 280px, 320px 320px;
-  animation: mcdMotesDrift 16s linear infinite;
+  display: none !important;
+  animation: none !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-topbar,
 #menuModal:not(.pause-mode):not(.hidden) .gm-body,
@@ -4737,10 +4717,10 @@
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 12px !important;
-  background: #1a1211 !important;
-  border-bottom: 1px solid #352725 !important;
+  background: #d0d1d4 !important;
+  border-bottom: 2px solid #1e1e1f !important;
   border-radius: 0 !important;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.65) !important;
+  box-shadow: inset 0 2px 0 #f4f5f6, inset 0 -2px 0 #a3a5a8 !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-key-btn {
@@ -4759,15 +4739,15 @@
   min-width: 22px;
   height: 22px;
   padding: 0 5px;
-  background: #f8fafc;
-  color: #14161a;
+  background: #f4f5f6;
+  color: #1e1e1f;
   font-family: var(--font-display);
   font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  border-radius: 2px;
-  border: 1px solid #090d10;
-  box-shadow: 0 2px 0 #8a949c;
+  border-radius: 0;
+  border: 2px solid #1e1e1f;
+  box-shadow: 0 2px 0 #6e7075;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
   flex: 1 1 auto !important;
@@ -4797,28 +4777,28 @@
   margin: 0 !important;
   background: transparent !important;
   border: none !important;
-  border-bottom: 3px solid transparent !important;
-  color: #9b8c82 !important;
+  border-bottom: 4px solid transparent !important;
+  color: #2e2f31 !important;
   font-family: var(--font-pixel) !important;
   font-size: 13.5px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.9px !important;
+  letter-spacing: 0.6px !important;
   text-transform: uppercase !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
+  text-shadow: none !important;
   white-space: nowrap !important;
   cursor: pointer;
   box-shadow: none !important;
-  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease !important;
+  transition: color 0.10s ease, background 0.10s ease, border-color 0.10s ease !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab:hover {
-  color: #f4ece6 !important;
-  background: rgba(255, 255, 255, 0.04) !important;
+  color: #141517 !important;
+  background: rgba(0, 0, 0, 0.06) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab.active {
-  color: #ffffff !important;
-  background: linear-gradient(180deg, rgba(240, 120, 24, 0.04) 20%, rgba(240, 120, 24, 0.24) 100%) !important;
-  border-bottom-color: #fb923c !important;
-  box-shadow: inset 0 -3px 0 #f97316, 0 2px 12px rgba(249, 115, 22, 0.28) !important;
+  color: #141517 !important;
+  background: rgba(60, 133, 39, 0.14) !important;
+  border-bottom-color: #3c8527 !important;
+  box-shadow: inset 0 -3px 0 #52a535 !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-body {
@@ -4827,10 +4807,10 @@
   width: 100% !important;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) clamp(235px, 30%, 330px) !important;
-  gap: 18px !important;
-  padding: 16px 20px !important;
+  gap: 16px !important;
+  padding: 14px 18px !important;
   overflow: hidden !important;
-  background: transparent !important;
+  background: #2b2c2e !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content {
@@ -4842,7 +4822,7 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable !important;
   scrollbar-width: thin;
-  scrollbar-color: #c8dce4 rgba(8, 36, 48, 0.72);
+  scrollbar-color: #8b8b8b #202122;
   background: transparent !important;
   box-shadow: none !important;
   display: flex !important;
@@ -4851,9 +4831,9 @@
   gap: 14px !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar { width: 5px; }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-track { background: rgba(10, 38, 52, 0.65); }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-thumb { background: #c5dbe4; border-radius: 0; }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar { width: 6px; }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-track { background: #202122; }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-thumb { background: #7a7c80; border-radius: 0; }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-pane {
   width: 100% !important;
@@ -4863,7 +4843,7 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-pane.active {
   display: flex !important;
-  animation: mcdPaneIn 0.18s ease both !important;
+  animation: mcdPaneIn 0.12s ease both !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-section {
@@ -4884,36 +4864,38 @@
   align-items: center !important;
   justify-content: space-between !important;
   gap: 8px !important;
-  margin: 0 0 2px !important;
+  margin: 0 0 3px !important;
   padding: 0 4px 5px !important;
   font-family: var(--font-pixel) !important;
   font-size: 12px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.9px !important;
+  letter-spacing: 0.7px !important;
   text-transform: uppercase !important;
-  color: #82b8ca !important;
-  border-bottom: 1px solid rgba(90, 170, 195, 0.22) !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
+  color: #e4e6ea !important;
+  border-bottom: 2px solid #1e1e1f !important;
+  text-shadow: 1px 1px 0 #141517 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-section-title::before { display: none !important; }
 
-/* Settings Rows (White-cyan focus outline matching Minecraft Dungeons!) */
+/* Settings Rows — Crisp Minecraft Ore Option Cards */
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row {
+  contain: layout style;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(7, 30, 42, 0.42);
-  border: 1.5px solid rgba(56, 128, 152, 0.24);
-  transition: border-color 0.12s ease, background 0.12s ease;
+  background: #38393b;
+  border: 2px solid #1e1e1f;
+  box-shadow: inset 1px 1px 0 #4f5154, inset -1px -1px 0 #2b2c2e;
+  transition: border-color 0.08s ease, background 0.08s ease;
   box-sizing: border-box;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row:hover,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row:focus-within {
-  border-color: #c2f0fc;
-  background: rgba(18, 70, 94, 0.56);
-  box-shadow: inset 0 0 0 1px rgba(194, 240, 252, 0.34), 0 0 12px rgba(56, 189, 248, 0.16);
+  border-color: #ffffff;
+  background: #424447;
+  box-shadow: inset 1px 1px 0 #5b5e61;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-row-col {
   flex-direction: column;
@@ -4924,8 +4906,8 @@
   font-family: var(--font-pixel);
   font-size: 13.5px;
   font-weight: 600;
-  color: #e2f3f8;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  color: #f4f5f7;
+  text-shadow: 1px 1px 0 #161718;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-tri-grid {
   display: grid;
@@ -4938,19 +4920,19 @@
   padding: 9px 12px;
   font-size: 12px;
   line-height: 1.48;
-  color: #cce6ee;
-  background: rgba(5, 22, 32, 0.64);
-  border: 1px solid rgba(56, 128, 152, 0.26);
+  color: #dfe2e6;
+  background: #232426;
+  border: 2px solid #1e1e1f;
 }
 
-/* Segmented selectors & Action buttons inside Dungeons Settings */
+/* Segmented selectors & Action buttons inside Minecraft Ore Settings */
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group {
   display: flex !important;
   flex-wrap: wrap !important;
   gap: 4px !important;
   padding: 4px !important;
-  background: #061822 !important;
-  border: 1.5px solid #205264 !important;
+  background: #202122 !important;
+  border: 2px solid #141516 !important;
   border-radius: 0 !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -4961,37 +4943,37 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) :is(.mc-btn, .seg-btn, .spawn-btn) {
   position: relative;
-  border: 1.5px solid #245b6e !important;
+  border: 2px solid #1e1e1f !important;
   border-radius: 0 !important;
   margin: 0 !important;
   cursor: pointer;
   user-select: none;
   font-family: var(--font-pixel) !important;
   font-weight: 700 !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
-  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease !important;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.75) !important;
+  transition: background 0.08s ease, border-color 0.08s ease, transform 0.06s ease !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn {
   min-height: 34px !important;
   padding: 5px 8px !important;
   font-size: 12px !important;
-  color: #cde8f0 !important;
-  background: #0b2a38 !important;
-  box-shadow: none !important;
+  color: #eef0f4 !important;
+  background: #48494c !important;
+  box-shadow: inset 1.5px 1.5px 0 #626468, inset -1.5px -1.5px 0 #313235 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .spawn-btn) {
   min-height: 34px !important;
   padding: 6px 12px !important;
   font-size: 12.5px !important;
-  color: #e4f5fa !important;
-  background: #173d4c !important;
-  border-color: #36788f !important;
-  box-shadow: inset 0 1px 0 rgba(180, 232, 248, 0.16) !important;
+  color: #f4f5f7 !important;
+  background: #4d4e52 !important;
+  border-color: #1e1e1f !important;
+  box-shadow: inset 1.5px 1.5px 0 #696b70, inset -1.5px -1.5px 0 #343538 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .seg-btn, .spawn-btn):hover {
-  border-color: #b4e6f5 !important;
-  background: #1d4e61 !important;
+  border-color: #ffffff !important;
+  background: #5b5d61 !important;
   color: #ffffff !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .seg-btn, .spawn-btn):active {
@@ -5000,10 +4982,10 @@
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active:not(.mcd-toggle),
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-green:not(.mcd-toggle),
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
-  background: #13684a !important;
-  border-color: #34d399 !important;
+  background: #3c8527 !important;
+  border-color: #1e1e1f !important;
   color: #ffffff !important;
-  box-shadow: inset 0 1px 0 rgba(167, 243, 208, 0.25) !important;
+  box-shadow: inset 2px 2px 0 #52a535, inset -2px -2px 0 #2a641c !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active:not(.mcd-toggle)::after {
   content: "";
@@ -5013,20 +4995,22 @@
   transform: translateX(-50%);
   width: 20px;
   height: 2px;
-  background: #6ee7b7;
+  background: #d9f99d;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-red {
-  background: #7c1d1d !important;
-  border-color: #f87171 !important;
+  background: #b92b27 !important;
+  border-color: #1e1e1f !important;
   color: #ffffff !important;
+  box-shadow: inset 1.5px 1.5px 0 #dc4c48, inset -1.5px -1.5px 0 #7a1916 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .spawn-btn.sift-tp-btn {
-  background: #114b56 !important;
-  border-color: #5eead4 !important;
-  color: #d5fbf4 !important;
+  background: #1d5e6b !important;
+  border-color: #1e1e1f !important;
+  color: #ecfeff !important;
+  box-shadow: inset 1.5px 1.5px 0 #2e8496, inset -1.5px -1.5px 0 #123e47 !important;
 }
 
-/* Emerald-Right (ON) <-> Slate-Gray-Left (OFF) Sliding Switch Style matching Minecraft Dungeons */
+/* Emerald ON <-> Neutral Stone OFF Ore Sliding Toggle Switch */
 #menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list {
   display: flex !important;
   flex-direction: column !important;
@@ -5044,24 +5028,23 @@
   justify-content: flex-start !important;
   text-align: left !important;
   white-space: nowrap !important;
-  background: rgba(7, 29, 42, 0.58) !important;
-  border: 1.5px solid rgba(56, 128, 152, 0.30) !important;
-  border-left: 3px solid #475569 !important;
-  color: #d8eef4 !important;
-  box-shadow: none !important;
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease !important;
+  background: #38393b !important;
+  border: 2px solid #1e1e1f !important;
+  border-left: 4px solid #6b6e73 !important;
+  color: #e4e6eb !important;
+  box-shadow: inset 1px 1px 0 #4f5154 !important;
+  transition: border-color 0.08s ease, background 0.08s ease !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle.active,
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle.mc-btn-green {
-  background: rgba(9, 38, 52, 0.66) !important;
-  border-color: rgba(52, 211, 153, 0.42) !important;
-  border-left: 3px solid #10c954 !important;
+  background: #354132 !important;
+  border-color: #1e1e1f !important;
+  border-left: 4px solid #52a535 !important;
   color: #ffffff !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle:hover {
-  border-color: #c2f0fc !important;
-  background: rgba(18, 70, 94, 0.56) !important;
-  box-shadow: inset 0 0 0 1px rgba(194, 240, 252, 0.34), 0 0 12px rgba(56, 189, 248, 0.16) !important;
+  border-color: #ffffff !important;
+  background: #424447 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list .mcd-toggle {
   width: 100% !important;
@@ -5074,19 +5057,19 @@
   transform: translateY(-50%) !important;
   width: 44px !important;
   height: 22px !important;
-  border-radius: 1px !important;
-  background-color: #334155 !important;
-  background-image: radial-gradient(circle at 33px 11px, transparent 3px, #94a3b8 3.2px, #94a3b8 4.4px, transparent 4.6px) !important;
-  border: 1.5px solid #526375 !important;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55) !important;
-  transition: background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease !important;
+  border-radius: 0 !important;
+  background-color: #58585a !important;
+  background-image: radial-gradient(circle at 33px 11px, transparent 3px, #d1d5db 3.2px, #d1d5db 4.4px, transparent 4.6px) !important;
+  border: 2px solid #1e1e1f !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+  transition: background-color 0.14s ease !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::before,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::before {
-  background-color: #10c954 !important;
+  background-color: #3c8527 !important;
   background-image: linear-gradient(90deg, transparent 9px, #ffffff 9px, #ffffff 11px, transparent 11px) !important;
-  border-color: #34d399 !important;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 10px rgba(16, 201, 84, 0.45) !important;
+  border-color: #1e1e1f !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle::after {
   content: "" !important;
@@ -5096,20 +5079,20 @@
   top: 50% !important;
   bottom: auto !important;
   width: 18px !important;
-  height: 20px !important;
-  border-radius: 1px !important;
-  background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%) !important;
-  border: 1.5px solid #0f172a !important;
-  box-shadow: inset 0 1px 0 #ffffff, 0 1px 4px rgba(0, 0, 0, 0.65) !important;
+  height: 22px !important;
+  border-radius: 0 !important;
+  background: #e6e8ec !important;
+  border: 2px solid #1e1e1f !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #9ca0a6 !important;
   transform: translateY(-50%) translateX(0px) !important;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::after,
 #menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::after {
   transform: translateY(-50%) translateX(22px) !important;
 }
 
-/* Audio Blue Sliders matching Screenshot 2 */
+/* Audio Emerald Ore Sliders */
 #menuModal:not(.pause-mode):not(.hidden) .mcd-slider-row {
   padding: 7px 12px !important;
 }
@@ -5119,8 +5102,8 @@
   gap: 12px;
   min-width: min(330px, 56%);
   padding: 6px 12px;
-  background: #061822;
-  border: 1.5px solid #1e4b5e;
+  background: #202122;
+  border: 2px solid #141516;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-slider-val {
   min-width: 48px;
@@ -5139,53 +5122,54 @@
   min-width: 0 !important;
   height: 6px !important;
   margin: 6px 0 !important;
-  background: linear-gradient(to right, #2da0e8 0%, #2da0e8 var(--pct, 50%), #354c5a var(--pct, 50%), #354c5a 100%) !important;
-  border: none !important;
+  background: linear-gradient(to right, #52a535 0%, #52a535 var(--pct, 50%), #4c4e52 var(--pct, 50%), #4c4e52 100%) !important;
+  border: 1px solid #141516 !important;
   border-radius: 0 !important;
-  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.55) !important;
+  box-shadow: none !important;
   cursor: pointer;
   outline: none;
 }
 #menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 10px;
-  height: 20px;
+  width: 12px;
+  height: 22px;
   border-radius: 0;
-  background: #dbe6ed;
-  border: 1.5px solid #0b161d;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  background: #d0d1d4;
+  border: 2px solid #1e1e1f;
+  box-shadow: inset 1px 1px 0 #ffffff;
 }
 #menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-moz-range-thumb {
-  width: 10px;
-  height: 20px;
+  width: 12px;
+  height: 22px;
   border-radius: 0;
-  background: #dbe6ed;
-  border: 1.5px solid #0b161d;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  background: #d0d1d4;
+  border: 2px solid #1e1e1f;
+  box-shadow: inset 1px 1px 0 #ffffff;
 }
 
-/* Right-hand Inspector Framed Panel matching Screenshots 1-7 */
+/* Right-hand Inspector Framed Panel */
 #menuModal:not(.pause-mode):not(.hidden) .gm-inspector {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 #menuModal:not(.pause-mode):not(.hidden) .mcd-insp-frame {
+  contain: layout style;
   position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   padding: 20px 18px 14px;
-  background: rgba(4, 18, 26, 0.62);
-  border: 1.5px solid #235e6f;
-  box-shadow: inset 0 0 0 1px rgba(48, 128, 152, 0.16);
+  background: #202122;
+  border: 2px solid #1e1e1f;
+  box-shadow: inset 1px 1px 0 #38393c;
 }
 .mcd-insp-frame .mcd-c {
   position: absolute;
   width: 10px;
   height: 10px;
-  border: 1.5px solid #3c98af;
+  border: 2px solid #52a535;
   pointer-events: none;
 }
 .mcd-insp-frame .mcd-c-tl { top: 4px; left: 4px; border-right: none; border-bottom: none; }
@@ -5198,7 +5182,7 @@
   font-weight: 700;
   letter-spacing: 0.7px;
   text-transform: uppercase;
-  color: #88cbe0;
+  color: #86efac;
   margin-bottom: 10px;
 }
 .mcd-insp-desc {
@@ -5206,14 +5190,14 @@
   font-family: var(--font-pixel);
   font-size: 12.5px;
   line-height: 1.52;
-  color: #dfeff4;
+  color: #e5e7eb;
 }
 .mcd-insp-foot {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(90, 170, 195, 0.25);
+  border-top: 2px solid #313235;
   font-size: 12px;
-  color: #9ec8d6;
+  color: #cbd5e1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5247,45 +5231,45 @@
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-eclipse,
 #lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-eclipse {
   grid-column: 1 / -1 !important;
-  background: #143642 !important;
-  color: #dff8ee !important;
-  border-color: #2f7d8c !important;
+  background: #3d4045 !important;
+  color: #f3f4f6 !important;
+  border-color: #1e1e1f !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-eclipse.active,
 #lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-eclipse.active {
-  background: #13684a !important;
+  background: #3c8527 !important;
   color: #ffffff !important;
-  border-color: #34d399 !important;
+  border-color: #1e1e1f !important;
 }
 .admin-lock-badge {
   margin-left: auto;
   font-size: 10px;
   font-weight: 700;
   color: #fbbf24;
-  background: #0c1f2b;
-  border: 1px solid #5c4b22;
+  background: #202122;
+  border: 1.5px solid #141516;
   padding: 1px 7px;
   text-transform: none;
   letter-spacing: 0.2px;
 }
 body.admin-unlocked .admin-lock-badge {
-  color: #4ade80;
-  border-color: #166534;
+  color: #86efac;
+  border-color: #3c8527;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn { cursor: not-allowed !important; }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn:not(.active):not(.live-weather) { opacity: 0.58; }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #weatherSeg .seg-btn.live-weather:not(.active) {
   color: #ffffff !important;
-  border-color: #60a5fa !important;
-  background: #1d4ed8 !important;
+  border-color: #1e1e1f !important;
+  background: #2b5c8f !important;
 }
 .clock-editor-row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  background: #061822;
-  border: 1.5px solid #205264;
+  background: #202122;
+  border: 2px solid #141516;
 }
 .clock-live-ico { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 18px; }
 .clock-live-ico svg { width: 18px; height: 18px; image-rendering: pixelated; }
@@ -5300,21 +5284,21 @@ body.admin-unlocked .admin-lock-badge {
   font-variant-numeric: tabular-nums;
 }
 .clock-editor-row.admin-locked .clock-time-input { cursor: not-allowed !important; opacity: 0.92; }
-.clock-period-tag { margin-left: auto; font-family: var(--font-pixel); font-size: 12px; font-weight: 700; color: #cbd5e1; white-space: nowrap; }
+.clock-period-tag { margin-left: auto; font-family: var(--font-pixel); font-size: 12px; font-weight: 700; color: #e2e8f0; white-space: nowrap; }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-input {
   border-radius: 0 !important;
-  border: 1.5px solid #205264 !important;
-  background: #061822 !important;
-  color: #e6f4f8 !important;
+  border: 2px solid #141516 !important;
+  background: #202122 !important;
+  color: #f4f5f7 !important;
   padding: 6px 10px !important;
   outline: none;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-input:focus {
-  border-color: #bceaf7 !important;
+  border-color: #ffffff !important;
 }
 
-/* Bottom Footer (Back [ESC] | Resume | Reset section [X]) */
+/* Bottom Footer (Ore Light Stone Bar: Back [ESC] | Resume/Play | Reset section [X]) */
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer {
   width: 100% !important;
   flex-shrink: 0 !important;
@@ -5324,8 +5308,9 @@ body.admin-unlocked .admin-lock-badge {
   justify-content: space-between !important;
   gap: 12px !important;
   margin: 0 !important;
-  background: #1a1211 !important;
-  border-top: 1px solid #352725 !important;
+  background: #d0d1d4 !important;
+  border-top: 2px solid #1e1e1f !important;
+  box-shadow: inset 0 2px 0 #f4f5f6 !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer .mcd-footer-btn,
@@ -5337,21 +5322,22 @@ body.admin-unlocked .admin-lock-badge {
   min-width: 0 !important;
   height: auto !important;
   background: transparent !important;
-  border: 1.5px solid transparent !important;
+  border: 2px solid transparent !important;
   padding: 5px 8px !important;
-  color: #efe9e4 !important;
+  color: #1e1e1f !important;
   font-family: var(--font-pixel) !important;
   font-size: 13px !important;
   font-weight: 700 !important;
+  text-shadow: none !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
   cursor: pointer;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer .mcd-footer-btn:hover,
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnGmBack:hover {
-  color: #ffffff !important;
-  border-color: rgba(255, 255, 255, 0.35) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
+  color: #111213 !important;
+  border-color: #1e1e1f !important;
+  background: rgba(0, 0, 0, 0.08) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play {
   width: auto !important;

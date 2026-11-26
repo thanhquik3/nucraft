@@ -472,7 +472,9 @@
     SIFT_OCEAN:       { id: 64, name: 'The Sift • Biển Giấc Mơ' },
     WARDEN_REALM:     { id: 65, name: 'Thế Giới Cổ Thành Warden' },
     WARDEN_FOREST:    { id: 66, name: 'Rừng Linh Hồn Sculk' },
-    WARDEN_CITADEL:   { id: 67, name: 'Thung Lũng Pháo Đài Cổ' }
+    WARDEN_CITADEL:   { id: 67, name: 'Thung Lũng Pháo Đài Cổ' },
+    GREEN_PLAINS:     { id: 68, name: 'Đồng Bằng Cỏ Xanh' },
+    SNOWY_PLAINS:     { id: 69, name: 'Đồng Bằng Tuyết' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -1600,13 +1602,16 @@
       if (ch === 'K') return '#57534e';
       return shade(ch === 'c' ? '#f4f2ec' : (ch === 'b' ? '#d8d4ca' : '#e8e5dc'), (r - 0.5) * 6);
     });
-    // Rebuilt Authentic Minecraft Cactus Side (vertical fluted emerald ribs + subtle sharp pixel spines!)
+    // Rebuilt Authentic Minecraft Cactus Side matching reference icon & block (fluted ribs + subtle staggered spine buds!)
     tilePixels(17, (x, y, r) => {
       const col = x & 3;
-      if (col === 0) return shade('#1d5622', (r - 0.5) * 10);
-      if (col === 2 && ((y + (x >> 2) * 3) % 5 === 1)) return '#112914';
-      if (col === 2 && ((y + (x >> 2) * 3) % 5 === 2)) return '#dff7d4';
-      return shade(col === 1 ? '#4ea33b' : (col === 2 ? '#3e8c30' : '#2c7026'), (r - 0.5) * 14);
+      const spineRow = ((y + (x >> 2) * 3) % 4);
+      if (col === 2 && spineRow === 1) return '#275b21';
+      if (col === 2 && spineRow === 2) return '#dfefc9';
+      if (x === 0 || x === 15) return shade('#1d5622', (r - 0.5) * 6);
+      if (col === 0) return shade('#256827', (r - 0.5) * 8);
+      if (col === 3) return shade('#3b862e', (r - 0.5) * 10);
+      return shade(col === 1 ? '#57a837' : '#45942e', (r - 0.5) * 12);
     });
     tilePixels(18, (x, y, r) => {
       const ch = TERRACOTTA_MAP[y][x];
@@ -2074,12 +2079,14 @@
     drawHelmet(180, palNetherite); drawChest(181, palNetherite); drawLegs(182, palNetherite); drawBoots(183, palNetherite);
 
     // v21 Authentic Minecraft Cactus Top (184), Sugar Cane (185), Bamboo Top/Icon/Leaves (186-188), Bamboo Block (189-190), Bamboo Planks (191)!
+    // Rebuilt Authentic Minecraft Cactus Top matching reference icon (4x4 green rib grid + sage spine buds)
     tilePixels(184, (x, y, r) => {
       const border = (x === 0 || x === 15 || y === 0 || y === 15);
-      const star = (x === 7 || x === 8 || y === 7 || y === 8);
-      if (border) return '#1d5622';
-      if (star && Math.abs(x - 7.5) < 4.5 && Math.abs(y - 7.5) < 4.5) return shade('#6ec44d', (r - 0.5) * 10);
-      return shade(((x & 3) === 0 || (y & 3) === 0) ? '#2b6b25' : '#459636', (r - 0.5) * 12);
+      if (border) return '#1b521f';
+      const isBud = ((x === 4 || x === 11) && (y === 4 || y === 11)) || ((x === 7 || x === 8) && (y === 7 || y === 8));
+      if (isBud) return shade('#b8dd9e', (r - 0.5) * 10);
+      const onRib = ((x & 3) === 0 || (y & 3) === 0);
+      return shade(onRib ? '#2b6f23' : '#4fa335', (r - 0.5) * 12);
     });
     // Tile 185: Lush Multi-Stalk Sugar Cane (Image 2!)
     tilePixels(185, (x, y, r) => {
@@ -4504,6 +4511,47 @@
     tilePixels(DARK_OAK_LOG_TILES.top, (x, y, r) => logTopColor(x, y, r, '#24170b', '#362312', '#6b4928', '#52361b', '#3f2813'));
     tilePixels(DARK_OAK_LOG_TILES.side, (x, y, r) => barkColor(x, y, r, { c: '#422c19', a: '#332010', b: '#26160a', d: '#1a0e05' }));
     drawFancyLeaf(DARK_OAK_LOG_TILES.leaves, { H: '#4aa632', M: '#2c751e', S: '#1b4f12', D: '#10360a' }, AUTUMN_LEAF_MASK);
+
+    // v142 Snowy Dirt side (snow drape over rich soil), Frosted White Snowy Grass, Pink Cactus Flower & 3D Spine strip
+    tilePixels(V142_TILES.snowyDirtSide, (x, y, r) => {
+      const ov = SNOW_OVERHANG[x] + 1;
+      if (y < ov) {
+        if (y === ov - 1) return shade('#b8d4e8', (r - 0.5) * 6);
+        return y <= 1 ? shade('#f7fbff', (r - 0.5) * 6) : shade('#e4f0fa', (r - 0.5) * 8);
+      }
+      if (y === ov) return shade('#4b311e', (r - 0.5) * 6);
+      return dirtColor(x, y, r);
+    });
+    drawSpriteMap(V142_TILES.snowyGrass, TALL_GRASS_SPRITE, { g: '#ffffff', G: '#deedf8', d: '#98b6cc' });
+    const CACTUS_FLOWER_SPRITE = [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '....h......h....',
+      '...hpP....Pph...',
+      '..hpPP.YY.PPph..',
+      '..pPPDYYYYDPPp..',
+      '...PDDYYYYDDP...',
+      '...pDDDDDDDDp...',
+      '....DDDDDDDD....',
+      '.....DDDDDD.....',
+      '......dddd......',
+      '................'
+    ];
+    drawSpriteMap(V142_TILES.cactusFlower, CACTUS_FLOWER_SPRITE, {
+      h: '#ffd1e6', p: '#ff8ec1', P: '#ff4f9a', D: '#c9236b', d: '#8d154a', Y: '#fde047'
+    });
+    tilePixels(V142_TILES.cactusSpine, (x, y) => {
+      const spY = (y === 2 || y === 6 || y === 10 || y === 14);
+      if (!spY) return null;
+      if (x <= 1) return '#183316';
+      if (x <= 5) return '#dcebc7';
+      if (x <= 8) return '#f2f8e8';
+      return null;
+    });
 
     for (const wf of WOOD_FAMILIES) {
       if (wf.plankPal) {

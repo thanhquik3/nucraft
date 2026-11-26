@@ -418,6 +418,7 @@
   .hb-slot {
     position: relative; width: 40px; height: 44px; flex: 0 0 40px;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
+    contain: layout style;
   }
   .hb-slot .hb-sel {
     display: none; position: absolute; left: -4px; top: -1px; width: 48px; height: 46px;
@@ -756,6 +757,7 @@
     border-top: 2px solid #373737; border-left: 2px solid #373737;
     border-right: 2px solid #ffffff; border-bottom: 2px solid #ffffff;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
+    contain: layout style;
   }
   .equip-slot .eq-ghost { font-size: 14px; opacity: 0.88; pointer-events: none; }
   .equip-slot canvas { position: absolute; width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; z-index: 1; }
