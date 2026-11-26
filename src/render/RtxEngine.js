@@ -92,7 +92,7 @@
     { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false }
   );
   const reflCam = new THREE.PerspectiveCamera(72, 16 / 9, 0.1, 420);
-  const reflClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(WATER_LEVEL + 0.85));
+  const reflClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(WATER_LEVEL + 0.72));
 
   const { tex: atlasTex, bumpTex, canvas: atlasCanvas, getSolidTex: getAtlasSolidTex } = buildTextureAtlas();
   const atlasCtx = atlasCanvas.getContext('2d');
@@ -938,10 +938,6 @@
       uniform mat4 uReflMatrix;
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
-        if (aIsTop > 0.5) {
-          float eMul = mix(1.0, 1.55, uEclipseMode);
-          wp.y += (sin(wp.x * 1.15 + wp.z * 0.42 + uTime * 1.45) * 0.011 + cos(wp.z * 1.05 - wp.x * 0.35 - uTime * 1.22) * 0.008) * eMul * (1.0 - clamp(aShore, 0.0, 1.0) * 0.90);
-        }
         vWorldPos = wp.xyz; vNormal = normal; vIsTop = aIsTop; vShore = aShore; vColDepth = aDepth;
         vec4 mv = viewMatrix * wp; vDist = length(mv.xyz);
         gl_Position = projectionMatrix * mv;
@@ -979,15 +975,19 @@
         }
         return vec3(h, g.x, g.y);
       }
-      // Authentic Eclipse waterBump.glsl: 3-octave golden-angle rotated waves + patchy largeWavesCurved
+      // Authentic Eclipse waterBump.glsl + all_translucent.fsh: 3-octave golden-angle waves + patchy largeWavesCurved + parallax
       float eWaveNoise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
+        vec2 fl = floor(p);
+        vec2 f = p - fl;
         vec2 u = f * f * (3.0 - 2.0 * f);
-        float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);
-        float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
-        float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
-        float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+        vec2 i0 = mod(fl, 256.0);
+        vec2 i1 = mod(fl + vec2(1.0, 0.0), 256.0);
+        vec2 i2 = mod(fl + vec2(0.0, 1.0), 256.0);
+        vec2 i3 = mod(fl + vec2(1.0, 1.0), 256.0);
+        float a = fract(sin(dot(i0, vec2(127.1, 311.7))) * 43758.5453);
+        float b = fract(sin(dot(i1, vec2(127.1, 311.7))) * 43758.5453);
+        float c = fract(sin(dot(i2, vec2(127.1, 311.7))) * 43758.5453);
+        float d = fract(sin(dot(i3, vec2(127.1, 311.7))) * 43758.5453);
         return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
       }
       float getEclipseWaterH(vec2 pos, float largeWavesCurved, float movement, bool highDetail) {
@@ -1006,6 +1006,15 @@
         }
         return (hSum / 4.5) * max(largeWavesCurved, 0.3);
       }
+      vec2 getEclipseParallaxPos(vec2 pos, vec3 viewDir, float t, float dist, float shore) {
+        float largeWaves = eWaveNoise(pos / 600.0 * 14.0);
+        float largeWavesCurved = pow(1.0 - pow(1.0 - largeWaves, 2.5), 4.5);
+        float hPar = getEclipseWaterH(pos, largeWavesCurved, t * 0.035, false);
+        float waterHeight = exp(-7.0 * exp(-7.0 * hPar)) * 0.25;
+        float damp = (1.0 - smoothstep(0.35, 1.0, shore) * 0.65) * exp(-dist * 0.015);
+        vec2 shift = (viewDir.xz / max(abs(viewDir.y), 0.28)) * waterHeight * damp;
+        return pos + clamp(shift, vec2(-0.32), vec2(0.32));
+      }
       vec3 eclipseWaterGrad(vec2 p, float t, float dist, bool highDetail) {
         float movement = t * 0.035;
         float largeWaves = eWaveNoise(p / 600.0 * 14.0);
@@ -1023,7 +1032,10 @@
         float waveH = 0.0, wakeFoam = 0.0;
         if (vIsTop > 0.5) {
           float waveAmp = mix(1.38, 0.42, smoothstep(0.0, 1.0, vShore));
-          vec3 wg = uEclipseMode > 0.5 ? eclipseWaterGrad(vWorldPos.xz, uTime, vDist, highWater) : waterWaveGrad(vWorldPos.xz, uTime, highWater);
+          vec2 wSamplePos = (uEclipseMode > 0.5 && highWater)
+            ? getEclipseParallaxPos(vWorldPos.xz, viewDir, uTime, vDist, vShore)
+            : vWorldPos.xz;
+          vec3 wg = uEclipseMode > 0.5 ? eclipseWaterGrad(wSamplePos, uTime, vDist, highWater) : waterWaveGrad(wSamplePos, uTime, highWater);
           waveH = wg.x;
           float ecWaveMul = mix(1.0, 1.18, uEclipseMode);
           n = normalize(vec3(-wg.y * waveAmp * ecWaveMul, 1.0, -wg.z * waveAmp * ecWaveMul));
@@ -1113,7 +1125,7 @@
           vec3 reflCol = reflFallback;
           if (uUsePlanarRefl > 0.5 && highWater && abs(vWorldPos.y - 0.86) < 0.45) {
             vec2 ndc = (vReflClip.xy / max(0.001, vReflClip.w)) * 0.5 + 0.5;
-            float shoreCalm = 1.0 - smoothstep(0.0, 1.0, vShore) * 0.65;
+            float shoreCalm = 1.0 - smoothstep(0.0, 1.0, vShore) * 0.82;
             float distDamp = 1.0 / (1.0 + vDist * 0.032);
             vec2 reflUv = ndc + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(1.0, 0.92, uEclipseMode);
             float edgeMask = step(0.01, vReflClip.w) * smoothstep(0.0, 0.06, reflUv.x) * smoothstep(1.0, 0.94, reflUv.x)

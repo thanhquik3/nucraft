@@ -1412,26 +1412,28 @@
     st.vCount = curV; st.iCount = ip;
   }
 
-  function _isFluidMatch(id, fluidId) {
-    return id === fluidId || (fluidId === B.WATER && id === B.SEAGRASS);
+  function _isFluidMatch(id, fluidId, wy) {
+    if (id === fluidId) return true;
+    if (fluidId !== B.WATER) return false;
+    return id === B.SEAGRASS || (id === B.MANGROVE_ROOTS && wy <= WATER_LEVEL);
   }
   function _getFluidCornerHeight(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, cxOff, czOff, fluidId, hasFluidLevels, lvStep) {
-    let sum = 0, wSum = 0;
+    let sum = 0, wSum = 0, hasSource = false;
     for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
       const sx = lx + cxOff + dx, sz = lz + czOff + dz;
       const b = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly, sz);
-      if (_isFluidMatch(b, fluidId)) {
+      if (_isFluidMatch(b, fluidId, wy)) {
         const bUp = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly + 1, sz);
-        if (_isFluidMatch(bUp, fluidId)) return 1.0;
+        if (_isFluidMatch(bUp, fluidId, wy + 1)) return 1.0;
         const fl = hasFluidLevels ? (fluidLevel.get(modKey(wx + cxOff + dx, wy, wz + czOff + dz)) || 0) : 0;
         if (fl === 8) return 1.0;
-        const h = (fl > 0 && fl <= 7) ? Math.max(0.16, 0.86 - fl * lvStep) : 0.86;
-        const w = (fl === 0) ? 10 : 1;
-        sum += h * w; wSum += w;
+        if (fl === 0) { hasSource = true; continue; }
+        sum += Math.max(0.16, 0.86 - fl * lvStep); wSum += 1;
       } else if (IS_SOLID[b] === 0 && IS_OPAQUE[b] === 0) {
         sum += 0.14; wSum += 1;
       }
     }
+    if (hasSource) return 0.86;
     return wSum > 0 ? (sum / wSum) : 0.86;
   }
   const _fluidFaceCfg = { upNb: 0, fl: 0, isFalling: false, h00: 0.86, h10: 0.86, h11: 0.86, h01: 0.86 };
@@ -1442,7 +1444,7 @@
   function _getFluidFaceConfig(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, fluidId, hasFluidLevels, lvStep) {
     const upNb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);
     const fl = hasFluidLevels ? (fluidLevel.get(modKey(wx, wy, wz)) || 0) : 0;
-    const isFalling = _isFluidMatch(upNb, fluidId) || fl === 8;
+    const isFalling = _isFluidMatch(upNb, fluidId, wy + 1) || fl === 8;
     const cfg = _fluidFaceCfg;
     cfg.upNb = upNb; cfg.fl = fl; cfg.isFalling = isFalling;
     if (isFalling) {
@@ -1453,10 +1455,10 @@
       const r0 = (ly << 8) | (lz << 4) | lx;
       const b0 = data[r0 - 17], b1 = data[r0 - 16], b2 = data[r0 - 15], b3 = data[r0 - 1], b4 = data[r0 + 1], b5 = data[r0 + 15], b6 = data[r0 + 16], b7 = data[r0 + 17];
       const ok = (b, off) => {
-        if (b === B.WATER || b === B.SEAGRASS) {
+        if (_isFluidMatch(b, B.WATER, wy)) {
           if (ly + 1 >= WORLD_H) return true;
           const bu = data[off + 256];
-          return bu !== B.WATER && bu !== B.SEAGRASS;
+          return !_isFluidMatch(bu, B.WATER, wy + 1);
         }
         return IS_OPAQUE[b] === 1;
       };
@@ -1473,6 +1475,7 @@
   }
 
   function _getFluidCornerDepth(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, cxOff, czOff) {
+    const wy = MIN_Y + ly;
     let sum = 0, wSum = 0;
     for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
       const sx = lx + cxOff + dx, sz = lz + czOff + dz;
@@ -1483,12 +1486,12 @@
         colD = _wDepthCache[slot];
       } else {
         const b = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly, sz);
-        if (b === B.WATER || b === B.SEAGRASS) {
+        if (_isFluidMatch(b, B.WATER, wy)) {
           let d = 1;
           const minY = Math.max(0, ly - 12);
           for (let yy = ly - 1; yy >= minY; yy--) {
             const sub = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, yy, sz);
-            if (sub === B.WATER || sub === B.SEAGRASS) d++;
+            if (_isFluidMatch(sub, B.WATER, MIN_Y + yy)) d++;
             else break;
           }
           colD = Math.min(1.0, (d - 1) / 10.0);
@@ -1501,6 +1504,32 @@
       if (colD >= 0.0) { sum += colD; wSum++; }
     }
     return wSum > 0 ? (sum / wSum) : 0.0;
+  }
+
+  function _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, cxOff, czOff, fluidId, hasFluidLevels) {
+    let floorSum = 0, fluidCount = 0, anyFlow = false;
+    for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
+      const sx = lx + cxOff + dx, sz = lz + czOff + dz;
+      const b = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly, sz);
+      if (IS_SOLID[b] === 1 && !_isFluidMatch(b, fluidId, wy)) return 1.0;
+      if (_isFluidMatch(b, fluidId, wy)) {
+        fluidCount++;
+        if (hasFluidLevels) {
+          const fl = fluidLevel.get(modKey(wx + cxOff + dx, wy, wz + czOff + dz)) || 0;
+          if (fl > 0 && fl < 8) anyFlow = true;
+        }
+        if (ly > 0) {
+          const b1 = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly - 1, sz);
+          if (IS_SOLID[b1] === 1 && !_isFluidMatch(b1, fluidId, wy - 1)) floorSum += 0.55;
+          else if (ly > 1) {
+            const b2 = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, sx, ly - 2, sz);
+            if (IS_SOLID[b2] === 1 && !_isFluidMatch(b2, fluidId, wy - 2)) floorSum += 0.25;
+          }
+        }
+      }
+    }
+    const shallow = fluidCount > 0 ? (floorSum / fluidCount) : 0.0;
+    return anyFlow ? Math.max(shallow, 0.85) : shallow;
   }
 
   function _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, id, hasFluidLevels, fBuf, st) {
@@ -1522,10 +1551,11 @@
       const nx = lx + face.dir[0], ny = ly + face.dir[1], nz = lz + face.dir[2];
       if ((nx === 16 && !dXP) || (nx === -1 && !dXM) || (nz === 16 && !dZP) || (nz === -1 && !dZM)) continue;
       const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nx, ny, nz);
-      if (f === 0 && (nb === B.WATER || nb === B.SEAGRASS)) continue;
-      if (f === 1 && (nb === B.WATER || nb === B.SEAGRASS || IS_OPAQUE[nb] === 1)) continue;
-      if (f >= 2 && (nb === B.WATER || nb === B.SEAGRASS || IS_OPAQUE[nb] === 1)) continue;
-      if (f >= 2 && IS_SLAB[nb] > 0 && waterloggedBlocks.has(modKey(wx + face.dir[0], wy + face.dir[1], wz + face.dir[2]))) continue;
+      const nwy = wy + face.dir[1];
+      if (f === 0 && _isFluidMatch(nb, B.WATER, nwy)) continue;
+      if (f === 1 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1)) continue;
+      if (f >= 2 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1)) continue;
+      if (f >= 2 && IS_SLAB[nb] > 0 && waterloggedBlocks.has(modKey(wx + face.dir[0], nwy, wz + face.dir[2]))) continue;
       const vc = st.wCount;
       if (vc + 4 > fBuf.cap) _growFluidBuf(fBuf, vc + 4);
       let vp = vc * 3;
@@ -1534,6 +1564,10 @@
       const d10 = isTop > 0.5 ? _getFluidCornerDepth(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, 1, 0) : 0.45;
       const d11 = isTop > 0.5 ? _getFluidCornerDepth(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, 1, 1) : 0.45;
       const d01 = isTop > 0.5 ? _getFluidCornerDepth(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, 0, 1) : 0.45;
+      const s00 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 0, B.WATER, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s10 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 0, B.WATER, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s11 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 1, B.WATER, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s01 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 1, B.WATER, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
       for (let c = 0; c < 4; c++) {
         const cr = face.corners[c];
         const cyTop = cr[0] ? (cr[2] ? cfg.h11 : cfg.h10) : (cr[2] ? cfg.h01 : cfg.h00);
@@ -1543,14 +1577,7 @@
         vp += 3;
         fBuf.isTop[vi] = isTop;
         fBuf.depth[vi] = isTop > 0.5 ? (cr[0] ? (cr[2] ? d11 : d10) : (cr[2] ? d01 : d00)) : 0.45;
-        if (isTop > 0.5) {
-          const sx = cr[0] ? 1 : -1, sz = cr[2] ? 1 : -1;
-          const cTouch = (IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + sx, ly, lz)] || IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + sz)] || IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + sx, ly, lz + sz)]) ? 1.0 : 0.0;
-          const shallowFloor = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz)] ? 0.55 : (IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 2, lz)] ? 0.25 : 0.0);
-          fBuf.shore[vi] = Math.max(cTouch, shallowFloor, isFlowing ? 0.85 : 0.0);
-        } else {
-          fBuf.shore[vi] = isFlowing ? 0.85 : 0.0;
-        }
+        fBuf.shore[vi] = isTop > 0.5 ? (cr[0] ? (cr[2] ? s11 : s10) : (cr[2] ? s01 : s00)) : (isFlowing ? 0.85 : 0.0);
       }
       const ip = st.wiCount;
       fBuf.idx[ip] = vc; fBuf.idx[ip + 1] = vc + 1; fBuf.idx[ip + 2] = vc + 2;
@@ -1584,7 +1611,10 @@
       if (vc + 4 > fBuf.cap) _growFluidBuf(fBuf, vc + 4);
       let vp = vc * 3;
       const isTop = (f === 0) ? 1.0 : 0.0;
-      const shoreVal = isTop > 0.5 ? ((IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx+1,ly,lz)] || IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx-1,ly,lz)] || IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx,ly,lz+1)] || IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx,ly,lz-1)]) ? 1.0 : (isFlowing ? 0.85 : 0.0)) : (isFlowing ? 0.85 : 0.0);
+      const s00 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 0, B.LAVA, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s10 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 0, B.LAVA, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s11 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 1, 1, B.LAVA, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
+      const s01 = isTop > 0.5 ? _getFluidCornerShore(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, 0, 1, B.LAVA, hasFluidLevels) : (isFlowing ? 0.85 : 0.0);
       for (let c = 0; c < 4; c++) {
         const cr = face.corners[c];
         const cyTop = cr[0] ? (cr[2] ? cfg.h11 : cfg.h10) : (cr[2] ? cfg.h01 : cfg.h00);
@@ -1592,7 +1622,7 @@
         fBuf.pos[vp] = wx + cr[0]; fBuf.pos[vp + 1] = wy + (cr[1] === 1 ? cyTop : 0.0); fBuf.pos[vp + 2] = wz + cr[2];
         fBuf.norm[vp] = face.dir[0]; fBuf.norm[vp + 1] = face.dir[1]; fBuf.norm[vp + 2] = face.dir[2];
         vp += 3;
-        fBuf.isTop[vi] = isTop; fBuf.shore[vi] = shoreVal; fBuf.depth[vi] = 0.0;
+        fBuf.isTop[vi] = isTop; fBuf.shore[vi] = isTop > 0.5 ? (cr[0] ? (cr[2] ? s11 : s10) : (cr[2] ? s01 : s00)) : (isFlowing ? 0.85 : 0.0); fBuf.depth[vi] = 0.0;
       }
       const ip = st.lviCount;
       fBuf.idx[ip] = vc; fBuf.idx[ip + 1] = vc + 1; fBuf.idx[ip + 2] = vc + 2;
