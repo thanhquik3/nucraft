@@ -1167,15 +1167,17 @@
     const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
     const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.25 : 1.0;
     const reflInterval = inLobby ? 0.032 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult;
-    const camTurned = !_reflDoneOnce ||
-      Math.abs(camera.rotation.y - _lastReflYaw) > 0.003 ||
-      Math.abs(camera.rotation.x - _lastReflPitch) > 0.003;
-    const camStatic = _reflDoneOnce && !camTurned &&
+    const fastTurn = !_reflDoneOnce ||
+      Math.abs(camera.rotation.y - _lastReflYaw) > 0.045 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.045;
+    const gentleTurn = Math.abs(camera.rotation.y - _lastReflYaw) > 0.004 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.004;
+    const camStatic = _reflDoneOnce && !fastTurn && !gentleTurn &&
       Math.abs(camera.position.x - _lastReflX) < 0.04 &&
       Math.abs(camera.position.y - _lastReflY) < 0.04 &&
       Math.abs(camera.position.z - _lastReflZ) < 0.04;
-    // Fast camera sweeps render reflection immediately without delay/ghosting lag
-    if (_reflDoneOnce && !camTurned && _reflAcc < (camStatic ? Math.max(reflInterval, 0.10) : reflInterval)) return;
+    const targetReflDt = camStatic ? Math.max(reflInterval, 0.11) : (gentleTurn ? Math.min(reflInterval, 0.026) : reflInterval);
+    if (_reflDoneOnce && !fastTurn && (_reflAcc < targetReflDt || (window._chunkBuiltThisFrame && _reflAcc < reflInterval * 2.0))) return;
     _reflAcc = 0;
     _reflDoneOnce = true;
     _lastReflX = camera.position.x; _lastReflY = camera.position.y; _lastReflZ = camera.position.z;
@@ -1205,6 +1207,7 @@
     }
 
     const wasHeldVis = heldPivot.visible, wasWeatherVis = weatherLines.visible, wasMoteVis = _motePoints.visible;
+    const wasPortalMoteVis = (typeof _portalMotePoints !== 'undefined') ? _portalMotePoints.visible : false;
     const wasEclipseGrassVis = (typeof eclipseGrassMesh !== 'undefined') ? eclipseGrassMesh.visible : false;
     const wasEclipseGrassFarVis = (typeof eclipseGrassFarMesh !== 'undefined') ? eclipseGrassFarMesh.visible : false;
     const wasHighlightVis = (typeof highlightMesh !== 'undefined') ? highlightMesh.visible : false;
@@ -1212,6 +1215,7 @@
     const wasPartVis = (typeof _partInstMesh !== 'undefined') ? _partInstMesh.visible : false;
     const prevShadowEnabled = renderer.shadowMap.enabled;
     heldPivot.visible = false; weatherLines.visible = false; _motePoints.visible = false;
+    if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = false;
     if (typeof eclipseGrassMesh !== 'undefined') eclipseGrassMesh.visible = false;
     if (typeof eclipseGrassFarMesh !== 'undefined') eclipseGrassFarMesh.visible = false;
     if (typeof highlightMesh !== 'undefined') highlightMesh.visible = false;
@@ -1279,6 +1283,7 @@
     if (typeof crackMesh !== 'undefined') crackMesh.visible = wasCrackVis;
     if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = wasPartVis;
     heldPivot.visible = wasHeldVis; weatherLines.visible = wasWeatherVis; _motePoints.visible = wasMoteVis;
+    if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = wasPortalMoteVis;
   }
 
   let _fgPrimed = false, _fgSubIdx = 0, _fgNatYaw = 0, _fgNatPitch = 0, _fgNatX = 0, _fgNatY = 0, _fgNatZ = 0, _fgNatFov = 72;
@@ -1342,7 +1347,7 @@
       _postFxAcc += (rawDt || 0.016);
       const _fxP = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { fxIntervalMs: 45 };
       const fxInterval = ((_fxP.fxIntervalMs || 45) / 1000) * (_fpsSlow ? 1.35 : 1.0);
-      const camFxTurned = (Math.abs(camera.rotation.y - (renderMainScene._ly || 0)) > 0.002 || Math.abs(camera.rotation.x - (renderMainScene._lp || 0)) > 0.002);
+      const camFxTurned = (Math.abs(camera.rotation.y - (renderMainScene._ly || 0)) > 0.075 || Math.abs(camera.rotation.x - (renderMainScene._lp || 0)) > 0.075);
       const runPostFx = _postFxDirty || camFxTurned || (_postFxAcc >= fxInterval);
       if (runPostFx) {
         _postFxAcc = 0;
@@ -1548,6 +1553,7 @@
       _refreshCamFrustum();
       updateMining(dt); tickFluids(dt); tickIncubatingEggs(dt); updateDragonUiControls(dt); updateMobs(dt, elapsed);
       updateProjectilesAndTnt(dt); updateDroppedItems(dt); updateXpOrbs(dt); updateParticles(dt);
+      if (typeof updatePortalMotes === 'function') updatePortalMotes(dt, elapsed);
       updateCoopAndLocator(dt, elapsed);
       if (typeof window.runModTickHooks === 'function') window.runModTickHooks(dt);
     } else if (isWorldLoading) {

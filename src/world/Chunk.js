@@ -1241,14 +1241,16 @@
   function _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy) {
     const maxEm = _initMobile ? 168 : 336;
     let emLen = 0, secLen = 0;
-    let lightNodes;
+    let lightNodes, portalNodes;
     if (sodiumOpts.fastLight && !ch._emitDirty && ch._ownEm !== undefined) {
       const own = ch._ownEm;
       emLen = Math.min(maxEm, own.length);
       for (let k = 0; k < emLen; k++) _emBuf[k] = own[k];
       lightNodes = (ch._ownNodes && ch._ownNodes.length > 0) ? ch._ownNodes : _EMPTY_NODES;
+      portalNodes = (ch._ownPortalNodes && ch._ownPortalNodes.length > 0) ? ch._ownPortalNodes : _EMPTY_NODES;
     } else {
     lightNodes = [];
+    portalNodes = [];
     const secLightNodes = [];
     for (let ly = 0; ly <= maxLy; ly++) {
       const yOff = ly << 8;
@@ -1292,12 +1294,16 @@
           } else if (id === B.END_ROD) {
             if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.92; _emBuf[emLen+4]=0.88; _emBuf[emLen+5]=0.96; _emBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfef3ff, int: 0.88, r: 0.92, g: 0.88, b: 0.96, rad2: 196.0, prio: 1 });
-          } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL) {
-            const pR = id === B.DREAM_PORTAL ? 0.45 : (id === B.END_GATEWAY ? 0.49 : 0.69);
-            const pG = id === B.DREAM_PORTAL ? 0.75 : (id === B.END_GATEWAY ? 0.63 : 0.39);
-            const pB = id === B.END_GATEWAY ? 0.88 : 0.81;
+          } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL || id === B.WARDEN_PORTAL) {
+            const isWardP = (id === B.WARDEN_PORTAL);
+            const pR = isWardP ? 0.14 : (id === B.DREAM_PORTAL ? 0.45 : (id === B.END_GATEWAY ? 0.49 : 0.69));
+            const pG = isWardP ? 0.80 : (id === B.DREAM_PORTAL ? 0.75 : (id === B.END_GATEWAY ? 0.63 : 0.39));
+            const pB = isWardP ? 0.88 : (id === B.END_GATEWAY ? 0.88 : 0.81);
             if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=pR; _emBuf[emLen+4]=pG; _emBuf[emLen+5]=pB; _emBuf[emLen+6]=196.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: isWardP ? 0x22d3ee : (id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc)), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
+            if ((id === B.NETHER_PORTAL || id === B.DREAM_PORTAL || isWardP) && portalNodes.length < 24) {
+              portalNodes.push({ x: lwx, y: lwy, z: lwz, kind: isWardP ? 3 : (id === B.DREAM_PORTAL ? 1 : 0) });
+            }
           } else if (secLen < maxEm) {
             if (id === B.LAVA) {
               if ((lx & 3) === 0 && (lz & 3) === 0 && (ly & 1) === 0) {
@@ -1328,10 +1334,12 @@
     for (let si = 0; si < secLightNodes.length && lightNodes.length < 24; si++) lightNodes.push(secLightNodes[si]);
     ch._ownEm = emLen > 0 ? new Float32Array(_emBuf.subarray(0, emLen)) : _EMPTY_EM_BUF;
     ch._ownNodes = lightNodes;
+    ch._ownPortalNodes = portalNodes;
     ch._emitDirty = false;
     }
     const prevLightCnt = ch._prevLightCount || 0;
     ch.lightNodes = lightNodes;
+    ch.portalNodes = portalNodes;
     ch._prevLightCount = lightNodes.length;
     if (lightNodes.length > 0 && lightNodes.length !== prevLightCnt) {
       markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz);

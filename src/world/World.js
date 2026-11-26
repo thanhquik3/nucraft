@@ -4074,7 +4074,7 @@
   function updateChunkStreaming(rawDt = 0.016) {
     window._chunkBuiltThisFrame = false;
     const tBudgetStart = performance.now();
-    const frameBudgetMs = _isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 2.2 : 4.2);
+    const frameBudgetMs = (rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.4 : 1.8) : (_isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 2.2 : 4.2));
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
     const isMoving = (player.curSpeed || 0) > 1.2 || !!player.sprinting || !!player.flying;
