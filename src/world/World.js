@@ -3789,6 +3789,7 @@
     if (!force && prevId === B.BEDROCK && id !== B.BEDROCK) return;
     if (prevId === id) return;
     c.data[(ly << 8) | (lz << 4) | lx] = id;
+    if (typeof player !== 'undefined' && player && Math.abs(wx - player.x) <= 36 && Math.abs(wz - player.z) <= 36) window._rtVolDirty = true;
     if (c.topMap) c.topMap[(lz << 4) | lx] = -1;   // minimap: cột này đổi khối cao nhất
     c.mapDirty = true;
     if (typeof _mmTerrainVer === 'number') _mmTerrainVer++;
@@ -7910,6 +7911,7 @@
     depthOffset = 0;
     chunkWorkerPool.clear();
     window._worldWarmupUntil = performance.now() + 5500;
+    window._rtVolDirty = true;
     _clearWorldInteractiveCaches(true, false);
     if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
     if (portalOpts && portalOpts.skipSpawnMove) return;
@@ -8124,6 +8126,7 @@
     initSeedMix(worldSeed);
     chunkWorkerPool.clear();
     window._worldWarmupUntil = performance.now() + 5500;
+    window._rtVolDirty = true;
     currentDimension = 'overworld'; depthOffset = 0;
     dimensionPortals = { overworld: [], nether: [], sift: [], warden: [] };
     lastSiftOverworldPos = null;

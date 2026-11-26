@@ -724,15 +724,19 @@
       _rtBtn.classList.toggle('active', on);
       _rtBtn.textContent = on ? tr('BẬT', 'ON') : tr('TẮT', 'OFF');
       if (typeof envUniforms !== 'undefined' && envUniforms.uRayTracing) envUniforms.uRayTracing.value = on ? 1.0 : 0.0;
+      if (on) window._rtVolDirty = true;
     };
     _syncRtBtn();
     _rtBtn.addEventListener('click', () => {
       sodiumOpts.rayTracing = !sodiumOpts.rayTracing;
       saveSodiumOpts();
       _syncRtBtn();
+      window._rtVolDirty = true;
+      if (typeof applyQualitySetting === 'function') applyQualitySetting(shaderQuality, false);
+      if (typeof updateRayTracingVoxelVolume === 'function') updateRayTracingVoxelVolume(true);
       window._postFxDirty = true;
       if (typeof window._fgReset === 'function') window._fgReset();
-      showToast(sodiumOpts.rayTracing ? tr('✨ Ray Tracing: ĐÃ BẬT', '✨ Ray Tracing: ON') : tr('✨ Ray Tracing: ĐÃ TẮT', '✨ Ray Tracing: OFF'));
+      showToast(sodiumOpts.rayTracing ? tr('✨ Ray Tracing 3D: ĐÃ BẬT', '✨ 3D Ray Tracing: ON') : tr('✨ Ray Tracing 3D: ĐÃ TẮT', '✨ 3D Ray Tracing: OFF'));
     });
   }
   document.getElementById('btnCloudMode').addEventListener('click', (e) => {

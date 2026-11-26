@@ -1072,6 +1072,7 @@
     if (ch.dirty) _dirtyChunkSet.add(ch);
     if (ch.urgentDirty) _urgentChunkSet.add(ch);
     if (ch.borderDirty) _borderChunkSet.add(ch);
+    if (typeof player !== 'undefined' && player && Math.abs((ch.cx << 4) + 8 - player.x) <= 44 && Math.abs((ch.cz << 4) + 8 - player.z) <= 44) window._rtVolDirty = true;
     return ch;
   }
   const _flushScratch = [];
@@ -1769,7 +1770,7 @@
         : (id === B.BUSH_GRASS ? (0.98 + pr1 * 0.14)
         : (id === B.SHORT_GRASS ? (0.56 + pr1 * 0.14)
         : (id === B.TALL_GRASS ? (0.82 + pr1 * 0.20) : 0.90))));
-      if (isBushyTuft && !isStacked && shaderQuality !== 'low') {
+      if (isBushyTuft && !isStacked && (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing))) {
         const r = (id === B.BUSH_GRASS || id === B.WILD_TALL_GRASS) ? 0.48 : 0.44;
         const rTop = r * 1.18;
         const cxp = 0.5 + jx, czp = 0.5 + jz, s60 = 0.8660254, c60 = 0.5;
@@ -2341,7 +2342,7 @@
     const maxLy = Math.min(WORLD_H - 1, ch.maxLy);
     const emLen = _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy);
     const hasFluidLevels = (fluidLevel.size > 0);
-    const computeAO = (shaderQuality !== 'low');
+    const computeAO = (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing));
 
     const ePos = _ePos, eUvs = _eUvs, eType = _eType, eIndices = _eIndices;
     const ptPos = _ptPos, ptUvs = _ptUvs, ptKind = _ptKind, ptIndices = _ptIndices;
@@ -2594,8 +2595,12 @@
 
     disposeChunkMeshes(ch, true);
 
+    const _rtMeshOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+    const _effLow = (shaderQuality === 'low' && !_rtMeshOn);
+    const _effUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtMeshOn);
     const _shPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
-    const _shChunkRad = _shPreset.shadowChunkRange > 0 ? Math.max(1, Math.ceil(_shPreset.shadowChunkRange / CHUNK_W)) : -1;
+    const _rawShRange = _shPreset.shadowChunkRange > 0 ? _shPreset.shadowChunkRange : (_rtMeshOn ? 32 : 0);
+    const _shChunkRad = _rawShRange > 0 ? Math.max(1, Math.ceil(_rawShRange / CHUNK_W)) : -1;
     const nearShadow = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= _shChunkRad);
     if (st.vCount > 0) {
       const geo = new THREE.BufferGeometry();
@@ -2620,9 +2625,9 @@
       lGeo.setAttribute('aBlockLight', new THREE.BufferAttribute(_lBL.slice(0, st.lCount * 3), 3));
       lGeo.setIndex(_makeIdxAttr(_lIdx, st.liCount, st.lCount));
       _assignChunkBounds(lGeo, wx0, wz0, maxLy);
-      ch.leavesMesh = new THREE.Mesh(lGeo, shaderQuality === 'low' ? leavesMatLow : leavesMat);
-      if (shaderQuality === 'ultra') ch.leavesMesh.customDepthMaterial = leavesDepthMat;
-      ch.leavesMesh.castShadow = (shaderQuality === 'ultra' && nearShadow); ch.leavesMesh.receiveShadow = (shaderQuality !== 'low'); ch.leavesMesh.frustumCulled = true;
+      ch.leavesMesh = new THREE.Mesh(lGeo, _effLow ? leavesMatLow : leavesMat);
+      if (_effUltra) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
+      ch.leavesMesh.castShadow = (_effUltra && nearShadow); ch.leavesMesh.receiveShadow = !_effLow; ch.leavesMesh.frustumCulled = true;
       ch.leavesMesh.matrixAutoUpdate = false; ch.leavesMesh.updateMatrix();
       scene.add(ch.leavesMesh);
     }

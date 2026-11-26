@@ -48,15 +48,20 @@
   function applyQualitySetting(val, persist = false) {
     val = (CFG.normalizeQuality ? CFG.normalizeQuality(val, 'high') : val);
     shaderQuality = val;
+    const rtOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
     const isLow = (val === 'low'), isExtreme = (val === 'extreme'), isUltra = (val === 'ultra' || isExtreme);
+    const effShadowOn = !isLow || rtOn;
+    const effUltra = isUltra || rtOn;
     const direct = _useDirectRender();
     const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[val]) || { shadowSize: 1024, reflW: 256, reflH: 144 };
     document.querySelectorAll('#qualitySeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === val));
-    envUniforms.uQuality.value = isUltra ? 2.0 : (isLow ? 0.0 : 1.0);
-    renderer.shadowMap.enabled = !isLow;
-    sunLight.castShadow = !isLow;
+    envUniforms.uQuality.value = isUltra ? 2.0 : ((isLow && !rtOn) ? 0.0 : (rtOn ? 2.0 : 1.0));
+    if (envUniforms.uRtQuality) envUniforms.uRtQuality.value = (_initMobile || _isWeakDevice || val === 'high' || isLow) ? 0.0 : 1.0;
+    renderer.shadowMap.enabled = effShadowOn;
+    sunLight.castShadow = effShadowOn;
     const dedGpu = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
-    const wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 4096 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
+    let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 4096 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
+    if (rtOn && !_initMobile) wantShSize = Math.max(wantShSize, 2048);
     if (sunLight.shadow.mapSize.width !== wantShSize) {
       sunLight.shadow.mapSize.set(wantShSize, wantShSize);
       if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
@@ -64,18 +69,18 @@
     if (preset.reflW > 0 && preset.reflH > 0 && (reflRT.width !== preset.reflW || reflRT.height !== preset.reflH)) {
       reflRT.setSize(preset.reflW, preset.reflH);
     }
-    renderer.shadowMap.type = (isUltra && !_initMobile) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.type = (effUltra && !_initMobile) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
-    _lastShCx = 999999; _lastShCz = 999999;
+    _lastShCx = 999999; _lastShCz = 999999; _lastShQual = '';
     _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
     _postFxDirty = true;
-    renderer.localClippingEnabled = !isLow;
-    if (isLow) {
+    renderer.localClippingEnabled = !isLow || rtOn;
+    if (isLow && !rtOn) {
       const sTex = getAtlasSolidTex();
       if (leavesMatLow.map !== sTex) { leavesMatLow.map = sTex; leavesMatLow.needsUpdate = true; }
     }
-    terrainMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? 0.058 : 0.0);
-    leavesMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? 0.030 : 0.0);
+    terrainMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
+    leavesMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.042 : 0.030) : 0.0);
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(val)));
     if (persist && CFG.saveGfxPrefs) {
@@ -1055,7 +1060,8 @@
     camera.getWorldDirection(camFwdRay);
     const sunAlign3D = camFwdRay.dot(activeLightVec);
     const _allowRays = player.eyesInWater ? (diveDepth < 65 && dayWeight > 0.15) : (player.y > -4);
-    if (shaderQuality !== 'low' && _allowRays && sunAlign3D > 0.02 && (activeLightVec.y > -0.08 || isNightShadow)) {
+    const _rtRaysOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+    if ((shaderQuality !== 'low' || _rtRaysOn) && _allowRays && sunAlign3D > 0.02 && (activeLightVec.y > -0.08 || isNightShadow)) {
       activeLightVec.multiplyScalar(120).add(camera.position).project(camera);
       if (activeLightVec.z < 1.0) {
         const u = activeLightVec.x * 0.5 + 0.5, v = activeLightVec.y * 0.5 + 0.5;
@@ -1069,7 +1075,8 @@
         const baseStr = isNightShadow ? 0.32 : ((0.38 + sunsetWeight * 0.30) * dayWeight * noonRayDamp);
         const uwAtten = player.eyesInWater ? Math.max(0, 1.0 - diveDepth / 58) * (shaderPreset === 'eclipse' ? 1.28 : 0.82) : 1.0;
         const chillRayBoost = (!player.eyesInWater && shaderPreset === 'chill_sunset') ? 1.65 : ((!player.eyesInWater && shaderPreset === 'eclipse') ? 1.55 : ((!player.eyesInWater && shaderPreset === 'dlss_ultra') ? 1.35 : 1.0));
-        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.54 : (shaderPreset === 'chill_sunset' ? 0.55 : (shaderPreset === 'dlss_ultra' ? 0.44 : 0.32))), lookAlign * baseStr * chillRayBoost * weatherDim * uwAtten);
+        const rtRayMul = _rtRaysOn ? 1.24 : 1.0;
+        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.54 : (shaderPreset === 'chill_sunset' ? 0.55 : (shaderPreset === 'dlss_ultra' ? 0.44 : 0.32))), lookAlign * baseStr * chillRayBoost * rtRayMul * weatherDim * uwAtten);
         envUniforms.uSunScreenPos.value.set(u, v);
         envUniforms.uSunVis.value = shaftAmt;
         envUniforms.uLightScreenPos.value.set(u, v);
@@ -1170,9 +1177,11 @@
     const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4;
     if ((pcx !== _lastShCx || pcz !== _lastShCz || shaderQuality !== _lastShQual) && chunks.size > 0) {
       _lastShCx = pcx; _lastShCz = pcz; _lastShQual = shaderQuality;
+      const _rtShOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
-      const maxChDist = preset.shadowChunkRange > 0 ? Math.max(1, Math.ceil(preset.shadowChunkRange / CHUNK_W)) : -1;
-      const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
+      const effShRange = preset.shadowChunkRange > 0 ? preset.shadowChunkRange : (_rtShOn ? 32 : 0);
+      const maxChDist = effShRange > 0 ? Math.max(1, Math.ceil(effShRange / CHUNK_W)) : -1;
+      const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtShOn);
       for (const ch of chunks.values()) {
         const near = maxChDist >= 0 && Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz)) <= maxChDist;
         if (ch.mesh && ch.mesh.castShadow !== near) ch.mesh.castShadow = near;
@@ -1188,7 +1197,8 @@
   const _reflHiddenChunks = [], _reflHiddenMobs = [];
   const _REFL_CLIP_ARR = [reflClipPlane], _EMPTY_CLIP_ARR = [];
   function renderWaterReflectionPass(inLobby = false, rawDt = 0.016) {
-    if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.eyesInLava || player.y < -4 || camera.rotation.x > 0.35) {
+    const _rtReflOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+    if ((!sodiumOpts.waterRefl && !_rtReflOn) || _autoPerfLow || (shaderQuality === 'low' && !_rtReflOn) || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.eyesInLava || player.y < -4 || camera.rotation.x > 0.35) {
       envUniforms.uUsePlanarRefl.value = 0.0;
       _reflDoneOnce = false;
       return;
@@ -1657,9 +1667,10 @@
         : (player.eyesInWater ? (trueY <= -450 ? _tr('🌊 Vực Hadal -700m', '🌊 Hadal Trench -700m') : (trueY <= -200 ? _tr('🌊 Vực Đêm Sâu', '🌊 Midnight Zone') : (trueY <= -60 ? _tr('🌊 Tầng Chạng Vạng', '🌊 Twilight Zone') : _tr('🌊 Đại Dương Rộng Lớn', '🌊 Deep Ocean'))))
         : _locB(ugBioHud || curBio)))));
       const _fgTag = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1) ? ` AI-FG x${sodiumOpts.frameGen | 0}` : '';
+      const _rtTag = (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing) ? ' • ✨RTX' : '';
       const fpsTag = (sodiumOpts.fpsHud && window._nucraftFps)
-        ? ` • ${window._nucraftFps} FPS${_fgTag} (E:${mobs.length - _culledEntitiesCount}/${mobs.length} C:${chunks.size})`
-        : '';
+        ? ` • ${window._nucraftFps} FPS${_fgTag}${_rtTag} (E:${mobs.length - _culledEntitiesCount}/${mobs.length} C:${chunks.size})`
+        : _rtTag;
       const nextCoords = `${_tr('Vị trí', 'Position')}: ${Math.floor(player.x)}, ${trueY}, ${Math.floor(player.z)}${fpsTag}`;
       let _hudTxtChanged = false;
       if (nextCoords !== window._lastCoordsTxt) { window._lastCoordsTxt = nextCoords; _elCoords.textContent = nextCoords; _hudTxtChanged = true; }
@@ -1720,6 +1731,7 @@
           }
         }
         updateSunShadowFrustum(!!renderer.shadowMap.needsUpdate);
+        if (typeof updateRayTracingVoxelVolume === 'function') updateRayTracingVoxelVolume(false);
         renderWaterReflectionPass(inLobby, rawDt);
         renderMainScene(rawDt, false);
       }
@@ -1797,6 +1809,10 @@
   applyQualitySetting(shaderQuality, false); applyBumpToggle(bumpEnabled);
   applyShaderPreset(shaderPreset, false);
   { const _initSeed = generateUniqueRandomSeed(); const _is = document.getElementById('inpWorldSeed'); if (_is) _is.value = String(_initSeed); currentWorldMeta.seed = _initSeed; resetWorld(_initSeed); }
+  if (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing && typeof updateRayTracingVoxelVolume === 'function') {
+    window._rtVolDirty = true;
+    updateRayTracingVoxelVolume(true);
+  }
   initLobbySkinPicker();
   if (typeof initModManager === 'function') initModManager();
   renderSavedWorldsList();
@@ -2139,6 +2155,26 @@
     playerCollides: (x, y, z) => playerCollides(x, y, z),
     getFenceWallBoxes: (wx, wy, wz) => getFenceWallBoxes(wx, wy, wz, getBlockWorld(wx, wy, wz)),
     setBlockWorld: (x, y, z, id) => { setBlockWorld(x, y, z, id, true); flushUrgentChunks(32, true); },
+    getRayTracingStats: () => (typeof _getRtStats === 'function' ? _getRtStats() : { enabled: false }),
+    setRayTracing: (on) => {
+      const target = !!on;
+      if (typeof sodiumOpts !== 'undefined') {
+        sodiumOpts.rayTracing = target;
+        if (typeof saveSodiumOpts === 'function') saveSodiumOpts();
+      }
+      if (envUniforms.uRayTracing) envUniforms.uRayTracing.value = target ? 1.0 : 0.0;
+      const btn = document.getElementById('btnRayTracing');
+      if (btn) {
+        btn.classList.toggle('active', target);
+        btn.textContent = target ? (typeof tr === 'function' ? tr('BẬT', 'ON') : 'BẬT') : (typeof tr === 'function' ? tr('TẮT', 'OFF') : 'TẮT');
+      }
+      window._rtVolDirty = true;
+      applyQualitySetting(shaderQuality, false);
+      if (target && typeof updateRayTracingVoxelVolume === 'function') updateRayTracingVoxelVolume(true);
+      window._postFxDirty = true;
+      if (typeof window._fgReset === 'function') window._fgReset();
+      return (typeof _getRtStats === 'function' ? _getRtStats() : { enabled: target });
+    },
     getHighlightDebug: () => ({
       visible: highlightMesh.visible,
       sx: +highlightMesh.scale.x.toFixed(3), sy: +highlightMesh.scale.y.toFixed(3), sz: +highlightMesh.scale.z.toFixed(3),

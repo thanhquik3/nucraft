@@ -43,7 +43,7 @@
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = (shaderQuality !== 'low');
-  const _useDirectRender = () => (shaderQuality === 'low');
+  const _useDirectRender = () => (shaderQuality === 'low' && !(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = 0.96;
   renderer.setClearColor(0x9bc4e8, 1);
@@ -141,8 +141,347 @@
     uGrassSoilRadius: { value: _isMobilePerf ? 16.0 : 24.0 },
     uSurfaceLight: { value: 1.0 },
     uRayTracing: { value: 0.0 },
-    uReflClipY: { value: -9999.0 }
+    uReflClipY: { value: -9999.0 },
+    uRtVoxelTex: { value: null },
+    uRtOrigin: { value: new THREE.Vector3(-32, -8, -32) },
+    uRtQuality: { value: _initMobile ? 0.0 : 1.0 }
   };
+
+  // Real-time GPU 3D Voxel Acceleration Volume (64x32x64 packed into 512x256 RGBA DataTexture, WebGL1+2 compatible)
+  const RT_VOL_W = 64, RT_VOL_H = 32, RT_VOL_D = 64, RT_TEX_W = 512, RT_TEX_H = 256;
+  const rtVoxelBytes = new Uint8Array(RT_TEX_W * RT_TEX_H * 4);
+  const rtVoxelTex = new THREE.DataTexture(rtVoxelBytes, RT_TEX_W, RT_TEX_H, THREE.RGBAFormat);
+  rtVoxelTex.minFilter = THREE.NearestFilter;
+  rtVoxelTex.magFilter = THREE.NearestFilter;
+  rtVoxelTex.wrapS = THREE.ClampToEdgeWrapping;
+  rtVoxelTex.wrapT = THREE.ClampToEdgeWrapping;
+  rtVoxelTex.generateMipmaps = false;
+  rtVoxelTex.flipY = false;
+  rtVoxelTex.needsUpdate = true;
+  envUniforms.uRtVoxelTex.value = rtVoxelTex;
+
+  let _rtLutReady = false, _rtLutCap = 0;
+  let _rtLutKind = null, _rtLutR = null, _rtLutG = null, _rtLutB = null;
+  let _rtLastOx = 9e8, _rtLastOy = 9e8, _rtLastOz = 9e8, _rtLastDim = '';
+  let _rtLastBuildMs = 0, _rtBuildMs = 0, _rtUpdates = 0, _rtActiveVoxels = 0;
+  function _rtEnsureLut() {
+    if (_rtLutReady || typeof BLOCK_DEF === 'undefined' || typeof B === 'undefined') return _rtLutReady;
+    const cap = (typeof BLOCK_LUT_CAP !== 'undefined' && BLOCK_LUT_CAP > 0) ? BLOCK_LUT_CAP : 2048;
+    _rtLutCap = cap;
+    _rtLutKind = new Uint8Array(cap);
+    _rtLutR = new Uint8Array(cap);
+    _rtLutG = new Uint8Array(cap);
+    _rtLutB = new Uint8Array(cap);
+    const _EMIT_RGB = {
+      [B.LAVA]: [255, 112, 22], [B.MAGMA_BLOCK]: [236, 86, 20], [B.FIRE]: [255, 176, 48], [B.SOUL_FIRE]: [72, 226, 255],
+      [B.TORCH_BLOCK]: [255, 194, 80], [B.LANTERN]: [255, 206, 98], [B.SOUL_LANTERN]: [76, 236, 255], [B.CAMPFIRE]: [255, 158, 56],
+      [B.SHROOMLIGHT]: [255, 184, 86], [B.SEA_LANTERN]: [166, 246, 240], [B.GLOW_CRYSTAL]: [120, 220, 255], [B.MUSHROOM_GLOW]: [125, 245, 215],
+      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245],
+      [B.END_PORTAL_FRAME_EYE]: [92, 244, 195], [B.END_CRYSTAL_BLOCK]: [244, 114, 225], [B.NETHER_PORTAL]: [188, 78, 255],
+      [B.DREAM_PORTAL]: [110, 235, 255], [B.WARDEN_PORTAL]: [34, 211, 238], [B.CANDLE]: [255, 206, 115], [B.REDSTONE]: [235, 45, 35],
+      [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255]
+    };
+    const _GLASS_SET = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
+    const _GLOSS_SET = new Set([
+      B.OBSIDIAN, B.OBSIDIAN_SLAB, B.OBSIDIAN_SLAB_TOP, B.MARBLE_BRICK, B.MARBLE_BRICK_SLAB, B.MARBLE_BRICK_SLAB_TOP,
+      B.COPPER_ROOF, B.COPPER_SLAB, B.COPPER_SLAB_TOP, B.PRISMARINE, B.PRISMARINE_SLAB, B.PRISMARINE_SLAB_TOP,
+      B.ELEVATOR_BLOCK, B.NETHERITE_BLOCK, B.BLACKSTONE_BRICKS, B.DEEPSLATE_TILES, B.PURPUR_BLOCK, B.PURPUR_PILLAR,
+      B.IRON_CHEST, B.GOLD_CHEST, B.DIAMOND_CHEST, B.NETHERITE_CHEST, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE,
+      B.RUBY_ORE, B.LAPIS_ORE, B.QUARTZ_ORE, B.UMBRA_ORE, B.RESONANT_ORE, B.SOULFORGED_ORE, B.ENCHANT_TABLE, B.ANVIL, B.SLIME_BLOCK
+    ].filter(Boolean));
+    for (let id = 1; id < cap; id++) {
+      const d = BLOCK_DEF[id];
+      if (!d) continue;
+      let r = 136, g = 142, b = 152;
+      if (d.mapColor && typeof d.mapColor === 'string' && d.mapColor.charCodeAt(0) === 35 && d.mapColor.length >= 7) {
+        const hex = parseInt(d.mapColor.slice(1, 7), 16);
+        if (!Number.isNaN(hex)) { r = (hex >> 16) & 255; g = (hex >> 8) & 255; b = hex & 255; }
+      }
+      if (_EMIT_RGB[id]) {
+        const e = _EMIT_RGB[id];
+        _rtLutKind[id] = 224; _rtLutR[id] = e[0]; _rtLutG[id] = e[1]; _rtLutB[id] = e[2];
+      } else if (d.emissive) {
+        _rtLutKind[id] = 224;
+        _rtLutR[id] = Math.min(255, Math.round(r * 1.18 + 25));
+        _rtLutG[id] = Math.min(255, Math.round(g * 1.18 + 25));
+        _rtLutB[id] = Math.min(255, Math.round(b * 1.18 + 25));
+      } else if (id === B.WATER) {
+        _rtLutKind[id] = 160; _rtLutR[id] = 40; _rtLutG[id] = 150; _rtLutB[id] = 200;
+      } else if (_GLASS_SET.has(id) || d.glass) {
+        _rtLutKind[id] = 128; _rtLutR[id] = r; _rtLutG[id] = g; _rtLutB[id] = b;
+      } else if (d.foliage && d.solid) {
+        _rtLutKind[id] = 96; _rtLutR[id] = r; _rtLutG[id] = g; _rtLutB[id] = b;
+      } else if (_GLOSS_SET.has(id)) {
+        _rtLutKind[id] = 64; _rtLutR[id] = r; _rtLutG[id] = g; _rtLutB[id] = b;
+      } else if (d.solid) {
+        _rtLutKind[id] = 32; _rtLutR[id] = r; _rtLutG[id] = g; _rtLutB[id] = b;
+      }
+    }
+    _rtLutReady = true;
+    return true;
+  }
+
+  function updateRayTracingVoxelVolume(force = false) {
+    if (envUniforms.uRayTracing.value < 0.5) return false;
+    if (typeof player === 'undefined' || !player || typeof chunks === 'undefined' || !_rtEnsureLut()) return false;
+    const ox = Math.floor(player.x) - 32;
+    const oy = Math.max(MIN_Y, Math.min(MAX_Y - (RT_VOL_H - 1), Math.floor(player.y) - 12));
+    const oz = Math.floor(player.z) - 32;
+    const dim = (typeof currentDimension === 'string') ? currentDimension : 'overworld';
+    const now = performance.now();
+    const moved = (Math.abs(ox - _rtLastOx) >= 2 || Math.abs(oy - _rtLastOy) >= 2 || Math.abs(oz - _rtLastOz) >= 2 || dim !== _rtLastDim);
+    if (!force && !window._rtVolDirty && !moved) return false;
+    if (!force && (now - _rtLastBuildMs) < 42) return false;
+
+    const t0 = performance.now();
+    rtVoxelBytes.fill(0);
+    let activeVoxels = 0;
+    const minWy = Math.max(MIN_Y + 1, oy);
+    const maxWy = Math.min(MAX_Y, oy + RT_VOL_H - 1);
+    const cMinX = ox >> 4, cMaxX = (ox + RT_VOL_W - 1) >> 4;
+    const cMinZ = oz >> 4, cMaxZ = (oz + RT_VOL_D - 1) >> 4;
+    for (let cz = cMinZ; cz <= cMaxZ; cz++) {
+      for (let cx = cMinX; cx <= cMaxX; cx++) {
+        const ch = (typeof _getChunkFast === 'function') ? _getChunkFast(cx, cz) : chunks.get(`${cx},${cz}`);
+        if (!ch || !ch.data) continue;
+        const data = ch.data;
+        const wxBase = cx << 4, wzBase = cz << 4;
+        const x0 = Math.max(ox, wxBase), x1 = Math.min(ox + RT_VOL_W - 1, wxBase + 15);
+        const z0 = Math.max(oz, wzBase), z1 = Math.min(oz + RT_VOL_D - 1, wzBase + 15);
+        const topWy = Math.min(maxWy, MIN_Y + (ch.maxLy || (WORLD_H - 1)));
+        for (let wy = minWy; wy <= topWy; wy++) {
+          const ly = wy - MIN_Y, vy = wy - oy;
+          const tileX = vy & 7, tileY = vy >> 3;
+          const lyOff = ly << 8;
+          const baseTexX = tileX * 64 + (x0 - ox);
+          const baseTexY = tileY * 64;
+          for (let wz = z0; wz <= z1; wz++) {
+            const lz = wz - wzBase, vz = wz - oz;
+            const cRow = lyOff | (lz << 4);
+            let pIdx = ((baseTexY + vz) * 512 + baseTexX) * 4;
+            for (let wx = x0; wx <= x1; wx++, pIdx += 4) {
+              const id = data[cRow | (wx - wxBase)];
+              if (!id) continue;
+              const kind = _rtLutKind[id];
+              if (!kind) continue;
+              rtVoxelBytes[pIdx]     = _rtLutR[id];
+              rtVoxelBytes[pIdx + 1] = _rtLutG[id];
+              rtVoxelBytes[pIdx + 2] = _rtLutB[id];
+              rtVoxelBytes[pIdx + 3] = kind;
+              activeVoxels++;
+            }
+          }
+        }
+      }
+    }
+    envUniforms.uRtOrigin.value.set(ox, oy, oz);
+    if (envUniforms.uRtQuality) envUniforms.uRtQuality.value = (_initMobile || _isWeakDevice || shaderQuality === 'high') ? 0.0 : 1.0;
+    rtVoxelTex.needsUpdate = true;
+    _rtLastOx = ox; _rtLastOy = oy; _rtLastOz = oz; _rtLastDim = dim;
+    _rtLastBuildMs = now;
+    _rtBuildMs = +(performance.now() - t0).toFixed(2);
+    _rtUpdates++;
+    _rtActiveVoxels = activeVoxels;
+    window._rtVolDirty = false;
+    return true;
+  }
+
+  function _getRtStats() {
+    return {
+      enabled: envUniforms.uRayTracing.value > 0.5,
+      qualityMode: envUniforms.uRtQuality ? envUniforms.uRtQuality.value : 0,
+      origin: [envUniforms.uRtOrigin.value.x, envUniforms.uRtOrigin.value.y, envUniforms.uRtOrigin.value.z],
+      dims: [RT_VOL_W, RT_VOL_H, RT_VOL_D],
+      texSize: [RT_TEX_W, RT_TEX_H],
+      activeVoxels: _rtActiveVoxels,
+      updates: _rtUpdates,
+      lastBuildMs: _rtBuildMs,
+      shadowMapEnabled: !!renderer.shadowMap.enabled,
+      shadowSize: sunLight.shadow.mapSize.width,
+      postFxDirect: _useDirectRender()
+    };
+  }
+
+  // Shared GLSL ES 1.00 Amanatides-Woo 3D Voxel DDA Ray Tracer (Sun Shadows, Colored GI Bounce, Emissive Radiance & Mirror Reflections)
+  const RT_DDA_GLSL = `
+    uniform sampler2D uRtVoxelTex;
+    uniform vec3 uRtOrigin;
+    uniform float uRtQuality;
+    float rtInVol(vec3 wp) {
+      vec3 r = wp - uRtOrigin;
+      return smoothstep(0.0, 2.5, r.x) * smoothstep(64.0, 61.5, r.x)
+           * smoothstep(0.0, 2.0, r.y) * smoothstep(32.0, 29.5, r.y)
+           * smoothstep(0.0, 2.5, r.z) * smoothstep(64.0, 61.5, r.z);
+    }
+    vec4 rtSampleVoxel(vec3 rel) {
+      if (rel.x < 0.0 || rel.x >= 64.0 || rel.y < 0.0 || rel.y >= 32.0 || rel.z < 0.0 || rel.z >= 64.0) return vec4(0.0);
+      float vx = floor(rel.x);
+      float vy = floor(rel.y);
+      float vz = floor(rel.z);
+      float tileY = floor(vy * 0.125 + 0.0001);
+      float tileX = vy - tileY * 8.0;
+      vec2 uv = vec2((tileX * 64.0 + vx + 0.5) / 512.0, (tileY * 64.0 + vz + 0.5) / 256.0);
+      return texture2D(uRtVoxelTex, uv);
+    }
+    vec3 rtTraceSunShadow(vec3 wp, vec3 nrm, vec3 sunDir, out float shDist) {
+      shDist = 32.0;
+      vec3 p0 = wp + nrm * 0.07;
+      vec3 invD = vec3(abs(sunDir.x) > 1e-4 ? 1.0 / sunDir.x : 1e4, abs(sunDir.y) > 1e-4 ? 1.0 / sunDir.y : 1e4, abs(sunDir.z) > 1e-4 ? 1.0 / sunDir.z : 1e4);
+      vec3 sgn = vec3(sunDir.x >= 0.0 ? 1.0 : -1.0, sunDir.y >= 0.0 ? 1.0 : -1.0, sunDir.z >= 0.0 ? 1.0 : -1.0);
+      vec3 cell = floor(p0);
+      vec3 tMax = (cell + max(sgn, vec3(0.0)) - p0) * invD;
+      vec3 tDelta = abs(invD);
+      vec3 tr = vec3(1.0);
+      float hitT = 0.0;
+      for (int i = 0; i < 22; i++) {
+        if (tMax.x < tMax.y) {
+          if (tMax.x < tMax.z) { hitT = tMax.x; cell.x += sgn.x; tMax.x += tDelta.x; }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; }
+        } else {
+          if (tMax.y < tMax.z) { hitT = tMax.y; cell.y += sgn.y; tMax.y += tDelta.y; }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; }
+        }
+        vec3 rel = cell - uRtOrigin;
+        if (rel.x < 0.0 || rel.x >= 64.0 || rel.y < 0.0 || rel.y >= 32.0 || rel.z < 0.0 || rel.z >= 64.0) break;
+        vec4 vox = rtSampleVoxel(rel);
+        float k = vox.a * 255.0;
+        if (k < 16.0 || k >= 192.0) continue;
+        if (k >= 144.0) {
+          tr *= vec3(0.84, 0.94, 0.98);
+          continue;
+        }
+        if (k >= 112.0) {
+          shDist = min(shDist, hitT);
+          tr *= clamp(vox.rgb * 0.72 + vec3(0.24), 0.22, 0.88);
+          if (max(tr.r, max(tr.g, tr.b)) < 0.06) break;
+          continue;
+        }
+        if (k >= 80.0) {
+          shDist = min(shDist, hitT);
+          tr *= clamp(vox.rgb * 0.56 + vec3(0.08), 0.14, 0.52);
+          if (max(tr.r, max(tr.g, tr.b)) < 0.06) break;
+          continue;
+        }
+        shDist = hitT;
+        return vec3(0.0);
+      }
+      return tr;
+    }
+    vec4 rtTraceGI(vec3 wp, vec3 nrm, vec3 sunDir, vec3 skyCol, vec3 sunCol, float sunUp, float ign, float camDist) {
+      vec3 upAxis = abs(nrm.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+      vec3 tU = normalize(cross(upAxis, nrm));
+      vec3 tV = cross(nrm, tU);
+      vec3 p0 = wp + nrm * 0.07;
+      float nRays = (uRtQuality > 0.5 && camDist < 22.0) ? 4.0 : 2.0;
+      float maxStepsF = (uRtQuality > 0.5 && camDist < 22.0) ? 9.0 : 7.0;
+      float ang0 = ign * 6.2831853;
+      vec3 bounce = vec3(0.0), emit = vec3(0.0);
+      float skyVis = 0.0;
+      for (int ri = 0; ri < 4; ri++) {
+        if (float(ri) >= nRays) break;
+        float fracR = (float(ri) + 0.5) / nRays;
+        float phi = ang0 + float(ri) * 2.3999632;
+        float rSin = sqrt(clamp(0.18 + fracR * 0.72, 0.05, 0.96));
+        float rCos = sqrt(max(0.04, 1.0 - rSin * rSin));
+        vec3 rd = normalize(tU * (cos(phi) * rSin) + tV * (sin(phi) * rSin) + nrm * rCos);
+        vec3 invD = vec3(abs(rd.x) > 1e-4 ? 1.0 / rd.x : 1e4, abs(rd.y) > 1e-4 ? 1.0 / rd.y : 1e4, abs(rd.z) > 1e-4 ? 1.0 / rd.z : 1e4);
+        vec3 sgn = vec3(rd.x >= 0.0 ? 1.0 : -1.0, rd.y >= 0.0 ? 1.0 : -1.0, rd.z >= 0.0 ? 1.0 : -1.0);
+        vec3 cell = floor(p0);
+        vec3 tMax = (cell + max(sgn, vec3(0.0)) - p0) * invD;
+        vec3 tDelta = abs(invD);
+        float hitT = 0.0;
+        vec3 hitN = vec3(0.0, 1.0, 0.0);
+        bool hitSolid = false;
+        for (int si = 0; si < 9; si++) {
+          if (float(si) >= maxStepsF) break;
+          if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { hitT = tMax.x; cell.x += sgn.x; tMax.x += tDelta.x; hitN = vec3(-sgn.x, 0.0, 0.0); }
+            else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; hitN = vec3(0.0, 0.0, -sgn.z); }
+          } else {
+            if (tMax.y < tMax.z) { hitT = tMax.y; cell.y += sgn.y; tMax.y += tDelta.y; hitN = vec3(0.0, -sgn.y, 0.0); }
+            else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; hitN = vec3(0.0, 0.0, -sgn.z); }
+          }
+          vec3 rel = cell - uRtOrigin;
+          if (rel.x < 0.0 || rel.x >= 64.0 || rel.y < 0.0 || rel.y >= 32.0 || rel.z < 0.0 || rel.z >= 64.0) break;
+          vec4 vox = rtSampleVoxel(rel);
+          float k = vox.a * 255.0;
+          if (k < 16.0 || (k >= 144.0 && k < 192.0)) continue;
+          if (k >= 192.0) {
+            float attE = 1.0 / (1.0 + hitT * hitT * 0.09);
+            emit += vox.rgb * attE * 2.20;
+            hitSolid = true;
+            break;
+          }
+          float hNdL = max(dot(hitN, sunDir), 0.0);
+          vec3 hIrr = sunCol * (hNdL * sunUp * 1.48) + skyCol * (0.28 + 0.34 * max(hitN.y, 0.0)) * (0.30 + 0.70 * sunUp);
+          float attB = 1.0 / (1.0 + hitT * 0.20);
+          bounce += vox.rgb * hIrr * attB;
+          hitSolid = true;
+          break;
+        }
+        if (!hitSolid) skyVis += 1.0;
+      }
+      return vec4((bounce + emit) / nRays, skyVis / nRays);
+    }
+    vec4 rtTraceReflection(vec3 wp, vec3 rd, vec3 sunDir, vec3 sunCol, vec3 skyTop, vec3 skyHor, float sunUp, float distScale) {
+      vec3 p0 = wp;
+      vec3 invD = vec3(abs(rd.x) > 1e-4 ? 1.0 / rd.x : 1e4, abs(rd.y) > 1e-4 ? 1.0 / rd.y : 1e4, abs(rd.z) > 1e-4 ? 1.0 / rd.z : 1e4);
+      vec3 sgn = vec3(rd.x >= 0.0 ? 1.0 : -1.0, rd.y >= 0.0 ? 1.0 : -1.0, rd.z >= 0.0 ? 1.0 : -1.0);
+      vec3 cell = floor(p0);
+      vec3 tMax = (cell + max(sgn, vec3(0.0)) - p0) * invD;
+      vec3 tDelta = abs(invD);
+      float hitT = 0.0;
+      vec3 hitN = vec3(0.0, 1.0, 0.0);
+      float maxSt = (uRtQuality > 0.5) ? 28.0 : 18.0;
+      for (int i = 0; i < 28; i++) {
+        if (float(i) >= maxSt) break;
+        if (tMax.x < tMax.y) {
+          if (tMax.x < tMax.z) { hitT = tMax.x; cell.x += sgn.x; tMax.x += tDelta.x; hitN = vec3(-sgn.x, 0.0, 0.0); }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; hitN = vec3(0.0, 0.0, -sgn.z); }
+        } else {
+          if (tMax.y < tMax.z) { hitT = tMax.y; cell.y += sgn.y; tMax.y += tDelta.y; hitN = vec3(0.0, -sgn.y, 0.0); }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; hitN = vec3(0.0, 0.0, -sgn.z); }
+        }
+        vec3 rel = cell - uRtOrigin;
+        if (rel.x < 0.0 || rel.x >= 64.0 || rel.y < 0.0 || rel.y >= 32.0 || rel.z < 0.0 || rel.z >= 64.0) break;
+        vec4 vox = rtSampleVoxel(rel);
+        float k = vox.a * 255.0;
+        if (k < 16.0 || (k >= 144.0 && k < 192.0)) continue;
+        float fade = 1.0 - smoothstep(distScale * 0.68, distScale, hitT);
+        if (k >= 192.0) return vec4(vox.rgb * 1.42, fade);
+        float hNdL = max(dot(hitN, sunDir), 0.0);
+        vec3 hSky = mix(skyHor, skyTop, clamp(hitN.y * 0.45 + 0.45, 0.0, 1.0));
+        vec3 hSun = sunCol * hNdL * sunUp * 0.94 + hSky * (0.22 + 0.36 * sunUp) + vec3(0.06, 0.11, 0.22) * (1.0 - sunUp);
+        return vec4(vox.rgb * hSun, fade);
+      }
+      return vec4(0.0);
+    }
+    vec4 rtTraceRefractFloor(vec3 wp, vec3 rd) {
+      vec3 p0 = wp;
+      vec3 invD = vec3(abs(rd.x) > 1e-4 ? 1.0 / rd.x : 1e4, abs(rd.y) > 1e-4 ? 1.0 / rd.y : 1e4, abs(rd.z) > 1e-4 ? 1.0 / rd.z : 1e4);
+      vec3 sgn = vec3(rd.x >= 0.0 ? 1.0 : -1.0, rd.y >= 0.0 ? 1.0 : -1.0, rd.z >= 0.0 ? 1.0 : -1.0);
+      vec3 cell = floor(p0);
+      vec3 tMax = (cell + max(sgn, vec3(0.0)) - p0) * invD;
+      vec3 tDelta = abs(invD);
+      float hitT = 0.0;
+      for (int i = 0; i < 6; i++) {
+        if (tMax.x < tMax.y) {
+          if (tMax.x < tMax.z) { hitT = tMax.x; cell.x += sgn.x; tMax.x += tDelta.x; }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; }
+        } else {
+          if (tMax.y < tMax.z) { hitT = tMax.y; cell.y += sgn.y; tMax.y += tDelta.y; }
+          else { hitT = tMax.z; cell.z += sgn.z; tMax.z += tDelta.z; }
+        }
+        vec3 rel = cell - uRtOrigin;
+        if (rel.x < 0.0 || rel.x >= 64.0 || rel.y < 0.0 || rel.y >= 32.0 || rel.z < 0.0 || rel.z >= 64.0) break;
+        vec4 vox = rtSampleVoxel(rel);
+        float k = vox.a * 255.0;
+        if (k < 16.0 || (k >= 144.0 && k < 192.0)) continue;
+        return vec4(vox.rgb, exp(-hitT * 0.34));
+      }
+      return vec4(0.0);
+    }
+  `;
 
   // Crisp 16x16 Pixel-Art Terrain Material w/ Linear-Rich BSL/Complementary Albedo, Warm Sun vs Soft Balanced Shadows & Anti-Glare Shoulder
   const terrainMat = new THREE.MeshStandardMaterial({
@@ -154,7 +493,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v70';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v71';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -164,7 +503,8 @@
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
-      uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
+      uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
+      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
@@ -174,6 +514,7 @@
         uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
+        ${RT_DDA_GLSL}
         // Authentic BSL / Eclipse Rotated Cellular Underwater Caustics
         float waterCaustics(vec3 wp, float t) {
           vec2 p = wp.xz * 0.44 - wp.y * vec2(0.28, 0.22);
@@ -242,16 +583,44 @@
         float extSun = sunUpB * clamp(uSurfaceLight, 0.0, 1.0);
         float skyHemi = clamp(nrmW.y * 0.5 + 0.5, 0.0, 1.0);
         vec3 bounceGnd = mix(vec3(0.45, 0.38, 0.28), vec3(0.58, 0.32, 0.16), uChillMode);
-        outgoingLight += diffuseColor.rgb * mix(bounceGnd * mix(1.0, 1.32, uRayTracing), uSkyTop * mix(1.0, 1.24, uRayTracing), skyHemi) * (0.030 + 0.012 * uChillMode + 0.016 * uDlssMode + 0.020 * uEclipseMode + 0.042 * uRayTracing) * extSun;
-        if (uRayTracing > 0.5 && uSurfaceLight < 0.35) {
-          outgoingLight += diffuseColor.rgb * vec3(0.025, 0.045, 0.075) * (1.0 - clamp(uSurfaceLight, 0.0, 1.0)) * uRayTracing;
+        float rtFade = 0.0;
+        vec4 rtGiOut = vec4(0.0, 0.0, 0.0, 1.0);
+        vec3 rtShCol = vec3(1.0);
+        float rtShMask = 1.0;
+        float rtCamD = length(cameraPosition - vWPos);
+        if (uRayTracing > 0.5 && rtCamD < 44.0) {
+          rtFade = rtInVol(vWPos) * (1.0 - smoothstep(32.0, 44.0, rtCamD));
+          if (rtFade > 0.01) {
+            float rtIgn = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+            if (sunUpB > 0.02 && ndlRaw > -0.10) {
+              float rtShDist = 32.0;
+              rtShCol = rtTraceSunShadow(vWPos, nrmW, sunL, rtShDist);
+              rtShMask = dot(rtShCol, vec3(0.3333));
+            }
+            rtGiOut = rtTraceGI(vWPos, nrmW, sunL, mix(uSkyHorizon, uSkyTop, 0.45), uSunColor, sunUpB, rtIgn, rtCamD);
+          }
         }
-        float sunLitMask = smoothstep(-0.05, 0.75, ndlRaw) * extSun;
-        float chillSunBoost = 1.0 + uChillMode * 0.16 + uDlssMode * 0.12 + uEclipseMode * 0.18 + uRayTracing * 0.12;
+        float rtAO = mix(1.0, 0.22 + 0.78 * pow(clamp(rtGiOut.a, 0.0, 1.0), 1.35), rtFade * 0.94);
+        outgoingLight *= rtAO;
+        if (rtFade > 0.01 && sunUpB > 0.02) {
+          float rtLitFade = rtFade * smoothstep(-0.02, 0.25, ndlRaw);
+          if (ndlRaw > -0.02 && rtShMask < 0.05) {
+            outgoingLight *= mix(1.0, 0.38, rtLitFade * 0.84);
+          } else if (ndlRaw > -0.02 && rtShMask < 0.94) {
+            outgoingLight *= mix(vec3(1.0), clamp(rtShCol * 1.24 + vec3(0.16), 0.20, 1.0), rtLitFade * 0.86);
+          } else if (ndlRaw > 0.02) {
+            outgoingLight += diffuseColor.rgb * uSunColor * (0.065 * smoothstep(0.02, 0.55, ndlRaw) * rtShMask * rtFade * extSun);
+          }
+          outgoingLight += diffuseColor.rgb * mix(uSkyHorizon, uSkyTop, 0.65) * (0.048 * (1.0 - smoothstep(-0.1, 0.5, ndlRaw)) * rtGiOut.a * rtFade * extSun);
+        }
+        outgoingLight += diffuseColor.rgb * mix(bounceGnd, uSkyTop, skyHemi) * (0.030 + 0.012 * uChillMode + 0.016 * uDlssMode + 0.020 * uEclipseMode) * extSun * (1.0 - rtFade * 0.65);
+        outgoingLight += diffuseColor.rgb * rtGiOut.rgb * (1.18 + 0.48 * (1.0 - rtGiOut.a)) * rtFade;
+        float sunLitMask = smoothstep(-0.05, 0.75, ndlRaw) * extSun * mix(1.0, rtShMask, rtFade * 0.94);
+        float chillSunBoost = 1.0 + uChillMode * 0.16 + uDlssMode * 0.12 + uEclipseMode * 0.18 + rtFade * 0.20;
         outgoingLight += diffuseColor.rgb * uSunColor * ((isUltraQ ? 0.048 : 0.034) * chillSunBoost * sunLitMask * whiteDamp);
         if (!isLowQ) {
           vec3 halfT = normalize(sunL + viewW);
-          float specT = pow(max(dot(nrmW, halfT), 0.0), mix(isUltraQ ? 48.0 : 36.0, 64.0, max(uDlssMode, uEclipseMode * 0.85))) * sunLitMask * ((isUltraQ ? 0.014 : 0.008) * chillSunBoost * whiteDamp + uDlssMode * 0.028 * whiteDamp + uEclipseMode * 0.020 * whiteDamp + uRayTracing * 0.026 * whiteDamp + uRainWetness * (isUltraQ ? 0.14 : 0.09));
+          float specT = pow(max(dot(nrmW, halfT), 0.0), mix(isUltraQ ? 48.0 : 36.0, 64.0, max(uDlssMode, uEclipseMode * 0.85))) * sunLitMask * ((isUltraQ ? 0.014 : 0.008) * chillSunBoost * whiteDamp + uDlssMode * 0.028 * whiteDamp + uEclipseMode * 0.020 * whiteDamp + uRayTracing * 0.040 * whiteDamp + uRainWetness * (isUltraQ ? 0.14 : 0.09));
           outgoingLight += uSunColor * specT;
           float puddleO = smoothstep(-0.15, 0.55, sin(vWPos.x * 0.42 + cos(vWPos.z * 0.37)) * cos(vWPos.z * 0.48 - sin(vWPos.x * 0.31))) * clamp(nrmW.y, 0.0, 1.0) * uRainWetness * clamp(uSurfaceLight, 0.0, 1.0);
           float puddleShim = puddleO * (0.14 + 0.10 * sin(uTime * 7.5 + vWPos.x * 5.0 + vWPos.z * 5.0));
@@ -259,7 +628,27 @@
           if (isUltraQ || uChillMode > 0.5 || uDlssMode > 0.5 || uEclipseMode > 0.5 || uRayTracing > 0.5) {
             float fresT = pow(1.0 - max(dot(nrmW, viewW), 0.0), 3.8);
             vec3 fresTint = mix(mix(uSkyHorizon, uSkyTop, 0.45), mix(uSkyHorizon, uSunColor, 0.55), max(uChillMode, uEclipseMode * 0.6));
-            outgoingLight += fresTint * fresT * (0.026 + 0.020 * uChillMode + 0.022 * uDlssMode + 0.024 * uEclipseMode + uRayTracing * 0.042 + uRainWetness * 0.08) * extSun;
+            outgoingLight += fresTint * fresT * (0.026 + 0.020 * uChillMode + 0.022 * uDlssMode + 0.024 * uEclipseMode + rtFade * 0.044 + uRainWetness * 0.08) * extSun * mix(1.0, rtGiOut.a, rtFade * 0.6);
+          }
+        }
+        if (rtFade > 0.02 && rtCamD < 28.0) {
+          vec4 rtSelf = rtSampleVoxel((vWPos - nrmW * 0.08) - uRtOrigin);
+          float rtSelfK = rtSelf.a * 255.0;
+          if (rtSelfK >= 192.0) {
+            outgoingLight += diffuseColor.rgb * 0.34 * rtFade;
+          } else {
+            float rtFres = pow(1.0 - clamp(dot(nrmW, viewW), 0.0, 1.0), 2.8);
+            float rtGloss = (rtSelfK >= 112.0 && rtSelfK < 144.0) ? 0.64 : ((rtSelfK >= 48.0 && rtSelfK < 80.0) ? 0.42 : (0.14 * rtFres * clamp(uSurfaceLight * 0.7 + 0.3, 0.0, 1.0)));
+            float rtWetRefl = clamp((wetAmt * 0.36 + clamp(uRainWetness, 0.0, 1.0) * smoothstep(0.55, 0.95, nrmW.y) * 0.40) * clamp(uSurfaceLight, 0.0, 1.0), 0.0, 0.46);
+            float rtSpecAmt = max(rtGloss, rtWetRefl);
+            if (rtSpecAmt > 0.04) {
+              vec3 rtRDir = reflect(-viewW, nrmW);
+              vec4 rtRefl = rtTraceReflection(vWPos + nrmW * 0.08, rtRDir, sunL, uSunColor, uSkyTop, uSkyHorizon, sunUpB, 22.0);
+              vec3 rtSkyR = mix(uSkyHorizon, uSkyTop, clamp(rtRDir.y * 0.6 + 0.3, 0.0, 1.0)) * (0.30 + 0.70 * sunUpB);
+              vec3 rtRCol = mix(rtSkyR, rtRefl.rgb, rtRefl.a);
+              float rtRMix = clamp(rtSpecAmt * (0.28 + 0.72 * rtFres) * rtFade * (1.0 - smoothstep(18.0, 28.0, rtCamD)), 0.0, 0.72);
+              outgoingLight = mix(outgoingLight, rtRCol * (0.42 + 0.68 * diffuseColor.rgb), rtRMix);
+            }
           }
         }
         // Murky Marine Depth Absorption (Eclipse Water_Absorb + underwater caustics)
@@ -287,9 +676,10 @@
         float outPeak = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLum = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetric = mix(outLum, outPeak, 0.55);
-        if (hiMetric > 0.58) {
-          float overH = hiMetric - 0.58;
-          float compLum = 0.58 + overH / (1.0 + overH * 2.85);
+        float hiCapT = mix(0.58, 0.96, uRayTracing);
+        if (hiMetric > hiCapT) {
+          float overH = hiMetric - hiCapT;
+          float compLum = hiCapT + overH / (1.0 + overH * mix(2.85, 1.25, uRayTracing));
           outgoingLight *= (compLum / max(hiMetric, 0.0001));
         }
         #include <opaque_fragment>`)
@@ -332,7 +722,7 @@
     map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v36';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v37';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -340,7 +730,8 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
+      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNormL;')
@@ -357,7 +748,7 @@
         }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormL = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;')
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         normal = normalize( vNormal );
         geometryNormal = normal;`)
@@ -370,25 +761,41 @@
         vec3 nDirL = normalize(vWNormL);
         bool isUltraL = (uQuality > 1.5);
         float sUp = smoothstep(-0.10, 0.24, sDirL.y);
+        float rtFadeL = 0.0;
+        vec3 rtShL = vec3(1.0);
+        float rtShLumL = 1.0;
+        if (uRayTracing > 0.5) {
+          float rtCamDL = length(cameraPosition - vWPos);
+          if (rtCamDL < 42.0) {
+            rtFadeL = rtInVol(vWPos) * (1.0 - smoothstep(30.0, 42.0, rtCamDL));
+            if (rtFadeL > 0.01 && sUp > 0.02) {
+              float rtShDL = 32.0;
+              rtShL = rtTraceSunShadow(vWPos, nDirL, sDirL, rtShDL);
+              rtShLumL = dot(rtShL, vec3(0.3333));
+            }
+          }
+        }
         float sssFwd = pow(max(dot(vDirL, sDirL), 0.0), 3.0);
         float sssBroad = max(dot(vDirL, sDirL) * 0.5 + 0.5, 0.0) * 0.24;
         float topSun = smoothstep(-0.30, 0.85, dot(nDirL, sDirL));
         outgoingLight *= mix(0.58, mix(0.92, 1.02, topSun), sUp);
+        outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.18 + vec3(0.32), 0.34, 1.0), rtFadeL * 0.84);
         vec3 leafShTint = mix(isUltraL ? vec3(0.90, 0.95, 1.06) : vec3(0.92, 0.96, 1.04), vec3(0.84, 0.88, 1.06), max(uChillMode, uEclipseMode * 0.65));
         outgoingLight = mix(outgoingLight, outgoingLight * leafShTint, (1.0 - topSun) * (isUltraL ? 0.16 : 0.11) * sUp);
-        float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0);
+        float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.25 + 0.75 * rtShLumL, rtFadeL);
         float leafLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float leafLightGain = mix(1.18, 0.55, smoothstep(0.10, 0.65, leafLuma) * sUpG);
-        float chillLeafSss = mix(isUltraL ? 0.32 : 0.20, isUltraL ? 0.48 : 0.34, uChillMode) + uDlssMode * 0.18 + uEclipseMode * 0.24 + uRayTracing * 0.28;
+        float chillLeafSss = mix(isUltraL ? 0.32 : 0.20, isUltraL ? 0.48 : 0.34, uChillMode) + uDlssMode * 0.18 + uEclipseMode * 0.24 + rtFadeL * 0.46;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.025)) * leafLightGain;
-        vec3 leafSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), mix(0.58, 0.74, max(uEclipseMode, uRayTracing * 0.85)));
-        outgoingLight += diffuseColor.rgb * ((0.048 + 0.032 * uRayTracing) * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.14, max(uChillMode, max(uEclipseMode, uRayTracing * 0.85)))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.75);
+        vec3 leafSunBal = mix(uSunColor, vec3(0.98, 0.99, 0.96), mix(0.58, 0.78, max(uEclipseMode, rtFadeL * 0.90)));
+        outgoingLight += diffuseColor.rgb * ((0.048 + 0.055 * rtFadeL) * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.22, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.75);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricL = mix(outLumL, outPeakL, 0.50);
-        if (hiMetricL > 0.60) {
-          float overL = hiMetricL - 0.60;
-          float compLumL = 0.60 + overL / (1.0 + overL * 3.10);
+        float hiCapL = mix(0.60, 0.94, uRayTracing);
+        if (hiMetricL > hiCapL) {
+          float overL = hiMetricL - hiCapL;
+          float compLumL = hiCapL + overL / (1.0 + overL * mix(3.10, 1.35, uRayTracing));
           outgoingLight *= (compLumL / max(hiMetricL, 0.0001));
         }
         #include <opaque_fragment>`)
@@ -445,7 +852,7 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v35';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v36';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -453,7 +860,8 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
+      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;\nuniform vec3 uPlayerPos;\nattribute float aPlantSway;\nattribute float aSkyShade;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying float vPlantTip;\nvarying float vSkyShade;')
@@ -480,7 +888,7 @@
         }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPlantTip = clamp(aPlantSway, 0.0, 1.0);\nvSkyShade = aSkyShade;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;')
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // Prevent DoubleSide backfaces from flipping upward (0,1,0) normals downward into black!
         normal = normalize( vNormal );
@@ -497,14 +905,29 @@
         vec3 vDirP = normalize(vWPos - cameraPosition);
         vec3 sDirP = normalize(uSunDir);
         float sUpP = smoothstep(-0.08, 0.28, sDirP.y);
-        float chillPlantMul = 1.0 + uChillMode * 0.55 + uDlssMode * 0.28 + uEclipseMode * 0.45 + uRayTracing * 0.35;
-        float pSSS = (pow(max(dot(vDirP, sDirP), 0.0), 3.0) * (uQuality > 1.5 ? 0.40 : 0.28) + 0.03 * (1.0 - uChillMode)) * chillPlantMul * smoothstep(0.15, 1.0, vPlantTip) * sUpP * vSkyShade;
-        float tipRimP = pow(1.0 - abs(vDirP.y), 2.4) * smoothstep(0.32, 1.0, vPlantTip) * (0.06 + 0.24 * uChillMode + 0.14 * uDlssMode + 0.20 * uEclipseMode) * sUpP;
+        float rtFadeP = 0.0;
+        vec3 rtShP = vec3(1.0);
+        float rtShLumP = 1.0;
+        if (uRayTracing > 0.5) {
+          float rtCamDP = length(cameraPosition - vWPos);
+          if (rtCamDP < 32.0) {
+            rtFadeP = rtInVol(vWPos) * (1.0 - smoothstep(22.0, 32.0, rtCamDP));
+            if (rtFadeP > 0.01 && sUpP > 0.02) {
+              float rtShDP = 32.0;
+              rtShP = rtTraceSunShadow(vWPos, vec3(0.0, 1.0, 0.0), sDirP, rtShDP);
+              rtShLumP = dot(rtShP, vec3(0.3333));
+            }
+          }
+        }
+        float chillPlantMul = 1.0 + uChillMode * 0.55 + uDlssMode * 0.28 + uEclipseMode * 0.45 + rtFadeP * 0.42;
+        float pSSS = (pow(max(dot(vDirP, sDirP), 0.0), 3.0) * (uQuality > 1.5 ? 0.40 : 0.28) + 0.03 * (1.0 - uChillMode)) * chillPlantMul * smoothstep(0.15, 1.0, vPlantTip) * sUpP * vSkyShade * mix(1.0, rtShLumP, rtFadeP * 0.92);
+        float tipRimP = pow(1.0 - abs(vDirP.y), 2.4) * smoothstep(0.32, 1.0, vPlantTip) * (0.06 + 0.24 * uChillMode + 0.14 * uDlssMode + 0.20 * uEclipseMode + rtFadeP * 0.14) * sUpP * mix(1.0, rtShLumP, rtFadeP * 0.90);
         outgoingLight *= mix(0.46, mix(1.0, 0.84, uChillMode), sUpP);
+        outgoingLight *= mix(vec3(1.0), clamp(rtShP * 1.15 + vec3(0.32), 0.34, 1.0), rtFadeP * 0.85);
         vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.76, 0.78, 0.96), max(uChillMode, uEclipseMode * 0.55));
         outgoingLight = mix(outgoingLight * plantShTint, outgoingLight, vSkyShade);
         vec3 plantSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), mix(0.56, 0.72, uEclipseMode));
-        outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
+        outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) + diffuseColor.rgb * uSunColor * (0.08 * rtShLumP * rtFadeP * sUpP) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
         if (uDimension < 0.5 && vWPos.y < 0.86) {
           float wDepthP = max(0.0, 0.86 - vWPos.y);
           vec3 wAbsorbP = exp(-wDepthP * vec3(0.115, 0.050, 0.025));
@@ -518,9 +941,10 @@
         float outPeakP = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumP = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricP = mix(outLumP, outPeakP, 0.50);
-        if (hiMetricP > 0.60) {
-          float overP = hiMetricP - 0.60;
-          float compLumP = 0.60 + overP / (1.0 + overP * 3.10);
+        float hiCapP = mix(0.60, 0.92, uRayTracing);
+        if (hiMetricP > hiCapP) {
+          float overP = hiMetricP - hiCapP;
+          float compLumP = hiCapP + overP / (1.0 + overP * mix(3.10, 1.35, uRayTracing));
           outgoingLight *= (compLumP / max(hiMetricP, 0.0001));
         }
         #include <opaque_fragment>`)
@@ -1047,7 +1471,8 @@
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
       uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
-      uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing
+      uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing,
+      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
     },
     vertexShader: `
       attribute float aIsTop;
@@ -1070,6 +1495,7 @@
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
       varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore, vColDepth; varying vec4 vClipPos, vReflClip;
+      ${RT_DDA_GLSL}
 
       // Single-pass analytical 4-octave directional wave height + slope (saves ~60% trig cost vs 3x finite differences)
       vec3 waterWaveGrad(vec2 p, float t, bool highDetail) {
@@ -1243,7 +1669,8 @@
           vec3 reflFallback = mix(nightSkyRefl, daySkyRefl, sunUp);
           reflFallback += activeLightCol * pow(max(dot(reflDir, activeLightDir), 0.0), 18.0) * (0.30 * sunUp + 0.18 * nightK);
           vec3 reflCol = reflFallback;
-          if (uUsePlanarRefl > 0.5 && highWater && abs(vWorldPos.y - 0.86) < 0.45) {
+          bool hasPlanarW = (uUsePlanarRefl > 0.5 && highWater && abs(vWorldPos.y - 0.86) < 0.45);
+          if (hasPlanarW) {
             vec2 ndc = (vReflClip.xy / max(0.001, vReflClip.w)) * 0.5 + 0.5;
             float shoreCalm = 1.0 - smoothstep(0.0, 1.0, vShore) * 0.82;
             float distDamp = 1.0 / (1.0 + vDist * 0.032);
@@ -1254,8 +1681,26 @@
             mapSample = mix(mapSample, max(mapSample, baseWater * 0.72), isUltraW ? 0.22 : 0.30);
             reflCol = mix(reflFallback, mapSample, edgeMask * ((isUltraW ? 0.90 : 0.84) - vShore * (isUltraW ? 0.16 : 0.20)));
           }
+          if (uRayTracing > 0.5 && vDist < 44.0) {
+            float rtFadeW = rtInVol(vWorldPos) * (1.0 - smoothstep(32.0, 44.0, vDist));
+            if (rtFadeW > 0.01) {
+              vec3 rtWaterPos = vWorldPos + vec3(0.0, 0.10, 0.0);
+              vec3 rtNormW = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.56));
+              vec3 rtRDirW = reflect(-viewDir, rtNormW);
+              vec4 rtW = rtTraceReflection(rtWaterPos, normalize(vec3(rtRDirW.x, max(0.03, rtRDirW.y), rtRDirW.z)), sunD, activeLightCol, uSkyTop, uSkyHorizon, sunUp, 30.0);
+              vec3 rtReflCol = mix(reflFallback, rtW.rgb * 1.22, rtW.a);
+              reflCol = mix(reflCol, hasPlanarW ? mix(reflCol, rtReflCol, clamp(rtW.a * 0.90, 0.0, 0.92)) : rtReflCol, rtFadeW * (hasPlanarW ? 0.92 : 0.98));
+              vec3 refrDirW = refract(-viewDir, n, 0.75);
+              refrDirW = normalize(length(refrDirW) > 0.01 ? refrDirW : -viewDir);
+              vec4 rtSub = rtTraceRefractFloor(vWorldPos - vec3(0.0, 0.08, 0.0), refrDirW);
+              if (rtSub.a > 0.02) {
+                float rtCaustW = pow(clamp(0.5 + 0.5 * sin(vWorldPos.x * 1.65 + uTime * 2.1 + cos(vWorldPos.z * 1.55 - uTime * 1.8)), 0.0, 1.0), 3.0);
+                baseWater = mix(baseWater, baseWater * 0.38 + rtSub.rgb * (0.34 + 0.58 * sunUp + rtCaustW * 0.28 * sunUp), rtSub.a * rtFadeW * 0.72);
+              }
+            }
+          }
           float waveShade = clamp(0.95 + n.x * 0.14 + n.z * 0.14, 0.85, 1.12);
-          float reflMix = clamp(fresnel * (isUltraW ? 0.68 : 0.62) + (isUltraW ? 0.07 : 0.05) + max(uDlssMode * 0.03, uEclipseMode * 0.05) + uRayTracing * 0.10, 0.08, uRayTracing > 0.5 ? 0.86 : (isUltraW ? 0.78 : 0.68));
+          float reflMix = clamp(fresnel * (uRayTracing > 0.5 ? 0.86 : (isUltraW ? 0.68 : 0.62)) + (uRayTracing > 0.5 ? 0.16 : (isUltraW ? 0.07 : 0.05)) + max(uDlssMode * 0.03, uEclipseMode * 0.05), 0.08, uRayTracing > 0.5 ? 0.94 : (isUltraW ? 0.78 : 0.68));
           col = mix(baseWater * waveShade, reflCol * waveShade, reflMix);
           // Delicate animated shoreline foam + player/boat wake foam shimmer
           float foamBand = clamp(smoothstep(0.76, 1.0, vShore + waveH * 1.45) * (0.30 + 0.70 * sunUp) + wakeFoam, 0.0, 1.0);
@@ -1265,11 +1710,12 @@
           vec3 halfV = normalize(activeLightDir + viewDir);
           float specTight = pow(max(dot(n, halfV), 0.0), mix(230.0, 310.0, max(max(uDlssMode, uEclipseMode * 0.75), uRayTracing))) * activeStrength;
           float specBroad = pow(max(dot(n, halfV), 0.0), mix(34.0, 24.0, uEclipseMode)) * (0.22 * sunUp + 0.14 * nightK);
-          col += activeLightCol * (specTight * (isUltraW ? 0.42 : (highWater ? 0.34 : 0.24)) * (1.0 + max(uDlssMode * 0.18, uEclipseMode * 0.22) + uRayTracing * 0.35) + specBroad * (isUltraW ? 0.22 : 0.18) * (1.0 + uEclipseMode * 0.18 + uRayTracing * 0.16));
+          col += activeLightCol * (specTight * (isUltraW ? 0.42 : (highWater ? 0.34 : 0.24)) * (1.0 + max(uDlssMode * 0.18, uEclipseMode * 0.22) + uRayTracing * 0.42) + specBroad * (isUltraW ? 0.22 : 0.18) * (1.0 + uEclipseMode * 0.18 + uRayTracing * 0.18));
           float wPeak = max(col.r, max(col.g, col.b));
           float wLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
           float wMetric = mix(wLum, wPeak, 0.45);
-          if (wMetric > 0.62) col *= (0.62 + (wMetric - 0.62) / (1.0 + (wMetric - 0.62) * 2.85)) / max(wMetric, 0.0001);
+          float wFloor = mix(0.62, 0.98, uRayTracing);
+          if (wMetric > wFloor) col *= (wFloor + (wMetric - wFloor) / (1.0 + (wMetric - wFloor) * mix(2.85, 1.25, uRayTracing))) / max(wMetric, 0.0001);
 
           float baseAlpha = mix(0.78, 0.985, clamp(turbid * 0.86 + depthK * 0.24, 0.0, 1.0));
           alpha = clamp(mix(baseAlpha, 0.99, clamp(fresnel * 0.88, 0.0, 1.0)), 0.76, 0.992);
@@ -1663,31 +2109,46 @@
             + texture2D(tScene, clamp(uv + vec2(-lvTap.x, lvTap.y), 0.002, 0.998)).rgb * 0.18
             + texture2D(tScene, clamp(uv + vec2(lvTap.x, -lvTap.y), 0.002, 0.998)).rgb * 0.18
             + texture2D(tScene, clamp(uv + vec2(-lvTap.x, -lvTap.y), 0.002, 0.998)).rgb * 0.18;
-        } else if (uUnderwater < 0.5 && uSharpness > 0.01) {
-          vec3 nN = texture2D(tScene, uv + vec2(0.0, uTexelSize.y)).rgb;
-          vec3 nS = texture2D(tScene, uv - vec2(0.0, uTexelSize.y)).rgb;
-          vec3 nE = texture2D(tScene, uv + vec2(uTexelSize.x, 0.0)).rgb;
-          vec3 nW = texture2D(tScene, uv - vec2(uTexelSize.x, 0.0)).rgb;
-          if (uDlssMode > 0.5 || uEclipseMode > 0.5) {
-            vec3 nNE = texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb;
-            vec3 nNW = texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb;
-            vec3 nSE = texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb;
-            vec3 nSW = texture2D(tScene, uv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb;
-            vec3 avg8 = (nN + nS + nE + nW + (nNE + nNW + nSE + nSW) * 0.65) / 6.6;
-            vec3 mnC = min(col, min(min(nN, nS), min(nE, nW)));
-            vec3 mxC = max(col, max(max(nN, nS), max(nE, nW)));
-            float shDlss = uSharpness * (isUltraC ? 1.25 : 1.08);
-            col = clamp(col + clamp((col - avg8) * shDlss, -0.095, 0.095), mnC * 0.94, mxC * 1.06);
-          } else {
-            vec3 nb4 = (nN + nS + nE + nW) * 0.25;
-            float shGain = uSharpness * (isUltraC ? 1.15 : 1.0);
-            col = clamp(col + clamp((col - nb4) * shGain, -0.075, 0.075), 0.0, 1.5);
+        } else if (uUnderwater < 0.5) {
+          if (uRayTracing > 0.5) {
+            vec2 rtTap = uTexelSize * 1.05;
+            vec3 dN = texture2D(tScene, clamp(uv + vec2(0.0, rtTap.y), 0.002, 0.998)).rgb;
+            vec3 dS = texture2D(tScene, clamp(uv - vec2(0.0, rtTap.y), 0.002, 0.998)).rgb;
+            vec3 dE = texture2D(tScene, clamp(uv + vec2(rtTap.x, 0.0), 0.002, 0.998)).rgb;
+            vec3 dW = texture2D(tScene, clamp(uv - vec2(rtTap.x, 0.0), 0.002, 0.998)).rgb;
+            float wN = exp(-dot(abs(dN - col), vec3(1.0)) * 18.0) * 0.65;
+            float wS = exp(-dot(abs(dS - col), vec3(1.0)) * 18.0) * 0.65;
+            float wE = exp(-dot(abs(dE - col), vec3(1.0)) * 18.0) * 0.65;
+            float wW = exp(-dot(abs(dW - col), vec3(1.0)) * 18.0) * 0.65;
+            col = (col + dN * wN + dS * wS + dE * wE + dW * wW) / (1.0 + wN + wS + wE + wW);
+          }
+          if (uSharpness > 0.01) {
+            vec3 nN = texture2D(tScene, uv + vec2(0.0, uTexelSize.y)).rgb;
+            vec3 nS = texture2D(tScene, uv - vec2(0.0, uTexelSize.y)).rgb;
+            vec3 nE = texture2D(tScene, uv + vec2(uTexelSize.x, 0.0)).rgb;
+            vec3 nW = texture2D(tScene, uv - vec2(uTexelSize.x, 0.0)).rgb;
+            float rtShScale = mix(1.0, 0.72, uRayTracing);
+            if (uDlssMode > 0.5 || uEclipseMode > 0.5) {
+              vec3 nNE = texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb;
+              vec3 nNW = texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb;
+              vec3 nSE = texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb;
+              vec3 nSW = texture2D(tScene, uv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb;
+              vec3 avg8 = (nN + nS + nE + nW + (nNE + nNW + nSE + nSW) * 0.65) / 6.6;
+              vec3 mnC = min(col, min(min(nN, nS), min(nE, nW)));
+              vec3 mxC = max(col, max(max(nN, nS), max(nE, nW)));
+              float shDlss = uSharpness * (isUltraC ? 1.25 : 1.08) * rtShScale;
+              col = clamp(col + clamp((col - avg8) * shDlss, -0.095, 0.095), mnC * 0.94, mxC * 1.06);
+            } else {
+              vec3 nb4 = (nN + nS + nE + nW) * 0.25;
+              float shGain = uSharpness * (isUltraC ? 1.15 : 1.0) * rtShScale;
+              col = clamp(col + clamp((col - nb4) * shGain, -0.075, 0.075), 0.0, 1.5);
+            }
           }
         }
         // Subtle crisp Bloom, Atmospheric Golden Halo & Volumetric God-Rays
         float bloomBoost = max(uChillMode, max(uDlssMode * 0.72, uEclipseMode * 0.64));
-        float bloomMix1 = mix(isUltraC ? 0.055 : 0.040, isUltraC ? 0.078 : 0.062, bloomBoost) * mix(1.0, 1.22, uRayTracing);
-        float bloomMix2 = mix(isUltraC ? 0.028 : 0.016, isUltraC ? 0.044 : 0.030, bloomBoost);
+        float bloomMix1 = mix(isUltraC ? 0.055 : 0.040, isUltraC ? 0.078 : 0.062, bloomBoost) * mix(1.0, 1.38, uRayTracing);
+        float bloomMix2 = mix(isUltraC ? 0.028 : 0.016, isUltraC ? 0.044 : 0.030, bloomBoost) * mix(1.0, 1.45, uRayTracing);
         col += texture2D(tBloom, uv).rgb * bloomMix1 + texture2D(tBloomWide, uv).rgb * bloomMix2;
         if (uUnderwater > 0.5) {
           float abyssT = clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0);
@@ -1699,12 +2160,16 @@
         if (uHasGodRays > 0.5) {
           float rayGain = (uUnderwater > 0.5
             ? mix(0.65, 0.98, uEclipseMode)
-            : mix(isUltraC ? 0.28 : 0.22, isUltraC ? 0.36 : 0.28, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode * 0.85)))) * mix(1.0, 1.28, uRayTracing);
+            : mix(isUltraC ? 0.28 : 0.22, isUltraC ? 0.36 : 0.28, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode * 0.85)))) * mix(1.0, 1.36, uRayTracing);
           col += texture2D(tGodRays, uv).rgb * rayGain;
         }
         if (uUnderwater < 0.5 && (uChillMode > 0.5 || uEclipseMode > 0.5) && uSunVis > 0.02) {
           float sunRad = exp(-length((uv - uLightScreen) * vec2(1.45, 1.0)) * mix(3.1, 2.7, uEclipseMode));
           col += vec3(1.0, 0.76, 0.42) * sunRad * clamp(uSunVis * 2.0, 0.0, 1.0) * mix(0.11, 0.11, uEclipseMode);
+        }
+        if (uRayTracing > 0.5 && uUnderwater < 0.5 && uInLava < 0.5) {
+          float rtxLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          col *= mix(vec3(0.90, 0.96, 1.09), vec3(1.10, 1.04, 0.94), smoothstep(0.16, 0.72, rtxLum));
         }
 
         // Authentic Merlin1809 Eclipse AgX Minimal + Purkinje + Vignette (zero yellow wash!) vs ACES grading
@@ -3746,7 +4211,9 @@
       uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uSkyTop: envUniforms.uSkyTop, uFogColor: envUniforms.uFogColor,
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
-      uReflClipY: envUniforms.uReflClipY, uInLava: envUniforms.uInLava
+      uReflClipY: envUniforms.uReflClipY, uInLava: envUniforms.uInLava,
+      uRayTracing: envUniforms.uRayTracing, uRtVoxelTex: envUniforms.uRtVoxelTex,
+      uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
     },
     vertexShader: `
       attribute float aBladeH;
@@ -3832,14 +4299,29 @@
       }`,
     fragmentShader: `
       uniform vec3 uSunDir, uSunColor, uSkyTop, uFogColor;
-      uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava;
+      uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava, uRayTracing;
       varying vec3 vCol, vWPos;
       varying float vBladeH, vHeightFade, vSide, vDist, vSkyAo, vGust;
+      ${RT_DDA_GLSL}
       void main() {
         if (vWPos.y < uReflClipY) discard;
         vec3 sDir = normalize(uSunDir);
         vec3 vDir = normalize(vWPos - cameraPosition);
         float sunUp = smoothstep(-0.08, 0.28, sDir.y);
+        float rtFadeG = 0.0;
+        vec3 rtShG = vec3(1.0);
+        float rtShLumG = 1.0;
+        if (uRayTracing > 0.5 && sunUp > 0.02) {
+          float maxGrassRtD = (uRtQuality > 0.5) ? 30.0 : 16.0;
+          if (vDist < maxGrassRtD) {
+            rtFadeG = rtInVol(vWPos) * (1.0 - smoothstep(maxGrassRtD * 0.68, maxGrassRtD, vDist));
+            if (rtFadeG > 0.01) {
+              float rtShDG = 24.0;
+              rtShG = rtTraceSunShadow(vWPos, vec3(0.0, 1.0, 0.0), sDir, rtShDG);
+              rtShLumG = dot(rtShG, vec3(0.3333));
+            }
+          }
+        }
         float warmAmt = smoothstep(0.08, 0.34, vCol.r - vCol.g);
         vec3 rootMul = mix(vec3(0.30, 0.36, 0.24), vec3(0.62, 0.40, 0.18), warmAmt);
         vec3 midMul  = mix(vec3(0.92, 0.98, 0.86), vec3(1.04, 0.94, 0.80), warmAmt);
@@ -3848,11 +4330,11 @@
         float spine = 1.0 - abs(vSide) * 0.20;
         vec3 albedo = vCol * grad * spine;
         float cloudDapple = 0.88 + 0.12 * sin(vWPos.x * 0.09 + uTime * 0.22) * cos(vWPos.z * 0.08 - uTime * 0.17);
-        vec3 skyHemi = mix(vec3(0.10, 0.14, 0.22), uSkyTop * 0.40 + vec3(0.46), sunUp) * mix(0.45, 1.0, vSkyAo);
-        vec3 sunDirect = uSunColor * (0.58 * sunUp * vSkyAo);
-        float sssFwd = pow(max(dot(vDir, sDir), 0.0), 3.0) * 0.68 * smoothstep(0.15, 1.0, vHeightFade) * sunUp * vSkyAo;
-        float gustSheen = vGust * smoothstep(0.35, 1.0, vBladeH) * 0.16 * sunUp * vSkyAo;
-        float tipRim = smoothstep(0.55, 1.0, vBladeH) * (1.0 - abs(vSide)) * 0.10 * sunUp * vSkyAo;
+        vec3 skyHemi = mix(vec3(0.10, 0.14, 0.22), uSkyTop * 0.40 + vec3(0.46), sunUp) * mix(0.45, 1.0, vSkyAo) * mix(1.0, 0.58 + 0.42 * rtShLumG, rtFadeG);
+        vec3 sunDirect = uSunColor * (0.58 * sunUp * vSkyAo) * mix(vec3(1.0), rtShG, rtFadeG * 0.94) * (1.0 + 0.26 * rtFadeG * rtShLumG);
+        float sssFwd = pow(max(dot(vDir, sDir), 0.0), 3.0) * 0.68 * smoothstep(0.15, 1.0, vHeightFade) * sunUp * vSkyAo * mix(1.0, rtShLumG, rtFadeG * 0.92);
+        float gustSheen = vGust * smoothstep(0.35, 1.0, vBladeH) * 0.16 * sunUp * vSkyAo * mix(1.0, rtShLumG, rtFadeG * 0.90);
+        float tipRim = smoothstep(0.55, 1.0, vBladeH) * (1.0 - abs(vSide)) * 0.10 * sunUp * vSkyAo * mix(1.0, rtShLumG, rtFadeG * 0.90);
         vec3 sunBal = mix(uSunColor, vec3(1.0), 0.40);
         vec3 litCol = albedo * (skyHemi + sunDirect) * cloudDapple + albedo * sunBal * (sssFwd + gustSheen) + sunBal * tipRim;
         float fogF = smoothstep(uFogStart, uFogEnd, vDist);
