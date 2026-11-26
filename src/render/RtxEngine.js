@@ -139,7 +139,7 @@
     uGrassRadius: { value: _isMobilePerf ? 18.0 : 32.0 },
     uGrassSoilRadius: { value: _isMobilePerf ? 16.0 : 24.0 },
     uSurfaceLight: { value: 1.0 },
-    uRayTracing: { value: (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing) ? 1.0 : 0.0 },
+    uRayTracing: { value: 0.0 },
     uReflClipY: { value: -9999.0 }
   };
 
