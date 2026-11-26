@@ -41,6 +41,8 @@
     mm.classList.remove('pause-mode');
     if (typeof syncTimeWeatherAdminLocks === 'function') syncTimeWeatherAdminLocks();
     if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
+    const activeTab = document.querySelector('#gmNav .gm-tab.active');
+    if (activeTab && typeof _syncGmInspectorForTab === 'function') _syncGmInspectorForTab(activeTab.dataset.gtab);
   });
   document.getElementById('pauseQuit')?.addEventListener('click', () => {
     try { saveCurrentWorldToList(); } catch (e) {}
@@ -75,34 +77,6 @@
     leavesMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? 0.026 : 0.0);
     const btn = document.getElementById('btnTexFilter');
     if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? '✨ Bump PBR: Bật' : '🧱 Pixel Phẳng'; }
-  }
-
-  function setRayTracingEnabled(on, notify = false) {
-    if (typeof sodiumOpts !== 'undefined') {
-      sodiumOpts.rayTracing = !!on;
-      saveSodiumOpts();
-    }
-    if (typeof envUniforms !== 'undefined' && envUniforms.uRayTracing) {
-      envUniforms.uRayTracing.value = on ? 1.0 : 0.0;
-    }
-    const hudBtn = document.getElementById('btnHudRayTracing');
-    const hudFrame = document.getElementById('rtHudFrame');
-    const menuBtn = document.getElementById('btnMenuRayTracing');
-    const menuFrame = menuBtn ? menuBtn.closest('.rt-btn-frame') : null;
-    if (hudBtn) hudBtn.classList.toggle('active', !!on);
-    if (hudFrame) hudFrame.classList.toggle('off', !on);
-    if (menuBtn) {
-      menuBtn.classList.toggle('active', !!on);
-      menuBtn.textContent = on
-        ? tr('✦ Ray Tracing: BẬT', '✦ Ray Tracing: ON')
-        : tr('✦ Ray Tracing: TẮT', '✦ Ray Tracing: OFF');
-    }
-    if (menuFrame) menuFrame.classList.toggle('off', !on);
-    if (notify) {
-      showToast(on
-        ? tr('✦ Ray Tracing Dò Tia: ĐÃ BẬT (Phản chiếu & GI)', '✦ Real-Time Ray Tracing: ON (Reflections & GI)')
-        : tr('✦ Ray Tracing Dò Tia: ĐÃ TẮT', '✦ Real-Time Ray Tracing: OFF'));
-    }
   }
 
   function teleportToScenicBiome(targetKey, opts = null) {
@@ -721,15 +695,6 @@
     if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ bumpEnabled });
     showToast(bumpEnabled ? tr('Bump Relief PBR: Đã bật', 'Bump Relief PBR: On') : tr('Pixel-Art Phẳng Cổ Điển', 'Classic Flat Pixel-Art'));
   });
-  setRayTracingEnabled(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false, false);
-  document.getElementById('btnMenuRayTracing')?.addEventListener('click', () => {
-    const next = !(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false);
-    setRayTracingEnabled(next, true);
-  });
-  document.getElementById('btnHudRayTracing')?.addEventListener('click', () => {
-    const next = !(typeof sodiumOpts === 'undefined' || sodiumOpts.rayTracing !== false);
-    setRayTracingEnabled(next, true);
-  });
   document.querySelectorAll('#scenicSeg .spawn-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!document.getElementById('menuModal').classList.contains('hidden')) {
@@ -1127,6 +1092,14 @@
     '👑 Mở Khóa Admin': '👑 Unlock Admin',
     '🌐 Ngôn Ngữ / Language': '🌐 Language / Ngôn Ngữ',
     '🎵 Âm Thanh & Nhạc Nền Voxel Chill': '🎵 Sound Effects & Chill Background Music',
+    'Âm thanh': 'Audio',
+    'Đặt lại mục': 'Reset section',
+    'Mặc định:': 'Default:',
+    'NGÔN NGỮ': 'LANGUAGE',
+    'ÂM LƯỢNG': 'VOLUME',
+    'ĐIỀU KHIỂN & GIAO DIỆN': 'CONTROLS & INTERFACE',
+    'HIỂN THỊ & CHẤT LƯỢNG': 'DISPLAY & QUALITY',
+    'SHADER, MÂY & BỀ MẶT': 'SHADER, CLOUDS & SURFACES',
     '🔊 Tổng:': '🔊 Master:',
     '🎹 Nhạc nền:': '🎹 Music:',
     '⛏️ Hiệu ứng:': '⛏️ Effects:',
@@ -1353,11 +1326,6 @@
     if (cloudBtn && typeof volumetricClouds !== 'undefined') cloudBtn.textContent = volumetricClouds ? tr('☁️ Mây Volumetric', '☁️ Volumetric Clouds') : tr('🧊 Mây Khối Luanti', '🧊 Luanti Block Clouds');
     const texBtn = document.getElementById('btnTexFilter');
     if (texBtn && typeof bumpEnabled !== 'undefined') texBtn.textContent = bumpEnabled ? tr('Bump PBR: Bật', 'Bump PBR: On') : tr('Bump PBR: Tắt', 'Bump PBR: Off');
-    const rtMenuBtn = document.getElementById('btnMenuRayTracing');
-    if (rtMenuBtn && typeof sodiumOpts !== 'undefined') {
-      const rtOn = sodiumOpts.rayTracing !== false;
-      rtMenuBtn.textContent = rtOn ? tr('✦ Ray Tracing: BẬT', '✦ Ray Tracing: ON') : tr('✦ Ray Tracing: TẮT', '✦ Ray Tracing: OFF');
-    }
   }
 
   function _applyAllI18n(lang) {
@@ -2317,31 +2285,121 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     selectPlayerSkin(selectedSkinId, false);
   }
 
-  // Handcrafted ESC Pause Menu 4-Tab Navigation + Master Luanti Audio Volume Slider!
-  document.querySelectorAll('#gmNav .gm-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('#gmNav .gm-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const k = tab.dataset.gtab;
-      document.getElementById('gmPanePlay').classList.toggle('active', k === 'play');
-      document.getElementById('gmPaneGraphics').classList.toggle('active', k === 'graphics');
-      document.getElementById('gmPaneWorld').classList.toggle('active', k === 'world');
-      document.getElementById('gmPaneMobs').classList.toggle('active', k === 'mobs');
+  // Minecraft Dungeons Settings Navigation (Q/E tabs, Audio tab, Live Inspector, X Reset section)
+  const _GM_TAB_DEFAULTS = {
+    play:     { t: 'CÀI ĐẶT CHUNG',       d: 'Điều chỉnh ngôn ngữ, sơ đồ điều khiển PC/Mobile, tọa độ HUD, bộ lọc chat và quyền quản trị.', f: 'Tiếng Việt' },
+    graphics: { t: 'ĐỒ HỌA & SHADER',     d: 'Cấu hình tầm nhìn chunk, chất lượng RTX, Eclipse Shader bản chuẩn Merlin1809 và các tùy chọn Sodium/Culling.', f: 'Eclipse Shader' },
+    audio:    { t: 'ÂM THANH',            d: 'Điều chỉnh âm lượng tổng, nhạc nền khám phá, hiệu ứng đào/đặt khối và âm thanh quái vật.', f: '78%' },
+    world:    { t: 'VÙNG ĐẤT & CHIỀU',     d: 'Dịch chuyển nhanh tới các quần xã, công trình và chiều không gian khác nhau (dành cho Admin).', f: 'Thế Giới Chính' },
+    mobs:     { t: 'ĐỘNG VẬT & QUÁI VẬT', d: 'Triệu hồi thú voxel dễ thương hoặc Boss Blender 3D vào trước mặt bạn ở chế độ Sáng tạo.', f: 'Sáng tạo' }
+  };
+  function _setGmInspector(title, desc, defVal) {
+    const tEl = document.getElementById('gmInspectorTitle');
+    const dEl = document.getElementById('gmInspectorDesc');
+    const fEl = document.getElementById('gmInspectorDef');
+    if (tEl && title) tEl.textContent = title;
+    if (dEl && desc) dEl.textContent = desc;
+    if (fEl) fEl.textContent = defVal || '—';
+  }
+  function _syncGmInspectorForTab(k) {
+    const info = _GM_TAB_DEFAULTS[k] || _GM_TAB_DEFAULTS.play;
+    _setGmInspector(info.t, info.d, info.f);
+  }
+  function switchGmTab(k) {
+    document.querySelectorAll('#gmNav .gm-tab').forEach(t => t.classList.toggle('active', t.dataset.gtab === k));
+    ['play', 'graphics', 'audio', 'world', 'mobs'].forEach(idKey => {
+      const pEl = document.getElementById('gmPane' + idKey.charAt(0).toUpperCase() + idKey.slice(1));
+      if (pEl) pEl.classList.toggle('active', idKey === k);
     });
+    _syncGmInspectorForTab(k);
+  }
+  document.querySelectorAll('#gmNav .gm-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchGmTab(tab.dataset.gtab));
   });
+  const _cycleGmTab = (dir) => {
+    const tabs = Array.from(document.querySelectorAll('#gmNav .gm-tab')).filter(t => t.offsetParent !== null);
+    if (!tabs.length) return;
+    const cur = tabs.findIndex(t => t.classList.contains('active'));
+    const nxt = tabs[(cur + dir + tabs.length) % tabs.length];
+    if (nxt) switchGmTab(nxt.dataset.gtab);
+  };
+  document.getElementById('btnGmTabPrev')?.addEventListener('click', () => _cycleGmTab(-1));
+  document.getElementById('btnGmTabNext')?.addEventListener('click', () => _cycleGmTab(1));
+
+  const _gmContentEl = document.querySelector('#menuModal .gm-content');
+  if (_gmContentEl) {
+    const _onInspect = (ev) => {
+      const holder = ev.target?.closest('[data-desc], [title]');
+      if (!holder || !_gmContentEl.contains(holder)) return;
+      const desc = holder.dataset.desc || holder.getAttribute('title');
+      if (!desc) return;
+      const title = holder.dataset.title || (holder.textContent ? holder.textContent.trim().slice(0, 40) : '');
+      const defVal = holder.dataset.def || holder.closest('[data-def]')?.dataset.def || '—';
+      _setGmInspector(title, desc, defVal);
+    };
+    _gmContentEl.addEventListener('pointerover', _onInspect);
+    _gmContentEl.addEventListener('focusin', _onInspect);
+  }
+
   const bindAudioSlider = (sliderId, labelId, onSet) => {
     const sl = document.getElementById(sliderId), lb = document.getElementById(labelId);
     if (!sl) return;
-    sl.addEventListener('input', () => {
+    const syncUi = () => {
       const v = Math.max(0, Math.min(1, parseInt(sl.value, 10) / 100));
       onSet(v);
+      sl.style.setProperty('--pct', `${sl.value}%`);
       if (lb) lb.textContent = `${sl.value}%`;
-    });
+    };
+    sl.style.setProperty('--pct', `${sl.value}%`);
+    sl.addEventListener('input', syncUi);
   };
   bindAudioSlider('audioVolSlider', 'audioVolLabel', (v) => { masterVolume = v; if (masterGain) masterGain.gain.value = v; });
   bindAudioSlider('musicVolSlider', 'musicVolLabel', (v) => { musicVolume = v; if (musicGain) musicGain.gain.value = v; ensureAudio(); });
   bindAudioSlider('sfxVolSlider',   'sfxVolLabel',   (v) => { sfxVolume = v;   if (sfxGain)   sfxGain.gain.value   = v; });
   bindAudioSlider('mobVolSlider',   'mobVolLabel',   (v) => { mobVolume = v;   if (mobGain)   mobGain.gain.value   = v; });
+
+  function resetActiveGmSection() {
+    const act = document.querySelector('#gmNav .gm-tab.active')?.dataset.gtab || 'play';
+    if (act === 'audio') {
+      [['audioVolSlider', 78], ['musicVolSlider', 55], ['sfxVolSlider', 85], ['mobVolSlider', 42]].forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el) { el.value = String(val); el.dispatchEvent(new Event('input')); }
+      });
+      showToast(tr('Đã đặt lại Âm thanh về mặc định', 'Audio settings reset to defaults'));
+    } else if (act === 'graphics') {
+      document.querySelector('#renderDistSeg .seg-btn[data-val="4"]')?.click();
+      document.querySelector('#qualitySeg .seg-btn[data-val="ultra"]')?.click();
+      document.querySelector('#frameGenSeg .seg-btn[data-fg="1"]')?.click();
+      document.querySelector('#presetSeg .seg-btn[data-preset="eclipse"]')?.click();
+      if (!volumetricClouds) document.getElementById('btnCloudMode')?.click();
+      if (!bumpEnabled) document.getElementById('btnTexFilter')?.click();
+      if (typeof sodiumOpts !== 'undefined') {
+        document.querySelectorAll('#sodiumExtraSeg .seg-btn[data-sopt]').forEach(b => {
+          const k = b.dataset.sopt;
+          if (k && sodiumOpts[k] === false) b.click();
+        });
+      }
+      showToast(tr('Đã đặt lại Đồ họa về mặc định (Eclipse + Ultra)', 'Video settings reset to defaults'));
+    } else if (act === 'play') {
+      document.getElementById('btnMobileMode1')?.click();
+      const cb = document.getElementById('btnToggleCoords');
+      if (cb && !cb.classList.contains('mc-btn-green')) cb.click();
+      const pb = document.getElementById('btnToggleProfanity');
+      if (pb && !pb.classList.contains('mc-btn-green')) pb.click();
+      showToast(tr('Đã đặt lại Cài đặt chung về mặc định', 'General settings reset to defaults'));
+    }
+  }
+  document.getElementById('btnGmResetSection')?.addEventListener('click', resetActiveGmSection);
+  window.addEventListener('keydown', (e) => {
+    const mm = document.getElementById('menuModal');
+    if (!mm || mm.classList.contains('hidden') || mm.classList.contains('pause-mode')) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.code === 'KeyQ') { e.preventDefault(); e.stopPropagation(); _cycleGmTab(-1); }
+    else if (e.code === 'KeyE') { e.preventDefault(); e.stopPropagation(); _cycleGmTab(1); }
+    else if (e.code === 'KeyX') { e.preventDefault(); e.stopPropagation(); resetActiveGmSection(); }
+    else if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); document.getElementById('btnGmBack')?.click(); }
+  }, true);
   const btnMenuHost = document.getElementById('btnMenuHostInternet');
   if (btnMenuHost) btnMenuHost.addEventListener('click', () => {
     hostCoopRoom();

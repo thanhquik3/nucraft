@@ -1513,16 +1513,6 @@
       if (st.swingActive) rig._lastSwingU = Math.max(0, Math.min(1, st.swingU || 0));
       else if (rig.actionBlend <= 0.05) rig._lastSwingU = 0;
       const u = (rig._lastSwingU !== undefined) ? rig._lastSwingU : 0;
-      // Steady torso, head, legs, and off-arm during standing mining/chopping/unarmed hits so only armR swings
-      if (!isSword && mB < 0.08 && !sneaking && !swimming && !st.gliding && !climbing && !sitting && !flying) {
-        const swW = rig.actionBlend;
-        ['hips', 'torso', 'head', 'armL', 'legL', 'legR'].forEach((jk) => {
-          const jt = _r6TargetBuf[jk];
-          if (!jt) return;
-          jt.p[0] *= (1 - swW); jt.p[1] *= (1 - swW); jt.p[2] *= (1 - swW);
-          slerpQ4(jt.q, [0, 0, 0, 1], swW, jt.q);
-        });
-      }
       const arc = (u < 0.34 ? smoothstep01(u / 0.34) : (u < 0.54 ? 1.0 - (u - 0.34) * 0.45 : Math.max(0, 1.0 - smoothstep01((u - 0.54) / 0.46)) * 0.91)) * rig.actionBlend;
       const altSign = ((st.comboStep || 0) & 1) ? -1 : 1;
       if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
@@ -5591,7 +5581,7 @@
         if (player._fpSwCur) player._fpSwCur.fill(0);
       }
     }
-    player.equipPopT = Math.max(0, (player.equipPopT || 0) - dt * 3.2);
+    player.equipPopT = Math.max(0, (player.equipPopT || 0) - dt * 5.2);
     player.jumpPopT = Math.max(0, (player.jumpPopT || 0) - dt * 6.5);
     player.landSquash = Math.max(0, (player.landSquash || 0) - dt * 4.2);
     player.hurtAnimT = Math.max(0, (player.hurtAnimT || 0) - dt);
@@ -5749,13 +5739,15 @@
     const sneakDip = (player.sneakEyeOff || 0) * 0.18;
     const landDip = -(player.landSquash || 0) * 0.115;
     const airDip = !player.onGround && !player.inWater ? Math.max(-0.085, Math.min(0.075, -player.vy * 0.0085)) : 0;
-    // Smooth Afterswing Equip Flourish when switching hotbar items
+    // Smooth snappy weapon equip flourish when switching hotbar items
     const eqPop = player.equipPopT || 0;
-    const eqEase = eqPop * eqPop;
-    const eqY = -eqEase * 0.32 + Math.sin(eqPop * Math.PI) * 0.032;
-    const eqRx = -eqPop * 0.56;
-    const eqRy = -eqPop * 0.42;
-    const eqRz = -eqPop * 0.32;
+    const eqEase = eqPop * eqPop * eqPop;
+    const eqArc = Math.sin(eqPop * Math.PI);
+    const eqY = -eqEase * 0.20 + eqArc * 0.018;
+    const eqZ = eqEase * 0.05;
+    const eqRx = -eqEase * 0.28 + eqArc * 0.04;
+    const eqRy = -eqEase * 0.16;
+    const eqRz = -eqEase * 0.10;
 
     // Authentic Afterswing [Ja+] 1P Keyframed Multi-Directional Swing & Follow-Through Curves
     function _sampleAfterswingKeys(u, keys) {
@@ -5865,18 +5857,13 @@
       heldPivot.position.set(
         (isMeleeGrip ? 0.42 : 0.46) * _vmX + idleBreathX + swayX + swimSwayX + lagX + spX + swX + eatX + idleOffX,
         (isMeleeGrip ? -0.35 : -0.37) + fig8Y + idleBreathY + swimSwayY + sneakDip + airDip + landDip + cdDip + eqY + lagY + spY + swY + eatY + idleOffY,
-        -0.61 + _vmZAdd + spZ + swZ + eatZ + swimStrokeZ + idleOffZ
+        -0.61 + _vmZAdd + eqZ + spZ + swZ + eatZ + swimStrokeZ + idleOffZ
       );
       heldPivot.rotation.set(
         swRx + spRx + eqRx + lagY * 1.7 + (airDip * 1.1) + eatRx + swimStrokeRx + idleRx,
         swRy + spRy + eqRy + swayX * 2.1 - lagX * 2.2 + eatRy + idleRy,
         swRz + spRz + eqRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz + idleRz
       );
-      if (player._pendingEquipTrail && thirdPerson === 0) {
-        heldPivot.updateMatrixWorld(true);
-        spawnSwordSlashArc(1, player._pendingEquipTrail, false, true);
-        player._pendingEquipTrail = null;
-      }
     }
     if (offhandPivot) {
       if (thirdPerson > 0 || hudHidden) offhandPivot.visible = false;

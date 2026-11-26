@@ -432,6 +432,9 @@ function main() {
 <meta name="nucraft-build" content="${buildTag}" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/svg+xml" href="assets/icon-512.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Silkscreen:wght@400;700&display=swap" />
 <title>NUCRAFT — game fanmade chơi giải trí</title>`;
 
   // 1) Lean NUCRAFT.html (zero Base64 mob/sound bundles; external CSS + cached JS)

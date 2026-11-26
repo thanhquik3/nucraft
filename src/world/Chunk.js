@@ -1172,14 +1172,12 @@
     particles: true,      // Sodium Extra: block break & spell particles toggle
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
     farEntities: true,    // Sodium Extra: distant entity rendering toggle
-    rayTracing: true,     // Real-Time Ray Tracing toggle (water/glass reflections, leaf light transmission, cave scatter)
     frameGen: 1           // Frame Ao (1=Off, 2=x2, 4=x4 temporal interpolation)
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
     if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;
     if (envUniforms.uWaterQuality) envUniforms.uWaterQuality.value = sodiumOpts.waterQuality !== false ? 1.0 : 0.0;
-    if (envUniforms.uRayTracing) envUniforms.uRayTracing.value = sodiumOpts.rayTracing !== false ? 1.0 : 0.0;
   }
   function saveSodiumOpts() {
     try { localStorage.setItem(SODIUM_OPTS_KEY, JSON.stringify(sodiumOpts)); } catch (_) {}

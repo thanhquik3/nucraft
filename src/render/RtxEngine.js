@@ -138,7 +138,6 @@
     uWakePts: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -999, 0)) },
     uGrassRadius: { value: _isMobilePerf ? 18.0 : 32.0 },
     uGrassSoilRadius: { value: _isMobilePerf ? 16.0 : 24.0 },
-    uRayTracing: { value: 1.0 },
     uSurfaceLight: { value: 1.0 }
   };
 
@@ -152,7 +151,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v67';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v68';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -162,14 +161,14 @@
       uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
-      uGrassSoilRadius: envUniforms.uGrassSoilRadius, uRayTracing: envUniforms.uRayTracing, uSurfaceLight: envUniforms.uSurfaceLight
+      uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNorm = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uRayTracing, uSurfaceLight;
+        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
         // Authentic BSL / Eclipse Rotated Cellular Underwater Caustics
@@ -202,6 +201,11 @@
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
         float greenDom = max(0.0, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
         diffuseColor.rgb += vec3(0.012, 0.068, 0.004) * greenDom;
+        if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && greenDom > 0.03) {
+          float gDistFade = smoothstep(-30.0, 25.0, length(vWPos - cameraPosition));
+          float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.60, length(vWPos.xz - uPlayerPos.xz));
+          diffuseColor.rgb *= mix(1.0, gDistFade, inGrassRad);
+        }
         float upW = clamp(vWNorm.y, 0.0, 1.0);
         float shoreWet = smoothstep(1.35, 0.72, vWPos.y) * smoothstep(-3.0, 0.0, vWPos.y);
         float wetAmt = clamp(max(shoreWet, uRainWetness * upW * 0.85), 0.0, 1.0);
@@ -249,10 +253,13 @@
             outgoingLight += fresTint * fresT * (0.026 + 0.020 * uChillMode + 0.022 * uDlssMode + 0.024 * uEclipseMode + uRainWetness * 0.08) * extSun;
           }
         }
-        // Murky Marine Depth Absorption (caustics restricted subtly underwater only — zero bright lines from above!)
+        // Murky Marine Depth Absorption (Eclipse Water_Absorb + underwater caustics)
         if (uDimension < 0.5 && vWPos.y < 0.86 && (uUnderwater > 0.5 || vWPos.y > -18.0)) {
           float wDepth = max(0.0, 0.86 - vWPos.y);
-          vec3 waterAbsorb = exp(-wDepth * (uUnderwater > 0.5 ? vec3(0.11, 0.032, 0.028) : vec3(0.40, 0.22, 0.15)));
+          vec3 absorbK = uEclipseMode > 0.5
+            ? (uUnderwater > 0.5 ? vec3(0.392389, 0.108329, 0.0660636) * 0.28 : vec3(0.392389, 0.108329, 0.0660636))
+            : (uUnderwater > 0.5 ? vec3(0.11, 0.032, 0.028) : vec3(0.40, 0.22, 0.15));
+          vec3 waterAbsorb = exp(-wDepth * absorbK);
           outgoingLight *= mix(vec3(1.0), waterAbsorb, 0.94);
           float subMurk = 1.0 - exp(-wDepth * (uUnderwater > 0.5 ? 0.04 : 0.28));
           vec3 deepSeaTint = mix(vec3(0.012, 0.11, 0.22), vec3(0.008, 0.072, 0.14), clamp(wDepth * 0.12, 0.0, 1.0)) * (0.18 + 0.82 * sunUpB);
@@ -262,15 +269,6 @@
             float caust = waterCaustics(vWPos, uTime) * exp(-wDepth * 0.11) * sunUpB * sideFace;
             outgoingLight += (diffuseColor.rgb * 0.45 + vec3(0.10, 0.24, 0.28)) * vec3(0.36, 0.78, 0.82) * caust * 0.36 * waterAbsorb;
           }
-        }
-        if (uRayTracing > 0.5 && uUnderwater < 0.5) {
-          vec3 rtEye = normalize(cameraPosition - vWPos);
-          vec3 rtRefl = reflect(-rtEye, normalize(nrmW));
-          float rtHemi = clamp(rtRefl.y * 0.5 + 0.5, 0.0, 1.0);
-          vec3 rtSkyTrace = mix(uFogColor * 0.65, mix(uSkyHorizon, uSkyTop, clamp(rtRefl.y * 0.8 + 0.2, 0.0, 1.0)), rtHemi);
-          float rtFres = pow(1.0 - max(dot(normalize(nrmW), rtEye), 0.0), 4.0) * (0.045 + 0.035 * uEclipseMode);
-          vec3 rtCaveBounce = diffuseColor.rgb * mix(vec3(0.055, 0.075, 0.115), rtSkyTrace * 0.24, 0.35 + 0.65 * clamp(uSurfaceLight, 0.0, 1.0));
-          outgoingLight += (rtCaveBounce * (0.34 + 0.22 * uEclipseMode) + rtSkyTrace * rtFres) * uRayTracing;
         }
         float surfLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float blockLightGain = mix(1.42, (uUnderwater > 0.5 ? 1.05 : 0.72), smoothstep(0.08, 0.60, surfLuma) * (0.25 + 0.75 * sunUpB * clamp(uSurfaceLight, 0.0, 1.0)));
@@ -322,25 +320,31 @@
     map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v34';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v35';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
       uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uRayTracing: envUniforms.uRayTracing, uSurfaceLight: envUniforms.uSurfaceLight
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uSurfaceLight: envUniforms.uSurfaceLight
     });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNormL;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNormL;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 wpLeaf = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        float sway = (sin(uTime * 1.9 + wpLeaf.x * 0.7 + wpLeaf.z * 0.5) + cos(uTime * 1.3 + wpLeaf.y * 0.8) * 0.5) * 0.045 * uWindStrength;
-        transformed.x += sway;
-        transformed.z += sway * 0.7;`)
+        if (uEclipseMode > 0.5) {
+          float magL = abs(sin(dot(vec4(uTime, wpLeaf), vec4(1.0, 0.005, 0.005, 0.005))) * 0.5 + 0.72) * 0.013;
+          vec3 mvL = sin(150.796447372 * uTime * vec3(0.0063, 0.0224, 0.0015) * 1.5 - wpLeaf) * magL * 5.0 * uWindStrength * 0.55;
+          transformed += mvL;
+        } else {
+          float sway = (sin(uTime * 1.9 + wpLeaf.x * 0.7 + wpLeaf.z * 0.5) + cos(uTime * 1.3 + wpLeaf.y * 0.8) * 0.5) * 0.045 * uWindStrength;
+          transformed.x += sway;
+          transformed.z += sway * 0.7;
+        }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormL = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uRayTracing, uSurfaceLight;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;')
+      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;')
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         normal = normalize( vNormal );
         geometryNormal = normal;`)
@@ -365,8 +369,7 @@
         float chillLeafSss = mix(isUltraL ? 0.32 : 0.20, isUltraL ? 0.48 : 0.34, uChillMode) + uDlssMode * 0.18 + uEclipseMode * 0.24;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.025)) * leafLightGain;
         vec3 leafSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), mix(0.58, 0.74, uEclipseMode));
-        float rtLeafTrans = uRayTracing > 0.5 ? (0.14 + 0.20 * sssFwd + 0.10 * sssBroad) * mix(1.0, 1.25, uEclipseMode) : 0.0;
-        outgoingLight += diffuseColor.rgb * (0.048 * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.14, max(uChillMode, uEclipseMode)) + rtLeafTrans) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.75);
+        outgoingLight += diffuseColor.rgb * (0.048 * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.14, max(uChillMode, uEclipseMode))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.75);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricL = mix(outLumL, outPeakL, 0.50);
@@ -397,16 +400,22 @@
   const leavesDepthMat = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking, map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide
   });
-  leavesDepthMat.customProgramCacheKey = () => 'luanti_leaves_depth_bsl_v12';
+  leavesDepthMat.customProgramCacheKey = () => 'luanti_leaves_depth_bsl_v13';
   leavesDepthMat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength });
+    Object.assign(shader.uniforms, { uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength, uEclipseMode: envUniforms.uEclipseMode });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 wpLeaf = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        float sway = (sin(uTime * 1.9 + wpLeaf.x * 0.7 + wpLeaf.z * 0.5) + cos(uTime * 1.3 + wpLeaf.y * 0.8) * 0.5) * 0.045 * uWindStrength;
-        transformed.x += sway;
-        transformed.z += sway * 0.7;`);
+        if (uEclipseMode > 0.5) {
+          float magL = abs(sin(dot(vec4(uTime, wpLeaf), vec4(1.0, 0.005, 0.005, 0.005))) * 0.5 + 0.72) * 0.013;
+          vec3 mvL = sin(150.796447372 * uTime * vec3(0.0063, 0.0224, 0.0015) * 1.5 - wpLeaf) * magL * 5.0 * uWindStrength * 0.55;
+          transformed += mvL;
+        } else {
+          float sway = (sin(uTime * 1.9 + wpLeaf.x * 0.7 + wpLeaf.z * 0.5) + cos(uTime * 1.3 + wpLeaf.y * 0.8) * 0.5) * 0.045 * uWindStrength;
+          transformed.x += sway;
+          transformed.z += sway * 0.7;
+        }`);
   };
 
   // Low graphics: lá ĐẶC (không lỗ, không alphaTest) — dùng texture thật khi ở chế độ Thấp để tránh tạo USE_MAP thừa
@@ -418,7 +427,7 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v33';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v34';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -426,30 +435,34 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing, uSurfaceLight: envUniforms.uSurfaceLight
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;\nuniform vec3 uPlayerPos;\nattribute float aPlantSway;\nattribute float aSkyShade;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying float vPlantTip;\nvarying float vSkyShade;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 wpP = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        // Lock horizontal sway phase to column (wx, wz) + Eclipse rolling wind gusts & player foot parting
-        vec2 colPhase = floor(wpP.xz) + 0.5;
-        float gust = 0.72 + 0.48 * sin(uTime * 1.15 + colPhase.x * 0.14 + colPhase.y * 0.11);
-        float wSway = sin(uTime * 2.4 + colPhase.x * 0.72 + colPhase.y * 0.65) * mix(0.084, 0.112, uEclipseMode) * gust * uWindStrength * aPlantSway;
-        float wSwayZ = cos(uTime * 1.95 + colPhase.y * 0.85 + colPhase.x * 0.35) * mix(0.052, 0.072, uEclipseMode) * gust * uWindStrength * aPlantSway;
-        transformed.x += wSway;
-        transformed.z += wSwayZ;
         if (uEclipseMode > 0.5) {
+          float curvP = clamp(aPlantSway, 0.0, 1.5);
+          float magP = abs(sin(dot(vec4(uTime, wpP), vec4(1.0, 0.005, 0.005, 0.005))) * 0.5 + 0.72) * 0.013;
+          vec2 mv2 = (sin(150.796447372 * uTime * vec2(0.0063, 0.0015) * 4.0 - wpP.xz + wpP.y * 0.05) + 0.1) * magP;
+          vec3 pMove = vec3(mv2.x, -length(mv2), mv2.y) * 5.0 * uWindStrength * 1.6 * curvP * curvP;
           vec2 pdxz = wpP.xz - uPlayerPos.xz;
           float pdLen = length(pdxz);
-          float pPush = smoothstep(0.95, 0.08, pdLen) * smoothstep(1.4, 0.1, abs(wpP.y - uPlayerPos.y)) * 0.34 * aPlantSway;
+          float pPush = smoothstep(0.55, 0.05, pdLen) * smoothstep(1.2, 0.15, abs(wpP.y - uPlayerPos.y)) * 0.7 * curvP;
           vec2 pDir = pdLen > 0.001 ? (pdxz / pdLen) : vec2(0.0);
-          transformed.xz += pDir * pPush;
-          transformed.y -= (length(vec2(wSway, wSwayZ)) * 0.24 + pPush * 0.28);
+          transformed.xz += pMove.xz + pDir * pPush * 0.55;
+          transformed.y += pMove.y;
+        } else {
+          vec2 colPhase = floor(wpP.xz) + 0.5;
+          float gust = 0.72 + 0.48 * sin(uTime * 1.15 + colPhase.x * 0.14 + colPhase.y * 0.11);
+          float wSway = sin(uTime * 2.4 + colPhase.x * 0.72 + colPhase.y * 0.65) * 0.084 * gust * uWindStrength * aPlantSway;
+          float wSwayZ = cos(uTime * 1.95 + colPhase.y * 0.85 + colPhase.x * 0.35) * 0.052 * gust * uWindStrength * aPlantSway;
+          transformed.x += wSway;
+          transformed.z += wSwayZ;
         }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPlantTip = clamp(aPlantSway, 0.0, 1.0);\nvSkyShade = aSkyShade;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uRayTracing, uSurfaceLight;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;')
+      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;')
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // Prevent DoubleSide backfaces from flipping upward (0,1,0) normals downward into black!
         normal = normalize( vNormal );
@@ -473,7 +486,7 @@
         vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.76, 0.78, 0.96), max(uChillMode, uEclipseMode * 0.55));
         outgoingLight = mix(outgoingLight * plantShTint, outgoingLight, vSkyShade);
         vec3 plantSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), mix(0.56, 0.72, uEclipseMode));
-        outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) * (1.0 + 0.28 * uRayTracing) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
+        outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
         if (uDimension < 0.5 && vWPos.y < 0.86) {
           float wDepthP = max(0.0, 0.86 - vWPos.y);
           vec3 wAbsorbP = exp(-wDepthP * vec3(0.115, 0.050, 0.025));
@@ -912,7 +925,7 @@
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
       uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
-      uEclipseMode: envUniforms.uEclipseMode, uRayTracing: envUniforms.uRayTracing, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos
+      uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos
     },
     vertexShader: `
       attribute float aIsTop;
@@ -934,7 +947,7 @@
         vReflClip = uReflMatrix * vec4(wp.x, 0.86, wp.z, 1.0);
       }`,
     fragmentShader: `
-      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uRayTracing;
+      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode;
       uniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor, uPlayerPos;
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
@@ -964,29 +977,43 @@
         }
         return vec3(h, g.x, g.y);
       }
-      // Eclipse Golden-Angle Patchy Swell Waves (with smooth distance damping so horizon stays glassy)
-      vec3 eclipseWaterGrad(vec2 p, float t, float dist, bool highDetail) {
-        float patchMask = 0.62 + 0.38 * sin(p.x * 0.11 + cos(p.y * 0.08) * 1.5);
-        float farAtten = exp(-dist * 0.013);
-        float h = 0.0;
-        vec2 g = vec2(0.0);
-        mat2 rotG = mat2(-0.73736, -0.67549, 0.67549, -0.73736);
-        vec2 rp = p;
-        float freq = 1.45, amp = 0.044, spd = 1.28;
-        for (int wi = 0; wi < 4; wi++) {
-          if (!highDetail && wi >= 3) break;
-          float ph = rp.x * freq + sin(rp.y * freq * 0.42 + t * 0.55) * 0.65 + t * spd;
-          h += sin(ph) * amp;
-          vec2 wg = vec2(cos(ph) * freq * amp, cos(ph) * cos(rp.y * freq * 0.42 + t * 0.55) * freq * 0.27 * amp);
-          if (wi == 1) wg = mat2(rotG[0][0], -rotG[0][1], -rotG[1][0], rotG[1][1]) * wg;
-          else if (wi == 2) wg = rotG * wg;
-          g += wg;
-          rp = rotG * rp;
-          freq *= 1.58;
-          amp *= 0.56;
-          spd *= -1.12;
+      // Authentic Eclipse waterBump.glsl: 3-octave golden-angle rotated waves + patchy largeWavesCurved
+      float eWaveNoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);
+        float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
+        float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+        float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+      float getEclipseWaterH(vec2 pos, float largeWavesCurved, float movement, bool highDetail) {
+        mat2 rotM = mat2(-0.73739, -0.67546, 0.67546, -0.73739);
+        float lwShift = largeWavesCurved * 0.5 + movement;
+        float hSum = 0.0;
+        vec2 p0 = rotM * pos;
+        hSum += eWaveNoise(p0 / vec2(48.0, 12.0) * 14.0 + lwShift * 24.0);
+        vec2 p1 = rotM * p0;
+        hSum += eWaveNoise(p1 / vec2(12.0, 48.0) * 14.0 + lwShift * 24.0);
+        if (highDetail) {
+          vec2 p2 = rotM * p1;
+          hSum += eWaveNoise(p2 / vec2(32.0, 32.0) * 14.0 + lwShift * 24.0);
+        } else {
+          hSum *= 1.5;
         }
-        return vec3(h * patchMask, g.x * patchMask * farAtten, g.y * patchMask * farAtten);
+        return (hSum / 4.5) * max(largeWavesCurved, 0.3);
+      }
+      vec3 eclipseWaterGrad(vec2 p, float t, float dist, bool highDetail) {
+        float movement = t * 0.035;
+        float largeWaves = eWaveNoise(p / 600.0 * 14.0);
+        float largeWavesCurved = pow(1.0 - pow(1.0 - largeWaves, 2.5), 4.5);
+        float deltaPos = mix(1.0, 0.15, largeWavesCurved) + min(dist / 384.0, 3.0);
+        float h0 = getEclipseWaterH(p, largeWavesCurved, movement, highDetail);
+        float h1 = getEclipseWaterH(p + vec2(deltaPos, 0.0), largeWavesCurved, movement, highDetail);
+        float h2 = getEclipseWaterH(p + vec2(0.0, deltaPos), largeWavesCurved, movement, highDetail);
+        float farAtten = exp(-dist * 0.011);
+        return vec3(h0 * 0.06, ((h1 - h0) / deltaPos) * 1.45 * farAtten, ((h2 - h0) / deltaPos) * 1.45 * farAtten);
       }
       void main() {
         vec3 n = normalize(vNormal), viewDir = normalize(cameraPosition - vWorldPos);
@@ -1043,6 +1070,10 @@
         vec3 shallowDay = mix(vec3(0.055, 0.27, 0.39), vec3(0.048, 0.30, 0.36), uEclipseMode);
         vec3 deepDay = mix(vec3(0.010, 0.072, 0.175), vec3(0.009, 0.082, 0.165), uEclipseMode);
         vec3 baseDay = mix(shallowDay, deepDay, smoothstep(0.0, 0.85, depthK));
+        if (uEclipseMode > 0.5) {
+          vec3 beerWater = exp(-max(0.4, depthK * 14.0) * vec3(0.392389, 0.108329, 0.0660636)) * vec3(0.22, 0.34, 0.42);
+          baseDay = mix(baseDay, max(deepDay, beerWater), 0.55);
+        }
         baseDay *= mix(1.0, 0.84, smoothstep(14.0, 72.0, vDist));
         vec3 shallowNight = vec3(0.015, 0.075, 0.14), deepNight = vec3(0.006, 0.018, 0.055);
         vec3 baseWater = mix(mix(shallowNight, deepNight, smoothstep(0.0, 0.85, depthK)), baseDay, sunUp);
@@ -1090,9 +1121,8 @@
             reflCol = mix(reflFallback, mapSample, edgeMask * ((isUltraW ? 0.90 : 0.84) - vShore * (isUltraW ? 0.16 : 0.20)));
           }
           float waveShade = clamp(0.95 + n.x * 0.14 + n.z * 0.14, 0.85, 1.12);
-          float rtWaterBoost = uRayTracing > 0.5 ? mix(0.10, 0.18, uEclipseMode) : 0.0;
-          float reflMix = clamp(fresnel * (isUltraW ? 0.68 : 0.62) + (isUltraW ? 0.07 : 0.05) + max(uDlssMode * 0.03, uEclipseMode * 0.03) + rtWaterBoost * (1.0 - NdotV * 0.65), 0.08, uRayTracing > 0.5 ? 0.84 : (isUltraW ? 0.72 : 0.66));
-          col = mix(baseWater * waveShade, reflCol * waveShade + activeLightCol * (rtWaterBoost * 0.18 * pow(max(dot(reflDir, sunD), 0.0), 10.0) * sunUp), reflMix);
+          float reflMix = clamp(fresnel * (isUltraW ? 0.68 : 0.62) + (isUltraW ? 0.07 : 0.05) + max(uDlssMode * 0.03, uEclipseMode * 0.05), 0.08, isUltraW ? 0.78 : 0.68);
+          col = mix(baseWater * waveShade, reflCol * waveShade, reflMix);
           // Delicate animated shoreline foam + player/boat wake foam shimmer
           float foamBand = clamp(smoothstep(0.76, 1.0, vShore + waveH * 1.45) * (0.30 + 0.70 * sunUp) + wakeFoam, 0.0, 1.0);
           col = mix(col, vec3(0.86, 0.97, 0.99), foamBand * (isUltraW ? 0.36 : 0.28));
@@ -1374,19 +1404,59 @@
       uSharpness: envUniforms.uSharpness, uTexelSize: envUniforms.uTexelSize,
       uMoonBoost: envUniforms.uMoonBoost, uDimension: envUniforms.uDimension,
       uHasGodRays: envUniforms.uHasGodRays, uQuality: envUniforms.uQuality,
-      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uRayTracing: envUniforms.uRayTracing,
+      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode,
       uLightScreen: envUniforms.uLightScreenPos, uSunVis: envUniforms.uSunVis
     },
     depthTest: false, depthWrite: false,
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
     fragmentShader: `
       uniform sampler2D tScene, tBloom, tBloomWide, tGodRays;
-      uniform float uUnderwater, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uRayTracing, uSunVis;
+      uniform float uUnderwater, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uSunVis;
       uniform vec2 uTexelSize, uLightScreen;
       varying vec2 vUv;
       // Narkowicz ACES Filmic Tonemap (BSL / Complementary / ShaderLABS standard)
       vec3 acesFilmic(vec3 x) {
         return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+      }
+      // Authentic Merlin1809 Eclipse-Shader AgX Minimal Tonemap & Vignette (color_transforms.glsl / final.fsh)
+      vec3 agxDefaultContrastApprox(vec3 x) {
+        vec3 x2 = x * x;
+        vec3 x4 = x2 * x2;
+        return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+      }
+      vec3 agxLook(vec3 val) {
+        float luma = dot(val, vec3(0.2126, 0.7152, 0.0722));
+        return vec3(luma) + 1.25 * (val - vec3(luma));
+      }
+      vec3 ToneMap_AgX_minimal_merlin(vec3 color) {
+        mat3 AgXInsetMatrix = mat3(
+          0.842479062253094, 0.0423282422610123, 0.0423756549057051,
+          0.0784335999999992, 0.878468636469772, 0.0784336,
+          0.0792237451477643, 0.0791661274605434, 0.879142973793104
+        );
+        mat3 AgXOutsetMatrix = mat3(
+          1.19687900512017, -0.0528968517574562, -0.0529716355144438,
+          -0.0980208811401368, 1.15190312990417, -0.0980434501171241,
+          -0.0990297440797205, -0.0989611768448433, 1.15107367264116
+        );
+        const float AgxMinEv = -11.47393;
+        const float AgxMaxEv = 3.226069;
+        color = AgXInsetMatrix * max(color, vec3(1e-5));
+        color = clamp(log2(max(color, vec3(1e-5))), AgxMinEv, AgxMaxEv);
+        color = (color - AgxMinEv) / (AgxMaxEv - AgxMinEv);
+        color = agxDefaultContrastApprox(color);
+        color = agxLook(color);
+        color = AgXOutsetMatrix * color;
+        color = pow(max(color, vec3(0.0)), vec3(2.2));
+        return clamp(color, 0.0, 1.0);
+      }
+      float eclipseVignette(vec2 uv, float noise) {
+        float v = 1.0 - clamp(1.0 - length(uv - 0.5), 0.0, 1.0);
+        v *= v * v;
+        v = 1.0 - v;
+        v *= v * v * v * v;
+        v = v + v * (noise - 0.5) * 0.01;
+        return mix(1.0, v, 0.5);
       }
       void main() {
         vec2 uv = vUv;
@@ -1441,50 +1511,55 @@
           col += vec3(1.0, 0.76, 0.42) * sunRad * clamp(uSunVis * 2.0, 0.0, 1.0) * mix(0.11, 0.11, uEclipseMode);
         }
 
-        // 1. Clean Direct ACES Filmic Tonemap
+        // Authentic Merlin1809 Eclipse AgX Minimal + Purkinje + Vignette (zero yellow wash!) vs ACES grading
         float expUse = mix(uExposure, uExposure * 0.94, uUnderwater);
         if (uDimension > 2.5) expUse *= 0.90;
-        col = acesFilmic(max(col, vec3(0.0)) * expUse);
-
-        // 2. Gentle Highlight Rolloff
-        float hiLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-        float hiDesat = smoothstep(0.74, 1.0, hiLum) * 0.06 * (1.0 - uUnderwater);
-        col = mix(col, vec3(hiLum) * vec3(1.01, 0.99, 0.96), hiDesat);
-
-        // 3. Split-Toning (Eclipse cool slate-teal shadows + warm golden highlights)
-        float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-        vec3 baseCool = mix(vec3(0.96, 0.97, 1.02), vec3(0.84, 0.90, 1.07), uMoonBoost * 0.72);
-        vec3 coolShadows = mix(baseCool, vec3(0.85, 0.88, 1.10), uChillMode * (1.0 - uUnderwater));
-        coolShadows = mix(coolShadows, vec3(0.87, 0.93, 1.09), uDlssMode * (1.0 - uUnderwater) * 0.72);
-        coolShadows = mix(coolShadows, vec3(0.83, 0.91, 1.06), uEclipseMode * (1.0 - uUnderwater) * 0.85);
-        if (uDimension > 3.5) coolShadows = vec3(0.76, 0.96, 1.04);
-        else if (uDimension > 2.5) coolShadows = vec3(0.88, 0.89, 1.01);
-        else if (uDimension > 1.5) coolShadows = vec3(0.96, 0.88, 1.08);
-        else if (uDimension > 0.5) coolShadows = vec3(1.03, 0.90, 0.86);
-        col = mix(col * coolShadows, col, smoothstep(0.06, 0.44, lum));
-
-        vec3 warmHigh = vec3(1.0 + uWarmth * 0.22, 1.0 + uWarmth * 0.08, 1.0 - uWarmth * 0.14);
-        if (uDimension > 3.5) warmHigh = vec3(0.92, 1.04, 1.08);
-        else if (uDimension > 2.5) warmHigh = vec3(1.05, 0.97, 0.99);
-        else if (uDimension > 1.5) warmHigh = vec3(1.06, 0.95, 1.12);
-        float warmMask = smoothstep(0.10, 0.50, lum) * (1.0 - smoothstep(0.72, 0.96, lum) * 0.72);
-        col = mix(col, col * warmHigh, warmMask * (1.0 - uUnderwater * 0.88));
-
-        // 4. Gentle Filmic S-Curve Micro-Contrast
-        vec3 sCurve = col * col * (3.0 - 2.0 * col);
-        col = mix(col, sCurve, uContrast * (1.0 - uUnderwater * 0.45));
-
-        // 5. Vibrant Color Boost
-        float maxCh = max(col.r, max(col.g, col.b));
-        float minCh = min(col.r, min(col.g, col.b));
-        float satBoost = uVibrance * (1.0 - (maxCh - minCh) * 0.72);
-        float lumaV = dot(col, vec3(0.2126, 0.7152, 0.0722));
-        col = mix(vec3(lumaV), col, 1.06 + satBoost);
-
-        // 6. Subtle Cinematic Lens Vignette
-        float vigAmt = uUnderwater > 0.5 ? mix(0.22, 0.48, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0)) : mix(0.14, 0.19, max(uChillMode, uEclipseMode * 0.75));
-        float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * vigAmt;
-        col *= vig;
+        if (uEclipseMode > 0.5) {
+          vec3 linC = pow(max(col, vec3(1e-5)), vec3(2.2));
+          if (uMoonBoost > 0.05 && uUnderwater < 0.5) {
+            float lRod = dot(linC, vec3(0.2126, 0.7152, 0.0722));
+            float purk = clamp((1.0 - smoothstep(0.015, 0.16, lRod)) * uMoonBoost * 0.35, 0.0, 0.40);
+            linC = mix(linC, vec3(lRod) * vec3(0.4, 0.7, 1.0) * 1.15, purk);
+          }
+          vec3 agxOut = ToneMap_AgX_minimal_merlin(linC * expUse * 0.92);
+          col = pow(max(agxOut, vec3(0.0)), vec3(1.0 / 2.2));
+          float maxEc = max(col.r, max(col.g, col.b)), minEc = min(col.r, min(col.g, col.b));
+          float lumEc = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          col = mix(vec3(lumEc), col, 1.0 + uVibrance * (1.0 - (maxEc - minEc) * 0.70));
+          float ignV = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+          float uwVig = uUnderwater > 0.5 ? (1.0 - dot(vUv - 0.5, vUv - 0.5) * mix(0.22, 0.45, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0))) : 1.0;
+          col *= eclipseVignette(vUv, ignV) * uwVig;
+        } else {
+          col = acesFilmic(max(col, vec3(0.0)) * expUse);
+          float hiLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          float hiDesat = smoothstep(0.74, 1.0, hiLum) * 0.06 * (1.0 - uUnderwater);
+          col = mix(col, vec3(hiLum) * vec3(1.01, 0.99, 0.96), hiDesat);
+          float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          vec3 baseCool = mix(vec3(0.96, 0.97, 1.02), vec3(0.84, 0.90, 1.07), uMoonBoost * 0.72);
+          vec3 coolShadows = mix(baseCool, vec3(0.85, 0.88, 1.10), uChillMode * (1.0 - uUnderwater));
+          coolShadows = mix(coolShadows, vec3(0.87, 0.93, 1.09), uDlssMode * (1.0 - uUnderwater) * 0.72);
+          if (uDimension > 3.5) coolShadows = vec3(0.76, 0.96, 1.04);
+          else if (uDimension > 2.5) coolShadows = vec3(0.88, 0.89, 1.01);
+          else if (uDimension > 1.5) coolShadows = vec3(0.96, 0.88, 1.08);
+          else if (uDimension > 0.5) coolShadows = vec3(1.03, 0.90, 0.86);
+          col = mix(col * coolShadows, col, smoothstep(0.06, 0.44, lum));
+          vec3 warmHigh = vec3(1.0 + uWarmth * 0.22, 1.0 + uWarmth * 0.08, 1.0 - uWarmth * 0.14);
+          if (uDimension > 3.5) warmHigh = vec3(0.92, 1.04, 1.08);
+          else if (uDimension > 2.5) warmHigh = vec3(1.05, 0.97, 0.99);
+          else if (uDimension > 1.5) warmHigh = vec3(1.06, 0.95, 1.12);
+          float warmMask = smoothstep(0.10, 0.50, lum) * (1.0 - smoothstep(0.72, 0.96, lum) * 0.72);
+          col = mix(col, col * warmHigh, warmMask * (1.0 - uUnderwater * 0.88));
+          vec3 sCurve = col * col * (3.0 - 2.0 * col);
+          col = mix(col, sCurve, uContrast * (1.0 - uUnderwater * 0.45));
+          float maxCh = max(col.r, max(col.g, col.b));
+          float minCh = min(col.r, min(col.g, col.b));
+          float satBoost = uVibrance * (1.0 - (maxCh - minCh) * 0.72);
+          float lumaV = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          col = mix(vec3(lumaV), col, 1.06 + satBoost);
+          float vigAmt = uUnderwater > 0.5 ? mix(0.22, 0.48, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0)) : mix(0.14, 0.19, uChillMode);
+          float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * vigAmt;
+          col *= vig;
+        }
         gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
       }`
   });
@@ -3004,7 +3079,6 @@
         player.atkCdMax = cdMax;
         player.atkCd = cdMax;
         if (!(swDef && swDef.tool === 'sword')) { player.swordCombo = 0; player.comboResetT = 0; }
-        if (_showToolArm) player._pendingEquipTrail = swDef;
       }
     }
     if (_showToolArm) {
@@ -3155,50 +3229,38 @@
   }
   window.__getAirMotesWorld = () => airMotes.map(m => ({ wx: m.wx, wy: m.wy, wz: m.wz, init: m.init }));
 
-  // Eclipse 3D Ultra-Dense Grass Carpet (7x7 / 8x8 stratified tiles + 90deg overlay = 98-128 blades/m² within 11m, seamless edge-to-edge)
+  // Authentic Merlin1809 Eclipse-Shader 3D Camera-Facing Tapered Procedural Grass (all_solid.gsh / all_solid.vsh)
   const _isLiteGrass = (_isMobilePerf || (_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isSoftware));
-  const ECLIPSE_GRASS_MAX = _isMobilePerf ? 2200 : (_isLiteGrass ? 3000 : 6200);
+  const ECLIPSE_GRASS_MAX = _isMobilePerf ? 2000 : (_isLiteGrass ? 2800 : 5400);
   const grassInstGeo = (() => {
-    const pos = [], bladeH = [], bladeSide = [], idx = [];
+    const pos = [], bladeH = [], bladeSide = [], bladeRand = [], idx = [];
     let vc = 0;
     const halton = (i, base) => {
       let f = 1, r = 0, n = i;
       while (n > 0) { f /= base; r += f * (n % base); n = Math.floor(n / base); }
       return r;
     };
-    const COLS = _isLiteGrass ? 6 : 8;
+    const COLS = _isMobilePerf ? 5 : (_isLiteGrass ? 6 : 7);
     const BLADES = COLS * COLS;
-    const cellSpan = 0.97 / COLS;
-    const tiers = [0.0, 0.50];
-    const wScale = [1.0, 0.62];
-    const leanScale = [0.0, 0.36];
+    const cellSpan = 0.96 / COLS;
+    const tiers = [0.0, 0.25, 0.50, 0.75];
     for (let b = 0; b < BLADES; b++) {
       const gx = b % COLS, gz = Math.floor(b / COLS);
-      const ox = Math.max(-0.492, Math.min(0.492, -0.485 + (gx + 0.5) * cellSpan + (halton(b + 1, 2) - 0.5) * cellSpan * 0.68));
-      const oz = Math.max(-0.492, Math.min(0.492, -0.485 + (gz + 0.5) * cellSpan + (halton(b + 1, 3) - 0.5) * cellSpan * 0.68));
-      const f1 = halton(b + 4, 5), f2 = halton(b + 7, 7);
-      const yaw = f1 * 6.283185;
-      const h = 0.40 + f2 * 0.30;
-      const w = 0.050 + (1.0 - f2) * 0.020;
-      const lean = 0.14 + halton(b + 3, 11) * 0.18;
-      const ca = Math.cos(yaw), sa = Math.sin(yaw);
-      const rx = ca, rz = sa, fx = -sa, fz = ca;
-      const tipX = Math.max(-0.48, Math.min(0.48, ox + fx * lean));
-      const tipZ = Math.max(-0.48, Math.min(0.48, oz + fz * lean));
-      const dxTip = tipX - ox, dzTip = tipZ - oz;
+      const ox = Math.max(-0.48, Math.min(0.48, -0.48 + (gx + 0.5) * cellSpan + (halton(b + 1, 2) - 0.5) * cellSpan * 0.76));
+      const oz = Math.max(-0.48, Math.min(0.48, -0.48 + (gz + 0.5) * cellSpan + (halton(b + 1, 3) - 0.5) * cellSpan * 0.76));
+      const rdx = (halton(b + 11, 5) + halton(b + 17, 7)) - 1.0;
+      const rdz = (halton(b + 13, 11) + halton(b + 19, 13)) - 1.0;
+      const hVar = 0.85 + halton(b + 5, 17) * 0.30;
       const baseV = vc;
       for (let t = 0; t < tiers.length; t++) {
-        const y = -0.02 + h * tiers[t];
-        const hw = w * wScale[t], ln = leanScale[t];
-        const cx = ox + dxTip * ln, cz = oz + dzTip * ln;
-        pos.push(cx - rx * hw, y, cz - rz * hw);
-        bladeH.push(tiers[t]); bladeSide.push(-1.0);
-        pos.push(cx + rx * hw, y, cz + rz * hw);
-        bladeH.push(tiers[t]); bladeSide.push(1.0);
+        pos.push(ox, 0.0, oz);
+        bladeH.push(tiers[t]); bladeSide.push(-1.0); bladeRand.push(rdx, rdz, hVar);
+        pos.push(ox, 0.0, oz);
+        bladeH.push(tiers[t]); bladeSide.push(1.0); bladeRand.push(rdx, rdz, hVar);
         vc += 2;
       }
-      pos.push(tipX, -0.02 + h, tipZ);
-      bladeH.push(1.0); bladeSide.push(0.0);
+      pos.push(ox, 0.0, oz);
+      bladeH.push(1.0); bladeSide.push(0.0); bladeRand.push(rdx, rdz, hVar);
       vc += 1;
       for (let t = 0; t < tiers.length - 1; t++) {
         const r0 = baseV + t * 2, r1 = r0 + 2;
@@ -3211,23 +3273,28 @@
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('aBladeH', new THREE.Float32BufferAttribute(bladeH, 1));
     g.setAttribute('aBladeSide', new THREE.Float32BufferAttribute(bladeSide, 1));
+    g.setAttribute('aBladeRand', new THREE.Float32BufferAttribute(bladeRand, 3));
     g.setIndex(idx);
     g.instanceCount = 0;
     return g;
   })();
   const _egInstPos = new Float32Array(ECLIPSE_GRASS_MAX * 4);
   const _egInstCol = new Float32Array(ECLIPSE_GRASS_MAX * 4);
+  const _egInstSide = new Float32Array(ECLIPSE_GRASS_MAX * 4);
   const _egInstAo = new Float32Array(ECLIPSE_GRASS_MAX);
   const _egPosAttr = new THREE.InstancedBufferAttribute(_egInstPos, 4);
   const _egColAttr = new THREE.InstancedBufferAttribute(_egInstCol, 4);
+  const _egSideAttr = new THREE.InstancedBufferAttribute(_egInstSide, 4);
   const _egAoAttr = new THREE.InstancedBufferAttribute(_egInstAo, 1);
   if (typeof THREE.DynamicDrawUsage !== 'undefined') {
     if (_egPosAttr.setUsage) _egPosAttr.setUsage(THREE.DynamicDrawUsage);
     if (_egColAttr.setUsage) _egColAttr.setUsage(THREE.DynamicDrawUsage);
+    if (_egSideAttr.setUsage) _egSideAttr.setUsage(THREE.DynamicDrawUsage);
     if (_egAoAttr.setUsage) _egAoAttr.setUsage(THREE.DynamicDrawUsage);
   }
   grassInstGeo.setAttribute('aInstPos', _egPosAttr);
   grassInstGeo.setAttribute('aInstCol', _egColAttr);
+  grassInstGeo.setAttribute('aInstSide', _egSideAttr);
   grassInstGeo.setAttribute('aInstAo', _egAoAttr);
 
   const eclipseGrassMat = new THREE.ShaderMaterial({
@@ -3242,35 +3309,75 @@
     vertexShader: `
       attribute float aBladeH;
       attribute float aBladeSide;
+      attribute vec3 aBladeRand;
       attribute vec4 aInstPos;
       attribute vec4 aInstCol;
+      attribute vec4 aInstSide;
       attribute float aInstAo;
       uniform float uTime, uWindStrength, uGrassRadius;
       uniform vec3 uPlayerPos;
       varying vec3 vCol, vWPos;
-      varying float vH, vSide, vDist, vSkyAo;
+      varying float vHeightFade, vSide, vDist, vSkyAo;
+      vec2 calcWave(vec3 pos) {
+        const float PI48 = 150.796447372;
+        float pi2wt = PI48 * uTime;
+        float magnitude = abs(sin(dot(vec4(uTime, pos), vec4(1.0, 0.005, 0.005, 0.005))) * 0.5 + 0.72) * 0.013;
+        return (sin(pi2wt * vec2(0.0063, 0.0015) * 4.0 - pos.xz + pos.y * 0.05) + 0.1) * magnitude;
+      }
+      vec3 calcMovePlants(vec3 pos) {
+        vec2 m = calcWave(pos);
+        return vec3(m.x, -length(m), m.y) * 5.0 * uWindStrength;
+      }
       void main() {
         float c = cos(aInstCol.w), s = sin(aInstCol.w);
-        vec3 lp = vec3(position.x * c - position.z * s, position.y, position.x * s + position.z * c);
-        vec3 wp = lp + aInstPos.xyz;
-        float distXZ = length(wp.xz - uPlayerPos.xz);
-        float distFade = 1.0 - smoothstep(uGrassRadius * 0.68, uGrassRadius, distXZ);
+        vec3 rotOff = vec3(position.x * c - position.z * s, 0.0, position.x * s + position.z * c);
+        vec3 rootPos = aInstPos.xyz + rotOff;
+        float distXZ = length(rootPos.xz - uPlayerPos.xz);
+        float distFade = 1.0 - smoothstep(uGrassRadius * 0.72, uGrassRadius, distXZ);
         if (distFade <= 0.002) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-        lp.y = (lp.y + 0.02) * aInstPos.w * distFade - 0.02;
-        wp = lp + aInstPos.xyz;
-        // Eclipse rolling gust sway + smooth radial player foot parting
-        float curv = aBladeH * aBladeH;
-        float gust = 0.72 + 0.44 * sin(uTime * 1.15 + wp.x * 0.22 + wp.z * 0.18);
-        float wX = (sin(uTime * 2.55 + wp.x * 0.85 + wp.z * 0.55) * 0.095 + 0.025) * gust * uWindStrength * curv * aInstPos.w;
-        float wZ = cos(uTime * 2.05 + wp.z * 0.90 - wp.x * 0.45) * 0.072 * gust * uWindStrength * curv * aInstPos.w;
-        vec2 pd = wp.xz - uPlayerPos.xz;
-        float pLen = length(pd);
-        float pPush = smoothstep(0.55, 0.05, pLen) * smoothstep(1.35, 0.1, abs(wp.y - uPlayerPos.y)) * 0.14 * curv;
-        vec2 pDir = pLen > 0.001 ? (pd / pLen) : vec2(0.0);
-        wp.x += wX + pDir.x * pPush;
-        wp.z += wZ + pDir.y * pPush;
-        wp.y -= (length(vec2(wX, wZ)) * 0.30 + pPush * 0.34);
-        vCol = aInstCol.rgb; vWPos = wp; vH = aBladeH; vSide = aBladeSide; vSkyAo = aInstAo;
+
+        vec4 sideCheck = aInstSide;
+        float eastH  = clamp(abs(sideCheck.x) * abs(rotOff.x + 0.5), 0.0, 1.0);
+        float westH  = clamp(abs(sideCheck.y) * abs(rotOff.x - 0.5), 0.0, 1.0);
+        float southH = clamp(abs(sideCheck.z) * abs(rotOff.z + 0.5), 0.0, 1.0);
+        float northH = clamp(abs(sideCheck.w) * abs(rotOff.z - 0.5), 0.0, 1.0);
+        eastH  *= eastH  * sign(sideCheck.x);
+        westH  *= westH  * sign(sideCheck.y);
+        southH *= southH * sign(sideCheck.z);
+        northH *= northH * sign(sideCheck.w);
+        float totalHeightMult = 0.5 * clamp(eastH + westH + southH + northH, -1.0, 1.0) + 1.0;
+        if (abs(sideCheck.x) > 1.5) eastH = 0.0;
+        if (abs(sideCheck.y) > 1.5) westH = 0.0;
+        if (abs(sideCheck.z) > 1.5) southH = 0.0;
+        if (abs(sideCheck.w) > 1.5) northH = 0.0;
+        vec2 edgeBlend = eastH * vec2(-0.17, 0.0) + westH * vec2(0.17, 0.0) + southH * vec2(0.0, -0.17) + northH * vec2(0.0, 0.17);
+
+        float grassH = aBladeH;
+        float grassCurvature = smoothstep(0.0, 1.0, grassH);
+        float bladeLenY = 0.55 * totalHeightMult * aInstPos.w * aBladeRand.z * distFade;
+        vec3 viewCam = normalize(rootPos - cameraPosition);
+        vec3 rightDir = normalize(cross(vec3(0.0, 1.0, 0.0), viewCam) + vec3(1e-5, 0.0, 0.0));
+        float tierStep = floor(grassH * 4.0 + 0.1);
+        float taper = aBladeSide * pow(0.8, tierStep);
+        float halfThick = (0.022 + min(length(rootPos - cameraPosition), 36.0) * 0.00055) * aInstPos.w;
+
+        vec3 wp = rootPos;
+        wp.y += grassH * bladeLenY - 0.015;
+        vec2 offsetXZ = wp.xz - uPlayerPos.xz;
+        float playerDist = smoothstep(0.5, 0.05, length(offsetXZ)) * smoothstep(1.2, 0.15, abs(wp.y - uPlayerPos.y));
+        vec2 dir2 = length(offsetXZ) > 1e-4 ? normalize(offsetXZ) : vec2(0.0);
+        wp.xz += 0.7 * playerDist * dir2 * grassCurvature;
+
+        vec2 rndRotated = vec2(aBladeRand.x * c - aBladeRand.y * s, aBladeRand.x * s + aBladeRand.y * c);
+        wp.xz += grassCurvature * (0.5 * rndRotated * 0.24 + edgeBlend);
+        wp += 1.6 * calcMovePlants(rootPos) * grassCurvature * grassCurvature;
+        wp += rightDir * (taper * halfThick);
+
+        vCol = aInstCol.rgb;
+        vWPos = wp;
+        vHeightFade = smoothstep(-0.35, 1.0, grassH);
+        vSide = aBladeSide;
+        vSkyAo = aInstAo;
         vec4 mv = viewMatrix * vec4(wp, 1.0);
         vDist = length(mv.xyz);
         gl_Position = projectionMatrix * mv;
@@ -3279,31 +3386,16 @@
       uniform vec3 uSunDir, uSunColor, uSkyTop, uFogColor;
       uniform float uTime, uFogStart, uFogEnd;
       varying vec3 vCol, vWPos;
-      varying float vH, vSide, vDist, vSkyAo;
+      varying float vHeightFade, vSide, vDist, vSkyAo;
       void main() {
         vec3 sDir = normalize(uSunDir);
         vec3 vDir = normalize(vWPos - cameraPosition);
         float sunUp = smoothstep(-0.08, 0.28, sDir.y);
-        // Hue-preserving AO root -> vivid mid -> sunlit tip (green, warm autumn orange, and cool/pink/violet Dream flora)
-        float warmG = smoothstep(0.05, 0.35, vCol.r - vCol.g);
-        float coolB = smoothstep(0.36, 0.58, vCol.b);
-        vec3 rootCol = vCol * mix(mix(vec3(0.11, 0.23, 0.08), vec3(0.24, 0.15, 0.08), warmG), vec3(0.20, 0.20, 0.26), coolB);
-        vec3 midCol = vCol * mix(mix(vec3(0.78, 0.92, 0.68), vec3(0.95, 0.82, 0.64), warmG), vec3(0.88, 0.88, 0.96), coolB);
-        vec3 tipCol = vCol * mix(mix(vec3(1.06, 1.15, 0.74), vec3(1.16, 1.04, 0.72), warmG), vec3(1.12, 1.12, 1.16), coolB);
-        vec3 bladeGrad = vH < 0.50 ? mix(rootCol, midCol, vH / 0.50) : mix(midCol, tipCol, (vH - 0.50) / 0.50);
-        float midRidg = 1.0 - abs(vSide) * 0.26;
-        vec3 base = bladeGrad * midRidg;
-        float cloudShade = 0.78 + 0.22 * sin(vWPos.x * 0.08 + uTime * 0.18) * cos(vWPos.z * 0.07 - uTime * 0.14);
-        vec3 aoShade = mix(vec3(0.32, 0.40, 0.56), vec3(1.0), vSkyAo) * cloudShade;
-        float nightScale = mix(0.18, 1.0, sunUp);
-        vec3 litCol = base * aoShade * mix(vec3(0.42, 0.56, 0.82), vec3(0.96, 1.00, 0.94), sunUp) * nightScale;
-        float sss = pow(max(dot(vDir, sDir), 0.0), 2.8) * 0.50 + 0.14;
-        vec3 grassSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), 0.62);
-        litCol += vCol * grassSunBal * sss * smoothstep(0.18, 1.0, vH) * vSkyAo * sunUp;
-        float tipSheen = smoothstep(0.45, 1.0, vH) * (1.0 - abs(vSide)) * 0.12 * vSkyAo * sunUp;
-        litCol += grassSunBal * tipSheen;
-        litCol += vCol * uSkyTop * 0.09 * smoothstep(0.28, 1.0, vH) * (0.25 + 0.75 * sunUp) * vSkyAo;
-        litCol += vec3(0.18, 0.32, 0.48) * smoothstep(0.55, 1.0, vH) * (1.0 - sunUp) * 0.08 * vSkyAo;
+        vec3 albedo = vCol * vHeightFade;
+        vec3 skyHemi = mix(vec3(0.10, 0.14, 0.22), uSkyTop * 0.42 + vec3(0.45), sunUp) * mix(0.45, 1.0, vSkyAo);
+        vec3 sunDirect = uSunColor * (0.58 * sunUp * vSkyAo);
+        float sssFwd = pow(max(dot(vDir, sDir), 0.0), 3.0) * 0.65 * smoothstep(0.15, 1.0, vHeightFade) * sunUp * vSkyAo;
+        vec3 litCol = albedo * (skyHemi + sunDirect) + albedo * mix(uSunColor, vec3(1.0), 0.40) * sssFwd;
         float fogF = smoothstep(uFogStart, uFogEnd, vDist);
         float sunSc = pow(max(dot(vDir, sDir.y > -0.05 ? sDir : -sDir), 0.0), 4.2) * (sDir.y > -0.05 ? sunUp : 0.35);
         vec3 fogCol = mix(uFogColor * 0.92, min(uSunColor * 1.05, vec3(1.0, 0.91, 0.78)), sunSc * 0.46);
@@ -3325,7 +3417,7 @@
       const o = i * 4;
       const r = _egInstCol[o], g = _egInstCol[o + 1], b = _egInstCol[o + 2];
       if (b > 0.45) dream++;
-      else if (r > 0.65 && g < 0.65 && b < 0.25) warmAutumn++;
+      else if (r > 0.60 && g < 0.60 && b < 0.25) warmAutumn++;
       else if (g > r) green++;
     }
     return { total, warmAutumn, dream, green };
@@ -3348,14 +3440,30 @@
       : ((typeof _autoPerfTier !== 'undefined' && _autoPerfTier === 1) ? Math.floor(ECLIPSE_GRASS_MAX * 0.72) : ECLIPSE_GRASS_MAX);
     _egBiomeCache.clear();
     const hasBiomeFn = (typeof getBiomeAt === 'function');
+    const hasWorldGet = (typeof getBlockWorld === 'function');
 
-    const rad = envUniforms.uGrassRadius ? envUniforms.uGrassRadius.value : (_isMobilePerf ? 20 : 36);
+    const rad = envUniforms.uGrassRadius ? envUniforms.uGrassRadius.value : (_isMobilePerf ? 22 : 38);
     const radI = Math.floor(rad), radSq = rad * rad;
     const px = Math.floor(player.x), pz = Math.floor(player.z);
     const minLy = Math.max(0, Math.floor(player.y - 12) - MIN_Y);
     const maxCapLy = WORLD_H - 2;
     let cnt = 0, maxEmitD2 = 0;
     let cacheCx = 999999, cacheCz = 999999, cacheCh = null;
+
+    const isGrassSurface = (bid) => (bid === B.GRASS || bid === B.SIFT_GRASS || bid === B.LULLABY_GRASS || bid === B.SPORE_TURF || bid === B.BLUE_GRASS || bid === B.MOSS_BLOCK || bid === B.AUTUMN_PODZOL);
+    const isShortGrassTop = (tid) => (tid === B.TALL_GRASS || tid === B.SHORT_GRASS || tid === B.BUSH_GRASS || tid === B.WILD_TALL_GRASS || tid === B.AUTUMN_GRASS);
+    const checkSideDir = (data, lx, ly, lz, wx, wy, wz) => {
+      if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) {
+        const upB = data[((ly + 1) << 8) | (lz << 4) | lx];
+        if (IS_SOLID[upB] === 1 || isShortGrassTop(upB)) return 1.0;
+        const lvB = data[(ly << 8) | (lz << 4) | lx];
+        return isGrassSurface(lvB) ? 0.0 : -1.0;
+      }
+      if (!hasWorldGet) return 0.0;
+      const upW = getBlockWorld(wx, wy + 1, wz);
+      if (IS_SOLID[upW] === 1 || isShortGrassTop(upW)) return 1.0;
+      return isGrassSurface(getBlockWorld(wx, wy, wz)) ? 0.0 : -1.0;
+    };
 
     const emitColumn = (wx, wz, d2) => {
       const cx = wx >> 4, cz = wz >> 4;
@@ -3368,11 +3476,12 @@
       const data = ch.data;
       const maxLy = Math.min(maxCapLy, ch.maxLy, Math.floor(player.y + 14) - MIN_Y);
       if (maxLy < minLy) return;
-      const colOff = ((wz & 15) << 4) | (wx & 15);
+      const lx = wx & 15, lz = wz & 15;
+      const colOff = (lz << 4) | lx;
       for (let ly = maxLy; ly >= minLy && cnt < effMax; ly--) {
         const id = data[(ly << 8) | colOff];
         if (id === B.STONE || id === B.DEEPSLATE || id === B.WATER || id === B.SANDSTONE) break;
-        if (id !== B.GRASS && id !== B.SIFT_GRASS && id !== B.LULLABY_GRASS && id !== B.SPORE_TURF && id !== B.BLUE_GRASS && id !== B.MOSS_BLOCK && id !== B.AUTUMN_PODZOL) continue;
+        if (!isGrassSurface(id)) continue;
         if (id === B.SPORE_TURF) {
           if (ly <= 0) continue;
           const belowId = data[((ly - 1) << 8) | colOff];
@@ -3399,55 +3508,62 @@
           bio = _egBiomeCache.get(bqk);
           if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
         }
-        let cr = 0.28, cg = 0.84, cb = 0.14;
+        // Authentic Minecraft / Eclipse biome-matched greens (plus Dream & Autumn biomes)
+        let cr = 0.36, cg = 0.64, cb = 0.24;
         if (id === B.AUTUMN_PODZOL) {
-          if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.94; cg = 0.54; cb = 0.10; }
-          else { cr = 0.88; cg = 0.42; cb = 0.08; }
-        } else if (id === B.SIFT_GRASS) { cr = 0.26; cg = 0.78; cb = 0.60; }
-        else if (id === B.LULLABY_GRASS) { cr = 0.94; cg = 0.48; cb = 0.70; }
-        else if (id === B.SPORE_TURF) { cr = 0.58; cg = 0.38; cb = 0.96; }
-        else if (id === B.BLUE_GRASS) { cr = 0.16; cg = 0.72; cb = 0.66; }
-        else if (id === B.MOSS_BLOCK) { cr = 0.28; cg = 0.64; cb = 0.16; }
+          if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.78; cg = 0.50; cb = 0.14; }
+          else { cr = 0.72; cg = 0.38; cb = 0.11; }
+        } else if (id === B.SIFT_GRASS) { cr = 0.24; cg = 0.68; cb = 0.54; }
+        else if (id === B.LULLABY_GRASS) { cr = 0.84; cg = 0.44; cb = 0.64; }
+        else if (id === B.SPORE_TURF) { cr = 0.52; cg = 0.36; cb = 0.88; }
+        else if (id === B.BLUE_GRASS) { cr = 0.18; cg = 0.62; cb = 0.58; }
+        else if (id === B.MOSS_BLOCK) { cr = 0.30; cg = 0.54; cb = 0.18; }
         else if (typeof BIOMES !== 'undefined' && bio) {
           if (bio === BIOMES.PLAINS || bio === BIOMES.LUSH_STEPPE || bio === BIOMES.FLOWER_MEADOW || bio === BIOMES.HIGHLAND_PLATEAU) {
-            cr = 0.34; cg = 0.88; cb = 0.13;
-          } else if (bio === BIOMES.DARK_FOREST) { cr = 0.19; cg = 0.54; cb = 0.14; }
-          else if (bio === BIOMES.PALE_GARDEN) { cr = 0.48; cg = 0.56; cb = 0.52; }
-          else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.40; cg = 0.18; cb = 0.34; }
-          else if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.28; cg = 0.60; cb = 0.34; }
+            cr = 0.38; cg = 0.68; cb = 0.24;
+          } else if (bio === BIOMES.DARK_FOREST) { cr = 0.24; cg = 0.48; cb = 0.18; }
+          else if (bio === BIOMES.PALE_GARDEN) { cr = 0.46; cg = 0.52; cb = 0.48; }
+          else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.36; cg = 0.20; cb = 0.32; }
+          else if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.30; cg = 0.54; cb = 0.34; }
           else if (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST) {
-            cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.94 : 0.90;
-            cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.56 : 0.45;
-            cb = 0.09;
+            cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.78 : 0.74;
+            cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.50 : 0.40;
+            cb = 0.12;
           }
-          else if (bio === BIOMES.SAVANNA || bio === BIOMES.MESA || bio === BIOMES.DESERT) { cr = 0.66; cg = 0.68; cb = 0.20; }
+          else if (bio === BIOMES.SAVANNA || bio === BIOMES.MESA || bio === BIOMES.DESERT) { cr = 0.56; cg = 0.58; cb = 0.22; }
         }
 
-        const macroH = 0.88 + 0.38 * (0.5 + 0.5 * Math.sin(wx * 0.24 + Math.cos(wz * 0.21) * 1.3));
-        const nearTiles = (d2 <= 100) ? 2 : 1;
-        const lodScale = (d2 <= 100) ? 1.05 : 1.18;
+        let sE = 0.0, sW = 0.0, sS = 0.0, sN = 0.0;
+        if (isShortGrassTop(topId)) {
+          sE = 2.0; sW = 2.0; sS = 2.0; sN = 2.0;
+        } else {
+          sE = checkSideDir(data, lx + 1, ly, lz, wx + 1, wy, wz);
+          sW = checkSideDir(data, lx - 1, ly, lz, wx - 1, wy, wz);
+          sS = checkSideDir(data, lx, ly, lz + 1, wx, wy, wz + 1);
+          sN = checkSideDir(data, lx, ly, lz - 1, wx, wy, wz - 1);
+        }
+
         if (d2 > maxEmitD2) maxEmitD2 = d2;
         let h = Math.imul(wx * 374761 + wz * 668265 + wy * 214748, 0x85ebca6b) >>> 0;
         const baseAng = (h & 3) * (Math.PI * 0.5); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
-        const baseSc = (0.72 + ((h & 255) / 255) * 0.33) * macroH * lodScale; h >>>= 8;
-        const hueShift = (((h & 63) / 63) - 0.5) * 0.12;
-        const rc = Math.max(0.05, Math.min(1.0, cr + hueShift));
-        const gc = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.65));
-        const bc = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.3));
+        const baseSc = 0.85 + ((h & 255) / 255) * 0.26; h >>>= 8;
+        const hueShift = (((h & 63) / 63) - 0.5) * 0.07;
 
-        for (let t = 0; t < nearTiles && cnt < effMax; t++) {
-          const base = cnt * 4;
-          _egInstPos[base] = wx + 0.5;
-          _egInstPos[base + 1] = wy + 1.0;
-          _egInstPos[base + 2] = wz + 0.5;
-          _egInstPos[base + 3] = baseSc * (t === 0 ? 1.0 : 0.90);
-          _egInstCol[base] = rc;
-          _egInstCol[base + 1] = gc;
-          _egInstCol[base + 2] = bc;
-          _egInstCol[base + 3] = baseAng + (t === 0 ? 0.0 : 1.570796);
-          _egInstAo[cnt] = skyAO;
-          cnt++;
-        }
+        const base = cnt * 4;
+        _egInstPos[base] = wx + 0.5;
+        _egInstPos[base + 1] = wy + 1.0;
+        _egInstPos[base + 2] = wz + 0.5;
+        _egInstPos[base + 3] = baseSc;
+        _egInstCol[base] = Math.max(0.05, Math.min(1.0, cr + hueShift));
+        _egInstCol[base + 1] = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.6));
+        _egInstCol[base + 2] = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.2));
+        _egInstCol[base + 3] = baseAng;
+        _egInstSide[base] = sE;
+        _egInstSide[base + 1] = sW;
+        _egInstSide[base + 2] = sS;
+        _egInstSide[base + 3] = sN;
+        _egInstAo[cnt] = skyAO;
+        cnt++;
       }
     };
 
@@ -3475,9 +3591,11 @@
     if (cnt > 0) {
       if (_egPosAttr.updateRange) { _egPosAttr.updateRange.offset = 0; _egPosAttr.updateRange.count = cnt * 4; }
       if (_egColAttr.updateRange) { _egColAttr.updateRange.offset = 0; _egColAttr.updateRange.count = cnt * 4; }
+      if (_egSideAttr.updateRange) { _egSideAttr.updateRange.offset = 0; _egSideAttr.updateRange.count = cnt * 4; }
       if (_egAoAttr.updateRange) { _egAoAttr.updateRange.offset = 0; _egAoAttr.updateRange.count = cnt; }
       _egPosAttr.needsUpdate = true;
       _egColAttr.needsUpdate = true;
+      _egSideAttr.needsUpdate = true;
       _egAoAttr.needsUpdate = true;
     }
     eclipseGrassMesh.visible = (cnt > 0);

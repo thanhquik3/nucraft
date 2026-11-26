@@ -4646,254 +4646,522 @@
   backdrop-filter: none !important;
   box-sizing: border-box !important;
 }
-#menuModal.from-lobby:not(.pause-mode):not(.hidden) {
-  background: rgba(10, 12, 16, 0.72) !important;
+#menuModal.from-lobby:not(.pause-mode):not(.hidden),
+#menuModal:not(.pause-mode):not(.hidden) {
+  padding: 0 !important;
+  background: rgba(2, 10, 16, 0.86) !important;
+}
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
 }
 
+/* AUTHENTIC MINECRAFT DUNGEONS SETTINGS SHELL (#menuModal:not(.pause-mode)) */
 #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
   scrollbar-gutter: auto !important;
   gap: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-
-  width: min(920px, 95vw) !important;
-  height: min(650px, 92dvh) !important;
-  max-height: 92dvh !important;
+  width: min(1040px, 96vw) !important;
+  height: min(690px, 94dvh) !important;
+  max-height: 94dvh !important;
   display: flex !important;
   flex-direction: column !important;
-  background: var(--ore-shell) !important;
-  background-image: none !important;
-  border: 3px solid var(--ore-ink) !important;
+  background-color: #061b26 !important;
+  background-image:
+    linear-gradient(180deg, rgba(11, 52, 70, 0.72) 0%, rgba(4, 21, 32, 0.92) 70%, rgba(2, 13, 21, 0.98) 100%),
+    repeating-linear-gradient(90deg, rgba(35, 118, 148, 0.05) 0 28px, transparent 28px 56px),
+    repeating-linear-gradient(0deg, rgba(35, 118, 148, 0.04) 0 28px, transparent 28px 56px) !important;
+  border: 2px solid #0e3a4b !important;
   border-radius: 0 !important;
-  box-shadow: inset 2px 2px 0 #707276, inset -2px -2px 0 #262728, 0 22px 54px rgba(0, 0, 0, 0.74) !important;
-  color: var(--ore-text) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(120, 210, 235, 0.14) !important;
+  color: #e6f4f8 !important;
   box-sizing: border-box !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-topbar {
   width: 100% !important;
-  min-height: clamp(48px, 6.8vh, 58px) !important;
-  height: clamp(48px, 6.8vh, 58px) !important;
+  min-height: 52px !important;
+  height: 52px !important;
   flex-shrink: 0 !important;
   margin: 0 !important;
-  padding: 0 14px !important;
-  display: grid !important;
-  grid-template-columns: auto 1fr auto !important;
+  padding: 0 16px !important;
+  display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
-  background: var(--ore-top) !important;
-  border-bottom: 3px solid var(--ore-ink) !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  background: #1a1211 !important;
+  border-bottom: 1px solid #352725 !important;
   border-radius: 0 !important;
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -3px 0 var(--ore-top-bevel) !important;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.65) !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-topbar .gm-brand {
-  text-align: center !important;
-  min-width: 0 !important;
+#menuModal:not(.pause-mode):not(.hidden) .mcd-key-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-topbar .gm-brand > h1 {
+#menuModal:not(.pause-mode):not(.hidden) .mcd-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  background: #f8fafc;
+  color: #14161a;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 2px;
+  border: 1px solid #090d10;
+  box-shadow: 0 2px 0 #8a949c;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  padding: 0 !important;
   margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  overflow-x: auto !important;
+  scrollbar-width: none;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav::-webkit-scrollbar { display: none; }
+#menuModal.from-lobby:not(.pause-mode):not(.hidden) .gm-nav#gmNav [data-gtab="play"],
+#menuModal.from-lobby:not(.pause-mode):not(.hidden) .gm-nav#gmNav [data-gtab="world"],
+#menuModal.from-lobby:not(.pause-mode):not(.hidden) .gm-nav#gmNav [data-gtab="mobs"] {
+  display: none !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab {
+  position: relative;
+  width: auto !important;
+  height: 100% !important;
+  padding: 0 14px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 3px solid transparent !important;
+  color: #9b8c82 !important;
   font-family: var(--font-pixel) !important;
-  font-size: clamp(13px, 1.8vw, 17px) !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.7px !important;
+  font-size: clamp(12.5px, 1.35vw, 14.5px) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.9px !important;
   text-transform: uppercase !important;
-  color: var(--ore-ink) !important;
-  text-shadow: 1px 1px 0 #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
   white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-topbar .gm-topbar-spacer {
-  min-width: 90px !important;
-  width: 90px !important;
+#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab:hover {
+  color: #f4ece6 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) #btnGmBack.mc-btn {
-  min-width: 90px !important;
-  height: 34px !important;
-  padding: 0 13px 2px !important;
-  font-size: 12px !important;
-  line-height: 1.2 !important;
-  border-radius: 0 !important;
-  color: var(--ore-ink) !important;
-  background: var(--ore-btn) !important;
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -3px 0 var(--ore-btn-lo) !important;
+#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab.active {
+  color: #ffffff !important;
+  background: linear-gradient(180deg, transparent 58%, rgba(240, 120, 24, 0.18) 100%) !important;
+  border-bottom-color: #f07818 !important;
+  box-shadow: inset 0 -3px 0 #f07818 !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-body {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   width: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  padding: 0 !important;
-  gap: 0 !important;
-  overflow: hidden !important;
-  background: var(--ore-shell) !important;
-  box-sizing: border-box !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
-  width: 100% !important;
-  flex-shrink: 0 !important;
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  padding: 8px 12px !important;
-  gap: 7px !important;
-  margin: 0 !important;
-  background: #262729 !important;
-  border-bottom: 2px solid var(--ore-ink) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(255px, 31%, 340px) !important;
+  gap: 18px !important;
+  padding: 16px 20px !important;
+  overflow: hidden !important;
+  background: transparent !important;
   box-sizing: border-box !important;
-}
-body.admin-unlocked #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-}
-#menuModal.from-lobby:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
-  display: none !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content {
-  flex: 1 1 auto !important;
   min-height: 0 !important;
   width: 100% !important;
-  padding: clamp(12px, 2vh, 18px) clamp(14px, 2vw, 20px) !important;
+  padding: 0 10px 8px 0 !important;
   overflow-y: auto !important;
-  scrollbar-gutter: auto !important;
+  scrollbar-gutter: stable !important;
   scrollbar-width: thin;
-  scrollbar-color: #636569 var(--ore-recess);
-  background: #48494a !important;
+  scrollbar-color: #c8dce4 rgba(8, 36, 48, 0.72);
+  background: transparent !important;
   box-shadow: none !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
-  gap: 12px !important;
+  align-items: stretch !important;
+  gap: 14px !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-track {
-  background: var(--ore-recess);
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-thumb {
-  background: #636569;
-  border-radius: 0;
-  border: 2px solid var(--ore-recess);
-}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar { width: 5px; }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-track { background: rgba(10, 38, 52, 0.65); }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content::-webkit-scrollbar-thumb { background: #c5dbe4; border-radius: 0; }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-pane {
-  width: min(820px, 100%) !important;
-  gap: 12px !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .setting-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
-  gap: 12px !important;
   width: 100% !important;
+  display: none;
+  flex-direction: column;
+  gap: 14px !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-pane.active {
+  display: flex !important;
 }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-section {
   width: 100% !important;
-  background: var(--ore-card) !important;
-  border: 2px solid var(--ore-ink) !important;
+  background: transparent !important;
+  border: none !important;
   border-radius: 0 !important;
-  padding: clamp(11px, 1.8vh, 16px) clamp(12px, 1.8vw, 18px) !important;
+  padding: 0 0 6px !important;
   margin-bottom: 0 !important;
-  gap: 10px !important;
-  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.08), inset -2px -2px 0 rgba(0, 0, 0, 0.35) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 5px !important;
+  box-shadow: none !important;
   box-sizing: border-box !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-section-title {
-  position: relative;
   display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   gap: 8px !important;
   margin: 0 0 2px !important;
-  padding: 0 0 8px !important;
+  padding: 0 4px 5px !important;
   font-family: var(--font-pixel) !important;
-  font-size: clamp(11.5px, 1.35vw, 13.5px) !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.45px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.9px !important;
   text-transform: uppercase !important;
-  color: var(--ore-text) !important;
-  border-bottom: 2px solid #202122 !important;
-  text-shadow: 2px 2px 0 #141516 !important;
+  color: #82b8ca !important;
+  border-bottom: 1px solid rgba(90, 170, 195, 0.22) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-section-title::before {
-  content: "";
-  width: 4px;
-  height: 14px;
-  border-radius: 0;
-  background: var(--ore-green-hi);
-  box-shadow: 0 0 0 1px var(--ore-ink);
-  flex-shrink: 0;
+#menuModal:not(.pause-mode):not(.hidden) .gm-section-title::before { display: none !important; }
+
+/* Settings Rows (White-cyan focus outline matching Minecraft Dungeons!) */
+#menuModal:not(.pause-mode):not(.hidden) .mcd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(7, 30, 42, 0.42);
+  border: 1.5px solid rgba(56, 128, 152, 0.24);
+  transition: border-color 0.12s ease, background 0.12s ease;
+  box-sizing: border-box;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-row:hover,
+#menuModal:not(.pause-mode):not(.hidden) .mcd-row:focus-within {
+  border-color: #bceaf7;
+  background: rgba(20, 74, 98, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(188, 234, 247, 0.28);
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-row-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-row-lbl {
+  font-family: var(--font-pixel);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #e2f3f8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-tri-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-hint-box {
+  margin-top: 2px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.48;
+  color: #cce6ee;
+  background: rgba(5, 22, 32, 0.64);
+  border: 1px solid rgba(56, 128, 152, 0.26);
 }
 
+/* Segmented selectors & Action buttons inside Dungeons Settings */
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group {
   display: flex !important;
   flex-wrap: wrap !important;
-  gap: 5px !important;
+  gap: 4px !important;
   padding: 4px !important;
-  background: var(--ore-recess) !important;
-  border: 2px solid var(--ore-ink) !important;
+  background: #061822 !important;
+  border: 1.5px solid #205264 !important;
   border-radius: 0 !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) :is(.mc-btn, .seg-btn, .spawn-btn, .gm-tab) {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.mcd-inline-seg {
+  width: auto !important;
+  min-width: 220px !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) :is(.mc-btn, .seg-btn, .spawn-btn) {
   position: relative;
-  border: 2px solid var(--ore-ink) !important;
+  border: 1.5px solid #245b6e !important;
   border-radius: 0 !important;
-  margin-left: 0 !important;
+  margin: 0 !important;
   cursor: pointer;
   user-select: none;
-  transition: transform 0.08s ease, filter 0.12s ease !important;
+  font-family: var(--font-pixel) !important;
+  font-weight: 700 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) :is(.mc-btn, .seg-btn, .spawn-btn, .gm-tab):hover {
-  filter: brightness(1.06);
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn {
+  min-height: 34px !important;
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+  color: #cde8f0 !important;
+  background: #0b2a38 !important;
+  box-shadow: none !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) :is(.mc-btn, .seg-btn, .spawn-btn, .gm-tab):active {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .spawn-btn) {
+  min-height: 34px !important;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
+  color: #e4f5fa !important;
+  background: #173d4c !important;
+  border-color: #36788f !important;
+  box-shadow: inset 0 1px 0 rgba(180, 232, 248, 0.16) !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .seg-btn, .spawn-btn):hover {
+  border-color: #b4e6f5 !important;
+  background: #1d4e61 !important;
+  color: #ffffff !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .seg-btn, .spawn-btn):active {
   transform: translateY(1px) !important;
-  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.28) !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active,
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-green,
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
+  background: #13684a !important;
+  border-color: #34d399 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 1px 0 rgba(167, 243, 208, 0.25) !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: #6ee7b7;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-red {
+  background: #7c1d1d !important;
+  border-color: #f87171 !important;
+  color: #ffffff !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .spawn-btn.sift-tp-btn {
+  background: #114b56 !important;
+  border-color: #5eead4 !important;
+  color: #d5fbf4 !important;
 }
 
-#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab {
+/* Emerald ON/OFF Switch Pill Style matching Screenshots 3, 4, 5 */
+#menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle {
+  position: relative !important;
+  width: auto !important;
+  min-width: 170px !important;
+  min-height: 36px !important;
+  padding: 6px 68px 6px 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  background: rgba(7, 30, 42, 0.56) !important;
+  border: 1.5px solid rgba(56, 128, 152, 0.30) !important;
+  color: #dff3f8 !important;
+  box-shadow: none !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-sopt-list .mcd-toggle {
   width: 100% !important;
-  min-width: 0 !important;
-  height: 38px !important;
-  margin: 0 !important;
-  padding: 0 8px 2px !important;
-  background: #48494a !important;
-  background-image: none !important;
-  color: #eef2f6 !important;
-  font-family: var(--font-pixel) !important;
-  font-size: clamp(11px, 1.4vw, 13.5px) !important;
-  font-weight: 700 !important;
-  text-shadow: 1px 1px 0 #1b1b1c !important;
-  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.14), inset -2px -3px 0 rgba(0, 0, 0, 0.38) !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab:hover {
-  background: #585a5e !important;
-  color: #ffffff !important;
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle::before {
+  content: "OFF";
+  position: absolute;
+  right: 54px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  color: #90adb8;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab.active {
-  background: var(--ore-green) !important;
-  color: #ffffff !important;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.65) !important;
-  box-shadow: inset 2px 2px 0 var(--ore-green-hi), inset -2px -3px 0 var(--ore-green-lo) !important;
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::before,
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::before {
+  content: "ON";
+  color: #ffffff;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle::after {
+  content: "" !important;
+  position: absolute !important;
+  left: auto !important;
+  right: 10px !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%) !important;
+  width: 36px !important;
+  height: 18px !important;
+  background: linear-gradient(90deg, #e2e8f0 0 15px, #142630 15px 36px) !important;
+  border: 1.5px solid #486878 !important;
+  border-radius: 1px !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active::after,
+#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green::after {
+  background: linear-gradient(90deg, #00c853 0 20px, #f8fafc 20px 36px) !important;
+  border-color: #22c55e !important;
 }
 
+/* Audio Blue Sliders matching Screenshot 2 */
+#menuModal:not(.pause-mode):not(.hidden) .mcd-slider-row {
+  padding: 7px 12px !important;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-slider-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: min(330px, 56%);
+  padding: 6px 12px;
+  background: #061822;
+  border: 1.5px solid #1e4b5e;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-slider-val {
+  min-width: 48px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #ffffff;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+#menuModal:not(.pause-mode):not(.hidden) input.mcd-range,
+#menuModal:not(.pause-mode):not(.hidden) input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 6px !important;
+  margin: 6px 0 !important;
+  background: linear-gradient(to right, #2da0e8 0%, #2da0e8 var(--pct, 50%), #354c5a var(--pct, 50%), #354c5a 100%) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.55) !important;
+  cursor: pointer;
+  outline: none;
+}
+#menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 20px;
+  border-radius: 0;
+  background: #dbe6ed;
+  border: 1.5px solid #0b161d;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+#menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 20px;
+  border-radius: 0;
+  background: #dbe6ed;
+  border: 1.5px solid #0b161d;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* Right-hand Inspector Framed Panel matching Screenshots 1-7 */
+#menuModal:not(.pause-mode):not(.hidden) .gm-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-insp-frame {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 18px 14px;
+  background: rgba(4, 18, 26, 0.62);
+  border: 1.5px solid #235e6f;
+  box-shadow: inset 0 0 0 1px rgba(48, 128, 152, 0.16);
+}
+.mcd-insp-frame .mcd-c {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #3c98af;
+  pointer-events: none;
+}
+.mcd-insp-frame .mcd-c-tl { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+.mcd-insp-frame .mcd-c-tr { top: 4px; right: 4px; border-left: none; border-bottom: none; }
+.mcd-insp-frame .mcd-c-bl { bottom: 4px; left: 4px; border-right: none; border-top: none; }
+.mcd-insp-frame .mcd-c-br { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+.mcd-insp-title {
+  font-family: var(--font-pixel);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #88cbe0;
+  margin-bottom: 10px;
+}
+.mcd-insp-desc {
+  flex: 1 1 auto;
+  font-family: var(--font-pixel);
+  font-size: 12.5px;
+  line-height: 1.52;
+  color: #dfeff4;
+}
+.mcd-insp-foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(90, 170, 195, 0.25);
+  font-size: 12px;
+  color: #9ec8d6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcd-insp-foot b {
+  font-family: var(--font-display);
+  color: #ffffff;
+  font-size: 11.5px;
+}
+
+/* Preset & Weather Grids + Inputs */
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg,
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #weatherSeg {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 6px !important;
-  padding: 5px !important;
-  background: #232528 !important;
-  border: 2px solid #16171a !important;
-  border-radius: 0 !important;
-  box-shadow: inset 2px 2px 0 #141517 !important;
-  box-sizing: border-box !important;
+  gap: 5px !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #timeSeg {
   display: grid !important;
@@ -4905,231 +5173,116 @@ body.admin-unlocked #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #timeSeg .seg-btn {
   width: 100% !important;
   min-width: 0 !important;
-  margin: 0 !important;
   white-space: normal !important;
   line-height: 1.18 !important;
-  grid-column: span 1 !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-eclipse,
 #lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-eclipse {
   grid-column: 1 / -1 !important;
-  background: #1d353a !important;
+  background: #143642 !important;
   color: #dff8ee !important;
-  border-color: #0b1418 !important;
-  box-shadow: inset 2px 2px 0 #2e565e, inset -2px -3px 0 #0c191d !important;
-  text-shadow: 1px 1px 0 #081116 !important;
+  border-color: #2f7d8c !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-eclipse.active,
 #lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-eclipse.active {
-  background: var(--ore-green) !important;
+  background: #13684a !important;
   color: #ffffff !important;
-  border-color: #14360d !important;
-  box-shadow: inset 2px 2px 0 var(--ore-green-hi), inset -2px -3px 0 var(--ore-green-lo) !important;
+  border-color: #34d399 !important;
 }
 .admin-lock-badge {
   margin-left: auto;
   font-size: 10px;
   font-weight: 700;
   color: #fbbf24;
-  background: #1b1e24;
-  border: 2px solid #524322;
-  border-radius: 0;
-  padding: 1px 6px;
+  background: #0c1f2b;
+  border: 1px solid #5c4b22;
+  padding: 1px 7px;
   text-transform: none;
   letter-spacing: 0.2px;
 }
 body.admin-unlocked .admin-lock-badge {
   color: #4ade80;
-  border-color: #2a641c;
+  border-color: #166534;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn {
-  cursor: not-allowed !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn:not(.active):not(.live-weather) {
-  opacity: 0.62;
-}
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn { cursor: not-allowed !important; }
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-group.admin-locked .seg-btn:not(.active):not(.live-weather) { opacity: 0.58; }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content #weatherSeg .seg-btn.live-weather:not(.active) {
   color: #ffffff !important;
-  border-color: #15803d !important;
-  background: #2563eb !important;
-  box-shadow: inset 2px 2px 0 #60a5fa, inset -2px -3px 0 #1e3a8a !important;
+  border-color: #60a5fa !important;
+  background: #1d4ed8 !important;
 }
 .clock-editor-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
   padding: 5px 8px;
-  background: #232528;
-  border: 2px solid #16171a;
-  border-radius: 0;
-  box-shadow: inset 2px 2px 0 #141517;
+  background: #061822;
+  border: 1.5px solid #205264;
 }
-.clock-live-ico {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 18px;
-}
-.clock-live-ico svg {
-  width: 18px;
-  height: 18px;
-  image-rendering: pixelated;
-}
+.clock-live-ico { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 18px; }
+.clock-live-ico svg { width: 18px; height: 18px; image-rendering: pixelated; }
 .clock-time-input {
   width: 108px !important;
   flex: 0 0 auto;
-  font-family: var(--font-pixel) !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
+  font-family: var(--font-display) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
   text-align: center;
   color: #fef08a !important;
   font-variant-numeric: tabular-nums;
 }
-.clock-editor-row.admin-locked .clock-time-input {
-  cursor: not-allowed !important;
-  opacity: 0.92;
-}
-.clock-period-tag {
-  margin-left: auto;
-  font-family: var(--font-pixel);
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #cbd5e1;
-  white-space: nowrap;
-}
-
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn {
-  min-height: clamp(36px, 5.2vh, 44px) !important;
-  padding: 6px 8px 10px !important;
-  font-size: clamp(11px, 1.3vw, 13px) !important;
-  color: var(--ore-ink) !important;
-  border: 2px solid #16171a !important;
-  border-radius: 0 !important;
-  background: #c6c6c6 !important;
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -3px 0 #7a7a7a !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content :is(.mc-btn, .spawn-btn) {
-  min-height: clamp(38px, 5.4vh, 44px) !important;
-  padding: 7px 10px 10px !important;
-  font-size: clamp(11px, 1.3vw, 13px) !important;
-  color: var(--ore-ink) !important;
-  border: 2px solid #16171a !important;
-  border-radius: 0 !important;
-  background: #c6c6c6 !important;
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -3px 0 #7a7a7a !important;
-}
-
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active,
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-green,
-#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
-  color: #ffffff !important;
-  border-color: #142a0e !important;
-  background: var(--ore-green) !important;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.65) !important;
-  box-shadow: inset 2px 2px 0 var(--ore-green-hi), inset -2px -3px 0 var(--ore-green-lo) !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn.active::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 3px;
-  transform: translateX(-50%);
-  width: 22px;
-  height: 2px;
-  border-radius: 0;
-  background: #ffffff;
-  box-shadow: none;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-btn.mc-btn-red {
-  color: #ffffff !important;
-  background: var(--ore-red) !important;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.65) !important;
-  box-shadow: inset 2px 2px 0 var(--ore-red-hi), inset -2px -3px 0 var(--ore-red-lo) !important;
-}
-#menuModal:not(.pause-mode):not(.hidden) .gm-content .spawn-btn.sift-tp-btn {
-  background: #5eead4 !important;
-  color: #18181b !important;
-  box-shadow: inset 2px 2px 0 #ccfbf1, inset -2px -3px 0 #0f766e !important;
-}
+.clock-editor-row.admin-locked .clock-time-input { cursor: not-allowed !important; opacity: 0.92; }
+.clock-period-tag { margin-left: auto; font-family: var(--font-pixel); font-size: 12px; font-weight: 700; color: #cbd5e1; white-space: nowrap; }
 
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-input {
   border-radius: 0 !important;
-  border: 2px solid var(--ore-ink) !important;
-  background: var(--ore-recess) !important;
-  color: var(--ore-text) !important;
-  box-shadow: inset 2px 2px 0 #121213 !important;
+  border: 1.5px solid #205264 !important;
+  background: #061822 !important;
+  color: #e6f4f8 !important;
   padding: 6px 10px !important;
   outline: none;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .mc-input:focus {
-  border-color: #ffffff !important;
-  box-shadow: inset 2px 2px 0 #121213 !important;
+  border-color: #bceaf7 !important;
 }
 
-#menuModal:not(.pause-mode):not(.hidden) input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  flex: 1 1 0 !important;
-  width: auto !important;
-  min-width: 0 !important;
-  height: 10px !important;
-  margin: 4px 0 !important;
-  background: var(--ore-recess) !important;
-  border: 2px solid var(--ore-ink) !important;
-  border-radius: 0 !important;
-  box-shadow: inset 2px 2px 0 #121213 !important;
-  cursor: pointer;
-  outline: none;
-}
-#menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 20px;
-  border-radius: 0;
-  background: var(--ore-top);
-  border: 2px solid var(--ore-ink);
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #7a7a7a;
-  transition: transform 0.08s ease, background-color 0.12s ease;
-}
-#menuModal:not(.pause-mode):not(.hidden) input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 20px;
-  border-radius: 0;
-  background: var(--ore-top);
-  border: 2px solid var(--ore-ink);
-  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #7a7a7a;
-  transition: transform 0.08s ease, background-color 0.12s ease;
-}
-#menuModal:not(.pause-mode):not(.hidden) input[type="range"]:active::-webkit-slider-thumb,
-#menuModal:not(.pause-mode):not(.hidden) input[type="range"]:active::-moz-range-thumb {
-  transform: scale(1.06);
-  background: #ffffff;
-}
-
+/* Bottom Footer (Back [ESC] | Resume | Reset section [X]) */
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer {
   width: 100% !important;
   flex-shrink: 0 !important;
-  padding: 10px 16px !important;
+  padding: 10px 20px !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: center !important;
-  gap: 10px !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
   margin: 0 !important;
-  background: #262729 !important;
-  border-top: 2px solid var(--ore-ink) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  background: #1a1211 !important;
+  border-top: 1px solid #352725 !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
-  height: clamp(40px, 5.8vh, 46px) !important;
-  min-width: 200px !important;
-  max-width: 320px !important;
-  padding: 0 24px 2px !important;
-  font-size: clamp(12.5px, 1.45vw, 14.5px) !important;
+#menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1.5px solid transparent;
+  padding: 5px 8px;
+  color: #efe9e4;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play {
+  height: 36px !important;
+  min-width: 168px !important;
+  padding: 0 20px !important;
+  font-size: 13px !important;
 }
 
 /* ==================== 6. RESPONSIVE OVERRIDES (MOBILE LANDSCAPE & PORTRAIT) ==================== */
@@ -5204,28 +5357,18 @@ body.admin-unlocked .admin-lock-badge {
   #lobbyScreen #lobbyBiomeSeg .seg-btn { min-height: 38px !important; font-size: 11px !important; padding: 5px 5px 9px !important; }
 
   /* Settings Modal Mobile Landscape */
-  #menuModal:not(.pause-mode):not(.hidden) { padding: 6px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) { padding: 0 !important; }
   #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
-    scrollbar-gutter: auto !important;
-    gap: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    width: min(860px, 97vw) !important;
-    height: 95dvh !important;
-    border-radius: 10px !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
   }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar {
-    height: 42px !important;
-    min-height: 42px !important;
-    padding: 0 10px !important;
-    border-radius: 8px 8px 0 0 !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav { padding: 5px 8px !important; gap: 5px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab { height: 32px !important; font-size: 11px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content { padding: 8px 10px !important; gap: 9px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-section { padding: 9px 10px !important; gap: 7px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer { padding: 6px 10px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green { height: 36px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar { height: 40px !important; min-height: 40px !important; padding: 0 10px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab { font-size: 11px !important; padding: 0 9px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-body { grid-template-columns: minmax(0, 1fr) 225px !important; gap: 10px !important; padding: 8px 12px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-footer { padding: 6px 12px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play { height: 32px !important; min-width: 132px !important; font-size: 11.5px !important; }
 }
 
 /* Mobile Portrait (390x844, 360x640) */
@@ -5310,46 +5453,23 @@ body.admin-unlocked .admin-lock-badge {
   #lobbyScreen #lobbyBiomeSeg .seg-btn { min-height: 40px !important; font-size: 11.5px !important; padding: 5px 6px 9px !important; }
 
   /* Settings Modal Portrait */
-  #menuModal:not(.pause-mode):not(.hidden) { padding: 8px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) { padding: 0 !important; }
   #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
-    scrollbar-gutter: auto !important;
-    gap: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    width: 97vw !important;
-    height: 93dvh !important;
-    border-radius: 11px !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
   }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar {
-    padding: 0 10px !important;
-    border-radius: 9px 9px 0 0 !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) #btnGmBack.mc-btn {
-    min-width: 72px !important;
-    font-size: 11px !important;
-    padding: 0 9px 2px !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar .gm-topbar-spacer {
-    min-width: 24px !important;
-    width: 24px !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    padding: 6px 8px !important;
-    gap: 6px !important;
-  }
-  body.admin-unlocked #menuModal:not(.pause-mode):not(.hidden) .gm-nav#gmNav {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .setting-grid {
-    grid-template-columns: 1fr !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mc-btn.mc-btn-green {
-    width: 100% !important;
-  }
-  #gmPaneGraphics .gm-section > div[style*="grid-template-columns"] {
-    grid-template-columns: 1fr !important;
-  }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar { height: 46px !important; min-height: 46px !important; padding: 0 8px !important; gap: 6px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab { font-size: 11.5px !important; padding: 0 8px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-body { grid-template-columns: 1fr !important; padding: 10px 10px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-inspector { display: none !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .mcd-row { flex-wrap: wrap; gap: 8px; }
+  #menuModal:not(.pause-mode):not(.hidden) .mcd-slider-box { width: 100%; min-width: 0; }
+  #menuModal:not(.pause-mode):not(.hidden) .mcd-tri-grid { grid-template-columns: 1fr !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-footer { padding: 8px 10px max(10px, env(safe-area-inset-bottom)) !important; gap: 6px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn { font-size: 11.5px !important; padding: 4px 6px !important; }
+  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play { min-width: 0 !important; flex: 1 1 auto !important; padding: 0 10px !important; font-size: 12px !important; }
 }
 .dream-rainbow-icon { filter: hue-rotate(var(--dream-hue, 0deg)) saturate(1.06) brightness(var(--dream-bri, 1.01)) drop-shadow(0 0 2px rgba(208, 178, 255, 0.24)); }
 

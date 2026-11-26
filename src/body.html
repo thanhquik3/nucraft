@@ -35,11 +35,6 @@
     </div>
 
     <div id="topCenterBar">
-      <div class="rt-btn-frame" id="rtHudFrame">
-        <button class="mc-top-icon rt-hud-btn active" id="btnHudRayTracing" title="Bật / Tắt Ray Tracing Dò Tia (RT)">
-          <span class="rt-ico">✦</span><span class="rt-lbl">RT</span>
-        </button>
-      </div>
       <button class="mc-top-icon" id="btnCamMode" title="Góc nhìn Thứ 1 / Thứ 3 (F5)">F5</button>
       <button class="mc-top-icon" id="btnChatOpen" title="Mở Khung Chat (T / Enter)"><svg viewBox="0 0 12 12" width="14" height="14" shape-rendering="crispEdges" style="display:block;image-rendering:pixelated;"><path fill="#fff" d="M1 1h10v7H6l-3 3V8H1z"/><path fill="#1e293b" d="M3 4h6v1H3zm0 2h4v1H3z"/></svg></button>
       <button class="mc-top-icon" id="btnMinimap" title="Mở Bản Đồ Thế Giới Sương Mù (M)">
@@ -1130,154 +1125,173 @@
     </div>
     <div class="mc-panel game-menu-shell">
       <div class="gm-topbar">
-        <button class="mc-btn" id="btnGmBack" title="Quay lại">← Quay lại</button>
-        <div class="gm-brand">
-          <h1 id="gmTitleText">CÀI ĐẶT</h1>
+        <button class="mcd-key-btn" id="btnGmTabPrev" type="button" title="Tab trước (Q)"><kbd class="mcd-keycap">Q</kbd></button>
+        <div class="gm-nav" id="gmNav">
+          <button class="gm-tab active" data-gtab="play" type="button">Chung</button>
+          <button class="gm-tab" data-gtab="graphics" type="button">Đồ họa</button>
+          <button class="gm-tab" data-gtab="audio" type="button">Âm thanh</button>
+          <button class="gm-tab" data-gtab="world" type="button">Vùng đất</button>
+          <button class="gm-tab" data-gtab="mobs" type="button">Quái vật</button>
         </div>
-        <div class="gm-topbar-spacer"></div>
+        <button class="mcd-key-btn" id="btnGmTabNext" type="button" title="Tab tiếp (E)"><kbd class="mcd-keycap">E</kbd></button>
+        <div class="gm-brand sr-only"><h1 id="gmTitleText">CÀI ĐẶT</h1></div>
       </div>
 
       <div class="gm-body">
-        <div class="gm-nav" id="gmNav">
-          <button class="gm-tab active" data-gtab="play">Trò chơi</button>
-          <button class="gm-tab" data-gtab="graphics">Đồ họa</button>
-          <button class="gm-tab" data-gtab="world">Vùng đất</button>
-          <button class="gm-tab" data-gtab="mobs">Quái vật</button>
-        </div>
-
         <div class="gm-content">
-          <!-- Tab 1: Play, Controls & Internet Multiplayer -->
+          <!-- Tab 1: General, Language, Controls & Multiplayer -->
           <div class="gm-pane active" id="gmPanePlay">
             <div class="gm-section">
-              <div class="gm-section-title">Điều Khiển, Tọa Độ &amp; Bộ Lọc Chat (###)</div>
-              <div class="gm-btn-grid">
-                <button class="mc-btn" id="btnToggleCamMenu">Góc Nhìn F5 (3D)</button>
-                <button class="mc-btn" id="btnMenuEditHud">Tùy Chỉnh Nút &amp; Tọa Độ</button>
-                <button class="mc-btn" id="btnToggleTouch">Bật/Tắt Nút Mobile</button>
-                <button class="mc-btn" id="btnToggleBuddy">Gọi Bạn Đồng Hành</button>
-                <button class="mc-btn mc-btn-green" id="btnToggleCoords">📍 Tọa Độ HUD: BẬT</button>
-                <div style="grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-                  <button class="mc-btn" id="btnMobileMode1" type="button" title="Joystick + Đánh / Đặt khối">🎮 Kiểu Mobile 1</button>
-                  <button class="mc-btn" id="btnMobileMode2" type="button" title="D-Pad cổ điển (Chạm đặt / Giữ đào)">🎮 Kiểu Mobile 2</button>
-                  <button class="mc-btn" id="btnMobileMode3" type="button" title="Chạm màn hình (Chỉ Joystick + Nhảy &amp; Ngồi)">🎮 Kiểu Mobile 3</button>
+              <div class="gm-section-title" data-i18n="sec_lang">NGÔN NGỮ</div>
+              <div class="mcd-row" data-title="NGÔN NGỮ VĂN BẢN" data-desc="Chọn ngôn ngữ hiển thị cho toàn bộ menu, mô tả, thông báo và giao diện trong game." data-def="Tiếng Việt">
+                <div class="mcd-row-lbl">Ngôn ngữ giao diện</div>
+                <div class="seg-group mcd-inline-seg" id="langSegMenu">
+                  <button class="seg-btn active" data-lang="vi" type="button">Tiếng Việt</button>
+                  <button class="seg-btn" data-lang="en" type="button">English</button>
                 </div>
-                <button class="mc-btn mc-btn-green" id="btnToggleProfanity">🛡️ Lọc Từ Thô Tục: BẬT</button>
               </div>
-              <div style="display:flex;gap:6px;align-items:center;margin-top:2px;">
-                <input id="inpBlockedWords" class="mc-input" style="height:28px;font-size:12px;" placeholder="Thêm từ cấm chat cách nhau bởi dấu phẩy (VD: ngu, ga)..." />
-                <button class="mc-btn" id="btnSaveBlockedWords" style="white-space:nowrap;padding:5px 9px;">Lưu Từ Cấm</button>
+            </div>
+
+            <div class="gm-section">
+              <div class="gm-section-title">ĐIỀU KHIỂN &amp; GIAO DIỆN</div>
+              <div class="mcd-row" data-title="GÓC NHÌN F5 (3D)" data-desc="Chuyển nhanh giữa góc nhìn thứ nhất (1P) và góc nhìn thứ ba (3D sau / trước)." data-def="Thứ nhất (1P)">
+                <div class="mcd-row-lbl">Góc nhìn nhân vật</div>
+                <button class="mc-btn mcd-act-btn" id="btnToggleCamMenu" type="button">Góc Nhìn F5 (3D)</button>
               </div>
-              <div id="controlsHintText" data-i18n="controls_hint" style="font-size:12.5px;color:#e5e7eb;line-height:1.48;">
+              <div class="mcd-row" data-title="TÙY CHỈNH NÚT &amp; TỌA ĐỘ" data-desc="Mở trình kéo thả để sắp xếp lại vị trí các nút điều khiển cảm ứng và khung tọa độ." data-def="Mặc định">
+                <div class="mcd-row-lbl">Bố cục HUD &amp; Phím cảm ứng</div>
+                <button class="mc-btn mcd-act-btn" id="btnMenuEditHud" type="button">Tùy Chỉnh Nút &amp; Tọa Độ</button>
+              </div>
+              <div class="mcd-row" data-title="NÚT ĐIỀU KHIỂN MOBILE" data-desc="Bật hoặc ẩn bộ nút cảm ứng trên màn hình khi chơi trên PC hoặc điện thoại." data-def="Tự động">
+                <div class="mcd-row-lbl">Hiển thị nút cảm ứng</div>
+                <button class="mc-btn mcd-act-btn" id="btnToggleTouch" type="button">Bật/Tắt Nút Mobile</button>
+              </div>
+              <div class="mcd-row" data-title="TỌA ĐỘ HUD" data-desc="Hiển thị bảng tọa độ X, Y, Z, ngày chơi và khu vực biome ở góc trên màn hình." data-def="BẬT">
+                <div class="mcd-row-lbl">Hiển thị tọa độ &amp; FPS</div>
+                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleCoords" type="button">📍 Tọa Độ HUD: BẬT</button>
+              </div>
+              <div class="mcd-row mcd-row-col" data-title="KIỂU ĐIỀU KHIỂN MOBILE" data-desc="Chọn giữa 3 sơ đồ Joystick / D-Pad / Chạm màn hình phù hợp với thiết bị di động." data-def="Kiểu 1">
+                <div class="mcd-row-lbl">Chế độ điều khiển Mobile</div>
+                <div class="mcd-tri-grid">
+                  <button class="mc-btn" id="btnMobileMode1" type="button" title="Joystick + Đánh / Đặt khối">Kiểu Mobile 1</button>
+                  <button class="mc-btn" id="btnMobileMode2" type="button" title="D-Pad cổ điển (Chạm đặt / Giữ đào)">Kiểu Mobile 2</button>
+                  <button class="mc-btn" id="btnMobileMode3" type="button" title="Chạm màn hình (Chỉ Joystick + Nhảy &amp; Ngồi)">Kiểu Mobile 3</button>
+                </div>
+              </div>
+              <div class="mcd-row" data-title="BẠN ĐỒNG HÀNH AI" data-desc="Gọi hoặc thu hồi nhân vật bạn đồng hành hỗ trợ chiến đấu và đi cùng bạn." data-def="TẮT">
+                <div class="mcd-row-lbl">Bạn đồng hành</div>
+                <button class="mc-btn mcd-act-btn" id="btnToggleBuddy" type="button">Gọi Bạn Đồng Hành</button>
+              </div>
+              <div id="controlsHintText" data-i18n="controls_hint" class="mcd-hint-box">
                 Phím <b>E</b>: Balo 2×2 &amp; Giáp 3D • Đặt <b>Bàn Chế Tạo</b> mở lưới 3×3 • Phím <b>T / Enter</b>: Chat • Phím <b>M</b>: Bản Đồ • Phím <b>F1</b>: Ẩn/Hiện Giao Diện • Phím <b>F5</b>: Đổi Góc Nhìn • Phím <b>F / Space×2</b>: Bay Tự Do (<i>Chỉ Sáng Tạo</i>) • Đào sâu <b>-1000m</b> xuống Địa Ngục → tiếp <b>-1000m</b> tới Khu Kết Thúc!
               </div>
             </div>
+
             <div class="gm-section">
-              <div class="gm-section-title">Chơi Chung Qua Internet (Mọi Mạng Wi-Fi / 4G)</div>
-              <div id="menuCoopStatus" style="font-size:13px;color:#f1f5f9;">Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè ở bất kỳ đâu!</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button class="mc-btn mc-btn-green" id="btnMenuHostInternet" style="flex:1;">Mở Phòng Online &amp; Lấy Mã</button>
-                <button class="mc-btn" id="btnBackLobby" style="flex:1;">Về Sảnh / Đổi Skin</button>
+              <div class="gm-section-title">TRÒ CHUYỆN &amp; BỘ LỌC (###)</div>
+              <div class="mcd-row" data-title="LỌC TỪ THÔ TỤC" data-desc="Tự động ẩn các từ ngữ không phù hợp trong khung chat thành ký tự ###." data-def="BẬT">
+                <div class="mcd-row-lbl">Bộ lọc chat an toàn</div>
+                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleProfanity" type="button">🛡️ Lọc Từ Thô Tục: BẬT</button>
+              </div>
+              <div class="mcd-row mcd-row-col" data-title="DANH SÁCH TỪ CẤM TÙY CHỈNH" data-desc="Thêm các từ khóa cần lọc riêng, ngăn cách bởi dấu phẩy (VD: ngu, ga) rồi bấm Lưu." data-def="Trống">
+                <div style="display:flex;gap:8px;align-items:center;width:100%;">
+                  <input id="inpBlockedWords" class="mc-input" style="flex:1;height:34px;font-size:12px;" placeholder="Thêm từ cấm chat cách nhau bởi dấu phẩy (VD: ngu, ga)..." />
+                  <button class="mc-btn mcd-act-btn" id="btnSaveBlockedWords" type="button" style="white-space:nowrap;">Lưu Từ Cấm</button>
+                </div>
               </div>
             </div>
+
             <div class="gm-section">
-              <div class="gm-section-title">Lưu Trữ Thế Giới</div>
-              <div style="display:flex;gap:6px;">
-                <button class="mc-btn" id="btnSave" style="flex:1;">Lưu Thế Giới</button>
-                <button class="mc-btn mc-btn-red" id="btnResetWorld" style="flex:1;">Tạo Bản Đồ Mới</button>
+              <div class="gm-section-title">CHƠI CHUNG &amp; LƯU TRỮ THẾ GIỚI</div>
+              <div class="mcd-row mcd-row-col" data-title="MỞ PHÒNG ONLINE" data-desc="Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè qua Wi-Fi / 4G." data-def="Đóng">
+                <div id="menuCoopStatus" style="font-size:12.5px;color:#bfe4ee;">Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè ở bất kỳ đâu!</div>
+                <div style="display:flex;gap:8px;width:100%;flex-wrap:wrap;">
+                  <button class="mc-btn mc-btn-green" id="btnMenuHostInternet" type="button" style="flex:1;">Mở Phòng Online &amp; Lấy Mã</button>
+                  <button class="mc-btn" id="btnBackLobby" type="button" style="flex:1;">Về Sảnh / Đổi Skin</button>
+                </div>
+              </div>
+              <div class="mcd-row mcd-row-col" data-title="LƯU &amp; TẠO LẠI BẢN ĐỒ" data-desc="Lưu bản đồ hiện tại vào bộ nhớ trình duyệt hoặc tạo thế giới mới từ đầu." data-def="Tự động lưu">
+                <div style="display:flex;gap:8px;width:100%;">
+                  <button class="mc-btn" id="btnSave" type="button" style="flex:1;">Lưu Thế Giới</button>
+                  <button class="mc-btn mc-btn-red" id="btnResetWorld" type="button" style="flex:1;">Tạo Bản Đồ Mới</button>
+                </div>
               </div>
             </div>
+
             <div class="gm-section">
-              <div class="gm-section-title">Quyền Quản Trị (Admin • Mở Khóa Tab Vùng Đất)</div>
-              <div style="display:flex;gap:6px;align-items:center;">
-                <input id="inpAdminCode" class="mc-input" type="password" maxlength="24" placeholder="Nhập mã quản trị..." style="flex:1;height:34px;font-size:12px;" />
-                <button class="mc-btn" id="btnAdminUnlock" type="button" style="white-space:nowrap;">👑 Mở Khóa Admin</button>
+              <div class="gm-section-title">QUYỀN QUẢN TRỊ (ADMIN)</div>
+              <div class="mcd-row mcd-row-col" data-title="MỞ KHÓA QUYỀN ADMIN" data-desc="Nhập mã quản trị để mở khóa Tab Vùng Đất, chỉnh đồng hồ thế giới và thay đổi thời tiết." data-def="Chỉ xem">
+                <div style="display:flex;gap:8px;align-items:center;width:100%;">
+                  <input id="inpAdminCode" class="mc-input" type="password" maxlength="24" placeholder="Nhập mã quản trị..." style="flex:1;height:34px;font-size:12px;" />
+                  <button class="mc-btn mcd-act-btn" id="btnAdminUnlock" type="button" style="white-space:nowrap;">👑 Mở Khóa Admin</button>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Tab 2: Graphics, Language, Shader, Time, Weather & Luanti Audio -->
+          <!-- Tab 2: Video & Graphics (Minecraft Dungeons style) -->
           <div class="gm-pane" id="gmPaneGraphics">
             <div class="gm-section">
-              <div class="gm-section-title" data-i18n="sec_lang">🌐 Ngôn Ngữ / Language</div>
-              <div class="seg-group" id="langSegMenu">
-                <button class="seg-btn active" data-lang="vi" type="button">🇻🇳 Tiếng Việt</button>
-                <button class="seg-btn" data-lang="en" type="button">🇬🇧 English</button>
-              </div>
-            </div>
-            <div class="gm-section">
-              <div class="gm-section-title">🎵 Âm Thanh &amp; Nhạc Nền Voxel Chill</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:11.5px;color:#e7e5e4;">
-                <div style="display:flex;align-items:center;gap:7px;">
-                  <span style="min-width:74px;">🔊 Tổng:</span>
-                  <input type="range" id="audioVolSlider" min="0" max="100" value="78" style="flex:1;accent-color:#4ade80;" />
-                  <b id="audioVolLabel" style="min-width:34px;text-align:right;">78%</b>
-                </div>
-                <div style="display:flex;align-items:center;gap:7px;">
-                  <span style="min-width:74px;">🎹 Nhạc nền:</span>
-                  <input type="range" id="musicVolSlider" min="0" max="100" value="55" style="flex:1;accent-color:#38bdf8;" />
-                  <b id="musicVolLabel" style="min-width:34px;text-align:right;">55%</b>
-                </div>
-                <div style="display:flex;align-items:center;gap:7px;">
-                  <span style="min-width:74px;">⛏️ Hiệu ứng:</span>
-                  <input type="range" id="sfxVolSlider" min="0" max="100" value="85" style="flex:1;accent-color:#facc15;" />
-                  <b id="sfxVolLabel" style="min-width:34px;text-align:right;">85%</b>
-                </div>
-                <div style="display:flex;align-items:center;gap:7px;">
-                  <span style="min-width:74px;">💥 Quái &amp; Nổ:</span>
-                  <input type="range" id="mobVolSlider" min="0" max="100" value="42" style="flex:1;accent-color:#fb923c;" />
-                  <b id="mobVolLabel" style="min-width:34px;text-align:right;">42%</b>
-                </div>
-              </div>
-            </div>
-            <div class="setting-grid">
-              <div class="gm-section">
-                <div class="gm-section-title">Tầm Nhìn &amp; Chất Lượng</div>
+              <div class="gm-section-title">HIỂN THỊ &amp; CHẤT LƯỢNG</div>
+              <div class="mcd-row mcd-row-col" data-title="TẦM NHÌN RENDER" data-desc="Điều chỉnh bán kính tải chunk xung quanh bạn. Chọn mức Chuẩn hoặc Gần để giữ FPS cao ổn định." data-def="Chuẩn (8×8)">
+                <div class="mcd-row-lbl">Tầm nhìn khối (Chunks)</div>
                 <div class="seg-group" id="renderDistSeg">
-                  <button class="seg-btn" data-val="3">Gần (6×6)</button>
-                  <button class="seg-btn active" data-val="4">Chuẩn (8×8)</button>
-                  <button class="seg-btn" data-val="6">Xa (12×12)</button>
-                  <button class="seg-btn" data-val="8">Siêu Xa (16×16)</button>
-                </div>
-                <div class="seg-group" id="qualitySeg">
-                  <button class="seg-btn" data-val="low">Nhẹ</button>
-                  <button class="seg-btn" data-val="high">RTX Chuẩn</button>
-                  <button class="seg-btn active" data-val="ultra">RTX Ultra</button>
-                  <button class="seg-btn" data-val="extreme">Siêu Thực</button>
-                </div>
-                <div class="seg-group" id="frameGenSeg" style="margin-top:5px;">
-                  <button class="seg-btn active" data-fg="1">Frame Ảo: Tắt (x1)</button>
-                  <button class="seg-btn" data-fg="2">Frame Ảo x2</button>
-                  <button class="seg-btn" data-fg="4">Frame Ảo x4</button>
+                  <button class="seg-btn" data-val="3" type="button">Gần (6×6)</button>
+                  <button class="seg-btn active" data-val="4" type="button">Chuẩn (8×8)</button>
+                  <button class="seg-btn" data-val="6" type="button">Xa (12×12)</button>
+                  <button class="seg-btn" data-val="8" type="button">Siêu Xa (16×16)</button>
                 </div>
               </div>
-              <div class="gm-section">
-                <div class="gm-section-title">Shader &amp; Mây / Bề Mặt</div>
-                <div class="seg-group" id="presetSeg">
-                  <button class="seg-btn seg-btn-eclipse active" data-preset="eclipse">🌘 Eclipse Shader</button>
-                  <button class="seg-btn" data-preset="bsl">BSL Tự Nhiên</button>
-                  <button class="seg-btn" data-preset="bliss">Bliss Dịu</button>
-                  <button class="seg-btn" data-preset="chill_sunset">🌅 Chill Hoàng Hôn</button>
-                  <button class="seg-btn" data-preset="verdant_fresh">🌿 Xanh Tươi Mát</button>
-                  <button class="seg-btn" data-preset="moonlit">Đêm Trăng</button>
-                  <button class="seg-btn" data-preset="dlss_ultra">✨ DLSS Siêu Thực</button>
+              <div class="mcd-row mcd-row-col" data-title="CHẤT LƯỢNG ĐỒ HỌA" data-desc="Mức đồ họa cao tăng chất lượng bóng đổ, ánh sáng tán xạ trên lá cây và độ sắc nét tổng thể." data-def="RTX Ultra">
+                <div class="mcd-row-lbl">Chất lượng đồ họa</div>
+                <div class="seg-group" id="qualitySeg">
+                  <button class="seg-btn" data-val="low" type="button">Nhẹ</button>
+                  <button class="seg-btn" data-val="high" type="button">RTX Chuẩn</button>
+                  <button class="seg-btn active" data-val="ultra" type="button">RTX Ultra</button>
+                  <button class="seg-btn" data-val="extreme" type="button">Siêu Thực</button>
                 </div>
-                <div class="seg-group">
-                  <button class="seg-btn active" id="btnCloudMode">Mây 3D</button>
-                  <button class="seg-btn active" id="btnTexFilter">Bump PBR: Bật</button>
-                  <div class="rt-btn-frame menu-rt-frame">
-                    <button class="seg-btn active" id="btnMenuRayTracing" title="Dò tia ánh sáng thực: Phản chiếu mặt nước/kính, khúc xạ xuyên lá &amp; tán xạ hang tối">✦ Ray Tracing: BẬT</button>
-                  </div>
+              </div>
+              <div class="mcd-row mcd-row-col" data-title="FRAME ẢO (INTERPOLATION)" data-desc="Nội suy thêm khung hình giúp chuyển động mịn hơn trên màn hình tần số quét cao." data-def="Tắt (x1)">
+                <div class="mcd-row-lbl">Tạo khung hình ảo</div>
+                <div class="seg-group" id="frameGenSeg">
+                  <button class="seg-btn active" data-fg="1" type="button">Frame Ảo: Tắt (x1)</button>
+                  <button class="seg-btn" data-fg="2" type="button">Frame Ảo x2</button>
+                  <button class="seg-btn" data-fg="4" type="button">Frame Ảo x4</button>
                 </div>
               </div>
             </div>
-            <div class="setting-grid">
-              <div class="gm-section">
-                <div class="gm-section-title"><span>Thời Gian Trong Ngày</span><span class="admin-lock-badge" id="timeLockBadge">🔒 Chỉ xem</span></div>
+
+            <div class="gm-section">
+              <div class="gm-section-title">SHADER, MÂY &amp; BỀ MẶT</div>
+              <div class="mcd-row mcd-row-col" data-title="BỘ SHADER ÁNH SÁNG" data-desc="Eclipse Shader sử dụng thuật toán cỏ 3D Merlin1809, nước đa tầng góc vàng và AgX tonemap trung thực không bị ngả vàng." data-def="Eclipse Shader">
+                <div class="seg-group" id="presetSeg">
+                  <button class="seg-btn seg-btn-eclipse active" data-preset="eclipse" type="button">🌘 Eclipse Shader</button>
+                  <button class="seg-btn" data-preset="bsl" type="button">BSL Tự Nhiên</button>
+                  <button class="seg-btn" data-preset="bliss" type="button">Bliss Dịu</button>
+                  <button class="seg-btn" data-preset="chill_sunset" type="button">🌅 Chill Hoàng Hôn</button>
+                  <button class="seg-btn" data-preset="verdant_fresh" type="button">🌿 Xanh Tươi Mát</button>
+                  <button class="seg-btn" data-preset="moonlit" type="button">Đêm Trăng</button>
+                  <button class="seg-btn" data-preset="dlss_ultra" type="button">✨ DLSS Siêu Thực</button>
+                </div>
+              </div>
+              <div class="mcd-row" data-title="MÂY 3D VOLUMETRIC" data-desc="Chuyển đổi giữa mây khối 3D Volumetric và mây khối cổ điển phong cách Luanti." data-def="BẬT">
+                <div class="mcd-row-lbl">Tầng mây bầu trời</div>
+                <button class="seg-btn active mcd-toggle" id="btnCloudMode" type="button">Mây 3D</button>
+              </div>
+              <div class="mcd-row" data-title="BUMP RELIEF PBR" data-desc="Tạo độ nổi vật lý 3D cho bề mặt khối đá, gỗ và lá cây dưới ánh nắng." data-def="BẬT">
+                <div class="mcd-row-lbl">Bề mặt nổi PBR</div>
+                <button class="seg-btn active mcd-toggle" id="btnTexFilter" type="button">Bump PBR: Bật</button>
+              </div>
+            </div>
+
+            <div class="gm-section">
+              <div class="gm-section-title"><span>THỜI GIAN &amp; THỜI TIẾT</span><span class="admin-lock-badge" id="timeLockBadge">🔒 Chỉ xem</span></div>
+              <div class="mcd-row mcd-row-col" data-title="THỜI GIAN TRONG NGÀY" data-desc="Chuyển nhanh thời điểm trong ngày hoặc đặt giờ chính xác (cần quyền Admin để thay đổi)." data-def="Giờ Vàng">
                 <div class="seg-group admin-locked" id="timeSeg">
-                  <button class="seg-btn active" data-time="0.31">Giờ Vàng</button>
-                  <button class="seg-btn" data-time="0.50">Trưa</button>
-                  <button class="seg-btn" data-time="0.73">Hoàng Hôn</button>
-                  <button class="seg-btn" data-time="0.92">Đêm Trăng</button>
+                  <button class="seg-btn active" data-time="0.31" type="button">Giờ Vàng</button>
+                  <button class="seg-btn" data-time="0.50" type="button">Trưa</button>
+                  <button class="seg-btn" data-time="0.73" type="button">Hoàng Hôn</button>
+                  <button class="seg-btn" data-time="0.92" type="button">Đêm Trăng</button>
                 </div>
                 <div class="clock-editor-row admin-locked" id="clockEditorRow">
                   <span class="clock-live-ico" id="settingsClockIco" aria-hidden="true"></span>
@@ -1285,53 +1299,92 @@
                   <span class="clock-period-tag" id="settingsClockPeriod">Buổi Sáng</span>
                 </div>
               </div>
-              <div class="gm-section">
-                <div class="gm-section-title"><span>Thời Tiết</span><span class="admin-lock-badge" id="weatherLockBadge">🔒 Chỉ xem</span></div>
+              <div class="mcd-row mcd-row-col" data-title="THỜI TIẾT THẾ GIỚI" data-desc="Kiểm soát thời tiết thế giới (Mưa, Tuyết, Bão Cát, Cực Quang...). Cần quyền Admin để chỉnh thủ công." data-def="Tự động">
+                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;">
+                  <span class="mcd-row-lbl">Loại thời tiết</span>
+                  <span class="admin-lock-badge" id="weatherLockBadge">🔒 Chỉ xem</span>
+                </div>
                 <div class="seg-group admin-locked" id="weatherSeg">
-                  <button class="seg-btn active" data-weather="auto">Tự động</button>
-                  <button class="seg-btn" data-weather="clear">Quang</button>
-                  <button class="seg-btn" data-weather="rain">Mưa</button>
-                  <button class="seg-btn" data-weather="drizzle">Mưa Phùn</button>
-                  <button class="seg-btn" data-weather="storm">Bão</button>
-                  <button class="seg-btn" data-weather="snow">Tuyết Rơi</button>
-                  <button class="seg-btn" data-weather="blizzard">Bão Tuyết</button>
-                  <button class="seg-btn" data-weather="fog">Sương Mù</button>
-                  <button class="seg-btn" data-weather="sandstorm">Bão Cát</button>
-                  <button class="seg-btn" data-weather="aurora">Cực Quang</button>
-                  <button class="seg-btn" data-weather="ashfall">Mưa Tro</button>
-                  <button class="seg-btn" data-weather="meteor">Mưa Sao Băng</button>
+                  <button class="seg-btn active" data-weather="auto" type="button">Tự động</button>
+                  <button class="seg-btn" data-weather="clear" type="button">Quang</button>
+                  <button class="seg-btn" data-weather="rain" type="button">Mưa</button>
+                  <button class="seg-btn" data-weather="drizzle" type="button">Mưa Phùn</button>
+                  <button class="seg-btn" data-weather="storm" type="button">Bão</button>
+                  <button class="seg-btn" data-weather="snow" type="button">Tuyết Rơi</button>
+                  <button class="seg-btn" data-weather="blizzard" type="button">Bão Tuyết</button>
+                  <button class="seg-btn" data-weather="fog" type="button">Sương Mù</button>
+                  <button class="seg-btn" data-weather="sandstorm" type="button">Bão Cát</button>
+                  <button class="seg-btn" data-weather="aurora" type="button">Cực Quang</button>
+                  <button class="seg-btn" data-weather="ashfall" type="button">Mưa Tro</button>
+                  <button class="seg-btn" data-weather="meteor" type="button">Mưa Sao Băng</button>
                 </div>
               </div>
             </div>
-            <div class="gm-section" style="margin-top:8px;">
-              <div class="gm-section-title">⚡ Tối Ưu Sodium Extra • Lithium • Entity/More Culling • ScalableLux • FerriteCore</div>
-              <div class="seg-group" id="sodiumExtraSeg" style="flex-wrap:wrap;gap:5px;">
-                <button class="seg-btn active" data-sopt="entityCulling" title="Entity Culling: Bỏ render &amp; xương hoạt ảnh của mob/vật phẩm bị tường che khuất hoặc ngoài khung nhìn">👁️ Entity Culling</button>
-                <button class="seg-btn active" data-sopt="moreCulling" title="More Culling: Smart Leaves ẩn mặt lá bên trong, ẩn đáy Bedrock &amp; sub-block xa">🍃 More Culling</button>
-                <button class="seg-btn active" data-sopt="lithiumAi" title="Lithium: Tối ưu AI mob, vật lý &amp; tick theo khoảng cách mà không đổi gameplay">⚙️ Lithium AI/Tick</button>
-                <button class="seg-btn active" data-sopt="immFast" title="ImmediatelyFast: Gom InstancedMesh Particle &amp; tái sử dụng vật liệu mob">🚀 ImmediatelyFast</button>
-                <button class="seg-btn active" data-sopt="fastLight" title="ScalableLux: Cache emitter theo chunk, AABB &amp; loại khoảng cách ánh sáng">💡 ScalableLux</button>
-                <button class="seg-btn active" data-sopt="ferriteRam" title="FerriteCore: Pool bộ nhớ chunk Uint16 &amp; giải phóng GLB gốc sau parse">🧠 FerriteCore RAM</button>
-                <button class="seg-btn active" data-sopt="fpsHud" title="Sodium Extra: Hiển thị FPS, số chunk &amp; số entity đã cull trực tiếp trên HUD">📊 Hiện FPS HUD</button>
-                <button class="seg-btn active" data-sopt="smoothShadows" title="Cập nhật bóng mặt trời, cây &amp; nhân vật mượt mỗi khung hình 60-240Hz">🌑 Bóng Mượt</button>
-                <button class="seg-btn active" data-sopt="waterRefl" title="Phản chiếu mặt nước thực thời tối ưu không giật">🌊 Phản Chiếu Nước</button>
-                <button class="seg-btn active" data-sopt="waterQuality" title="Mặt Nước Nâng Cao: Sóng 4 tầng mượt, caustic kép &amp; bọt bờ biển">💧 Nước Đẹp Ultra</button>
-                <button class="seg-btn active" data-sopt="autoPerf" title="ModernFix Auto-FPS: Tự giảm nhẹ hiệu ứng phụ nếu FPS tụt dưới 25">🏎️ Auto-Tối Ưu FPS</button>
-                <button class="seg-btn active" data-sopt="sharpness" title="Tăng độ sắc nét khối voxel, giảm nhòe sương mờ">✨ Sắc Nét Clarity</button>
-                <button class="seg-btn active" data-sopt="weatherFx" title="Hiệu ứng hạt mưa &amp; tuyết trong thế giới">🌧️ Hạt Thời Tiết</button>
-                <button class="seg-btn active" data-sopt="clouds" title="Sodium Extra: Bật/tắt tầng mây bầu trời">☁️ Mây Trời</button>
-                <button class="seg-btn active" data-sopt="fog" title="Sodium Extra: Bật/tắt sương mù khoảng cách &amp; đáy biển">🌫️ Sương Mù Fog</button>
-                <button class="seg-btn active" data-sopt="particles" title="Sodium Extra: Bật/tắt hiệu ứng hạt vỡ khối &amp; phép">✨ Hạt Particle</button>
-                <button class="seg-btn active" data-sopt="animations" title="Sodium Extra: Hoạt ảnh chuyển động chi tiết mob &amp; khối">🎞️ Hoạt Ảnh</button>
-                <button class="seg-btn active" data-sopt="farEntities" title="Sodium Extra: Hiển thị đầy đủ sinh vật ở tầm xa">🦕 Entity Xa</button>
-                <button class="seg-btn active" data-sopt="modernFix" title="ModernFix + QuickPack: Giải mã âm thanh dần &amp; cache asset SW">⚡ ModernFix / Pack</button>
+
+            <div class="gm-section">
+              <div class="gm-section-title">TỐI ƯU SODIUM EXTRA • LITHIUM • CULLING</div>
+              <div class="mcd-sopt-list" id="sodiumExtraSeg">
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="entityCulling" type="button" data-def="BẬT" title="Entity Culling: Bỏ render &amp; xương hoạt ảnh của mob/vật phẩm bị tường che khuất hoặc ngoài khung nhìn">👁️ Entity Culling</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="moreCulling" type="button" data-def="BẬT" title="More Culling: Smart Leaves ẩn mặt lá bên trong, ẩn đáy Bedrock &amp; sub-block xa">🍃 More Culling</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="lithiumAi" type="button" data-def="BẬT" title="Lithium: Tối ưu AI mob, vật lý &amp; tick theo khoảng cách mà không đổi gameplay">⚙️ Lithium AI/Tick</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="immFast" type="button" data-def="BẬT" title="ImmediatelyFast: Gom InstancedMesh Particle &amp; tái sử dụng vật liệu mob">🚀 ImmediatelyFast</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="fastLight" type="button" data-def="BẬT" title="ScalableLux: Cache emitter theo chunk, AABB &amp; loại khoảng cách ánh sáng">💡 ScalableLux</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="ferriteRam" type="button" data-def="BẬT" title="FerriteCore: Pool bộ nhớ chunk Uint16 &amp; giải phóng GLB gốc sau parse">🧠 FerriteCore RAM</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="fpsHud" type="button" data-def="BẬT" title="Sodium Extra: Hiển thị FPS, số chunk &amp; số entity đã cull trực tiếp trên HUD">📊 Hiện FPS HUD</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="smoothShadows" type="button" data-def="BẬT" title="Cập nhật bóng mặt trời, cây &amp; nhân vật mượt theo khung hình thích ứng">🌑 Bóng Mượt</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="waterRefl" type="button" data-def="BẬT" title="Phản chiếu mặt nước thực thời tối ưu không giật">🌊 Phản Chiếu Nước</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="waterQuality" type="button" data-def="BẬT" title="Mặt Nước Nâng Cao: Sóng đa tầng mượt, caustic kép &amp; bọt bờ biển">💧 Nước Đẹp Ultra</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="autoPerf" type="button" data-def="BẬT" title="ModernFix Auto-FPS: Tự giảm nhẹ hiệu ứng phụ nếu FPS tụt dưới 25">🏎️ Auto-Tối Ưu FPS</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="sharpness" type="button" data-def="BẬT" title="Tăng độ sắc nét khối voxel, giảm nhòe sương mờ">✨ Sắc Nét Clarity</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="weatherFx" type="button" data-def="BẬT" title="Hiệu ứng hạt mưa &amp; tuyết trong thế giới">🌧️ Hạt Thời Tiết</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="clouds" type="button" data-def="BẬT" title="Sodium Extra: Bật/tắt tầng mây bầu trời">☁️ Mây Trời</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="fog" type="button" data-def="BẬT" title="Sodium Extra: Bật/tắt sương mù khoảng cách &amp; đáy biển">🌫️ Sương Mù Fog</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="particles" type="button" data-def="BẬT" title="Sodium Extra: Bật/tắt hiệu ứng hạt vỡ khối &amp; phép">✨ Hạt Particle</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="animations" type="button" data-def="BẬT" title="Sodium Extra: Hoạt ảnh chuyển động chi tiết mob &amp; khối">🎞️ Hoạt Ảnh</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="farEntities" type="button" data-def="BẬT" title="Sodium Extra: Hiển thị đầy đủ sinh vật ở tầm xa">🦕 Entity Xa</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="modernFix" type="button" data-def="BẬT" title="ModernFix + QuickPack: Giải mã âm thanh dần &amp; cache asset SW">⚡ ModernFix / Pack</button>
               </div>
             </div>
           </div>
 
-          <!-- Tab 3: Dimensions, Mysterious Ruins & Biomes -->
-          <div class="gm-pane" id="gmPaneWorld">
+          <!-- Tab 3: Audio (Dedicated tab matching Minecraft Dungeons screenshot 2!) -->
+          <div class="gm-pane" id="gmPaneAudio">
             <div class="gm-section">
+              <div class="gm-section-title">ÂM LƯỢNG</div>
+              <div class="mcd-row mcd-slider-row" data-title="ÂM LƯỢNG TỔNG" data-desc="Điều chỉnh âm lượng tổng cho toàn bộ âm thanh trong game." data-def="78%">
+                <div class="mcd-row-lbl">🔊 Tổng:</div>
+                <div class="mcd-slider-box">
+                  <b class="mcd-slider-val" id="audioVolLabel">78%</b>
+                  <input class="mcd-range" type="range" id="audioVolSlider" min="0" max="100" value="78" />
+                </div>
+              </div>
+              <div class="mcd-row mcd-slider-row" data-title="NHẠC NỀN" data-desc="Điều chỉnh âm lượng nhạc nền thư giãn khi khám phá các vùng đất." data-def="55%">
+                <div class="mcd-row-lbl">🎹 Nhạc nền:</div>
+                <div class="mcd-slider-box">
+                  <b class="mcd-slider-val" id="musicVolLabel">55%</b>
+                  <input class="mcd-range" type="range" id="musicVolSlider" min="0" max="100" value="55" />
+                </div>
+              </div>
+              <div class="mcd-row mcd-slider-row" data-title="HIỆU ỨNG TRÒ CHƠI" data-desc="Điều chỉnh âm lượng tiếng bước chân, đào khối, đặt khối và chiến đấu." data-def="85%">
+                <div class="mcd-row-lbl">⛏️ Hiệu ứng:</div>
+                <div class="mcd-slider-box">
+                  <b class="mcd-slider-val" id="sfxVolLabel">85%</b>
+                  <input class="mcd-range" type="range" id="sfxVolSlider" min="0" max="100" value="85" />
+                </div>
+              </div>
+              <div class="mcd-row mcd-slider-row" data-title="QUÁI VẬT &amp; NỔ" data-desc="Điều chỉnh âm lượng tiếng quái vật, boss và hiệu ứng nổ TNT / sấm sét." data-def="42%">
+                <div class="mcd-row-lbl">💥 Quái &amp; Nổ:</div>
+                <div class="mcd-slider-box">
+                  <b class="mcd-slider-val" id="mobVolLabel">42%</b>
+                  <input class="mcd-range" type="range" id="mobVolSlider" min="0" max="100" value="42" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Dimensions, Mysterious Ruins & Biomes -->
+          <div class="gm-pane" id="gmPaneWorld">
+            <div class="gm-section" data-title="DỊCH CHUYỂN CHIỀU KHÔNG GIAN" data-desc="Chọn một khu vực hoặc chiều không gian bên trái để dịch chuyển trực tiếp (chỉ dành cho Admin)." data-def="Thế Giới Chính">
               <div class="gm-section-title">Chiều Không Gian &amp; Khu Vực Đặc Biệt</div>
               <div class="gm-btn-grid" id="scenicSeg">
                 <button class="spawn-btn" data-scenic="ancient_ruins" style="border-color:#c084fc;">Tàn Tích Bí Ẩn (Quái Đông)</button>
@@ -1379,10 +1432,10 @@
             </div>
           </div>
 
-          <!-- Tab 4: 84 Optimized Blender Voxel Animals & Mobs -->
+          <!-- Tab 5: 84 Optimized Blender Voxel Animals & Mobs -->
           <div class="gm-pane" id="gmPaneMobs">
             <div id="mobSpawnLockNotice" class="mob-lock-banner" style="display:none;">🔒 Tính năng triệu hồi Động vật &amp; Quái vật bị khóa trong chế độ Sinh tồn.</div>
-            <div class="gm-section">
+            <div class="gm-section" data-title="THÚ VOXEL DỄ THƯƠNG" data-desc="Triệu hồi động vật voxel và thú cưng trước mặt bạn trong chế độ Sáng tạo." data-def="Sáng tạo">
               <div class="gm-section-title">🐾 20+ Thú Voxel Dễ Thương Mới &amp; Thuần Hóa (Chuột Phải!)</div>
               <div class="gm-btn-grid" id="animalSpawnSeg">
                 <button class="spawn-btn" data-mob="verdant_pack" style="border-color:#f59e0b;color:#fde68a;">Đàn Thú Verdant (Mẫu)</button>
@@ -1445,7 +1498,7 @@
                 <button class="spawn-btn" data-mob="ocean_school">Đàn Cá Biển</button>
               </div>
             </div>
-            <div class="gm-section">
+            <div class="gm-section" data-title="QUÁI VẬT &amp; BOSS" data-desc="Triệu hồi quái vật hoặc Boss Blender 3D để thử vũ khí và chiến đấu." data-def="Sáng tạo">
               <div class="gm-section-title" data-i18n="lbl_mobs">Triệu Hồi Quái Vật Địa Ngục, End City &amp; Boss Blender 3D</div>
               <div class="gm-btn-grid" id="mobSpawnSeg">
                 <button class="spawn-btn" data-mob="v70_hostile_pack" style="border-color:#22d3ee;color:#a5f3fc;">⚡ Bộ Creeper &amp; Xác Sống Mới (v70)</button>
@@ -1504,10 +1557,22 @@
             </div>
           </div>
         </div>
+
+        <aside class="gm-inspector" aria-live="polite">
+          <div class="mcd-insp-frame">
+            <span class="mcd-c mcd-c-tl"></span><span class="mcd-c mcd-c-tr"></span>
+            <span class="mcd-c mcd-c-bl"></span><span class="mcd-c mcd-c-br"></span>
+            <div class="mcd-insp-title" id="gmInspectorTitle">NGÔN NGỮ VĂN BẢN</div>
+            <div class="mcd-insp-desc" id="gmInspectorDesc">Chọn một mục cài đặt ở danh sách bên trái để xem hướng dẫn chi tiết và khôi phục nhanh giá trị mặc định.</div>
+            <div class="mcd-insp-foot" id="gmInspectorDefWrap"><span id="gmInspectorDefLbl">Mặc định:</span> <b id="gmInspectorDef">Tiếng Việt</b></div>
+          </div>
+        </aside>
       </div>
 
       <div class="gm-footer">
-        <button class="mc-btn mc-btn-green" id="btnPlay">▶ Tiếp Tục Chơi</button>
+        <button class="mcd-footer-btn" id="btnGmBack" type="button" title="Quay lại"><span id="lblGmBack">Quay lại</span><kbd class="mcd-keycap">ESC</kbd></button>
+        <button class="mc-btn mc-btn-green mcd-footer-play" id="btnPlay" type="button">▶ Tiếp Tục Chơi</button>
+        <button class="mcd-footer-btn" id="btnGmResetSection" type="button" title="Đặt lại mục hiện tại (X)"><span id="lblGmResetSection">Đặt lại mục</span><kbd class="mcd-keycap">X</kbd></button>
       </div>
     </div>
   </div>

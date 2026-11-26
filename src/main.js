@@ -109,8 +109,8 @@
     } else if (preset === 'dlss_ultra') {
       envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.44; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.13; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 0.91; envUniforms.uVibrance.value = 0.34; envUniforms.uWarmth.value = 0.02; envUniforms.uContrast.value = 0.06; envUniforms.uCloudCover.value = 0.60;
-      if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 20.0 : 36.0;
+      envUniforms.uExposure.value = 1.08; envUniforms.uVibrance.value = 0.06; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.0; envUniforms.uCloudCover.value = 0.56;
+      if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 22.0 : 38.0;
     }
     window._eclipseGrassDirty = true;
     if (typeof updateEclipseGrass === 'function') updateEclipseGrass(true);
@@ -1581,7 +1581,7 @@
         }
         const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
         const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
-        const shInterval = (_hasActiveFlyingBoss || (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing && sodiumOpts.smoothShadows))
+        const shInterval = _hasActiveFlyingBoss
           ? 0.0
           : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.16 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0));
         if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
