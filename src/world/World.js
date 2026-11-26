@@ -2375,7 +2375,7 @@
               else if (biome === BIOMES.DAPPLED_FOREST) id = (hash2i(wx, wz, worldSeed + 613) > 0.25 ? B.AUTUMN_PODZOL : B.GRASS);
               else if (biome === BIOMES.REDWOOD_ANCIENT || biome === BIOMES.GIANT_TREES) id = (hash2i(wx, wz, worldSeed + 617) > 0.76 ? B.MOSS_BLOCK : (hash2i(wx, wz, worldSeed + 618) > 0.65 ? B.AUTUMN_PODZOL : B.GRASS));
               else if (biome === BIOMES.MANOR_GARDEN) id = (hash2i(wx, wz, worldSeed + 619) > 0.90 ? B.STONE_BRICK : B.GRASS);
-              else if (biome === BIOMES.AUTUMN_DEEP || biome === BIOMES.AUTUMN_GOLDEN) id = hash2i(wx, wz, worldSeed + 539) > 0.34 ? B.AUTUMN_PODZOL : B.GRASS;
+              else if (biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_DEEP || biome === BIOMES.AUTUMN_GOLDEN) id = hash2i(wx, wz, worldSeed + 539) > 0.25 ? B.AUTUMN_PODZOL : B.GRASS;
               else if (biome === BIOMES.BLUE_FOREST) {
                 const trailN = Math.abs(fbm2D(wx * 0.045, wz * 0.045, 2, 0.5, 2.0, worldSeed + 811) - 0.5);
                 if (trailN < 0.042) id = hash2i(wx, wz, worldSeed + 813) > 0.52 ? B.SAND : (hash2i(wx, wz, worldSeed + 815) > 0.45 ? B.STONE : B.AUTUMN_PODZOL);

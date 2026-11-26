@@ -151,7 +151,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v68';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v69';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -200,11 +200,13 @@
         // Crisp Complementary / Eclipse Albedo (keep real green grass & melon tops intact!)
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
         float greenDom = max(0.0, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
+        float orangeDom = max(0.0, diffuseColor.r - diffuseColor.b) * smoothstep(0.14, 0.58, diffuseColor.g) * step(diffuseColor.g, diffuseColor.r);
         diffuseColor.rgb += vec3(0.012, 0.068, 0.004) * greenDom;
-        if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && greenDom > 0.03) {
+        if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && (greenDom > 0.03 || orangeDom > 0.08)) {
           float gDistFade = smoothstep(-30.0, 25.0, length(vWPos - cameraPosition));
-          float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.60, length(vWPos.xz - uPlayerPos.xz));
-          diffuseColor.rgb *= mix(1.0, gDistFade, inGrassRad);
+          float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.58, length(vWPos.xz - uPlayerPos.xz));
+          float rootTint = orangeDom > 0.08 ? mix(0.76, 1.0, gDistFade) : gDistFade;
+          diffuseColor.rgb *= mix(1.0, rootTint, inGrassRad);
         }
         float upW = clamp(vWNorm.y, 0.0, 1.0);
         float shoreWet = smoothstep(1.35, 0.72, vWPos.y) * smoothstep(-3.0, 0.0, vWPos.y);
@@ -3229,10 +3231,11 @@
   }
   window.__getAirMotesWorld = () => airMotes.map(m => ({ wx: m.wx, wy: m.wy, wz: m.wz, init: m.init }));
 
-  // Authentic Merlin1809 Eclipse-Shader 3D Camera-Facing Tapered Procedural Grass (all_solid.gsh / all_solid.vsh)
+  // Authentic Merlin1809 Eclipse-Shader 2-Tier Ultra-Dense Thin Tapered Procedural Grass (121 blades/m² near + 36 far)
   const _isLiteGrass = (_isMobilePerf || (_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isSoftware));
-  const ECLIPSE_GRASS_MAX = _isMobilePerf ? 2000 : (_isLiteGrass ? 2800 : 5400);
-  const grassInstGeo = (() => {
+  const ECLIPSE_GRASS_NEAR_MAX = (_isMobilePerf || _isLiteGrass) ? 420 : 900;
+  const ECLIPSE_GRASS_FAR_MAX  = _isMobilePerf ? 1400 : (_isLiteGrass ? 2400 : 4400);
+  function _buildEclipseGrassGeo(cols, tiers, widthScale) {
     const pos = [], bladeH = [], bladeSide = [], bladeRand = [], idx = [];
     let vc = 0;
     const halton = (i, base) => {
@@ -3240,27 +3243,25 @@
       while (n > 0) { f /= base; r += f * (n % base); n = Math.floor(n / base); }
       return r;
     };
-    const COLS = _isMobilePerf ? 5 : (_isLiteGrass ? 6 : 7);
-    const BLADES = COLS * COLS;
-    const cellSpan = 0.96 / COLS;
-    const tiers = [0.0, 0.25, 0.50, 0.75];
+    const BLADES = cols * cols;
+    const cellSpan = 0.97 / cols;
     for (let b = 0; b < BLADES; b++) {
-      const gx = b % COLS, gz = Math.floor(b / COLS);
-      const ox = Math.max(-0.48, Math.min(0.48, -0.48 + (gx + 0.5) * cellSpan + (halton(b + 1, 2) - 0.5) * cellSpan * 0.76));
-      const oz = Math.max(-0.48, Math.min(0.48, -0.48 + (gz + 0.5) * cellSpan + (halton(b + 1, 3) - 0.5) * cellSpan * 0.76));
+      const gx = b % cols, gz = Math.floor(b / cols);
+      const ox = Math.max(-0.485, Math.min(0.485, -0.485 + (gx + 0.5) * cellSpan + (halton(b + 1, 2) - 0.5) * cellSpan * 0.82));
+      const oz = Math.max(-0.485, Math.min(0.485, -0.485 + (gz + 0.5) * cellSpan + (halton(b + 1, 3) - 0.5) * cellSpan * 0.82));
       const rdx = (halton(b + 11, 5) + halton(b + 17, 7)) - 1.0;
       const rdz = (halton(b + 13, 11) + halton(b + 19, 13)) - 1.0;
-      const hVar = 0.85 + halton(b + 5, 17) * 0.30;
+      const hVar = 0.78 + halton(b + 5, 17) * 0.46;
       const baseV = vc;
       for (let t = 0; t < tiers.length; t++) {
         pos.push(ox, 0.0, oz);
-        bladeH.push(tiers[t]); bladeSide.push(-1.0); bladeRand.push(rdx, rdz, hVar);
+        bladeH.push(tiers[t]); bladeSide.push(-1.0); bladeRand.push(rdx, rdz, hVar, widthScale);
         pos.push(ox, 0.0, oz);
-        bladeH.push(tiers[t]); bladeSide.push(1.0); bladeRand.push(rdx, rdz, hVar);
+        bladeH.push(tiers[t]); bladeSide.push(1.0); bladeRand.push(rdx, rdz, hVar, widthScale);
         vc += 2;
       }
       pos.push(ox, 0.0, oz);
-      bladeH.push(1.0); bladeSide.push(0.0); bladeRand.push(rdx, rdz, hVar);
+      bladeH.push(1.0); bladeSide.push(0.0); bladeRand.push(rdx, rdz, hVar, widthScale);
       vc += 1;
       for (let t = 0; t < tiers.length - 1; t++) {
         const r0 = baseV + t * 2, r1 = r0 + 2;
@@ -3273,29 +3274,27 @@
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('aBladeH', new THREE.Float32BufferAttribute(bladeH, 1));
     g.setAttribute('aBladeSide', new THREE.Float32BufferAttribute(bladeSide, 1));
-    g.setAttribute('aBladeRand', new THREE.Float32BufferAttribute(bladeRand, 3));
+    g.setAttribute('aBladeRand', new THREE.Float32BufferAttribute(bladeRand, 4));
     g.setIndex(idx);
     g.instanceCount = 0;
     return g;
-  })();
-  const _egInstPos = new Float32Array(ECLIPSE_GRASS_MAX * 4);
-  const _egInstCol = new Float32Array(ECLIPSE_GRASS_MAX * 4);
-  const _egInstSide = new Float32Array(ECLIPSE_GRASS_MAX * 4);
-  const _egInstAo = new Float32Array(ECLIPSE_GRASS_MAX);
-  const _egPosAttr = new THREE.InstancedBufferAttribute(_egInstPos, 4);
-  const _egColAttr = new THREE.InstancedBufferAttribute(_egInstCol, 4);
-  const _egSideAttr = new THREE.InstancedBufferAttribute(_egInstSide, 4);
-  const _egAoAttr = new THREE.InstancedBufferAttribute(_egInstAo, 1);
-  if (typeof THREE.DynamicDrawUsage !== 'undefined') {
-    if (_egPosAttr.setUsage) _egPosAttr.setUsage(THREE.DynamicDrawUsage);
-    if (_egColAttr.setUsage) _egColAttr.setUsage(THREE.DynamicDrawUsage);
-    if (_egSideAttr.setUsage) _egSideAttr.setUsage(THREE.DynamicDrawUsage);
-    if (_egAoAttr.setUsage) _egAoAttr.setUsage(THREE.DynamicDrawUsage);
   }
-  grassInstGeo.setAttribute('aInstPos', _egPosAttr);
-  grassInstGeo.setAttribute('aInstCol', _egColAttr);
-  grassInstGeo.setAttribute('aInstSide', _egSideAttr);
-  grassInstGeo.setAttribute('aInstAo', _egAoAttr);
+  function _makeEgInstanceBuffers(geo, maxCnt) {
+    const pos = new Float32Array(maxCnt * 4), col = new Float32Array(maxCnt * 4), side = new Float32Array(maxCnt * 4), ao = new Float32Array(maxCnt);
+    const posAttr = new THREE.InstancedBufferAttribute(pos, 4), colAttr = new THREE.InstancedBufferAttribute(col, 4), sideAttr = new THREE.InstancedBufferAttribute(side, 4), aoAttr = new THREE.InstancedBufferAttribute(ao, 1);
+    if (typeof THREE.DynamicDrawUsage !== 'undefined') {
+      [posAttr, colAttr, sideAttr, aoAttr].forEach(a => { if (a.setUsage) a.setUsage(THREE.DynamicDrawUsage); });
+    }
+    geo.setAttribute('aInstPos', posAttr);
+    geo.setAttribute('aInstCol', colAttr);
+    geo.setAttribute('aInstSide', sideAttr);
+    geo.setAttribute('aInstAo', aoAttr);
+    return { maxCnt, pos, col, side, ao, posAttr, colAttr, sideAttr, aoAttr, geo };
+  }
+  const grassInstGeoNear = _buildEclipseGrassGeo((_isMobilePerf || _isLiteGrass) ? 8 : 11, [0.0, 0.33, 0.66], 1.0);
+  const grassInstGeoFar  = _buildEclipseGrassGeo(_isMobilePerf ? 5 : 6, [0.0, 0.50], 1.32);
+  const _egNear = _makeEgInstanceBuffers(grassInstGeoNear, ECLIPSE_GRASS_NEAR_MAX);
+  const _egFar  = _makeEgInstanceBuffers(grassInstGeoFar,  ECLIPSE_GRASS_FAR_MAX);
 
   const eclipseGrassMat = new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
@@ -3309,7 +3308,7 @@
     vertexShader: `
       attribute float aBladeH;
       attribute float aBladeSide;
-      attribute vec3 aBladeRand;
+      attribute vec4 aBladeRand;
       attribute vec4 aInstPos;
       attribute vec4 aInstCol;
       attribute vec4 aInstSide;
@@ -3317,7 +3316,7 @@
       uniform float uTime, uWindStrength, uGrassRadius;
       uniform vec3 uPlayerPos;
       varying vec3 vCol, vWPos;
-      varying float vHeightFade, vSide, vDist, vSkyAo;
+      varying float vBladeH, vHeightFade, vSide, vDist, vSkyAo, vGust;
       vec2 calcWave(vec3 pos) {
         const float PI48 = 150.796447372;
         float pi2wt = PI48 * uTime;
@@ -3354,12 +3353,15 @@
 
         float grassH = aBladeH;
         float grassCurvature = smoothstep(0.0, 1.0, grassH);
-        float bladeLenY = 0.55 * totalHeightMult * aInstPos.w * aBladeRand.z * distFade;
-        vec3 viewCam = normalize(rootPos - cameraPosition);
+        float clump = 0.88 + 0.24 * sin(rootPos.x * 0.62 + cos(rootPos.z * 0.58) * 1.4);
+        float bladeLenY = 0.56 * clump * totalHeightMult * aInstPos.w * aBladeRand.z * distFade;
+        vec3 toCam = rootPos - cameraPosition;
+        float camDist = length(toCam);
+        vec3 viewCam = toCam / max(camDist, 1e-4);
         vec3 rightDir = normalize(cross(vec3(0.0, 1.0, 0.0), viewCam) + vec3(1e-5, 0.0, 0.0));
-        float tierStep = floor(grassH * 4.0 + 0.1);
-        float taper = aBladeSide * pow(0.8, tierStep);
-        float halfThick = (0.022 + min(length(rootPos - cameraPosition), 36.0) * 0.00055) * aInstPos.w;
+        float tierStep = floor(grassH * 3.0 + 0.15);
+        float taper = aBladeSide * pow(0.74, tierStep);
+        float halfThick = (0.0112 + min(camDist, 38.0) * 0.00048) * aBladeRand.w * aInstPos.w;
 
         vec3 wp = rootPos;
         wp.y += grassH * bladeLenY - 0.015;
@@ -3369,15 +3371,18 @@
         wp.xz += 0.7 * playerDist * dir2 * grassCurvature;
 
         vec2 rndRotated = vec2(aBladeRand.x * c - aBladeRand.y * s, aBladeRand.x * s + aBladeRand.y * c);
-        wp.xz += grassCurvature * (0.5 * rndRotated * 0.24 + edgeBlend);
-        wp += 1.6 * calcMovePlants(rootPos) * grassCurvature * grassCurvature;
+        wp.xz += grassCurvature * (0.5 * rndRotated * 0.25 + edgeBlend);
+        vec3 windMove = 1.6 * calcMovePlants(rootPos) * grassCurvature * grassCurvature;
+        wp += windMove;
         wp += rightDir * (taper * halfThick);
 
         vCol = aInstCol.rgb;
         vWPos = wp;
+        vBladeH = grassH;
         vHeightFade = smoothstep(-0.35, 1.0, grassH);
         vSide = aBladeSide;
         vSkyAo = aInstAo;
+        vGust = clamp(length(windMove.xz) * 7.5, 0.0, 1.0);
         vec4 mv = viewMatrix * vec4(wp, 1.0);
         vDist = length(mv.xyz);
         gl_Position = projectionMatrix * mv;
@@ -3386,68 +3391,114 @@
       uniform vec3 uSunDir, uSunColor, uSkyTop, uFogColor;
       uniform float uTime, uFogStart, uFogEnd;
       varying vec3 vCol, vWPos;
-      varying float vHeightFade, vSide, vDist, vSkyAo;
+      varying float vBladeH, vHeightFade, vSide, vDist, vSkyAo, vGust;
       void main() {
         vec3 sDir = normalize(uSunDir);
         vec3 vDir = normalize(vWPos - cameraPosition);
         float sunUp = smoothstep(-0.08, 0.28, sDir.y);
-        vec3 albedo = vCol * vHeightFade;
-        vec3 skyHemi = mix(vec3(0.10, 0.14, 0.22), uSkyTop * 0.42 + vec3(0.45), sunUp) * mix(0.45, 1.0, vSkyAo);
+        float warmAmt = smoothstep(0.08, 0.34, vCol.r - vCol.g);
+        vec3 rootMul = mix(vec3(0.30, 0.36, 0.24), vec3(0.62, 0.40, 0.18), warmAmt);
+        vec3 midMul  = mix(vec3(0.92, 0.98, 0.86), vec3(1.04, 0.94, 0.80), warmAmt);
+        vec3 tipMul  = mix(vec3(1.12, 1.16, 0.96), vec3(1.18, 1.06, 0.82), warmAmt);
+        vec3 grad = vBladeH < 0.45 ? mix(rootMul, midMul, vBladeH / 0.45) : mix(midMul, tipMul, (vBladeH - 0.45) / 0.55);
+        float spine = 1.0 - abs(vSide) * 0.20;
+        vec3 albedo = vCol * grad * spine;
+        float cloudDapple = 0.88 + 0.12 * sin(vWPos.x * 0.09 + uTime * 0.22) * cos(vWPos.z * 0.08 - uTime * 0.17);
+        vec3 skyHemi = mix(vec3(0.10, 0.14, 0.22), uSkyTop * 0.40 + vec3(0.46), sunUp) * mix(0.45, 1.0, vSkyAo);
         vec3 sunDirect = uSunColor * (0.58 * sunUp * vSkyAo);
-        float sssFwd = pow(max(dot(vDir, sDir), 0.0), 3.0) * 0.65 * smoothstep(0.15, 1.0, vHeightFade) * sunUp * vSkyAo;
-        vec3 litCol = albedo * (skyHemi + sunDirect) + albedo * mix(uSunColor, vec3(1.0), 0.40) * sssFwd;
+        float sssFwd = pow(max(dot(vDir, sDir), 0.0), 3.0) * 0.68 * smoothstep(0.15, 1.0, vHeightFade) * sunUp * vSkyAo;
+        float gustSheen = vGust * smoothstep(0.35, 1.0, vBladeH) * 0.16 * sunUp * vSkyAo;
+        float tipRim = smoothstep(0.55, 1.0, vBladeH) * (1.0 - abs(vSide)) * 0.10 * sunUp * vSkyAo;
+        vec3 sunBal = mix(uSunColor, vec3(1.0), 0.40);
+        vec3 litCol = albedo * (skyHemi + sunDirect) * cloudDapple + albedo * sunBal * (sssFwd + gustSheen) + sunBal * tipRim;
         float fogF = smoothstep(uFogStart, uFogEnd, vDist);
         float sunSc = pow(max(dot(vDir, sDir.y > -0.05 ? sDir : -sDir), 0.0), 4.2) * (sDir.y > -0.05 ? sunUp : 0.35);
         vec3 fogCol = mix(uFogColor * 0.92, min(uSunColor * 1.05, vec3(1.0, 0.91, 0.78)), sunSc * 0.46);
         gl_FragColor = vec4(mix(litCol, fogCol, fogF), 1.0);
       }`
   });
-  const eclipseGrassMesh = new THREE.Mesh(grassInstGeo, eclipseGrassMat);
+  const eclipseGrassMesh = new THREE.Mesh(grassInstGeoNear, eclipseGrassMat);
   eclipseGrassMesh.frustumCulled = false;
   eclipseGrassMesh.visible = false;
   scene.add(eclipseGrassMesh);
+  const eclipseGrassFarMesh = new THREE.Mesh(grassInstGeoFar, eclipseGrassMat);
+  eclipseGrassFarMesh.frustumCulled = false;
+  eclipseGrassFarMesh.visible = false;
+  scene.add(eclipseGrassFarMesh);
 
-  let _egLastX = 1e9, _egLastZ = 1e9, _egLastDim = '', _egLastCount = 0;
+  let _egLastX = 1e9, _egLastZ = 1e9, _egLastDim = '', _egLastNearCount = 0, _egLastFarCount = 0;
   const _egBiomeCache = new Map();
-  function getEclipseGrassCount() { return eclipseGrassMesh.visible ? _egLastCount : 0; }
+  function getEclipseGrassCount() {
+    return (eclipseGrassMesh.visible ? _egLastNearCount : 0) + (eclipseGrassFarMesh.visible ? _egLastFarCount : 0);
+  }
   function getEclipseGrassColorStats() {
     let warmAutumn = 0, dream = 0, green = 0;
-    const total = eclipseGrassMesh.visible ? _egLastCount : 0;
-    for (let i = 0; i < total; i++) {
-      const o = i * 4;
-      const r = _egInstCol[o], g = _egInstCol[o + 1], b = _egInstCol[o + 2];
-      if (b > 0.45) dream++;
-      else if (r > 0.60 && g < 0.60 && b < 0.25) warmAutumn++;
-      else if (g > r) green++;
+    for (const [vis, buf, cnt] of [
+      [eclipseGrassMesh.visible, _egNear.col, _egLastNearCount],
+      [eclipseGrassFarMesh.visible, _egFar.col, _egLastFarCount]
+    ]) {
+      if (!vis) continue;
+      for (let i = 0; i < cnt; i++) {
+        const o = i * 4;
+        const r = buf[o], g = buf[o + 1], b = buf[o + 2];
+        if (b > 0.45) dream++;
+        else if (r > 0.60 && g < 0.65 && b < 0.25) warmAutumn++;
+        else if (g > r) green++;
+      }
     }
-    return { total, warmAutumn, dream, green };
+    return { total: warmAutumn + dream + green, warmAutumn, dream, green };
+  }
+  function _writeEgSlot(buf, slot, wx, wy, wz, baseSc, r, g, b, baseAng, sE, sW, sS, sN, skyAO) {
+    const o = slot * 4;
+    buf.pos[o] = wx + 0.5; buf.pos[o + 1] = wy + 1.0; buf.pos[o + 2] = wz + 0.5; buf.pos[o + 3] = baseSc;
+    buf.col[o] = r; buf.col[o + 1] = g; buf.col[o + 2] = b; buf.col[o + 3] = baseAng;
+    buf.side[o] = sE; buf.side[o + 1] = sW; buf.side[o + 2] = sS; buf.side[o + 3] = sN;
+    buf.ao[slot] = skyAO;
+  }
+  function _commitEgTier(mesh, buf, cnt) {
+    buf.geo.instanceCount = cnt;
+    if (cnt > 0) {
+      if (buf.posAttr.updateRange)  { buf.posAttr.updateRange.offset = 0;  buf.posAttr.updateRange.count = cnt * 4; }
+      if (buf.colAttr.updateRange)  { buf.colAttr.updateRange.offset = 0;  buf.colAttr.updateRange.count = cnt * 4; }
+      if (buf.sideAttr.updateRange) { buf.sideAttr.updateRange.offset = 0; buf.sideAttr.updateRange.count = cnt * 4; }
+      if (buf.aoAttr.updateRange)   { buf.aoAttr.updateRange.offset = 0;   buf.aoAttr.updateRange.count = cnt; }
+      buf.posAttr.needsUpdate = true;
+      buf.colAttr.needsUpdate = true;
+      buf.sideAttr.needsUpdate = true;
+      buf.aoAttr.needsUpdate = true;
+    }
+    mesh.visible = (cnt > 0);
   }
   function updateEclipseGrass(force = false) {
     if (shaderPreset !== 'eclipse' ||
         typeof chunks === 'undefined' || typeof B === 'undefined' || typeof player === 'undefined' ||
         currentDimension === 'nether' || currentDimension === 'end' || currentDimension === 'warden' || depthOffset > 0 || player.y < -10) {
       if (eclipseGrassMesh.visible) eclipseGrassMesh.visible = false;
+      if (eclipseGrassFarMesh.visible) eclipseGrassFarMesh.visible = false;
       return;
     }
     if (force) { _egLastX = 1e9; _egLastZ = 1e9; }
     const moved = Math.hypot(player.x - _egLastX, player.z - _egLastZ);
-    if (!force && !window._eclipseGrassDirty && moved < 3.0 && currentDimension === _egLastDim) return;
+    if (!force && !window._eclipseGrassDirty && moved < 2.2 && currentDimension === _egLastDim) return;
     _egLastX = player.x; _egLastZ = player.z; _egLastDim = currentDimension;
     window._eclipseGrassDirty = false;
 
-    const effMax = (typeof _autoPerfTier !== 'undefined' && _autoPerfTier >= 2)
-      ? Math.floor(ECLIPSE_GRASS_MAX * 0.50)
-      : ((typeof _autoPerfTier !== 'undefined' && _autoPerfTier === 1) ? Math.floor(ECLIPSE_GRASS_MAX * 0.72) : ECLIPSE_GRASS_MAX);
+    const pTier = typeof _autoPerfTier !== 'undefined' ? _autoPerfTier : 0;
+    const scaleT = pTier >= 2 ? 0.50 : (pTier === 1 ? 0.72 : 1.0);
+    const nearMax = Math.floor(ECLIPSE_GRASS_NEAR_MAX * scaleT);
+    const farMax  = Math.floor(ECLIPSE_GRASS_FAR_MAX * scaleT);
     _egBiomeCache.clear();
     const hasBiomeFn = (typeof getBiomeAt === 'function');
     const hasWorldGet = (typeof getBlockWorld === 'function');
 
     const rad = envUniforms.uGrassRadius ? envUniforms.uGrassRadius.value : (_isMobilePerf ? 22 : 38);
+    const nearRad = (_isMobilePerf || _isLiteGrass) ? 11.0 : 15.0;
+    const nearRadSq = nearRad * nearRad;
     const radI = Math.floor(rad), radSq = rad * rad;
     const px = Math.floor(player.x), pz = Math.floor(player.z);
     const minLy = Math.max(0, Math.floor(player.y - 12) - MIN_Y);
     const maxCapLy = WORLD_H - 2;
-    let cnt = 0, maxEmitD2 = 0;
+    let nearCnt = 0, farCnt = 0, maxEmitD2 = 0;
     let cacheCx = 999999, cacheCz = 999999, cacheCh = null;
 
     const isGrassSurface = (bid) => (bid === B.GRASS || bid === B.SIFT_GRASS || bid === B.LULLABY_GRASS || bid === B.SPORE_TURF || bid === B.BLUE_GRASS || bid === B.MOSS_BLOCK || bid === B.AUTUMN_PODZOL);
@@ -3478,7 +3529,7 @@
       if (maxLy < minLy) return;
       const lx = wx & 15, lz = wz & 15;
       const colOff = (lz << 4) | lx;
-      for (let ly = maxLy; ly >= minLy && cnt < effMax; ly--) {
+      for (let ly = maxLy; ly >= minLy && (nearCnt < nearMax || farCnt < farMax); ly--) {
         const id = data[(ly << 8) | colOff];
         if (id === B.STONE || id === B.DEEPSLATE || id === B.WATER || id === B.SANDSTONE) break;
         if (!isGrassSurface(id)) continue;
@@ -3508,11 +3559,10 @@
           bio = _egBiomeCache.get(bqk);
           if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
         }
-        // Authentic Minecraft / Eclipse biome-matched greens (plus Dream & Autumn biomes)
         let cr = 0.36, cg = 0.64, cb = 0.24;
         if (id === B.AUTUMN_PODZOL) {
-          if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.78; cg = 0.50; cb = 0.14; }
-          else { cr = 0.72; cg = 0.38; cb = 0.11; }
+          if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.95; cg = 0.58; cb = 0.12; }
+          else { cr = 0.90; cg = 0.44; cb = 0.09; }
         } else if (id === B.SIFT_GRASS) { cr = 0.24; cg = 0.68; cb = 0.54; }
         else if (id === B.LULLABY_GRASS) { cr = 0.84; cg = 0.44; cb = 0.64; }
         else if (id === B.SPORE_TURF) { cr = 0.52; cg = 0.36; cb = 0.88; }
@@ -3526,9 +3576,9 @@
           else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.36; cg = 0.20; cb = 0.32; }
           else if (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.30; cg = 0.54; cb = 0.34; }
           else if (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST) {
-            cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.78 : 0.74;
-            cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.50 : 0.40;
-            cb = 0.12;
+            cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.95 : 0.90;
+            cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.58 : 0.44;
+            cb = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.12 : 0.09;
           }
           else if (bio === BIOMES.SAVANNA || bio === BIOMES.MESA || bio === BIOMES.DESERT) { cr = 0.56; cg = 0.58; cb = 0.22; }
         }
@@ -3548,59 +3598,42 @@
         const baseAng = (h & 3) * (Math.PI * 0.5); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
         const baseSc = 0.85 + ((h & 255) / 255) * 0.26; h >>>= 8;
         const hueShift = (((h & 63) / 63) - 0.5) * 0.07;
+        const rc = Math.max(0.05, Math.min(1.0, cr + hueShift));
+        const gc = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.6));
+        const bc = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.2));
 
-        const base = cnt * 4;
-        _egInstPos[base] = wx + 0.5;
-        _egInstPos[base + 1] = wy + 1.0;
-        _egInstPos[base + 2] = wz + 0.5;
-        _egInstPos[base + 3] = baseSc;
-        _egInstCol[base] = Math.max(0.05, Math.min(1.0, cr + hueShift));
-        _egInstCol[base + 1] = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.6));
-        _egInstCol[base + 2] = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.2));
-        _egInstCol[base + 3] = baseAng;
-        _egInstSide[base] = sE;
-        _egInstSide[base + 1] = sW;
-        _egInstSide[base + 2] = sS;
-        _egInstSide[base + 3] = sN;
-        _egInstAo[cnt] = skyAO;
-        cnt++;
+        if (d2 <= nearRadSq && nearCnt < nearMax) {
+          _writeEgSlot(_egNear, nearCnt++, wx, wy, wz, baseSc, rc, gc, bc, baseAng, sE, sW, sS, sN, skyAO);
+        } else if (farCnt < farMax) {
+          _writeEgSlot(_egFar, farCnt++, wx, wy, wz, baseSc, rc, gc, bc, baseAng, sE, sW, sS, sN, skyAO);
+        }
       }
     };
 
-    // Outward radial square rings from camera center guarantee 360-degree full grass coverage near player!
     emitColumn(px, pz, 0);
-    for (let ring = 1; ring <= radI && cnt < effMax; ring++) {
+    for (let ring = 1; ring <= radI && (nearCnt < nearMax || farCnt < farMax); ring++) {
       const rz2 = ring * ring;
-      for (let dx = -ring; dx <= ring && cnt < effMax; dx++) {
+      for (let dx = -ring; dx <= ring && (nearCnt < nearMax || farCnt < farMax); dx++) {
         const d2 = dx * dx + rz2;
         if (d2 <= radSq) {
           emitColumn(px + dx, pz - ring, d2);
-          if (cnt < effMax) emitColumn(px + dx, pz + ring, d2);
+          emitColumn(px + dx, pz + ring, d2);
         }
       }
-      for (let dz = -ring + 1; dz <= ring - 1 && cnt < effMax; dz++) {
+      for (let dz = -ring + 1; dz <= ring - 1 && (nearCnt < nearMax || farCnt < farMax); dz++) {
         const d2 = rz2 + dz * dz;
         if (d2 <= radSq) {
           emitColumn(px - ring, pz + dz, d2);
-          if (cnt < effMax) emitColumn(px + ring, pz + dz, d2);
+          emitColumn(px + ring, pz + dz, d2);
         }
       }
     }
-    _egLastCount = cnt;
-    grassInstGeo.instanceCount = cnt;
-    if (cnt > 0) {
-      if (_egPosAttr.updateRange) { _egPosAttr.updateRange.offset = 0; _egPosAttr.updateRange.count = cnt * 4; }
-      if (_egColAttr.updateRange) { _egColAttr.updateRange.offset = 0; _egColAttr.updateRange.count = cnt * 4; }
-      if (_egSideAttr.updateRange) { _egSideAttr.updateRange.offset = 0; _egSideAttr.updateRange.count = cnt * 4; }
-      if (_egAoAttr.updateRange) { _egAoAttr.updateRange.offset = 0; _egAoAttr.updateRange.count = cnt; }
-      _egPosAttr.needsUpdate = true;
-      _egColAttr.needsUpdate = true;
-      _egSideAttr.needsUpdate = true;
-      _egAoAttr.needsUpdate = true;
-    }
-    eclipseGrassMesh.visible = (cnt > 0);
+    _egLastNearCount = nearCnt;
+    _egLastFarCount = farCnt;
+    _commitEgTier(eclipseGrassMesh, _egNear, nearCnt);
+    _commitEgTier(eclipseGrassFarMesh, _egFar, farCnt);
     if (envUniforms.uGrassSoilRadius) {
-      envUniforms.uGrassSoilRadius.value = cnt > 0 ? Math.max(8.0, Math.sqrt(maxEmitD2)) : 0.0;
+      envUniforms.uGrassSoilRadius.value = (nearCnt + farCnt) > 0 ? Math.max(8.0, Math.sqrt(maxEmitD2)) : 0.0;
     }
   }
 

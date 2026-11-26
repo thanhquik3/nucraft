@@ -2176,8 +2176,11 @@
     }
   }
 
+  const _chAutumnCell = new Int8Array(16);
   function rebuildChunkMesh(ch) {
     const cx = ch.cx, cz = ch.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W, data = ch.data;
+    _chAutumnCell.fill(-1);
+    const _autPodDef = BLOCK_DEF_ARR[B.AUTUMN_PODZOL];
     const thisChKey = chunkKey(cx, cz);
     if (ch._pendingSlice) {
       const ps = ch._pendingSlice;
@@ -2330,7 +2333,18 @@
               _sPos[vp+3] = wx+cr1[0]; _sPos[vp+4] = wy+cr1[1]; _sPos[vp+5] = wz+cr1[2]; _sNorm[vp+3] = dx; _sNorm[vp+4] = dy; _sNorm[vp+5] = dz; _sCols[vp+3]=ao1; _sCols[vp+4]=ao1; _sCols[vp+5]=ao1; _sBL[vp+3]=lr; _sBL[vp+4]=lg; _sBL[vp+5]=lb;
               _sPos[vp+6] = wx+cr2[0]; _sPos[vp+7] = wy+cr2[1]; _sPos[vp+8] = wz+cr2[2]; _sNorm[vp+6] = dx; _sNorm[vp+7] = dy; _sNorm[vp+8] = dz; _sCols[vp+6]=ao2; _sCols[vp+7]=ao2; _sCols[vp+8]=ao2; _sBL[vp+6]=lr; _sBL[vp+7]=lg; _sBL[vp+8]=lb;
               _sPos[vp+9] = wx+cr3[0]; _sPos[vp+10] = wy+cr3[1]; _sPos[vp+11] = wz+cr3[2]; _sNorm[vp+9] = dx; _sNorm[vp+10] = dy; _sNorm[vp+11] = dz; _sCols[vp+9]=ao3; _sCols[vp+10]=ao3; _sCols[vp+11]=ao3; _sBL[vp+9]=lr; _sBL[vp+10]=lg; _sBL[vp+11]=lb;
-              const tile = (def.frontTile !== undefined && (dz === 1 || (def.bothZFront && dz === -1))) ? def.frontTile : def.tiles[face.tileIdx], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
+              let useDef = def;
+              if (id === B.GRASS && currentDimension === 'overworld' && _autPodDef) {
+                const acIdx = ((lz >> 2) << 2) | (lx >> 2);
+                let isAut = _chAutumnCell[acIdx];
+                if (isAut < 0) {
+                  const ab = getBiomeAt(wx0 + (lx & ~3), wz0 + (lz & ~3));
+                  isAut = (ab === BIOMES.AUTUMN || ab === BIOMES.AUTUMN_GOLDEN || ab === BIOMES.AUTUMN_DEEP || ab === BIOMES.DAPPLED_FOREST) ? 1 : 0;
+                  _chAutumnCell[acIdx] = isAut;
+                }
+                if (isAut === 1) useDef = _autPodDef;
+              }
+              const tile = (useDef.frontTile !== undefined && (dz === 1 || (useDef.bothZFront && dz === -1))) ? useDef.frontTile : useDef.tiles[face.tileIdx], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
               const up = vc * 2;
               _sUvs[up]=u0; _sUvs[up+1]=v1; _sUvs[up+2]=u1; _sUvs[up+3]=v1; _sUvs[up+4]=u1; _sUvs[up+5]=v0; _sUvs[up+6]=u0; _sUvs[up+7]=v0;
               const ip = st.iCount;

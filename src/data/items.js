@@ -2327,8 +2327,8 @@
       if (Math.hypot(x - 7.5, y - 9.5) < 6.2 && ((x * 3 + y * 5) % 7 !== 0)) return shade(r > 0.5 ? '#ea580c' : '#c2410c', (r - 0.5) * 20);
       return null;
     });
-    tilePixels(218, (x, y, r) => shade(r > 0.72 ? '#d97706' : (r > 0.35 ? '#9a4e1c' : '#6b3614'), (r - 0.5) * 18));
-    tilePixels(219, (x, y, r) => y < 4 ? shade('#b45309', (r - 0.5) * 16) : shade('#7c4e2d', (r - 0.5) * 14));
+    tilePixels(218, (x, y, r) => shade(r > 0.68 ? '#ea580c' : (r > 0.30 ? '#c2410c' : '#9a3412'), (r - 0.5) * 18));
+    tilePixels(219, (x, y, r) => y < 4 ? shade(r > 0.5 ? '#ea580c' : '#c2410c', (r - 0.5) * 16) : shade('#7c4e2d', (r - 0.5) * 14));
     // Tiles 220-222: Iron, Gold & Copper Ingots
     const INGOT_SPRITE = [
       '................','................','................','......dddd......',
