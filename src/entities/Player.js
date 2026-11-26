@@ -644,10 +644,12 @@
 
     const head = makeP(0, 0.375, 0, torso);
     const headBase = makeSkinBox(8, 8, 8, 0, 0, skinMat, 0.0625, 0);
-    headBase.castShadow = false;
+    headBase.castShadow = true;
+    headBase.receiveShadow = false;
     headBase.position.set(0, 0.25, 0); head.add(headBase);
     const headOuter = makeSkinBox(8, 8, 8, 32, 0, outerMat, 0.0625, 0.028);
     headOuter.castShadow = false;
+    headOuter.receiveShadow = false;
     headOuter.position.set(0, 0.25, 0); head.add(headOuter);
     const headAcc = makeP(0, 0.25, 0, head);
 

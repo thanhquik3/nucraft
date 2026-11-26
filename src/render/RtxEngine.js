@@ -18,7 +18,7 @@
     : { shaderQuality: _initMobile ? 'low' : 'high', renderDistance: 3, shaderPreset: 'bsl', bumpEnabled: !_initMobile, volumetricClouds: true };
   let _fpsSlow = false, _fpsCheckAcc = 0, _fpsCheckCnt = 0;
   let _autoPerfLow = false, _autoPerfTier = 0, _autoPerfStreak = 0, _autoPerfUpStreak = 0, _autoPerfPrScale = 1.0;
-  let _lastShX = 9e9, _lastShZ = 9e9, _lastShYaw = 9e9, _lastShPitch = 9e9, _lastShTime = -1;
+  let _lastShX = 9e9, _lastShY = 9e9, _lastShZ = 9e9, _lastShYaw = 9e9, _lastShPitch = 9e9, _lastShTime = -1;
   let _shadowAcc = 99, _reflAcc = 99, _postFxAcc = 99, _atmoAcc = 99, _previewAcc = 99, _lightAcc = 99, _postFxDirty = true;
   window._nucraftFps = 60;
   window._nucraftCpuMs = 0;

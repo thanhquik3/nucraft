@@ -60,7 +60,7 @@
     renderer.shadowMap.enabled = effShadowOn;
     sunLight.castShadow = effShadowOn;
     const dedGpu = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
-    let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 4096 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
+    let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 3072 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
     if (rtOn && !_initMobile) wantShSize = Math.max(wantShSize, 2048);
     if (sunLight.shadow.mapSize.width !== wantShSize) {
       sunLight.shadow.mapSize.set(wantShSize, wantShSize);
@@ -1189,17 +1189,24 @@
 
 
   let _lastShCx = 999999, _lastShCz = 999999, _lastShQual = '';
+  const _shRight = new THREE.Vector3(), _shUp = new THREE.Vector3(), _shWorldUp = new THREE.Vector3(0, 1, 0);
   function updateSunShadowFrustum(updateLightMatrices = true) {
     if (!renderer.shadowMap.enabled) return;
     const px = player.x, pz = player.z;
     if (updateLightMatrices) {
       const py = player.y;
       const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
-      const snapX = Math.round(px / shTexel) * shTexel;
-      const snapY = Math.round(py / shTexel) * shTexel;
-      const snapZ = Math.round(pz / shTexel) * shTexel;
       const isNightShadow = (currentDimension === 'overworld' && envUniforms.uSunDir.value.y < -0.04);
       const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
+      _shRight.crossVectors(_shWorldUp, lDir);
+      if (_shRight.lengthSq() < 1e-4) _shRight.set(1, 0, 0); else _shRight.normalize();
+      _shUp.crossVectors(lDir, _shRight).normalize();
+      const uCoord = Math.round((px * _shRight.x + py * _shRight.y + pz * _shRight.z) / shTexel) * shTexel;
+      const vCoord = Math.round((px * _shUp.x + py * _shUp.y + pz * _shUp.z) / shTexel) * shTexel;
+      const dCoord = px * lDir.x + py * lDir.y + pz * lDir.z;
+      const snapX = _shRight.x * uCoord + _shUp.x * vCoord + lDir.x * dCoord;
+      const snapY = _shRight.y * uCoord + _shUp.y * vCoord + lDir.y * dCoord;
+      const snapZ = _shRight.z * uCoord + _shUp.z * vCoord + lDir.z * dCoord;
       const reach = (currentDimension === 'nether') ? 34 : 46;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + lDir.x * reach, snapY + Math.max(10, lDir.y * reach), snapZ + lDir.z * reach);
@@ -1212,7 +1219,7 @@
       const _rtShOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
       const effShRange = preset.shadowChunkRange > 0 ? preset.shadowChunkRange : (_rtShOn ? 32 : 0);
-      const maxChDist = effShRange > 0 ? Math.max(1, Math.ceil(effShRange / CHUNK_W)) : -1;
+      const maxChDist = effShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(effShRange / CHUNK_W))) : -1;
       const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtShOn);
       const leafShDist = Math.min(maxChDist, 2);
       for (const ch of chunks.values()) {
@@ -1372,6 +1379,7 @@
   }
   function _shouldRunAiSynthFrame(fgMode, worldSimActive) {
     if (fgMode <= 1 || !worldSimActive || _useDirectRender() || !_fgPrimed || window._fgForceNative || !fgRtA || !fgRtB || typeof fgBlendMat === 'undefined') return false;
+    if (thirdPerson > 0 && typeof player !== 'undefined' && player && ((player.swingT || 0) > 0.001 || player.swordAtkActive || player.bowDrawing)) return false;
     const maxSynth = (fgMode >= 4) ? 3 : 1;
     if (_fgSubIdx >= maxSynth) return false;
     const dYaw = Math.abs(_wrapAng(camera.rotation.y - _fgNatYaw));
@@ -1765,16 +1773,30 @@
               }
             }
           }
-          const camMoved = Math.abs(player.x - _lastShX) > 0.28 || Math.abs(player.z - _lastShZ) > 0.28 || Math.abs(dayTime - _lastShTime) > 0.0022;
-          const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
-          const fgShScale = fgModeNow >= 4 ? 1.75 : (fgModeNow >= 2 ? 1.40 : 1.0);
-          const shInterval = _hasActiveFlyingBoss
-            ? 0.0
-            : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.18 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0) * fgShScale);
-          if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
+          let _hasRemoteSh = false;
+          if (typeof remotePlayers !== 'undefined' && remotePlayers && remotePlayers.size > 0) {
+            for (const rp of remotePlayers.values()) {
+              if (rp && rp.rig && rp.rig.g && rp.rig.g.visible && Math.hypot(rp.x - player.x, rp.z - player.z) < 24) {
+                if ((rp.speed || 0) > 0.04 || (rp.swingT || 0) > 0.001 || rp.swingActive || rp.onGround === false) { _hasRemoteSh = true; break; }
+              }
+            }
+          }
+          const avatarVis = !!(typeof playerAvatar !== 'undefined' && playerAvatar && playerAvatar.g && playerAvatar.g.visible);
+          const pDeltaPos = Math.abs(player.x - _lastShX) > 0.005 || Math.abs(player.y - _lastShY) > 0.005 || Math.abs(player.z - _lastShZ) > 0.005;
+          const pDeltaYaw = Math.abs(_wrapAng(player.yaw - _lastShYaw)) > 0.01;
+          const playerActing = (player.swingT || 0) > 0.001 || !!player.swordAtkActive || !!player.bowDrawing || (player.blockingT || 0) > 0 || (player.hurtAnimT || 0) > 0 || (player.landAnimT || 0) > 0 || (player.jumpPopT || 0) > 0 || !player.onGround || (player.curSpeed || 0) > 0.04;
+          const playerDynamicShadow = avatarVis && (pDeltaPos || pDeltaYaw || playerActing);
+          const hasDynamicShadow = _hasActiveFlyingBoss || playerDynamicShadow || !!window._hasActiveNearShadowMob || _hasRemoteSh;
+          const terrainCamMoved = Math.abs(player.x - _lastShX) > 0.14 || Math.abs(player.y - _lastShY) > 0.14 || Math.abs(player.z - _lastShZ) > 0.14 || Math.abs(dayTime - _lastShTime) > 0.0018;
+          const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 44;
+          const shInterval = hasDynamicShadow
+            ? (sodiumOpts.smoothShadows !== false ? 0.0 : 0.033)
+            : ((inLobby || isWorldLoading) ? 0.04 : (terrainCamMoved ? (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.0) : 0.25));
+          if (_shadowAcc >= shInterval && (hasDynamicShadow || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.0)) {
             _shadowAcc = 0;
             renderer.shadowMap.needsUpdate = true;
-            _lastShX = player.x; _lastShZ = player.z; _lastShTime = dayTime;
+            window._shadowUpdatesCount = (window._shadowUpdatesCount || 0) + 1;
+            _lastShX = player.x; _lastShY = player.y; _lastShZ = player.z; _lastShYaw = player.yaw; _lastShTime = dayTime;
           }
         }
         updateSunShadowFrustum(!!renderer.shadowMap.needsUpdate);

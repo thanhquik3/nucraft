@@ -2629,7 +2629,7 @@
     const _effUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtMeshOn);
     const _shPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
     const _rawShRange = _shPreset.shadowChunkRange > 0 ? _shPreset.shadowChunkRange : (_rtMeshOn ? 32 : 0);
-    const _shChunkRad = _rawShRange > 0 ? Math.max(1, Math.ceil(_rawShRange / CHUNK_W)) : -1;
+    const _shChunkRad = _rawShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(_rawShRange / CHUNK_W))) : -1;
     const nearShadow = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= _shChunkRad);
     if (st.vCount > 0) {
       const geo = new THREE.BufferGeometry();

@@ -5795,6 +5795,7 @@
     const lookZ = -Math.cos(player.yaw) * Math.cos(player.pitch);
     const playerEyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
 
+    window._hasActiveNearShadowMob = false;
     _mobSnapBuf.length = 0; _snapHostiles.length = 0; _snapVillagers.length = 0;
     for (let k = 0; k < mobs.length; k++) {
       const mk = mobs[k];
@@ -5840,7 +5841,7 @@
       const _litStep = (!m.isBoss && !_isDrgTick)
         ? ((dist > (renderDistance * CHUNK_W + 12) || (sodiumOpts.lithiumAi && !isMobVis && dist > 10))
             ? 4
-            : ((_isWeakDevice || _fpsSlow || sodiumOpts.lithiumAi) && dist > 20 ? 2 : 1))
+            : ((_isWeakDevice || _fpsSlow || sodiumOpts.lithiumAi) && dist > 26 ? 2 : 1))
         : 1;
       if (_litStep > 1 && ((frameCounter + i) % _litStep) !== 0) {
         if (m.isBoss && !m.tamed && m.hp > 0 && dist3D < 84 && (!activeBoss || dist3D < Math.hypot(activeBoss.x - player.x, activeBoss.y - player.y, activeBoss.z - player.z))) activeBoss = m;
@@ -7207,6 +7208,16 @@
         m.ryaw += dAng * (1 - Math.exp(-11.0 * dt));
         m.group.position.set(m.rx, m.ry, m.rz);
         m.group.rotation.y = m.ryaw;
+      }
+      if (m._shCast) {
+        const mMoved = m._shX === undefined
+          || Math.abs(m.rx - m._shX) > 0.004 || Math.abs(m.ry - m._shY) > 0.004 || Math.abs(m.rz - m._shZ) > 0.004
+          || Math.abs(m.ryaw - m._shYaw) > 0.015
+          || m.atkAnimT > 0 || m.hurtFlash > 0 || (m.animMove || 0) > 0.03 || m.flying || !m.onGround || isRidingThis;
+        if (mMoved) {
+          window._hasActiveNearShadowMob = true;
+          m._shX = m.rx; m._shY = m.ry; m._shZ = m.rz; m._shYaw = m.ryaw;
+        }
       }
 
       // Authentic Fresh Animations + Smooth Moves + Punchy! Multi-Archetype Skeletal Animator (skipped when Entity Culled!)
