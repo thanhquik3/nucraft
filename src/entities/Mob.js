@@ -21,7 +21,7 @@
     }
     const COMP = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
     const COMP_SIZE = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
-    const NUM_COMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+    const NUM_COMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
     const readAccessor = (accIdx) => {
       const acc = json.accessors[accIdx];
       const bv = json.bufferViews[acc.bufferView];
@@ -41,11 +41,12 @@
           out.set(itemView, i * nComp);
         }
       }
-      return { array: out, itemSize: nComp };
+      return { array: out, itemSize: nComp, normalized: !!acc.normalized };
     };
 
-    // Decode embedded glTF 2.0 PNG palette textures (1 shared NearestFilter texture per mob!)
+    // Decode embedded glTF 2.0 PNG palette textures (resolve _texReady so variant canvas recolors never race!)
     const imgCache = new Map();
+    const texPromises = [];
     const getGlbImageTex = (imgIdx) => {
       if (imgCache.has(imgIdx)) return imgCache.get(imgIdx);
       const imgDef = (json.images || [])[imgIdx];
@@ -61,11 +62,15 @@
       tex.generateMipmaps = false;
       const img = new Image();
       tex.image = img;
-      img.onload = () => {
-        tex.image = img;
-        tex.needsUpdate = true;
-        URL.revokeObjectURL(url);
-      };
+      texPromises.push(new Promise((res) => {
+        img.onload = () => {
+          tex.image = img;
+          tex.needsUpdate = true;
+          URL.revokeObjectURL(url);
+          res();
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); res(); };
+      }));
       img.src = url;
       imgCache.set(imgIdx, tex);
       return tex;
@@ -99,53 +104,94 @@
       return mat;
     });
 
-    const meshes = (json.meshes || []).map((meshDef) => {
-      const grp = new THREE.Group();
-      for (const prim of (meshDef.primitives || [])) {
-        const geo = new THREE.BufferGeometry();
-        if (prim.attributes.POSITION !== undefined) {
-          const d = readAccessor(prim.attributes.POSITION);
-          geo.setAttribute('position', new THREE.BufferAttribute(d.array, 3));
-        }
-        if (prim.attributes.NORMAL !== undefined) {
-          const d = readAccessor(prim.attributes.NORMAL);
-          geo.setAttribute('normal', new THREE.BufferAttribute(d.array, 3));
-        } else geo.computeVertexNormals();
-        if (prim.attributes.TEXCOORD_0 !== undefined) {
-          const d = readAccessor(prim.attributes.TEXCOORD_0);
-          geo.setAttribute('uv', new THREE.BufferAttribute(d.array, 2));
-        }
-        if (prim.attributes.COLOR_0 !== undefined) {
-          const d = readAccessor(prim.attributes.COLOR_0);
-          const norm = (d.array instanceof Uint8Array || d.array instanceof Uint16Array);
-          geo.setAttribute('color', new THREE.BufferAttribute(d.array, d.itemSize, norm));
-        }
-        if (prim.indices !== undefined) {
-          const d = readAccessor(prim.indices);
-          geo.setIndex(new THREE.BufferAttribute(d.array, 1));
-        }
-        const mat = prim.material !== undefined ? materials[prim.material] : new THREE.MeshStandardMaterial({ color: 0xffffff });
-        if (!mat.map && geo.attributes.color) mat.vertexColors = true;
-        if (!mat.userData.baseEmissive) { mat.userData.baseEmissive = mat.emissive.clone(); mat.userData.baseEmissiveInt = mat.emissiveIntensity; }
-        mat.userData.sharedMat = true;
-        const mesh = new THREE.Mesh(geo, mat);
-        const isGlow = (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.5;
-        mesh.castShadow = !isGlow;
-        mesh.receiveShadow = !isGlow;
-        grp.add(mesh);
-      }
-      return grp;
-    });
+    const skinMatCache = new Map();
+    const getSkinMat = (baseMat) => {
+      if (skinMatCache.has(baseMat)) return skinMatCache.get(baseMat);
+      const sm = baseMat.clone();
+      sm.skinning = true;
+      sm.userData = {
+        sharedMat: true,
+        baseEmissive: baseMat.userData.baseEmissive ? baseMat.userData.baseEmissive.clone() : baseMat.emissive.clone(),
+        baseEmissiveInt: baseMat.userData.baseEmissiveInt !== undefined ? baseMat.userData.baseEmissiveInt : baseMat.emissiveIntensity
+      };
+      skinMatCache.set(baseMat, sm);
+      return sm;
+    };
 
+    const meshPrims = (json.meshes || []).map((meshDef) => (meshDef.primitives || []).map((prim) => {
+      const geo = new THREE.BufferGeometry();
+      if (prim.attributes.POSITION !== undefined) {
+        const d = readAccessor(prim.attributes.POSITION);
+        geo.setAttribute('position', new THREE.BufferAttribute(d.array, 3));
+      }
+      if (prim.attributes.NORMAL !== undefined) {
+        const d = readAccessor(prim.attributes.NORMAL);
+        geo.setAttribute('normal', new THREE.BufferAttribute(d.array, 3));
+      } else geo.computeVertexNormals();
+      if (prim.attributes.TEXCOORD_0 !== undefined) {
+        const d = readAccessor(prim.attributes.TEXCOORD_0);
+        geo.setAttribute('uv', new THREE.BufferAttribute(d.array, 2));
+      }
+      if (prim.attributes.COLOR_0 !== undefined) {
+        const d = readAccessor(prim.attributes.COLOR_0);
+        const norm = d.normalized || (d.array instanceof Uint8Array || d.array instanceof Uint16Array);
+        geo.setAttribute('color', new THREE.BufferAttribute(d.array, d.itemSize, norm));
+      }
+      if (prim.attributes.JOINTS_0 !== undefined) {
+        const d = readAccessor(prim.attributes.JOINTS_0);
+        geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(d.array, 4));
+      }
+      if (prim.attributes.WEIGHTS_0 !== undefined) {
+        const d = readAccessor(prim.attributes.WEIGHTS_0);
+        geo.setAttribute('skinWeight', new THREE.BufferAttribute(d.array, 4, !!d.normalized));
+      }
+      if (prim.indices !== undefined) {
+        const d = readAccessor(prim.indices);
+        geo.setIndex(new THREE.BufferAttribute(d.array, 1));
+      }
+      const mat = prim.material !== undefined ? materials[prim.material] : new THREE.MeshStandardMaterial({ color: 0xffffff });
+      if (!mat.map && geo.attributes.color) mat.vertexColors = true;
+      if (!mat.userData.baseEmissive) { mat.userData.baseEmissive = mat.emissive.clone(); mat.userData.baseEmissiveInt = mat.emissiveIntensity; }
+      mat.userData.sharedMat = true;
+      const isGlow = (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.5;
+      return { geo, mat, isGlow };
+    }));
+
+    const jointNodes = new Set();
+    const jointNames = new Set();
+    for (const sk of (json.skins || [])) {
+      for (const ji of (sk.joints || [])) {
+        jointNodes.add(ji);
+        if (json.nodes[ji] && json.nodes[ji].name) jointNames.add(json.nodes[ji].name);
+      }
+    }
+
+    const nodeObjs = new Array((json.nodes || []).length);
+    const pendingSkins = [];
     const buildNode = (nodeIdx) => {
       const n = json.nodes[nodeIdx];
-      const grp = new THREE.Group();
-      grp.name = n.name || '';
+      const isBone = jointNodes.has(nodeIdx);
+      const grp = isBone ? new THREE.Bone() : new THREE.Group();
+      grp.name = (!isBone && n.name && jointNames.has(n.name)) ? (n.name + '__mesh') : (n.name || '');
+      nodeObjs[nodeIdx] = grp;
       if (n.translation) grp.position.set(n.translation[0], n.translation[1], n.translation[2]);
       if (n.rotation) grp.quaternion.set(n.rotation[0], n.rotation[1], n.rotation[2], n.rotation[3]);
       if (n.scale) grp.scale.set(n.scale[0], n.scale[1], n.scale[2]);
-      if (n.mesh !== undefined && meshes[n.mesh]) {
-        for (const childMesh of meshes[n.mesh].children) grp.add(childMesh.clone());
+      if (n.mesh !== undefined && meshPrims[n.mesh]) {
+        const useSkin = (n.skin !== undefined);
+        for (const pr of meshPrims[n.mesh]) {
+          let m;
+          if (useSkin && pr.geo.attributes.skinIndex) {
+            m = new THREE.SkinnedMesh(pr.geo, getSkinMat(pr.mat));
+            m.frustumCulled = false;
+            pendingSkins.push({ mesh: m, skinIdx: n.skin });
+          } else {
+            m = new THREE.Mesh(pr.geo, pr.mat);
+          }
+          m.castShadow = !pr.isGlow;
+          m.receiveShadow = !pr.isGlow;
+          grp.add(m);
+        }
       }
       if (n.children) for (const ci of n.children) grp.add(buildNode(ci));
       return grp;
@@ -154,6 +200,83 @@
     const rootScene = json.scenes[json.scene || 0];
     const sceneGroup = new THREE.Group();
     for (const ni of (rootScene.nodes || [])) sceneGroup.add(buildNode(ni));
+
+    if (pendingSkins.length > 0 && Array.isArray(json.skins)) {
+      sceneGroup.updateMatrixWorld(true);
+      const skelCache = new Map();
+      for (const { mesh, skinIdx } of pendingSkins) {
+        let skel = skelCache.get(skinIdx);
+        if (!skel) {
+          const sdef = json.skins[skinIdx];
+          const bones = sdef.joints.map((ji) => nodeObjs[ji]);
+          const inverses = [];
+          if (sdef.inverseBindMatrices !== undefined) {
+            const ibm = readAccessor(sdef.inverseBindMatrices).array;
+            for (let bi = 0; bi < bones.length; bi++) {
+              inverses.push(new THREE.Matrix4().fromArray(ibm, bi * 16));
+            }
+          }
+          skel = new THREE.Skeleton(bones, inverses.length ? inverses : undefined);
+          skelCache.set(skinIdx, skel);
+        }
+        mesh.bind(skel, new THREE.Matrix4());
+      }
+      sceneGroup.userData.hasSkinnedMesh = true;
+    }
+
+    const clips = [];
+    if (Array.isArray(json.animations)) {
+      const accOutCache = new Map();
+      const getAccArr = (idx) => {
+        if (!accOutCache.has(idx)) accOutCache.set(idx, readAccessor(idx));
+        return accOutCache.get(idx);
+      };
+      for (let ai = 0; ai < json.animations.length; ai++) {
+        const animDef = json.animations[ai];
+        const tracks = [];
+        let maxDur = 0;
+        let minStart = Infinity;
+        const rawCh = [];
+        for (const ch of (animDef.channels || [])) {
+          if (!ch.target || ch.target.node === undefined) continue;
+          const targetNode = nodeObjs[ch.target.node];
+          if (!targetNode || !targetNode.name) continue;
+          const path = ch.target.path;
+          if (path !== 'translation' && path !== 'rotation' && path !== 'scale') continue;
+          const samp = animDef.samplers[ch.sampler];
+          const tAcc = getAccArr(samp.input);
+          const vAcc = getAccArr(samp.output);
+          if (tAcc.array.length > 0 && tAcc.array[0] < minStart) minStart = tAcc.array[0];
+          rawCh.push({ name: targetNode.name, path, tArr: tAcc.array, vArr: vAcc.array, norm: vAcc.normalized });
+        }
+        const tShift = Number.isFinite(minStart) ? minStart : 0;
+        for (const rc of rawCh) {
+          const times = new Float32Array(rc.tArr.length);
+          for (let k = 0; k < rc.tArr.length; k++) {
+            const ts = Math.max(0, rc.tArr[k] - tShift);
+            times[k] = ts;
+            if (ts > maxDur) maxDur = ts;
+          }
+          let vals = rc.vArr;
+          if (rc.norm) {
+            const div = (vals instanceof Int8Array) ? 127 : (vals instanceof Uint8Array ? 255 : (vals instanceof Int16Array ? 32767 : 65535));
+            const fVals = new Float32Array(vals.length);
+            for (let k = 0; k < vals.length; k++) fVals[k] = vals[k] / div;
+            vals = fVals;
+          } else if (!(vals instanceof Float32Array)) {
+            vals = new Float32Array(vals);
+          }
+          let trk = null;
+          if (rc.path === 'translation') trk = new THREE.VectorKeyframeTrack(`${rc.name}.position`, times, vals);
+          else if (rc.path === 'rotation') trk = new THREE.QuaternionKeyframeTrack(`${rc.name}.quaternion`, times, vals);
+          else if (rc.path === 'scale') trk = new THREE.VectorKeyframeTrack(`${rc.name}.scale`, times, vals);
+          if (trk) tracks.push(trk);
+        }
+        if (tracks.length > 0) clips.push(new THREE.AnimationClip(animDef.name || `clip_${ai}`, maxDur > 0 ? maxDur : -1, tracks));
+      }
+    }
+    sceneGroup.userData.animations = clips;
+    sceneGroup.userData._texReady = texPromises.length ? Promise.all(texPromises) : Promise.resolve();
     return sceneGroup;
   }
 
@@ -186,8 +309,21 @@
   // Lazy on-demand GLB decoding: uses binary assets/models/*.glb on web (0MB startup) or embedded bundle on standalone Mobile HTML
   let _glbFetchCount = 0;
   const _glbFetching = new Map();
-  const _hasGlbAsset = (type) => (window.BLENDER_MOB_GLBS && !!window.BLENDER_MOB_GLBS[type])
-    || (Array.isArray(window.__NUCRAFT_MOB_KEYS__) && window.__NUCRAFT_MOB_KEYS__.includes(type));
+  const DRAGON_SHARED_GLB = 'dragon_wyvern';
+  const _resolveGlbKey = (type) => (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
+  const _hasGlbAsset = (type) => {
+    const key = _resolveGlbKey(type);
+    return (window.BLENDER_MOB_GLBS && (!!window.BLENDER_MOB_GLBS[key] || !!window.BLENDER_MOB_GLBS[type]))
+      || (Array.isArray(window.__NUCRAFT_MOB_KEYS__) && (window.__NUCRAFT_MOB_KEYS__.includes(key) || window.__NUCRAFT_MOB_KEYS__.includes(type)));
+  };
+
+  function _disposeMobAnim(m) {
+    if (m && m.anim && m.anim.mixer) {
+      m.anim.mixer.stopAllAction();
+      m.anim.mixer.uncacheRoot(m.anim.armRoot || m.group);
+      m.anim.mixer = null;
+    }
+  }
 
   function hotSwapMobMesh(m) {
     if (!m || m._dead || (m.fromBlender && !m.isPlaceholder)) return;
@@ -199,6 +335,7 @@
         : (m.villagerProf ? { profIdx: m.villagerProf.idx } : null));
     const built = sp ? buildAnimalSpeciesMesh(sp) : buildMobMesh(m.type, m.x, m.z, swapOpts);
     if (!built || !built.fromBlender || built.isPlaceholder || !built.group) return;
+    _disposeMobAnim(m);
     scene.remove(m.group);
     if (m.hpBar && m.hpBar.sp) built.group.add(m.hpBar.sp);
     if (m.petTag) built.group.add(m.petTag);
@@ -221,40 +358,47 @@
     scene.add(m.group);
   }
   function hotSwapMobMeshesForType(type) {
+    const key = _resolveGlbKey(type);
     for (let i = 0; i < mobs.length; i++) {
       const m = mobs[i];
-      if (m && !m._dead && (!m.fromBlender || m.isPlaceholder) && (m.type === type || m.pendingGlbKey === type)) hotSwapMobMesh(m);
+      if (!m || m._dead || (m.fromBlender && !m.isPlaceholder)) continue;
+      if (m.type === type || _resolveGlbKey(m.type) === key || m.pendingGlbKey === key || m.pendingGlbKey === type) {
+        hotSwapMobMesh(m);
+      }
     }
   }
   function preloadMobGlb(type) {
     if (!type) return Promise.resolve(null);
-    if (blenderMobTemplates.has(type)) return Promise.resolve(blenderMobTemplates.get(type));
-    if (window.BLENDER_MOB_GLBS && window.BLENDER_MOB_GLBS[type]) return Promise.resolve(getBlenderMobTemplate(type));
-    if (!(location.protocol === 'http:' || location.protocol === 'https:') || !_hasGlbAsset(type)) return Promise.resolve(null);
-    if (_glbFetching.has(type)) return _glbFetching.get(type);
-    const p = fetch('assets/models/' + encodeURIComponent(type) + '.glb')
+    const key = _resolveGlbKey(type);
+    if (blenderMobTemplates.has(key)) return Promise.resolve(blenderMobTemplates.get(key));
+    if (window.BLENDER_MOB_GLBS && (window.BLENDER_MOB_GLBS[key] || window.BLENDER_MOB_GLBS[type])) return Promise.resolve(getBlenderMobTemplate(type));
+    if (!(location.protocol === 'http:' || location.protocol === 'https:') || !_hasGlbAsset(key)) return Promise.resolve(null);
+    if (_glbFetching.has(key)) return _glbFetching.get(key);
+    const p = fetch('assets/models/' + encodeURIComponent(key) + '.glb')
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
       .then((ab) => {
         _glbFetchCount++;
         const tpl = parseGLB(ab);
-        blenderMobTemplates.set(type, tpl);
-        hotSwapMobMeshesForType(type);
-        return tpl;
+        return Promise.resolve(tpl.userData && tpl.userData._texReady).then(() => {
+          blenderMobTemplates.set(key, tpl);
+          hotSwapMobMeshesForType(key);
+          return tpl;
+        });
       })
-      .catch((err) => { console.warn('Failed to fetch Blender GLB', type, err); return null; })
-      .finally(() => { _glbFetching.delete(type); });
-    _glbFetching.set(type, p);
+      .catch((err) => { console.warn('Failed to fetch Blender GLB', key, err); return null; })
+      .finally(() => { _glbFetching.delete(key); });
+    _glbFetching.set(key, p);
     return p;
   }
   function preloadAllDragonGlbs() {
-    return Promise.all(['ender_dragon', 'baby_dragon', 'fire_dragon', 'ice_dragon', 'earth_dragon', 'water_dragon', 'leaf_dragon', 'tree_dragon'].map(preloadMobGlb));
+    return preloadMobGlb(DRAGON_SHARED_GLB);
   }
   let _coreGlbsPreloaded = false;
   function preloadCoreMobGlbs() {
     if (_coreGlbsPreloaded || window.BLENDER_MOB_GLBS) return;
     if (!(location.protocol === 'http:' || location.protocol === 'https:')) return;
     _coreGlbsPreloaded = true;
-    const keys = ['pig', 'cow', 'sheep', 'wolf', 'creeper', 'spider', 'enderman', 'iron_golem', 'ender_dragon', 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager'];
+    const keys = ['pig', 'cow', 'sheep', 'wolf', 'creeper', 'spider', 'enderman', 'iron_golem', DRAGON_SHARED_GLB, 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager'];
     let idx = 0;
     const scheduleIdle = (typeof requestIdleCallback === 'function')
       ? (cb) => requestIdleCallback(cb, { timeout: 500 })
@@ -270,22 +414,26 @@
     scheduleIdle(step);
   }
   function getBlenderMobTemplate(type) {
-    if (blenderMobTemplates.has(type)) return blenderMobTemplates.get(type);
-    if (!window.BLENDER_MOB_GLBS || !window.BLENDER_MOB_GLBS[type]) {
-      if (_hasGlbAsset(type)) preloadMobGlb(type);
+    const key = _resolveGlbKey(type);
+    if (blenderMobTemplates.has(key)) return blenderMobTemplates.get(key);
+    if (!window.BLENDER_MOB_GLBS || (!window.BLENDER_MOB_GLBS[key] && !window.BLENDER_MOB_GLBS[type])) {
+      if (_hasGlbAsset(key)) preloadMobGlb(key);
       return null;
     }
     try {
-      const b64 = window.BLENDER_MOB_GLBS[type];
+      const b64 = window.BLENDER_MOB_GLBS[key] || window.BLENDER_MOB_GLBS[type];
       const binStr = atob(b64);
       const bytes = new Uint8Array(binStr.length);
       for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
       const tpl = parseGLB(bytes.buffer);
-      blenderMobTemplates.set(type, tpl);
-      if (typeof sodiumOpts !== 'undefined' && sodiumOpts.ferriteRam) delete window.BLENDER_MOB_GLBS[type];
+      blenderMobTemplates.set(key, tpl);
+      if (typeof sodiumOpts !== 'undefined' && sodiumOpts.ferriteRam) {
+        delete window.BLENDER_MOB_GLBS[key];
+        delete window.BLENDER_MOB_GLBS[type];
+      }
       return tpl;
     } catch (err) {
-      console.warn('Failed to parse Blender GLB', type, err);
+      console.warn('Failed to parse Blender GLB', key, err);
       return null;
     }
   }
@@ -322,19 +470,237 @@
     return true;
   }
 
+  const DRAGON_COLOR_PALETTES = {
+    fire_dragon: null, // Uses native crimson RLCraft Dragon_Atlas & glowing #FFA818 eyes
+    ice_dragon: {
+      body: [0x5282aa, 0x7cb4dc, 0xa6d2f2, 0xc8e8ff],
+      belly: [0x8baac4, 0xdcecf8, 0xf2faff],
+      dark: [0x345068, 0x527490],
+      under: [0x182838, 0x263c50],
+      mem: [0x3e5c72, 0x5a7b94, 0x7298b4],
+      horn: [0xcbe2f4, 0xe6f4ff, 0x7b9ab4, 0x384d62],
+      eye: 0x38bdf8
+    },
+    water_dragon: {
+      body: [0x22468a, 0x3564c0, 0x5488ec, 0x7ab0ff],
+      belly: [0x5678a4, 0x9cbce4, 0xc4dcf6],
+      dark: [0x1c3266, 0x2d4e94],
+      under: [0x142248, 0x1e3468],
+      mem: [0x224284, 0x3660b4, 0x4c7cd4],
+      horn: [0xb8cae0, 0xdae6f2, 0x586a84, 0x1e2c4a],
+      eye: 0x818cf8
+    },
+    earth_dragon: {
+      body: [0x583c0e, 0x8a641e, 0xc0902e, 0xdeb042],
+      belly: [0x705d3c, 0xc2ae88, 0xdcd0b0],
+      dark: [0x4c3410, 0x6c4e18],
+      under: [0x2e200a, 0x422e10],
+      mem: [0x50380e, 0x725218, 0x8e6a22],
+      horn: [0xc2b6a0, 0xdbd2c0, 0x6e6658, 0x2a231b],
+      eye: 0xfbbf24
+    },
+    leaf_dragon: {
+      body: [0x1a4c14, 0x2c7222, 0x4aa438, 0x62c24e],
+      belly: [0x627a54, 0xb2cca0, 0xcfe4be],
+      dark: [0x1d4a18, 0x306e28],
+      under: [0x143212, 0x1e481a],
+      mem: [0x1a481a, 0x2c6c2a, 0x3e8c3a],
+      horn: [0xbeb8a8, 0xd8d2c2, 0x6c6b62, 0x252920],
+      eye: 0xfacc15
+    },
+    tree_dragon: {
+      body: [0x22461a, 0x386a2a, 0x5a963e, 0x78b452],
+      belly: [0x70664a, 0xc0b490, 0xdad0b2],
+      dark: [0x382818, 0x543e26],
+      under: [0x241910, 0x342416],
+      mem: [0x244a1c, 0x3b6e2e, 0x528e3e],
+      horn: [0xbcb09a, 0xd6ccb6, 0x6d6556, 0x2a2018],
+      eye: 0xfde047
+    },
+    ender_dragon: {
+      body: [0x2c2834, 0x443e4e, 0x685f74, 0x867c94],
+      belly: [0x4b4454, 0x867e90, 0xa8a0b4],
+      dark: [0x2a2534, 0x3e384c],
+      under: [0x1c1824, 0x282334],
+      mem: [0x26222e, 0x3c3648, 0x524864],
+      horn: [0x908a98, 0xb4aebc, 0x4a4652, 0x16141b],
+      eye: 0xe879f9
+    }
+  };
+  DRAGON_COLOR_PALETTES.baby_dragon = DRAGON_COLOR_PALETTES.leaf_dragon;
+
+  const _dragonVariantTexCache = new Map();
+  const _dragonVariantMatCache = new Map();
+
+  function _remapRgbStops(stops, t) {
+    const u = Math.max(0, Math.min(1, t)) * (stops.length - 1);
+    const idx = Math.min(stops.length - 2, Math.floor(u));
+    const f = u - idx;
+    const c0 = stops[idx], c1 = stops[idx + 1];
+    const r0 = (c0 >> 16) & 255, g0 = (c0 >> 8) & 255, b0 = c0 & 255;
+    const r1 = (c1 >> 16) & 255, g1 = (c1 >> 8) & 255, b1 = c1 & 255;
+    return [Math.round(r0 + (r1 - r0) * f), Math.round(g0 + (g1 - g0) * f), Math.round(b0 + (b1 - b0) * f)];
+  }
+
+  function _getDragonVariantAtlas(type, baseTex) {
+    const key = type === 'baby_dragon' ? 'leaf_dragon' : type;
+    if (_dragonVariantTexCache.has(key)) return _dragonVariantTexCache.get(key);
+    const pal = DRAGON_COLOR_PALETTES[key];
+    if (!pal || !baseTex || !baseTex.image) return baseTex;
+    const img = baseTex.image;
+    const w = img.naturalWidth || img.width || 256;
+    const h = img.naturalHeight || img.height || 256;
+    if (w < 64 || h < 64) return baseTex;
+
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const lum = (r, g, b) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+    for (let cy = 0; cy < h; cy++) {
+      const py = 255 - Math.round((cy / h) * 255);
+      for (let cx = 0; cx < w; cx++) {
+        const px = Math.round((cx / w) * 255);
+        const off = (cy * w + cx) * 4;
+        const l = lum(d[off], d[off + 1], d[off + 2]);
+        let rgb = null;
+        if (px < 128 && py < 128) {
+          rgb = _remapRgbStops(pal.body, (l - 0.12) / 0.34);
+        } else if (px >= 128 && py < 64) {
+          rgb = _remapRgbStops(pal.belly, (l - 0.35) / 0.42);
+        } else if (px >= 128 && px < 192 && py >= 64 && py < 128) {
+          rgb = _remapRgbStops(pal.dark, (l - 0.08) / 0.16);
+        } else if (px >= 192 && py >= 64 && py < 128) {
+          rgb = _remapRgbStops(pal.under, (l - 0.04) / 0.08);
+        } else if (px < 128 && py >= 128) {
+          rgb = _remapRgbStops(pal.mem, (l - 0.14) / 0.36);
+        } else if (px >= 128 && py >= 128 && py <= 153) {
+          rgb = _remapRgbStops([pal.horn[0], pal.horn[1]], (l - 0.65) / 0.22);
+        } else if (px >= 128 && py >= 154 && py <= 170) {
+          rgb = _remapRgbStops([pal.horn[2], pal.horn[0]], (l - 0.40) / 0.22);
+        } else if (px >= 128 && py >= 171 && py < 192) {
+          rgb = _remapRgbStops([pal.horn[3], pal.horn[2]], (l - 0.10) / 0.18);
+        }
+        if (rgb) {
+          d[off] = rgb[0]; d[off + 1] = rgb[1]; d[off + 2] = rgb[2];
+        }
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.flipY = false;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    _dragonVariantTexCache.set(key, tex);
+    return tex;
+  }
+
+  function _getDragonVariantMat(type, origMat, isSkinned) {
+    const vKey = type === 'baby_dragon' ? 'leaf_dragon' : type;
+    const matName = origMat.name || '';
+    const cacheKey = `${vKey}_${matName}_${isSkinned ? 1 : 0}`;
+    if (_dragonVariantMatCache.has(cacheKey)) return _dragonVariantMatCache.get(cacheKey);
+    const pal = DRAGON_COLOR_PALETTES[vKey] || null;
+    const m = origMat.clone();
+    m.skinning = !!isSkinned;
+    if (pal) {
+      if (matName === 'Eye_Orange') {
+        m.color.setHex(pal.eye);
+        m.emissive.setHex(pal.eye);
+      } else if (m.map) {
+        m.map = _getDragonVariantAtlas(vKey, m.map);
+      }
+    }
+    const isMembrane = matName.indexOf('Membrane') !== -1;
+    if (isMembrane) m.side = THREE.DoubleSide;
+    if (matName !== 'Eye_Orange' && m.map) {
+      // Lift shadowed sky undersides slightly while preserving atlas detail
+      m.emissive.setHex(0xffffff);
+      m.emissiveMap = m.map;
+      m.emissiveIntensity = isMembrane ? 0.30 : 0.26;
+      m.needsUpdate = true;
+    } else if (matName === 'Dragon_Saddle') {
+      m.emissive.setHex(0x2a180c);
+      m.emissiveIntensity = 0.18;
+    }
+    m.userData = {
+      sharedMat: true,
+      baseEmissive: m.emissive ? m.emissive.clone() : new THREE.Color(0x000000),
+      baseEmissiveInt: m.emissiveIntensity !== undefined ? m.emissiveIntensity : 0
+    };
+    _dragonVariantMatCache.set(cacheKey, m);
+    return m;
+  }
+
   function instantiateBlenderMob(type) {
     const tpl = getBlenderMobTemplate(type);
     if (!tpl) return null;
-    const g = tpl.clone(true);
-    const parts = [];
-    const anim = { torso: null, neck1: null, head: null, jaw: null, core: null, legs: [], arms: [], wings: [], tail: null, tail2: null, tail3: null, saddleGroup: null };
     const isDragonType = IS_DRAGON_MOB.has(type) || type === 'baby_dragon';
+    const isSkinnedDragon = isDragonType && !!(tpl.userData && tpl.userData.hasSkinnedMesh);
+    const armRoot = tpl.clone(true);
+    let g = armRoot;
+    if (isSkinnedDragon) {
+      const boneByName = new Map();
+      armRoot.traverse((obj) => { if (obj.isBone) boneByName.set(obj.name, obj); });
+      armRoot.updateMatrixWorld(true);
+      armRoot.traverse((obj) => {
+        if (obj.isSkinnedMesh && obj.skeleton) {
+          const clonedBones = obj.skeleton.bones.map((b) => boneByName.get(b.name) || b);
+          const clonedInverses = obj.skeleton.boneInverses.map((m4) => m4.clone());
+          obj.bind(new THREE.Skeleton(clonedBones, clonedInverses), new THREE.Matrix4());
+        }
+      });
+      g = new THREE.Group();
+      armRoot.rotation.y = Math.PI * 0.5;
+      g.add(armRoot);
+    }
+    const parts = [];
+    const anim = {
+      torso: null, neck1: null, head: null, jaw: null, core: null,
+      legs: [], arms: [], wings: [], tail: null, tail2: null, tail3: null,
+      saddleGroup: null, saddleSeat: null, bodyBone: null, headBone: null, jawBone: null,
+      mixer: null, armRoot: null, actions: null, activeClip: ''
+    };
     const wingMap = {};
     const foldedArmMob = (type === 'villager' || type === 'witch');
     const castSh = !_isMobilePerf || (MOB_STATS[type] && MOB_STATS[type].isBoss);
-    g.traverse((o) => {
+    armRoot.traverse((o) => {
       const clean = (o.name || '').replace(/\.\d+$/, '');
       const cl = clean.toLowerCase();
+      if (isSkinnedDragon) {
+        if (o.isMesh) {
+          let mat = _getDragonVariantMat(type, o.material, !!o.isSkinnedMesh);
+          if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.immFast) {
+            mat = mat.clone();
+            mat.userData = {
+              sharedMat: false,
+              baseEmissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000),
+              baseEmissiveInt: mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0
+            };
+          }
+          if (!mat.map && o.geometry && o.geometry.attributes && o.geometry.attributes.color) mat.vertexColors = true;
+          o.material = mat;
+          const isGlow = (mat.emissive && (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.5);
+          o.castShadow = !isGlow && castSh;
+          o.receiveShadow = !isGlow;
+          if (!isGlow) parts.push(o);
+          if (cl === 'dragon_saddle_geo') {
+            anim.saddleGroup = o;
+            o.visible = false;
+          }
+        } else if (o.isBone) {
+          if (clean === 'Body') anim.bodyBone = o;
+          else if (clean === 'Head') anim.headBone = o;
+          else if (clean === 'Jaw') anim.jawBone = o;
+        }
+        return;
+      }
       if (o.isMesh) {
         const isVcolEmit = !!(o.material && o.material.name && o.material.name.indexOf('vcol_emit') !== -1);
         if (isVcolEmit) {
@@ -387,6 +753,35 @@
         anim.legs.push({ p: o, dir: ((idx & 1) ? 1 : -1) * side, isSpider: true });
       }
     });
+    if (isSkinnedDragon) {
+      if (anim.bodyBone) {
+        const saddleSeat = new THREE.Group();
+        saddleSeat.position.set(0, 18.8 * 0.0625, 1.3 * 0.0625);
+        g.add(saddleSeat);
+        g.updateMatrixWorld(true);
+        anim.bodyBone.attach(saddleSeat);
+        anim.saddleSeat = saddleSeat;
+      }
+      const clips = (tpl.userData && tpl.userData.animations) || [];
+      if (clips.length > 0 && typeof THREE.AnimationMixer === 'function') {
+        const mixer = new THREE.AnimationMixer(armRoot);
+        const actions = {};
+        for (let ci = 0; ci < clips.length; ci++) {
+          const act = mixer.clipAction(clips[ci]);
+          act.setLoop(THREE.LoopRepeat, Infinity);
+          actions[clips[ci].name] = act;
+        }
+        anim.mixer = mixer;
+        anim.armRoot = armRoot;
+        anim.actions = actions;
+        const defAct = actions.Idle || actions[Object.keys(actions)[0]];
+        if (defAct) {
+          defAct.play();
+          anim.activeClip = defAct.getClip().name;
+          mixer.update(0);
+        }
+      }
+    }
     for (const [wk, side] of [['wing_l', 1], ['wing_r', -1]]) {
       const wp = wingMap[wk];
       if (!wp) continue;
@@ -400,7 +795,7 @@
       });
       anim.wings.push({ p: wp, outer: wingMap[wk + '_outer'] || null, dir, isDragonWing: isDragonType, hangDown });
     }
-    if (isDragonType) {
+    if (isDragonType && !isSkinnedDragon) {
       const DRG_PAL = {
         ice_dragon:   { ridge: 0x67e8f9, horn: 0xbae6fd, glow: 0x38bdf8 },
         fire_dragon:  { ridge: 0xf97316, horn: 0xc2b29b, glow: 0xfbbf24 },
@@ -451,7 +846,7 @@
         if (elbow) mkDrgAcc(elbow, 0.10, 0.08, 0.22, hornMat, wg.dir * 0.32, 0.05, 0.28, -0.35, wg.dir * -0.20);
       }
     }
-    if (anim.wings.length === 0 && (type === 'flamingo' || (typeof ANIMAL_MAP !== 'undefined' && ANIMAL_MAP.get(type)?.fly))) {
+    if (!isSkinnedDragon && anim.wings.length === 0 && (type === 'flamingo' || (typeof ANIMAL_MAP !== 'undefined' && ANIMAL_MAP.get(type)?.fly))) {
       const parentWing = anim.torso || g;
       const spW = (typeof ANIMAL_MAP !== 'undefined') ? ANIMAL_MAP.get(type) : null;
       const cMain = type === 'flamingo' ? 0xf472b6 : ((spW && spW.c1) || 0xf472b6);
@@ -725,8 +1120,16 @@
       }
       if (IS_DRAGON_MOB.has(type)) {
         if (type === 'ender_dragon') {
-          blenderMob.group.scale.setScalar(1.15);
+          blenderMob.group.scale.setScalar(blenderMob.anim.mixer ? 1.32 : 1.15);
           if (blenderMob.anim.saddleGroup) blenderMob.anim.saddleGroup.visible = false;
+        } else if (blenderMob.anim.mixer) {
+          const stSc = [0.28, 0.45, 0.68, 0.92, 1.15];
+          const dStage = Math.max(0, Math.min(4, (opts && typeof opts.dragonStage === 'number') ? (opts.dragonStage | 0) : 4));
+          const sc = stSc[dStage];
+          blenderMob.group.scale.setScalar(sc);
+          blenderMob.group.userData.dragonStage = dStage;
+          blenderMob.group.userData.dragonScale = sc;
+          if (blenderMob.anim.saddleGroup) blenderMob.anim.saddleGroup.visible = !!(opts && opts.saddled);
         } else {
           const stCfg = [
             { sc: 0.30, headMul: 1.32, wingMul: 0.40 },
@@ -1623,7 +2026,7 @@
     const _isSkelVariant = (type === 'skeleton' || type === 'stray' || type === 'desert_skeleton' || type === 'bogged');
     const _isZombieVariant = (type === 'zombie' || type === 'husk' || type === 'frozen_zombie' || type === 'mossy_zombie');
     const _isCustomV92 = _isPlush || _isSkelVariant || _isZombieVariant || type === 'chicken' || type === 'chicken_jockey' || type === 'spider_jockey'
-      || (!!ELEMENTAL_DRAGON_CFG[type] && !(window.BLENDER_MOB_GLBS && window.BLENDER_MOB_GLBS[type]) && !blenderMobTemplates.has(type)) || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire'
+      || (!!ELEMENTAL_DRAGON_CFG[type] && !blenderMobTemplates.has(_resolveGlbKey(type)) && !(window.BLENDER_MOB_GLBS && (window.BLENDER_MOB_GLBS[_resolveGlbKey(type)] || window.BLENDER_MOB_GLBS[type]))) || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire'
       || type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden' || type === 'dream_warden'
       || type === 'antler_deer' || type === 'tuff_golem' || type === 'cinnamon_ferret' || type === 'mini_abomination'
       || type === 'savanna_monkey' || type === 'pink_dolphin' || type === 'vulture' || type === 'moss_golem'
@@ -3386,7 +3789,7 @@
     if (id === 'snow_owl' || id === 'owl_brown') return { key: 'snow_owl', sc: 1.02 };
     if (id === 'fennec' || id === 'fennec_fox') return { key: 'fennec', sc: 1.04 };
     if (id === 'allay') return { key: 'allay', sc: 1.05 };
-    if (id === 'baby_dragon') return { key: 'baby_dragon', sc: 1.10 };
+    if (id === 'baby_dragon') return { key: 'baby_dragon', sc: 0.28 };
     if (id === 'duck' || id === 'duck_mallard') return { key: 'duck', sc: 1.02 };
     if (id === 'flamingo') return { key: 'flamingo', sc: 1.06 };
     if (id === 'hedgehog') return { key: 'hedgehog', sc: 1.04 };
@@ -3657,6 +4060,7 @@
 
   function disposeMobInstance(m) {
     if (!m || m._dead) return;
+    _disposeMobAnim(m);
     if (typeof player !== 'undefined' && player.ridingDragon === m) {
       if (typeof detachRiderFromDragon === 'function') detachRiderFromDragon();
       player.ridingDragon = null;
@@ -3717,10 +4121,12 @@
       baseScale: built.group.scale.x || 1,
       group: built.group, parts: built.parts, flameGroup: built.flameGroup, anim: built.anim,
       fromBlender: built.fromBlender, isPlaceholder: !!built.isPlaceholder,
-      pendingGlbKey: built.pendingGlbKey || null, glbKey: built.glbKey || (built.fromBlender ? type : null), hpBar
+      pendingGlbKey: built.pendingGlbKey || (IS_DRAGON_MOB.has(type) && !built.fromBlender ? DRAGON_SHARED_GLB : null),
+      glbKey: built.glbKey || (built.fromBlender ? type : null), hpBar
     };
     mobs.push(m);
     if (st.isBoss && !(opts && opts.tamed)) {
+      if (IS_DRAGON_MOB.has(type) && !st.flying) m._roarT = 1.25;
       playSfx('roar');
       showToast(st.bossLabel ? `${st.bossLabel} đã xuất hiện!` : '🔥 BOSS đã xuất hiện!');
     }
@@ -3739,6 +4145,7 @@
     m.dragonStage = stage;
     const built = buildMobMesh(m.type, m.x, m.z, { dragonStage: stage, saddled: !!m.saddled });
     if (!built || !built.group) { if (wasRiding) attachRiderToDragon(m); return; }
+    _disposeMobAnim(m);
     scene.remove(m.group);
     for (let i = 0; i < m.parts.length; i++) {
       const mat = m.parts[i].material;
@@ -3749,8 +4156,9 @@
     m.flameGroup = built.flameGroup;
     m.anim = built.anim;
     m.fromBlender = !!built.fromBlender;
+    m.pendingGlbKey = built.pendingGlbKey || (!built.fromBlender ? DRAGON_SHARED_GLB : null);
     m.baseScale = built.group.scale.x || 1;
-    m.dragonScale = built.group.userData.dragonScale || 1;
+    m.dragonScale = built.group.userData.dragonScale || m.baseScale || 1;
     const stBase = MOB_STATS[m.type] || { hp: 420, dmg: 7.5, r: 2.35, h: 2.9 };
     const ratio = (stBase.hp > 0) ? (m.hp / m.maxHp) : 1;
     const stageHpMul = [0.18, 0.34, 0.56, 0.80, 1.0][stage];
@@ -3806,6 +4214,10 @@
   function getDragonMouthWorldPos(m, outVec = _mouthPos) {
     if (!m || !m.group) return outVec.set(0, 0, 0);
     m.group.updateMatrixWorld(true);
+    if (m.anim && m.anim.jawBone) {
+      outVec.set(0, 0.45, 0);
+      return m.anim.jawBone.localToWorld(outVec);
+    }
     if (m.anim && m.anim.jaw) {
       outVec.set(0, 0.04, 0.50);
       return m.anim.jaw.localToWorld(outVec);
@@ -3821,6 +4233,7 @@
 
   function _getDragonSeatMountTarget(m) {
     if (!m || !m.group) return { parent: null, lx: 0, ly: 1.75, lz: 0.10 };
+    if (m.anim && m.anim.saddleSeat) return { parent: m.anim.saddleSeat, lx: 0, ly: 0, lz: 0 };
     if (m.anim && m.anim.saddleGroup) return { parent: m.anim.saddleGroup, lx: 0, ly: 0.16, lz: -0.04 };
     if (m.anim && m.anim.torso) return { parent: m.anim.torso, lx: 0, ly: 0.65, lz: 0.06 };
     return { parent: m.group, lx: 0, ly: 1.75, lz: 0.10 };
@@ -3953,7 +4366,7 @@
     m.sitting = false;
     m.flying = true;
     m.vx = 0; m.vy = 0; m.vz = 0;
-    m._bankRoll = 0; m._flyPitch = 0;
+    m._bankRoll = 0; m._flyPitch = 0; m._roarT = 0.9;
     attachRiderToDragon(m);
     if (thirdPerson === 0) {
       player._preDragonThirdPerson = 0;
@@ -4056,6 +4469,7 @@
     if ((m.atkCd || 0) > 0) return false;
     m.atkCd = 0.65;
     m.atkAnimT = 0.45;
+    m._roarT = 0.95;
     spawnParticles(mp.x, mp.y, mp.z, pCol, 7, true);
     fireEnergyOrb(mp.x, mp.y, mp.z, _rayDir.x, _rayDir.y, _rayDir.z, 28.0, m.dmg * 1.5, kind, { friendlyDragon: true, ownerDragon: m });
     return true;
@@ -5576,7 +5990,7 @@
     const tvz = tgtMob ? (tgtMob.flyVz || tgtMob.vz || 0) : ((player.smoothMoveZ || 0) + player.vz);
     const mp = getDragonMouthWorldPos(m, _mouthPos);
     const skPick = Math.random();
-    m.atkAnimT = 0.55; playSfx('roar');
+    m.atkAnimT = 0.55; m._roarT = 1.15; playSfx('roar');
     if (skPick < 0.34) {
       // Aerial Skill 1: Elemental Breath Volley with smart target-velocity lead from exact mouth pos!
       const cfg = {
@@ -5635,7 +6049,7 @@
     const tx = tgtMob ? tgtMob.x : player.x;
     const ty = tgtMob ? (tgtMob.y + 0.5) : player.y;
     const tz = tgtMob ? tgtMob.z : player.z;
-    m.atkAnimT = 0.60; m.atkCd = 3.2; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.45);
+    m.atkAnimT = 0.60; m._roarT = 1.25; m.atkCd = 3.2; playSfx('roar'); cameraShake = Math.max(cameraShake, 0.45);
     const px0 = Math.floor(tx), pz0 = Math.floor(tz);
     const applyGroundHit = (dmgMul, msg, extraFn) => {
       if (tgtMob) {
@@ -7221,7 +7635,9 @@
       }
 
       // Authentic Fresh Animations + Smooth Moves + Punchy! Multi-Archetype Skeletal Animator (skipped when Entity Culled!)
-      const isDragonMob = IS_DRAGON_MOB.has(m.type);
+      if (m._roarT > 0) m._roarT = Math.max(0, m._roarT - dt);
+      const isSkinnedDragon = !!(m.anim && m.anim.mixer);
+      const isDragonMob = IS_DRAGON_MOB.has(m.type) || isSkinnedDragon;
       if (m.anim && isMobVis && (typeof sodiumOpts === 'undefined' || sodiumOpts.animations !== false) && (m.isBoss || isDragonMob || isRidingThis || dist < 34 || ((frameCounter + i) & 1) === 0)) {
         const isDragon = isDragonMob;
         const isZombie = (m.type === 'zombie' || m.type === 'husk' || m.type === 'drowned' || m.type === 'ruin_stalker' || m.type === 'frozen_zombie' || m.type === 'mossy_zombie' || m.type === 'zombified_piglin');
@@ -7315,7 +7731,7 @@
           m.group.position.y = m.ry + Math.sin(elapsed * 2.2 + i) * 0.028;
         } else if (!m.hopper) {
           const bounceScale = isCreeper ? 0.095 : (isRavager ? 0.090 : (isHeavy ? 0.078 : (isQuad ? (isGallop ? 0.095 : 0.062) : 0.072)));
-          m.group.position.y = m.ry + (m.sitting ? -0.14 : dblBounce * Math.min(bounceScale, effSpeed * 0.032) * (1 - swimT * 0.85) + Math.sin(elapsed * 2.4 + i) * 0.032 * swimT) + (m._emergeOffsetY || 0);
+          m.group.position.y = m.ry + ((m.sitting && !isSkinnedDragon) ? -0.14 : dblBounce * Math.min(bounceScale, effSpeed * 0.032) * (1 - swimT * 0.85) + Math.sin(elapsed * 2.4 + i) * 0.032 * swimT) + (m._emergeOffsetY || 0);
         }
         if (!isRidingThis) {
           m.group.position.x = m.rx + rageJitterX;
@@ -7333,6 +7749,52 @@
         const limpRoll = isZombie ? (0.08 + Math.sin(wp) * 0.09 * mv) : (Math.cos(wp) * (isCreeper ? 0.088 : (isRavager ? 0.068 : 0.048)) * mv);
         if (!isRidingThis) m.group.rotation.z = limpRoll + panicRoll + turnBank + hurtTilt;
 
+        if (isSkinnedDragon) {
+          const actions = m.anim.actions;
+          const spdDrg = Math.hypot(m.vx || 0, m.vz || 0);
+          const swooping = (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
+          const gliding = (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
+          m._drgSwooping = swooping;
+          m._drgGliding = gliding;
+          let desiredClip = 'Idle';
+          let desiredScale = 1.0;
+          if (!m.flying && (m.atkAnimT > 0.04 || (m._roarT || 0) > 0.02)) {
+            desiredClip = 'Roar_WingSpread';
+            desiredScale = 1.55;
+          } else if (m.flying && !m.sitting) {
+            if (swooping || gliding) {
+              desiredClip = 'Glide';
+              desiredScale = 1.0;
+            } else {
+              desiredClip = 'Fly_Flap';
+              desiredScale = isRidingThis ? 1.25 : 1.08;
+              if (isRidingThis && (m._lastFlapT || 0) < elapsed - 0.68) {
+                m._lastFlapT = elapsed;
+                playSfx('wing_flap');
+              }
+            }
+          } else if (!m.sitting && effSpeed > 0.14) {
+            desiredClip = 'Walk';
+            desiredScale = Math.max(0.75, Math.min(1.65, effSpeed * 0.45));
+          }
+          if (actions) {
+            if (!actions[desiredClip]) desiredClip = m.anim.activeClip || Object.keys(actions)[0];
+            const nextAct = actions[desiredClip];
+            if (nextAct && desiredClip !== m.anim.activeClip) {
+              const prevAct = actions[m.anim.activeClip];
+              if (prevAct) prevAct.fadeOut(0.20);
+              nextAct.reset().setEffectiveTimeScale(desiredScale).setEffectiveWeight(1).fadeIn(0.20).play();
+              m.anim.activeClip = desiredClip;
+            } else if (nextAct) {
+              nextAct.setEffectiveTimeScale(desiredScale);
+            }
+            m.anim.mixer.update(Math.min(0.05, dt));
+          }
+          m.group.rotation.x = isRidingThis
+            ? (m._flyPitch || 0)
+            : (swooping ? 0.28 : (m.flying ? (m._flyPitch || 0) : -hurtPulse * 0.28));
+          if (!isRidingThis) m.group.rotation.z = turnBank;
+        } else {
         if (m.anim.torso) {
           if (m.hopper) {
             // Fresh Animations Hopper Anticipation -> Mid-Air Stretch -> Touchdown Squash!
@@ -7729,6 +8191,7 @@
             rd.head.rotation.y += (tHY - rd.head.rotation.y) * Math.min(1, dt * 8.5);
             rd.head.rotation.x = Math.sin(elapsed * 2.1 + i) * 0.05 + grazeDip * 0.2 + atkPhase * 0.16;
           }
+        }
         }
       }
     }
