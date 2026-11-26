@@ -3823,7 +3823,9 @@
     else if (prevId === B.FIRE) activeFires.delete(hk);
     const isLightChange = !!((BLOCK_DEF[id] && BLOCK_DEF[id].emissive) || (BLOCK_DEF[prevId] && BLOCK_DEF[prevId].emissive));
     if (isLightChange) c._emitDirty = true;
-    const margin = isLightChange ? 10 : 0;
+    const margin = !isLightChange ? 0
+      : ((id === B.LANTERN || prevId === B.LANTERN) ? 20
+        : ((id === B.TORCH_BLOCK || prevId === B.TORCH_BLOCK || id === B.SOUL_LANTERN || prevId === B.SOUL_LANTERN) ? 18 : 14));
     if (lx <= margin) markChunkDirty(cx - 1, cz, true); if (lx >= 15 - margin) markChunkDirty(cx + 1, cz, true);
     if (lz <= margin) markChunkDirty(cx, cz - 1, true); if (lz >= 15 - margin) markChunkDirty(cx, cz + 1, true);
     if (isLightChange) {
@@ -3831,6 +3833,13 @@
       if (lx >= 15 - margin && lz <= margin) markChunkDirty(cx + 1, cz - 1);
       if (lx <= margin && lz >= 15 - margin) markChunkDirty(cx - 1, cz + 1);
       if (lx >= 15 - margin && lz >= 15 - margin) markChunkDirty(cx + 1, cz + 1);
+      if (margin > 16) {
+        const m2 = margin - 16;
+        if (lx <= m2) markChunkDirty(cx - 2, cz);
+        if (lx >= 15 - m2) markChunkDirty(cx + 2, cz);
+        if (lz <= m2) markChunkDirty(cx, cz - 2);
+        if (lz >= 15 - m2) markChunkDirty(cx, cz + 2);
+      }
     }
     wakeAdjacentFluids(wx, wy, wz);
   }

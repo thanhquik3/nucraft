@@ -78,7 +78,7 @@
   const dynamicLightPool = [];
   const _poolCount = _initMobile ? 3 : 4;
   for (let i = 0; i < _poolCount; i++) {
-    const pl = new THREE.PointLight(0xffb86c, 0, 18, 1.85);
+    const pl = new THREE.PointLight(0xffb86c, 0, 26, 1.35);
     scene.add(pl);
     dynamicLightPool.push(pl);
   }
@@ -407,7 +407,7 @@
           float k = vox.a * 255.0;
           if (k < 16.0 || (k >= 144.0 && k < 192.0)) continue;
           if (k >= 192.0) {
-            float attE = 1.0 / (1.0 + hitT * hitT * 0.09);
+            float attE = 1.0 / (1.0 + hitT * hitT * 0.055);
             emit += vox.rgb * attE * 2.20;
             hitSolid = true;
             break;
@@ -493,7 +493,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v71';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v72';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -669,9 +669,9 @@
           }
         }
         float surfLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
-        float blockLightGain = mix(1.42, (uUnderwater > 0.5 ? 1.05 : 0.72), smoothstep(0.08, 0.60, surfLuma) * (0.25 + 0.75 * sunUpB * clamp(uSurfaceLight, 0.0, 1.0))) * mix(1.0, 1.26, uRayTracing);
-        vec3 blockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.03)) * blockLightGain;
-        outgoingLight += blockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 1.15 + blockAdd * 0.85);
+        float blockLightGain = mix(1.90, (uUnderwater > 0.5 ? 1.18 : 0.76), smoothstep(0.08, 0.60, surfLuma) * (0.25 + 0.75 * sunUpB * clamp(uSurfaceLight, 0.0, 1.0))) * mix(1.0, 1.24, uRayTracing);
+        vec3 blockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.055)) * blockLightGain;
+        outgoingLight += blockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 1.10 + blockAdd * 0.52);
         // Pre-RT sub-unity highlight shoulder keeps bricks & lamps vivid without channel clipping or yellow washout
         float outPeak = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLum = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
@@ -711,7 +711,7 @@
           vec3 fogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, fSun.y));
           vec3 scatterCol = mix(fogBase, min(activeColF * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), sunScatter * mix(0.18, 0.50, max(uChillMode, uEclipseMode)));
           float blLumaT = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistT = 1.0 - clamp(blLumaT * 0.72, 0.0, 0.76);
+          float lightFogResistT = 1.0 - clamp(blLumaT * 0.80, 0.0, 0.84);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, scatterCol, scatterAmt * lightFogResistT);
         }
         gl_FragColor.a = 1.0;`);
@@ -722,7 +722,7 @@
     map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v37';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v38';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -784,11 +784,11 @@
         outgoingLight = mix(outgoingLight, outgoingLight * leafShTint, (1.0 - topSun) * (isUltraL ? 0.16 : 0.11) * sUp);
         float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.25 + 0.75 * rtShLumL, rtFadeL);
         float leafLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
-        float leafLightGain = mix(1.18, 0.55, smoothstep(0.10, 0.65, leafLuma) * sUpG);
+        float leafLightGain = mix(1.58, 0.58, smoothstep(0.10, 0.65, leafLuma) * sUpG);
         float chillLeafSss = mix(isUltraL ? 0.32 : 0.20, isUltraL ? 0.48 : 0.34, uChillMode) + uDlssMode * 0.18 + uEclipseMode * 0.24 + rtFadeL * 0.46;
-        vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.025)) * leafLightGain;
+        vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * leafLightGain;
         vec3 leafSunBal = mix(uSunColor, vec3(0.98, 0.99, 0.96), mix(0.58, 0.78, max(uEclipseMode, rtFadeL * 0.90)));
-        outgoingLight += diffuseColor.rgb * ((0.048 + 0.055 * rtFadeL) * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.22, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.75);
+        outgoingLight += diffuseColor.rgb * ((0.048 + 0.055 * rtFadeL) * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.22, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricL = mix(outLumL, outPeakL, 0.50);
@@ -815,7 +815,7 @@
           float lScatter = pow(max(dot(viewDirL, activeSunL), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (lSun.y > -0.05 ? smoothstep(-0.1, 0.25, lSun.y) * lNoonTame : 0.35);
           vec3 lFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, lSun.y));
           float blLumaL = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistL = 1.0 - clamp(blLumaL * 0.72, 0.0, 0.74);
+          float lightFogResistL = 1.0 - clamp(blLumaL * 0.78, 0.0, 0.82);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(lFogBase, min(activeColL * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), lScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogL * lightFogResistL);
         }
         gl_FragColor.a = 1.0;`);
@@ -852,7 +852,7 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v36';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v37';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -935,9 +935,9 @@
         }
         float sUpPG = sUpP * clamp(uSurfaceLight, 0.0, 1.0);
         float plantLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
-        float plantLightGain = mix(1.18, 0.55, smoothstep(0.10, 0.65, plantLuma) * sUpPG);
-        vec3 plantBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.025)) * plantLightGain;
-        outgoingLight += plantBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + plantBlockAdd * 0.75);
+        float plantLightGain = mix(1.58, 0.58, smoothstep(0.10, 0.65, plantLuma) * sUpPG);
+        vec3 plantBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * plantLightGain;
+        outgoingLight += plantBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + plantBlockAdd * 0.52);
         float outPeakP = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumP = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricP = mix(outLumP, outPeakP, 0.50);
@@ -969,7 +969,7 @@
           float pScatter = pow(max(dot(viewDirP, activeSunP), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (pSun.y > -0.05 ? smoothstep(-0.1, 0.25, pSun.y) * pNoonTame : 0.35);
           vec3 pFogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, pSun.y));
           float blLumaP = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistP = 1.0 - clamp(blLumaP * 0.72, 0.0, 0.74);
+          float lightFogResistP = 1.0 - clamp(blLumaP * 0.78, 0.0, 0.82);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(pFogBase, min(activeColP * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), pScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogP * lightFogResistP);
         }
         gl_FragColor.a = 1.0;`);

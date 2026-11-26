@@ -148,7 +148,7 @@
     }
     return _pbVal;
   }
-  const _topLights = Array.from({ length: 4 }, () => ({ x: 0, y: 0, z: 0, col: 0, int: 0, d2: 0, score: 1e9 }));
+  const _topLights = Array.from({ length: 4 }, () => ({ x: 0, y: 0, z: 0, col: 0, int: 0, dist: 20, d2: 0, score: 1e9 }));
   const activeLightningBolts = [];
   const _boltSegGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
   const _boltRingGeo = new THREE.RingGeometry(0.45, 2.35, 16);
@@ -491,17 +491,17 @@
   }
 
   let _dynLightFound = 0;
-  function _offerDynLight(need, x, y, z, col, int, d2, prio) {
+  function _offerDynLight(need, x, y, z, col, int, d2, prio, dist = 20) {
     const score = d2 - (prio ? 64 : 0);
     if (_dynLightFound === need && score >= _topLights[need - 1].score) return;
     let idx = _dynLightFound < need ? _dynLightFound++ : need - 1;
     while (idx > 0 && score < _topLights[idx - 1].score) {
       const prev = _topLights[idx - 1], cur = _topLights[idx];
-      cur.x = prev.x; cur.y = prev.y; cur.z = prev.z; cur.col = prev.col; cur.int = prev.int; cur.d2 = prev.d2; cur.score = prev.score;
+      cur.x = prev.x; cur.y = prev.y; cur.z = prev.z; cur.col = prev.col; cur.int = prev.int; cur.dist = prev.dist; cur.d2 = prev.d2; cur.score = prev.score;
       idx--;
     }
     const slot = _topLights[idx];
-    slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.d2 = d2; slot.score = score;
+    slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.dist = dist; slot.d2 = d2; slot.score = score;
   }
 
   function updateWeatherAndLights(dt) {
@@ -620,16 +620,32 @@
     const offId = (player.equip && player.equip.offhand) ? player.equip.offhand : 0;
     const offDef = offId ? BLOCK_DEF[offId] : null;
     const activeGlowId = ((heldDef && heldDef.emissive) || heldId === B.FIRE_SWORD) ? heldId : ((offDef && offDef.emissive) ? offId : 0);
-    torchLight.position.set(player.x, player.y + 1.35, player.z);
+    torchLight.position.set(player.x, player.y + (activeGlowId ? 1.55 : 1.35), player.z);
     if (activeGlowId) {
-      const hCol = (activeGlowId === B.SOUL_LANTERN || activeGlowId === B.SOUL_FIRE) ? 0x22d3ee
-        : ((activeGlowId === B.SEA_LANTERN || activeGlowId === B.GLOW_CRYSTAL || activeGlowId === B.ELEVATOR_BLOCK) ? 0x67e8f9
-        : (activeGlowId === B.MUSHROOM_GLOW ? 0x2dd4bf
-        : (activeGlowId === B.END_CRYSTAL_BLOCK ? 0xe879f9
-        : (activeGlowId === B.FIRE_SWORD || activeGlowId === B.CAMPFIRE || activeGlowId === B.LAVA ? 0xff7b2e : 0xffb347))));
-      torchLight.color.setHex(hCol);
-      torchLight.intensity = (player.eyesInWater ? 0.72 : 0.62) + Math.sin(elapsed * 10) * 0.04;
+      if (activeGlowId === B.LANTERN) {
+        torchLight.color.setHex(0xffca7a);
+        torchLight.distance = 28; torchLight.decay = 1.25;
+        torchLight.intensity = (player.eyesInWater ? 1.35 : 1.28) + Math.sin(elapsed * 8) * 0.04;
+      } else if (activeGlowId === B.TORCH_BLOCK) {
+        torchLight.color.setHex(0xffbc68);
+        torchLight.distance = 25; torchLight.decay = 1.30;
+        torchLight.intensity = (player.eyesInWater ? 1.22 : 1.15) + Math.sin(elapsed * 10) * 0.05;
+      } else if (activeGlowId === B.SOUL_LANTERN) {
+        torchLight.color.setHex(0x38e8ff);
+        torchLight.distance = 25; torchLight.decay = 1.30;
+        torchLight.intensity = (player.eyesInWater ? 1.25 : 1.18) + Math.sin(elapsed * 7) * 0.04;
+      } else {
+        const hCol = (activeGlowId === B.SOUL_FIRE) ? 0x22d3ee
+          : ((activeGlowId === B.SEA_LANTERN || activeGlowId === B.GLOW_CRYSTAL || activeGlowId === B.ELEVATOR_BLOCK) ? 0x67e8f9
+          : (activeGlowId === B.MUSHROOM_GLOW ? 0x2dd4bf
+          : (activeGlowId === B.END_CRYSTAL_BLOCK ? 0xe879f9
+          : (activeGlowId === B.FIRE_SWORD || activeGlowId === B.CAMPFIRE || activeGlowId === B.LAVA ? 0xff7b2e : 0xffb347))));
+        torchLight.color.setHex(hCol);
+        torchLight.distance = 22; torchLight.decay = 1.45;
+        torchLight.intensity = (player.eyesInWater ? 0.92 : 0.82) + Math.sin(elapsed * 10) * 0.04;
+      }
     } else if (!player.eyesInWater && (player.y < -6 || depthOffset > 0)) {
+      torchLight.distance = 18; torchLight.decay = 1.85;
       torchLight.color.setHex(0xffd296); torchLight.intensity = 0.36;
     } else torchLight.intensity = 0.0;
 
@@ -658,16 +674,20 @@
             const ln = ch.lightNodes[li];
             const dx = ln.x - player.x, dy = ln.y - player.y, dz = ln.z - player.z;
             const d2 = dx * dx + dy * dy + dz * dz;
-            if (d2 <= 2304) _offerDynLight(need, ln.x, ln.y, ln.z, ln.col, ln.int, d2, ln.prio || 0);
+            if (d2 <= 3025) _offerDynLight(need, ln.x, ln.y, ln.z, ln.col, ln.int, d2, ln.prio || 0, ln.dist || 20);
           }
         }
       }
-      const crowdDamp = _dynLightFound > 1 ? 1.0 / (1.0 + 0.36 * (_dynLightFound - 1)) : 1.0;
+      const crowdDamp = _dynLightFound > 1 ? 1.0 / (1.0 + 0.24 * (_dynLightFound - 1)) : 1.0;
       for (let s = 1; s < dynamicLightPool.length; s++) {
         const pl = dynamicLightPool[s], c = (s <= _dynLightFound) ? _topLights[s - 1] : null;
         if (c) {
-          const fade = Math.max(0.45, 1.0 - Math.sqrt(c.d2) / 36.0);
-          pl.position.set(c.x, c.y, c.z); pl.color.setHex(c.col); pl.intensity = Math.min(0.95, c.int * fade * crowdDamp);
+          const dist = c.dist || 20;
+          const fade = Math.max(0.55, 1.0 - Math.sqrt(c.d2) / 48.0);
+          pl.position.set(c.x, c.y, c.z); pl.color.setHex(c.col);
+          pl.distance = dist;
+          pl.decay = dist >= 24 ? 1.30 : 1.65;
+          pl.intensity = Math.min(1.40, c.int * fade * crowdDamp);
         } else pl.intensity = 0;
       }
     }

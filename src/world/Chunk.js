@@ -1081,9 +1081,10 @@
     const pcx = (typeof player !== 'undefined' && player) ? (Math.floor(player.x) >> 4) : 0;
     const pcz = (typeof player !== 'undefined' && player) ? (Math.floor(player.z) >> 4) : 0;
     const _byDist = (a, b) => ((a.cx - pcx) * (a.cx - pcx) + (a.cz - pcz) * (a.cz - pcz)) - ((b.cx - pcx) * (b.cx - pcx) + (b.cz - pcz) * (b.cz - pcz));
+    const _byUrgent = (a, b) => ((a._emitDirty ? 0 : 1) - (b._emitDirty ? 0 : 1)) || _byDist(a, b);
     _flushScratch.length = 0;
     for (const ch of _urgentChunkSet) _flushScratch.push(ch);
-    if (_flushScratch.length > 1) _flushScratch.sort(_byDist);
+    if (_flushScratch.length > 1) _flushScratch.sort(_byUrgent);
     for (let i = 0; i < _flushScratch.length; i++) {
       const ch = _flushScratch[i];
       if (ch.urgentDirty || (includeDirty && ch.dirty)) {
@@ -1206,7 +1207,7 @@
     return new THREE.BufferAttribute(Array.isArray(srcU32) ? new Uint32Array(srcU32.slice(0, iLen)) : srcU32.slice(0, iLen), 1);
   }
 
-  const _emBuf = new Float32Array(336), _secEmBuf = new Float32Array(336), _sliceEmBuf = new Float32Array(336);
+  const _emBuf = new Float32Array(336), _ownScanBuf = new Float32Array(336), _secEmBuf = new Float32Array(336), _sliceEmBuf = new Float32Array(336);
   const _EMPTY_EM_BUF = new Float32Array(0), _EMPTY_NODES = [];
   const _tmpLight = new Float32Array(3);
   let _sliceMinX = -999, _sliceMaxX = 999, _sliceMinZ = -999, _sliceMaxZ = 999;
@@ -1300,19 +1301,14 @@
     return getBlockWorld(wx0 + lx, MIN_Y + ly, wz0 + lz);
   }
 
-  function _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy) {
+  function _refreshOwnEmitters(targetCh) {
+    if (!targetCh || !targetCh.data) return;
+    const cx = targetCh.cx, cz = targetCh.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
+    const data = targetCh.data, maxLy = Math.min(WORLD_H - 1, targetCh.maxLy);
     const maxEm = _initMobile ? 168 : 336;
     let emLen = 0, secLen = 0;
-    let lightNodes, portalNodes;
-    if (sodiumOpts.fastLight && !ch._emitDirty && ch._ownEm !== undefined) {
-      const own = ch._ownEm;
-      emLen = Math.min(maxEm, own.length);
-      for (let k = 0; k < emLen; k++) _emBuf[k] = own[k];
-      lightNodes = (ch._ownNodes && ch._ownNodes.length > 0) ? ch._ownNodes : _EMPTY_NODES;
-      portalNodes = (ch._ownPortalNodes && ch._ownPortalNodes.length > 0) ? ch._ownPortalNodes : _EMPTY_NODES;
-    } else {
-    lightNodes = [];
-    portalNodes = [];
+    const lightNodes = [];
+    const portalNodes = [];
     const secLightNodes = [];
     for (let ly = 0; ly <= maxLy; ly++) {
       const yOff = ly << 8;
@@ -1323,14 +1319,16 @@
           if (IS_EMISSIVE[id] === 0) continue;
           const lwx = wx0 + lx + 0.5, lwy = MIN_Y + ly + 0.5, lwz = wz0 + lz + 0.5;
           if (id === B.LANTERN) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.96; _emBuf[emLen+4]=0.72; _emBuf[emLen+5]=0.42; _emBuf[emLen+6]=196.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffc476, int: 0.92, r: 0.96, g: 0.72, b: 0.42, rad2: 196.0, prio: 1 });
-          } else if (id === B.SOUL_LANTERN || id === B.SOUL_FIRE) {
-            const sRad = id === B.SOUL_FIRE ? 169.0 : 196.0;
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.30; _emBuf[emLen+4]=0.78; _emBuf[emLen+5]=0.96; _emBuf[emLen+6]=sRad; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x22d3ee, int: id === B.SOUL_FIRE ? 0.76 : 0.85, r: 0.30, g: 0.78, b: 0.96, rad2: sRad, prio: 1 });
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=1.28; _ownScanBuf[emLen+4]=0.96; _ownScanBuf[emLen+5]=0.54; _ownScanBuf[emLen+6]=400.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffca7a, int: 1.38, dist: 28, lvl: 15, r: 1.28, g: 0.96, b: 0.54, rad: 20, rad2: 400.0, prio: 1 });
+          } else if (id === B.SOUL_LANTERN) {
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.46; _ownScanBuf[emLen+4]=1.06; _ownScanBuf[emLen+5]=1.26; _ownScanBuf[emLen+6]=324.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x38e8ff, int: 1.28, dist: 25, lvl: 14, r: 0.46, g: 1.06, b: 1.26, rad: 18, rad2: 324.0, prio: 1 });
+          } else if (id === B.SOUL_FIRE) {
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.30; _ownScanBuf[emLen+4]=0.78; _ownScanBuf[emLen+5]=0.96; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x22d3ee, int: 0.78, dist: 19, lvl: 12, r: 0.30, g: 0.78, b: 0.96, rad: 14, rad2: 196.0, prio: 1 });
           } else if (id === B.CANDLE) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.45; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.86; _emBuf[emLen+4]=0.64; _emBuf[emLen+5]=0.34; _emBuf[emLen+6]=144.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.45; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.86; _ownScanBuf[emLen+4]=0.64; _ownScanBuf[emLen+5]=0.34; _ownScanBuf[emLen+6]=144.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfbbf24, int: 0.68, r: 0.86, g: 0.64, b: 0.34, rad2: 144.0, prio: 1 });
           } else if (id === B.SCULK_SENSOR || id === B.SCULK_SHRIEKER || id === B.SCULK_CATALYST || id === B.ENDER_CHEST_BLOCK) {
             if (secLen < maxEm) {
@@ -1338,30 +1336,30 @@
               if (secLightNodes.length < 16) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x06b6d4, int: 0.58, r: 0.22, g: 0.68, b: 0.82, rad2: 121.0 });
             }
           } else if (id === B.TORCH_BLOCK) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.92; _emBuf[emLen+4]=0.68; _emBuf[emLen+5]=0.38; _emBuf[emLen+6]=169.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb862, int: 0.86, r: 0.92, g: 0.68, b: 0.38, rad2: 169.0, prio: 1 });
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=1.18; _ownScanBuf[emLen+4]=0.88; _ownScanBuf[emLen+5]=0.48; _ownScanBuf[emLen+6]=324.0; emLen+=7; }
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffbc68, int: 1.26, dist: 25, lvl: 14, r: 1.18, g: 0.88, b: 0.48, rad: 18, rad2: 324.0, prio: 1 });
           } else if (id === B.SHROOMLIGHT) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.84; _emBuf[emLen+4]=0.58; _emBuf[emLen+5]=0.28; _emBuf[emLen+6]=169.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.84; _ownScanBuf[emLen+4]=0.58; _ownScanBuf[emLen+5]=0.28; _ownScanBuf[emLen+6]=169.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffb338, int: 0.78, r: 0.84, g: 0.58, b: 0.28, rad2: 169.0 });
           } else if (id === B.CAMPFIRE || id === B.FIRE) {
             const fRad = (id === B.FIRE) ? 144.0 : 169.0;
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.86; _emBuf[emLen+4]=0.50; _emBuf[emLen+5]=0.22; _emBuf[emLen+6]=fRad; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.86; _ownScanBuf[emLen+4]=0.50; _ownScanBuf[emLen+5]=0.22; _ownScanBuf[emLen+6]=fRad; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff8c2e, int: id === B.FIRE ? 0.68 : 0.78, r: 0.86, g: 0.50, b: 0.22, rad2: fRad });
           } else if (id === B.SEA_LANTERN) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.44; _emBuf[emLen+4]=0.82; _emBuf[emLen+5]=0.90; _emBuf[emLen+6]=196.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.44; _ownScanBuf[emLen+4]=0.82; _ownScanBuf[emLen+5]=0.90; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x72f5eb, int: 0.82, r: 0.44, g: 0.82, b: 0.90, rad2: 196.0 });
           } else if (id === B.END_CRYSTAL_BLOCK) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.76; _emBuf[emLen+4]=0.38; _emBuf[emLen+5]=0.86; _emBuf[emLen+6]=169.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.76; _ownScanBuf[emLen+4]=0.38; _ownScanBuf[emLen+5]=0.86; _ownScanBuf[emLen+6]=169.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xe879f9, int: 0.76, r: 0.76, g: 0.38, b: 0.86, rad2: 169.0 });
           } else if (id === B.END_ROD) {
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=0.92; _emBuf[emLen+4]=0.88; _emBuf[emLen+5]=0.96; _emBuf[emLen+6]=196.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.92; _ownScanBuf[emLen+4]=0.88; _ownScanBuf[emLen+5]=0.96; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfef3ff, int: 0.88, r: 0.92, g: 0.88, b: 0.96, rad2: 196.0, prio: 1 });
           } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL || id === B.WARDEN_PORTAL) {
             const isWardP = (id === B.WARDEN_PORTAL);
             const pR = isWardP ? 0.14 : (id === B.DREAM_PORTAL ? 0.45 : (id === B.END_GATEWAY ? 0.49 : 0.69));
             const pG = isWardP ? 0.80 : (id === B.DREAM_PORTAL ? 0.75 : (id === B.END_GATEWAY ? 0.63 : 0.39));
             const pB = isWardP ? 0.88 : (id === B.END_GATEWAY ? 0.88 : 0.81);
-            if (emLen < maxEm) { _emBuf[emLen]=lx+0.5; _emBuf[emLen+1]=ly+0.5; _emBuf[emLen+2]=lz+0.5; _emBuf[emLen+3]=pR; _emBuf[emLen+4]=pG; _emBuf[emLen+5]=pB; _emBuf[emLen+6]=196.0; emLen+=7; }
+            if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=pR; _ownScanBuf[emLen+4]=pG; _ownScanBuf[emLen+5]=pB; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: isWardP ? 0x22d3ee : (id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc)), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
             if ((id === B.NETHER_PORTAL || id === B.DREAM_PORTAL || isWardP) && portalNodes.length < 24) {
               portalNodes.push({ x: lwx, y: lwy, z: lwz, kind: isWardP ? 3 : (id === B.DREAM_PORTAL ? 1 : 0) });
@@ -1395,32 +1393,55 @@
         }
       }
     }
-    for (let si = 0; si < secLen && emLen < maxEm; si++) _emBuf[emLen++] = _secEmBuf[si];
+    for (let si = 0; si < secLen && emLen < maxEm; si++) _ownScanBuf[emLen++] = _secEmBuf[si];
     for (let si = 0; si < secLightNodes.length && lightNodes.length < 24; si++) lightNodes.push(secLightNodes[si]);
-    ch._ownEm = emLen > 0 ? new Float32Array(_emBuf.subarray(0, emLen)) : _EMPTY_EM_BUF;
-    ch._ownNodes = lightNodes;
-    ch._ownPortalNodes = portalNodes;
-    ch._emitDirty = false;
-    }
+    targetCh._ownEm = emLen > 0 ? new Float32Array(_ownScanBuf.subarray(0, emLen)) : _EMPTY_EM_BUF;
+    targetCh._ownNodes = lightNodes;
+    targetCh._ownPortalNodes = portalNodes;
+    targetCh.lightNodes = lightNodes;
+    targetCh.portalNodes = portalNodes;
+    targetCh._emitDirty = false;
+  }
+
+  function _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy) {
+    const maxEm = _initMobile ? 168 : 336;
+    if (!sodiumOpts.fastLight || ch._emitDirty || ch._ownEm === undefined) _refreshOwnEmitters(ch);
+    const own = ch._ownEm || _EMPTY_EM_BUF;
+    let emLen = Math.min(maxEm, own.length);
+    for (let k = 0; k < emLen; k++) _emBuf[k] = own[k];
+    const lightNodes = (ch._ownNodes && ch._ownNodes.length > 0) ? ch._ownNodes : _EMPTY_NODES;
+    const portalNodes = (ch._ownPortalNodes && ch._ownPortalNodes.length > 0) ? ch._ownPortalNodes : _EMPTY_NODES;
     const prevLightCnt = ch._prevLightCount || 0;
     ch.lightNodes = lightNodes;
     ch.portalNodes = portalNodes;
     ch._prevLightCount = lightNodes.length;
-    if (lightNodes.length > 0 && lightNodes.length !== prevLightCnt) {
-      markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz);
-      markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
+    if (lightNodes.length !== prevLightCnt) {
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        if (dx !== 0 || dz !== 0) markChunkBorderDirty(cx + dx, cz + dz);
+      }
     }
-    for (let dz = -1; dz <= 1 && emLen < maxEm; dz++) for (let dx = -1; dx <= 1 && emLen < maxEm; dx++) {
-      if (dx === 0 && dz === 0) continue;
-      const nbCh = chunks.get(chunkKey(cx + dx, cz + dz));
-      if (!nbCh || !nbCh.lightNodes) continue;
-      for (let ni = 0; ni < nbCh.lightNodes.length && emLen < maxEm; ni++) {
-        const ln = nbCh.lightNodes[ni];
+    const _collectNbr = (nx, nz, minRad2) => {
+      const nbCh = chunks.get(chunkKey(nx, nz));
+      if (!nbCh) return;
+      if (nbCh._emitDirty || nbCh._ownEm === undefined) _refreshOwnEmitters(nbCh);
+      const nodes = nbCh.lightNodes;
+      if (!nodes || nodes.length === 0) return;
+      for (let ni = 0; ni < nodes.length && emLen < maxEm; ni++) {
+        const ln = nodes[ni];
+        if (minRad2 > 0 && ln.rad2 <= minRad2) continue;
+        const rPad = (ln.rad || Math.sqrt(ln.rad2)) + 1.5;
         const elx = ln.x - wx0, ely = ln.y - MIN_Y, elz = ln.z - wz0;
-        if (elx > -17 && elx < 33 && elz > -17 && elz < 33) {
+        if (elx > -rPad && elx < 16 + rPad && elz > -rPad && elz < 16 + rPad) {
           _emBuf[emLen]=elx; _emBuf[emLen+1]=ely; _emBuf[emLen+2]=elz; _emBuf[emLen+3]=ln.r; _emBuf[emLen+4]=ln.g; _emBuf[emLen+5]=ln.b; _emBuf[emLen+6]=ln.rad2; emLen+=7;
         }
       }
+    };
+    for (let dz = -1; dz <= 1 && emLen < maxEm; dz++) for (let dx = -1; dx <= 1 && emLen < maxEm; dx++) {
+      if (dx !== 0 || dz !== 0) _collectNbr(cx + dx, cz + dz, 0);
+    }
+    for (let dz = -2; dz <= 2 && emLen < maxEm; dz++) for (let dx = -2; dx <= 2 && emLen < maxEm; dx++) {
+      const ax = Math.abs(dx), az = Math.abs(dz);
+      if ((ax === 2 || az === 2) && !(ax === 2 && az === 2)) _collectNbr(cx + dx, cz + dz, 256.0);
     }
     return emLen;
   }
@@ -1439,13 +1460,13 @@
       if (dxy2 >= rad2) continue;
       const dz = lz - sliceBuf[i + 2], d2 = dxy2 + dz * dz;
       if (d2 < rad2) {
-        const u = 1.0 - d2 / rad2, att2 = u * (0.68 + 0.32 * u);
+        const u = 1.0 - d2 / rad2, att2 = u * (0.58 + 0.42 * u);
         r += sliceBuf[i + 3] * att2; g += sliceBuf[i + 4] * att2; b += sliceBuf[i + 5] * att2;
       }
     }
-    out[0] = Math.min(0.98, r / (1.0 + r * 0.55));
-    out[1] = Math.min(0.98, g / (1.0 + g * 0.55));
-    out[2] = Math.min(0.98, b / (1.0 + b * 0.55));
+    out[0] = Math.min(1.35, r / (1.0 + r * 0.32));
+    out[1] = Math.min(1.35, g / (1.0 + g * 0.32));
+    out[2] = Math.min(1.35, b / (1.0 + b * 0.32));
   }
 
   function _pushSolidBox(wx, wy, wz, x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, lr, lg, lb, fitUv, st) {
@@ -2373,15 +2394,15 @@
         const cyMid = ly + 0.5;
         for (let ei = 0; ei < emLen; ei += 7) {
           const dy = cyMid - _emBuf[ei + 1], rad2 = _emBuf[ei + 6];
-          if (dy * dy <= rad2 + 34.0) {
-            const ex = _emBuf[ei], ez = _emBuf[ei + 2];
+          if (dy * dy <= rad2 + 48.0) {
+            const ex = _emBuf[ei], ez = _emBuf[ei + 2], rPad = Math.sqrt(rad2) + 1.5;
             _sliceEmBuf[sliceLen] = ex; _sliceEmBuf[sliceLen+1] = _emBuf[ei+1]; _sliceEmBuf[sliceLen+2] = ez;
             _sliceEmBuf[sliceLen+3] = _emBuf[ei+3]; _sliceEmBuf[sliceLen+4] = _emBuf[ei+4]; _sliceEmBuf[sliceLen+5] = _emBuf[ei+5]; _sliceEmBuf[sliceLen+6] = rad2;
             sliceLen += 7;
-            if (ex - 18.5 < sMinX) sMinX = ex - 18.5;
-            if (ex + 18.5 > sMaxX) sMaxX = ex + 18.5;
-            if (ez - 18.5 < sMinZ) sMinZ = ez - 18.5;
-            if (ez + 18.5 > sMaxZ) sMaxZ = ez + 18.5;
+            if (ex - rPad < sMinX) sMinX = ex - rPad;
+            if (ex + rPad > sMaxX) sMaxX = ex + rPad;
+            if (ez - rPad < sMinZ) sMinZ = ez - rPad;
+            if (ez + rPad > sMaxZ) sMaxZ = ez + rPad;
           }
         }
         _sliceMinX = sMinX; _sliceMaxX = sMaxX; _sliceMinZ = sMinZ; _sliceMaxZ = sMaxZ;

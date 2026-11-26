@@ -4233,7 +4233,8 @@
       for (let i = 0; i < ch.lightNodes.length; i++) {
         const ln = ch.lightNodes[i];
         const d = Math.abs(wx + 0.5 - ln.x) + Math.abs(wy + 0.5 - ln.y) + Math.abs(wz + 0.5 - ln.z);
-        if (d < 14) blkL = Math.max(blkL, Math.round(14 - d));
+        const srcL = ln.lvl || 14;
+        if (d < srcL) blkL = Math.max(blkL, Math.round(srcL - d));
       }
     }
     return Math.max(skyL, blkL);
