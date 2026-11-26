@@ -92,6 +92,38 @@
     const s = Math.min(1, availW / natW, availH / natH);
     panelEl.style.transform = s < 0.999 ? `scale(${s.toFixed(4)})` : 'none';
   }
+  function computeSettingsFrameMetrics(availW, availH) {
+    const MIN_W = 860, MAX_W = 1060;
+    const MIN_H = 560, MAX_H = 700;
+    const MIN_AR = 1.28, MAX_AR = 1.78;
+    const safeW = Math.max(240, availW);
+    const safeH = Math.max(200, availH);
+    if (safeW >= MIN_W && safeH >= MIN_H) {
+      return { w: Math.min(MAX_W, Math.floor(safeW)), h: Math.min(MAX_H, Math.floor(safeH)), scale: 1 };
+    }
+    let scale = Math.min(1, safeW / MIN_W, safeH / MIN_H);
+    let w = Math.min(MAX_W, Math.max(MIN_W, Math.floor(safeW / scale)));
+    let h = Math.min(MAX_H, Math.max(MIN_H, Math.floor(safeH / scale)));
+    if (w / h > MAX_AR) w = Math.min(MAX_W, Math.round(h * MAX_AR));
+    if (w / h < MIN_AR) h = Math.min(MAX_H, Math.round(w / MIN_AR));
+    scale = Math.min(1, safeW / w, safeH / h);
+    return { w, h, scale };
+  }
+  function scaleSettingsModalToViewport() {
+    const mm = document.getElementById('menuModal');
+    if (!mm || mm.classList.contains('hidden') || mm.classList.contains('pause-mode')) return;
+    const shell = mm.querySelector('.mc-panel.game-menu-shell');
+    if (!shell) return;
+    const cs = getComputedStyle(mm);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const boxW = (mm.clientWidth > 0 ? mm.clientWidth : stageW) - padX - 8;
+    const boxH = (mm.clientHeight > 0 ? mm.clientHeight : stageH) - padY - 8;
+    const { w, h, scale } = computeSettingsFrameMetrics(boxW, boxH);
+    shell.style.setProperty('--mcd-w', `${w}px`);
+    shell.style.setProperty('--mcd-h', `${h}px`);
+    shell.style.setProperty('--mcd-scale', scale < 0.999 ? scale.toFixed(4) : '1');
+  }
   function updateMobileUiScale() {
     const isTouch = document.body.classList.contains('touch-ui');
     const isCompactViewport = isTouch || stageW <= 960 || stageH <= 540;
@@ -152,6 +184,7 @@
     if (smithModalEl && !smithModalEl.classList.contains('hidden')) {
       scaleGuiPanelToViewport(smithModalEl.querySelector('.mc-gui-panel'), padX, padY);
     }
+    scaleSettingsModalToViewport();
   }
   function syncEditorSliders() {
     const ref = editTargetId === 'all' ? hudLayout.attack : hudLayout[editTargetId];
@@ -257,7 +290,9 @@
     applyHudLayout();
   }
   window.addEventListener('resize', resizeViewport);
-  window.addEventListener('orientationchange', () => setTimeout(resizeViewport, 160));
+  const _onOrientationViewport = () => { resizeViewport(); setTimeout(resizeViewport, 160); setTimeout(resizeViewport, 360); };
+  window.addEventListener('orientationchange', _onOrientationViewport);
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', _onOrientationViewport);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeViewport);
 
   function isAppFullscreen() {

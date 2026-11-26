@@ -43,6 +43,7 @@
     if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
     const activeTab = document.querySelector('#gmNav .gm-tab.active');
     if (activeTab && typeof _syncGmInspectorForTab === 'function') _syncGmInspectorForTab(activeTab.dataset.gtab);
+    if (typeof updateMobileUiScale === 'function') { updateMobileUiScale(); requestAnimationFrame(updateMobileUiScale); }
   });
   document.getElementById('pauseQuit')?.addEventListener('click', () => {
     try { saveCurrentWorldToList(); } catch (e) {}
@@ -2642,13 +2643,14 @@ function initLobbyOreUI() {
     document.body.classList.add('in-menu');
     const mm = document.getElementById('menuModal');
     mm.classList.add('from-lobby');
-    mm.classList.remove('hidden');
+    mm.classList.remove('pause-mode', 'hidden');
     const bp = document.getElementById('btnPlay');
     if (bp) bp.textContent = tr('Xong (Quay Lại Sảnh)', 'Done (Back to Lobby)');
     const gmH1 = document.querySelector('#menuModal .gm-brand h1');
     if (gmH1) gmH1.textContent = tr('CÀI ĐẶT', 'SETTINGS');
     if (typeof syncTimeWeatherAdminLocks === 'function') syncTimeWeatherAdminLocks();
     document.querySelector('#gmNav .gm-tab[data-gtab="graphics"]')?.click();
+    if (typeof updateMobileUiScale === 'function') { updateMobileUiScale(); requestAnimationFrame(updateMobileUiScale); }
   });
   document.getElementById('btnTitleLang')?.addEventListener('click', () => {
     ensureAudio();

@@ -2386,7 +2386,6 @@
   #menuModal.from-lobby #gmPanePlay,
   #menuModal.from-lobby #gmPaneWorld,
   #menuModal.from-lobby #gmPaneMobs { display: none !important; }
-  #menuModal.from-lobby #gmPaneGraphics { display: flex !important; }
 
   /* ==================== CRISP ORE UI 3D BEVEL SYSTEM ==================== */
   #lobbyScreen .mc-java-btn,
@@ -4646,7 +4645,8 @@
 }
 #menuModal.from-lobby:not(.pause-mode):not(.hidden),
 #menuModal:not(.pause-mode):not(.hidden) {
-  padding: 0 !important;
+  padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)) !important;
+  overflow: hidden !important;
   background: radial-gradient(ellipse at 50% 78%, rgba(14, 96, 128, 0.42), rgba(2, 10, 16, 0.90) 70%) !important;
   backdrop-filter: blur(8px) saturate(1.18) !important;
 }
@@ -4660,8 +4660,8 @@
 }
 
 @keyframes mcdPanelIn {
-  from { opacity: 0; transform: scale(0.985) translateY(6px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes mcdPaneIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -4680,9 +4680,15 @@
   gap: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  width: min(1060px, 96vw) !important;
-  height: min(700px, 94dvh) !important;
-  max-height: 94dvh !important;
+  flex: 0 0 auto !important;
+  width: var(--mcd-w, min(1060px, calc(100% - 24px))) !important;
+  height: var(--mcd-h, min(700px, calc(100% - 24px))) !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  transform: scale(var(--mcd-scale, 1)) !important;
+  transform-origin: center center !important;
+  touch-action: manipulation;
   display: flex !important;
   flex-direction: column !important;
   background-color: #051722 !important;
@@ -4794,7 +4800,7 @@
   border-bottom: 3px solid transparent !important;
   color: #9b8c82 !important;
   font-family: var(--font-pixel) !important;
-  font-size: clamp(12.5px, 1.35vw, 14.5px) !important;
+  font-size: 13.5px !important;
   font-weight: 700 !important;
   letter-spacing: 0.9px !important;
   text-transform: uppercase !important;
@@ -4820,7 +4826,7 @@
   min-height: 0 !important;
   width: 100% !important;
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) clamp(255px, 31%, 340px) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(235px, 30%, 330px) !important;
   gap: 18px !important;
   padding: 16px 20px !important;
   overflow: hidden !important;
@@ -4832,6 +4838,8 @@
   width: 100% !important;
   padding: 0 10px 8px 0 !important;
   overflow-y: auto !important;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable !important;
   scrollbar-width: thin;
   scrollbar-color: #c8dce4 rgba(8, 36, 48, 0.72);
@@ -4966,7 +4974,7 @@
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-content .seg-btn {
   min-height: 34px !important;
-  padding: 5px 10px !important;
+  padding: 5px 8px !important;
   font-size: 12px !important;
   color: #cde8f0 !important;
   background: #0b2a38 !important;
@@ -5025,7 +5033,7 @@
   gap: 6px !important;
   width: 100% !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle {
   position: relative !important;
   width: auto !important;
   min-width: 170px !important;
@@ -5035,6 +5043,7 @@
   align-items: center !important;
   justify-content: flex-start !important;
   text-align: left !important;
+  white-space: nowrap !important;
   background: rgba(7, 29, 42, 0.58) !important;
   border: 1.5px solid rgba(56, 128, 152, 0.30) !important;
   border-left: 3px solid #475569 !important;
@@ -5042,14 +5051,14 @@
   box-shadow: none !important;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.active,
-#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle.mc-btn-green {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle.active,
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle.mc-btn-green {
   background: rgba(9, 38, 52, 0.66) !important;
   border-color: rgba(52, 211, 153, 0.42) !important;
   border-left: 3px solid #10c954 !important;
   color: #ffffff !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .mcd-toggle:hover {
+#menuModal:not(.pause-mode):not(.hidden) .gm-content .mcd-toggle:hover {
   border-color: #c2f0fc !important;
   background: rgba(18, 70, 94, 0.56) !important;
   box-shadow: inset 0 0 0 1px rgba(194, 240, 252, 0.34), 0 0 12px rgba(56, 189, 248, 0.16) !important;
@@ -5319,29 +5328,40 @@ body.admin-unlocked .admin-lock-badge {
   border-top: 1px solid #352725 !important;
   box-sizing: border-box !important;
 }
-#menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: 1.5px solid transparent;
-  padding: 5px 8px;
-  color: #efe9e4;
-  font-family: var(--font-pixel);
-  font-size: 13px;
-  font-weight: 700;
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer .mcd-footer-btn,
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnGmBack {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  background: transparent !important;
+  border: 1.5px solid transparent !important;
+  padding: 5px 8px !important;
+  color: #efe9e4 !important;
+  font-family: var(--font-pixel) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
   cursor: pointer;
 }
-#menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn:hover {
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer .mcd-footer-btn:hover,
+#menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnGmBack:hover {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play {
+  width: auto !important;
+  flex: 0 1 auto !important;
+  max-width: 320px !important;
   height: 36px !important;
   min-width: 168px !important;
   padding: 0 20px !important;
   font-size: 13px !important;
+  white-space: nowrap !important;
 }
 
 /* ==================== 6. RESPONSIVE OVERRIDES (MOBILE LANDSCAPE & PORTRAIT) ==================== */
@@ -5414,20 +5434,6 @@ body.admin-unlocked .admin-lock-badge {
   #lobbyScreen #lobbyModeSeg .seg-btn, #lobbyScreen #lobbyDiffSeg .seg-btn, #lobbyScreen #lobbyShaderSeg .seg-btn { min-height: 38px !important; font-size: 11.5px !important; padding: 5px 6px 9px !important; }
   #lobbyScreen #lobbyBiomeSeg { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; padding: 5px !important; }
   #lobbyScreen #lobbyBiomeSeg .seg-btn { min-height: 38px !important; font-size: 11px !important; padding: 5px 5px 9px !important; }
-
-  /* Settings Modal Mobile Landscape */
-  #menuModal:not(.pause-mode):not(.hidden) { padding: 0 !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    border-radius: 0 !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar { height: 40px !important; min-height: 40px !important; padding: 0 10px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab { font-size: 11px !important; padding: 0 9px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-body { grid-template-columns: minmax(0, 1fr) 225px !important; gap: 10px !important; padding: 8px 12px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer { padding: 6px 12px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play { height: 32px !important; min-width: 132px !important; font-size: 11.5px !important; }
 }
 
 /* Mobile Portrait (390x844, 360x640) */
@@ -5502,33 +5508,9 @@ body.admin-unlocked .admin-lock-badge {
   #lobbyScreen #lobbyShaderSeg { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; padding: 5px !important; }
   #lobbyScreen #lobbyShaderSeg .seg-btn { grid-column: span 1 !important; margin-left: 0 !important; min-height: 42px !important; font-size: 12px !important; }
   #lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-eclipse { grid-column: 1 / -1 !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; padding: 5px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn { grid-column: span 1 !important; margin: 0 !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-eclipse { grid-column: 1 / -1 !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content #weatherSeg { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 5px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-content #timeSeg { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 5px !important; }
   #lobbyScreen #lobbyModeSeg .seg-btn, #lobbyScreen #lobbyDiffSeg .seg-btn { min-height: 42px !important; font-size: 12px !important; }
   #lobbyScreen #lobbyBiomeSeg { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; padding: 5px !important; }
   #lobbyScreen #lobbyBiomeSeg .seg-btn { min-height: 40px !important; font-size: 11.5px !important; padding: 5px 6px 9px !important; }
-
-  /* Settings Modal Portrait */
-  #menuModal:not(.pause-mode):not(.hidden) { padding: 0 !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .mc-panel.game-menu-shell {
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    border-radius: 0 !important;
-  }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-topbar { height: 46px !important; min-height: 46px !important; padding: 0 8px !important; gap: 6px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-nav .gm-tab { font-size: 11.5px !important; padding: 0 8px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-body { grid-template-columns: 1fr !important; padding: 10px 10px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-inspector { display: none !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .mcd-row { flex-wrap: wrap; gap: 8px; }
-  #menuModal:not(.pause-mode):not(.hidden) .mcd-slider-box { width: 100%; min-width: 0; }
-  #menuModal:not(.pause-mode):not(.hidden) .mcd-tri-grid { grid-template-columns: 1fr !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer { padding: 8px 10px max(10px, env(safe-area-inset-bottom)) !important; gap: 6px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .mcd-footer-btn { font-size: 11.5px !important; padding: 4px 6px !important; }
-  #menuModal:not(.pause-mode):not(.hidden) .gm-footer #btnPlay.mcd-footer-play { min-width: 0 !important; flex: 1 1 auto !important; padding: 0 10px !important; font-size: 12px !important; }
 }
 .dream-rainbow-icon { filter: hue-rotate(var(--dream-hue, 0deg)) saturate(1.06) brightness(var(--dream-bri, 1.01)) drop-shadow(0 0 2px rgba(208, 178, 255, 0.24)); }
 
