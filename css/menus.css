@@ -5351,7 +5351,7 @@ body.admin-unlocked .admin-lock-badge {
     grid-template-columns: 1fr !important;
   }
 }
-.dream-rainbow-icon { filter: hue-rotate(var(--dream-hue, 0deg)) saturate(1.12) brightness(var(--dream-bri, 1.04)); }
+.dream-rainbow-icon { filter: hue-rotate(var(--dream-hue, 0deg)) saturate(1.06) brightness(var(--dream-bri, 1.01)) drop-shadow(0 0 2px rgba(208, 178, 255, 0.24)); }
 
 /* Mod & Add-on Manager + Survival Mob Summon Lock */
 .mod-dropzone {

@@ -2769,8 +2769,7 @@
       cols.push(r, g, bl, r, g, bl, r, g, bl, r, g, bl);
       idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3); vc += 4;
     };
-    const flipDiag = (def.tool === 'bow');
-    const getPxIdx = (x, y) => (flipDiag ? ((15 - x) * 16 + (15 - y)) : (y * 16 + x)) * 4;
+    const getPxIdx = (x, y) => (y * 16 + x) * 4;
     const isOpaque = (x, y) => (x >= 0 && x < 16 && y >= 0 && y < 16 && imgData[getPxIdx(x, y) + 3] > 32);
     const isInteriorPx = (x, y) => bevel > 0 && isOpaque(x, y) && isOpaque(x - 1, y) && isOpaque(x + 1, y) && isOpaque(x, y - 1) && isOpaque(x, y + 1);
     const isRainbowItem = !!(def && def.rainbow);
@@ -2800,17 +2799,23 @@
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.setIndex(idx);
     const isWarmGlow = (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
+    const isEnch = !!(meta && meta.ench);
+    const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW);
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: isRainbowItem ? 0.22 : (isChunky ? 0.62 : 0.72),
-      metalness: isRainbowItem ? 0.45 : ((blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING) ? 0.28 : 0.06),
-      emissive: isWarmGlow ? new THREE.Color((blockId === B.WATER_BREATH_POTION || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR) ? 0x06b6d4 : (blockId === B.NIGHT_VISION_POTION ? 0x3b82f6 : (blockId === B.DREAM_FRUIT ? 0xec4899 : (blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING ? 0xf59e0b : 0xea580c)))) : new THREE.Color(0x000000),
-      emissiveIntensity: isWarmGlow ? 0.22 : 0.0
+      roughness: (isRainbowItem || isEnch || isSpecialGlint) ? 0.30 : (isChunky ? 0.62 : 0.72),
+      metalness: (isRainbowItem || isSpecialGlint) ? 0.28 : ((blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING) ? 0.28 : 0.06),
+      emissive: isWarmGlow ? new THREE.Color((blockId === B.WATER_BREATH_POTION || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR) ? 0x0ea5e9 : (blockId === B.NIGHT_VISION_POTION ? 0x3b82f6 : (blockId === B.DREAM_FRUIT ? 0xec4899 : (blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING ? 0xf59e0b : 0xd97706)))) : new THREE.Color(0x000000),
+      emissiveIntensity: isWarmGlow ? 0.08 : 0.0
     });
     if (isRainbowItem) {
       mat.userData = { isRainbowItem: true };
       _rainbowMats.add(mat);
       applyRainbowToMat(mat, _dreamRainbowHue);
+    }
+    if (isEnch || isSpecialGlint) {
+      const gTint = isEnch ? 0xb89cff : ((blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW) ? 0xfcd38d : ((blockId === B.ICHOR_PICK || blockId === B.ICHOR_SWORD || blockId === B.ICHOR_AXE) ? 0xf0a6c5 : 0x7dd3fc));
+      _attachSmoothEnchantGlint(mat, gTint, isEnch ? 0.22 : (isRainbowItem ? 0.18 : 0.14));
     }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData.iconReady = usedOfficialIcon || !_vIm;
@@ -2834,9 +2839,9 @@
       mesh.position.set(-0.02, 0.01, -0.05);
       mesh.rotation.set(-0.04, 1.90, 0.26);
     } else if (def.tool === 'bow') {
-      // Authentic 3D extruded pixel-art Minecraft Bow: curved wood outward/forward, string facing player!
-      mesh.position.set(-0.01, 0.01, -0.04);
-      mesh.rotation.set(0.06, 1.72, 0.14);
+      // Authentic 3D extruded pixel-art Minecraft Bow: curved stave FORWARD (-Z), string facing player (+Z)!
+      mesh.position.set(0.0, 0.01, -0.04);
+      mesh.rotation.set(0.06, -1.42, 0.68);
     } else if (def.tool === 'rod' || isForwardShaft) {
       mesh.position.set(-0.01, 0.02, -0.06);
       mesh.rotation.set(-0.05, 1.84, 0.22);
@@ -2934,11 +2939,31 @@
     offhandPivot.add(activeOffhandObj);
   }
 
+  function _attachSmoothEnchantGlint(mat, tintHex = 0xb89cff, strength = 0.20) {
+    if (!mat) return mat;
+    mat.customProgramCacheKey = () => 'nucraft_enchant_glint_v1';
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uGlintTime = envUniforms.uTime;
+      shader.uniforms.uGlintTint = { value: new THREE.Color(tintHex) };
+      shader.uniforms.uGlintStr = { value: strength };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGlintPos;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvGlintPos = transformed;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uGlintTime, uGlintStr;\nuniform vec3 uGlintTint;\nvarying vec3 vGlintPos;')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n{\n  float w1 = pow(0.5 + 0.5 * sin(vGlintPos.x * 16.0 + vGlintPos.y * 22.0 - uGlintTime * 1.45), 4.0);\n  float w2 = pow(0.5 + 0.5 * sin(vGlintPos.x * 20.0 - vGlintPos.y * 14.0 - uGlintTime * 1.15), 4.0);\n  float shimmer = (0.28 + 0.72 * clamp(w1 * 0.65 + w2 * 0.45, 0.0, 1.0)) * uGlintStr;\n  totalEmissiveRadiance += uGlintTint * shimmer;\n}');
+    };
+    return mat;
+  }
+
   function _itemMetaCacheKey(blockId, meta) {
     if (!blockId) return 0;
-    if (meta && typeof meta.bowStage === 'number' && meta.bowStage > 0) return `${blockId}:bs${meta.bowStage}`;
+    let k = String(blockId);
+    if (meta && typeof meta.bowStage === 'number' && meta.bowStage > 0) k += `:bs${meta.bowStage}`;
+    if (meta && meta.ench) k += ':e';
     const t = meta && meta.trim;
-    return (t && t.pattern) ? `${blockId}:${t.pattern}:${t.matId || t.hex || ''}` : blockId;
+    if (t && t.pattern) k += `:${t.pattern}:${t.matId || t.hex || ''}`;
+    return k === String(blockId) ? blockId : k;
   }
 
   let _fpEmptySkin = '';

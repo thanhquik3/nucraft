@@ -5168,7 +5168,7 @@
       player.comboResetT = 1.40;
     } else {
       player.swordAtkActive = false;
-      const _swingAct = (def && def.tool === 'axe') ? 'chop' : ((def && (def.tool === 'pick' || def.tool === 'shovel' || def.tool === 'hoe')) ? 'mine' : 'attack');
+      const _swingAct = (def && (def.tool === 'pick' || def.tool === 'axe' || def.tool === 'shovel' || def.tool === 'hoe')) ? 'mine' : 'attack';
       startHandSwing(0.36, _swingAct);
       player.comboStep = ((player.comboStep || 0) + 1) % 3;
       player.comboResetT = 0.95;

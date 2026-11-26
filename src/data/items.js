@@ -588,9 +588,9 @@
     const ud = mat.userData || {};
     mat.color.setHex(0xffffff);
     if (mat.emissive) {
-      const h = ((0.54 + Math.sin(tPhase * 6.2832) * 0.16) % 1 + 1) % 1;
-      mat.emissive.setHSL(h, 0.72, 0.24);
-      mat.emissiveIntensity = (ud.isRainbowItem ? 0.24 : (ud.isArmorRelief ? 0.26 : 0.20)) + 0.08 * Math.sin(tPhase * 12.566);
+      const h = ((0.68 + Math.sin(tPhase * 6.2832) * 0.10) % 1 + 1) % 1;
+      mat.emissive.setHSL(h, 0.36, 0.16);
+      mat.emissiveIntensity = (ud.isRainbowItem ? 0.08 : (ud.isArmorRelief ? 0.10 : 0.07)) + 0.025 * Math.sin(tPhase * 12.566);
     }
   }
   function tickDreamRainbow(tSec) {
@@ -599,10 +599,10 @@
     _dreamRainbowHue = (tSec * 0.14) % 1.0;
     const invOpen = typeof _elInvModal !== 'undefined' && _elInvModal && !_elInvModal.classList.contains('hidden');
     if (_dreamIconsLive.length > 0 && !(invOpen && (_isMobilePerf || _isWeakDevice))) {
-      const deg = Math.round(Math.sin(tSec * 1.1) * 18);
+      const deg = Math.round(Math.sin(tSec * 1.1) * 10);
       if (Math.abs(deg - _lastDreamHueDeg) >= (invOpen ? 5 : 2)) {
         _lastDreamHueDeg = deg;
-        const bri = (1.04 + Math.sin(tSec * 2.2) * 0.05).toFixed(2);
+        const bri = (1.01 + Math.sin(tSec * 2.0) * 0.02).toFixed(2);
         document.documentElement.style.setProperty('--dream-hue', deg + 'deg');
         document.documentElement.style.setProperty('--dream-bri', bri);
       }
@@ -931,169 +931,97 @@
    * ============================================================================ */
   const ATLAS_COLS = 8, ATLAS_ROWS = 80, TILE_PX = 16;
 
-  // Shared 4-Stage Bow Pixel Sprites (100% Icon == 1P == 3P Parity across rest + 3 hold-to-draw tension stages)
+  // Canonical 4-Stage Vanilla Minecraft Bow Pixel Sprites (strict 100% silhouette across ALL bows, Icon == 1P == 3P Parity)
   const _STD_BOW_STAGES = [
     [
       '................',
-      '........DDDDD...',
-      '.......DMMWWMD..',
-      '......DMWD..SD..',
-      '.....DMWD....SD.',
-      '....DMGD......SD',
-      '...DWGD........S',
-      '...DGD.........S',
-      '...DWD.........S',
-      '....DMD......SD.',
-      '.....DMD....SD..',
-      '......DMD..SD...',
-      '.......DMMMD....',
-      '........DDD.....',
-      '................',
-      '................'
+      '...........DDDD.',
+      '........DDDMWWMD',
+      '......DDMWMDDDD.',
+      '.....DgWDDD..S..',
+      '....DgGg....S...',
+      '...DgGg....S....',
+      '...DWg....S.....',
+      '..DMD....S......',
+      '..DWD...S.......',
+      '..DMD..S........',
+      '.DMD..S.........',
+      '.DWD.S..........',
+      '.DWDS...........',
+      '.DMD............',
+      '..D.............'
     ],
     [
       '................',
-      '.......DDDDD....',
-      '......DMMWWMD...',
-      '.....DMWD...SD..',
-      '....DMWD...SS...',
-      '...DMGD...SA....',
-      '..DWGD...aA.....',
-      '..DGD...aA.SD...',
-      '..DWD..fA...S...',
-      '...DMDfA....SD..',
-      '....DMf......SD.',
-      '.....DMD.....SD.',
-      '......DMMMD..SD.',
-      '.......DDDDDDD..',
-      '................',
-      '................'
+      '.HH........DDDD.',
+      'HHA.....DDDMWWMD',
+      '.HA...DDMWMDDDD.',
+      '...a.DgWDDD..S..',
+      '....aGga....S...',
+      '...DgGg.a..S....',
+      '...DWg..faS.....',
+      '..DMD...ffS.....',
+      '..DWD..S.S......',
+      '..DMD.S.........',
+      '.DMD.S..........',
+      '.DWDS...........',
+      '.DWDS...........',
+      '.DMD............',
+      '..D.............'
     ],
     [
       '................',
-      '......DDDDD.....',
-      '.....DMMWWMD....',
-      '....DMWD..SD....',
-      '...DMWD..S......',
-      '..DMGD..S...HH..',
-      '..DWGD.S...HAA..',
-      '..DGD.S...aA....',
-      '..DWDS...aA.....',
-      '...DMf..aA......',
-      '...DfA.aA....SD.',
-      '....ffMD....SD..',
-      '.....DMfMMD.SD..',
-      '......DDDDDDD...',
-      '................',
-      '................'
+      '..........DDDD..',
+      '..HH....DDMWWMD.',
+      '.HHA..DDMWMDDDD.',
+      '..HA.DgWDDD.S...',
+      '....aGGg....S...',
+      '...DgGg.a...S...',
+      '...DWg...a..S...',
+      '..DMD.....a.S...',
+      '..DWD....ffS....',
+      '..DMD....ffS....',
+      '.DMD....SSS.....',
+      '.DWD.SSS........',
+      '.DWDS...........',
+      '.DMD............',
+      '..D.............'
     ],
     [
       '................',
-      '.....DDDDD......',
-      '....DMMWWMD.....',
-      '...DMWD..SD.....',
-      '..DMWD..S.......',
-      '..DMGD.S..HHHH..',
-      '.DWGD.S..HAAAA..',
-      '.DGD.S..aA......',
-      '.DWDS..aA.......',
-      '..DMf.aA...SD...',
-      '..DfAaA...SD....',
-      '...ffMD..SD.....',
-      '....DMfMMMD.....',
-      '.....DDDDDD.....',
-      '................',
-      '................'
-    ]
-  ];
-  const _HORNED_BOW_STAGES = [
-    [
-      '................',
-      '........DDDDXX..',
-      '.......DMMWWHXD.',
-      '......DMWD..SSD.',
-      '.....DMWX....SS.',
-      '....DMGD......SD',
-      '...DWGD........S',
-      '...DGD.........S',
-      '...DWD.........S',
-      '....DMX......SD.',
-      '.....DMD....SD..',
-      '......DMWD.SD...',
-      '.......DMMHHD...',
-      '........DDXX....',
-      '................',
-      '................'
-    ],
-    [
-      '................',
-      '.......DDDDXX...',
-      '......DMMWWHXD..',
-      '.....DMWD...SSD.',
-      '....DMWX...SS...',
-      '...DMGD...SA....',
-      '..DWGD...aA.....',
-      '..DGD...aA.SSD..',
-      '..DWD..fA...S...',
-      '...DMXfA....SD..',
-      '....DMf......SD.',
-      '.....DMWD....SD.',
-      '......DMMHHD.SD.',
-      '.......DDDXXXX..',
-      '................',
-      '................'
-    ],
-    [
-      '................',
-      '......DDDDXX....',
-      '.....DMMWWHXD...',
-      '....DMWD..SSD...',
-      '...DMWX..S......',
-      '..DMGD..S...HH..',
-      '..DWGD.S...HAA..',
-      '..DGD.S...aA....',
-      '..DWDS...aA.....',
-      '...DMf..aA......',
-      '...DfA.aA....SSD',
-      '....ffMD....SD..',
-      '.....DMWfHHD.SD.',
-      '......DDDDXXXD..',
-      '................',
-      '................'
-    ],
-    [
-      '................',
-      '.....DDDDXX.....',
-      '....DMMWWHXD....',
-      '...DMWD..SSD....',
-      '..DMWX..S.......',
-      '..DMGD.S..HHHH..',
-      '.DWGD.S..HAAAA..',
-      '.DGD.S..aA......',
-      '.DWDS..aA.......',
-      '..DMf.aA...SSD..',
-      '..DfAaA...SD....',
-      '...ffMD..SD.....',
-      '....DMWfHHXD....',
-      '.....DDDDXX.....',
-      '................',
-      '................'
+      '.........DDDD...',
+      '.......DDMWWMD..',
+      '...HH.DDMWMDDDD.',
+      '..HHADgWDDD.S...',
+      '...HAGgg....S...',
+      '...DgGa.....S...',
+      '...DWg.a....S...',
+      '..DMD...a...S...',
+      '..DWD....a..S...',
+      '..DMD.....ffS...',
+      '.DMD......ffS...',
+      '.DWD.SSSSSS.....',
+      '.DWDS...........',
+      '.DMD............',
+      '..D.............'
     ]
   ];
   const BOW_PALETTES = {
-    bow:              { D: '#422610', W: '#6b3e19', M: '#965b26', G: '#c9924c', H: '#e2e8f0', X: '#c9924c', S: '#cbd5e1', A: '#85532a', a: '#a16207', f: '#f1f5f9' },
-    dragon_bone_bow:  { D: '#2a0808', W: '#7f1d1d', M: '#dc2626', G: '#e7e5e4', H: '#fef08a', X: '#f5f5f4', S: '#22d3ee', A: '#67e8f9', a: '#e7e5e4', f: '#fde047' },
-    sculk_echo_bow:   { D: '#041c24', W: '#0c4a6e', M: '#0e7490', G: '#22d3ee', H: '#a5f3fc', X: '#14b8a6', S: '#67e8f9', A: '#22d3ee', a: '#0891b2', f: '#cffafe' },
-    deep_sonic_bow:   { D: '#021826', W: '#0e7490', M: '#22d3ee', G: '#a5f3fc', H: '#ffffff', X: '#38bdf8', S: '#bae6fd', A: '#38bdf8', a: '#22d3ee', f: '#ecfeff' },
-    soul_harbinger_bow:{ D: '#09071a', W: '#312e81', M: '#7c3aed', G: '#22d3ee', H: '#f5d0fe', X: '#67e8f9', S: '#c084fc', A: '#e879f9', a: '#38bdf8', f: '#fef08a' }
+    bow:               { D: '#422610', W: '#965b26', M: '#6b3e19', g: '#8f877b', G: '#bcb3a5', H: '#e2e8f0', S: '#cbd5e1', A: '#64748b', a: '#85532a', f: '#f1f5f9' },
+    dragon_bone_bow:   { D: '#450a0a', W: '#e7e5e4', M: '#b8322e', g: '#d6d3d1', G: '#fef3c7', H: '#fef08a', S: '#d6d3d1', A: '#94a3b8', a: '#b8322e', f: '#fde68a' },
+    sculk_echo_bow:    { D: '#041c24', W: '#155e75', M: '#0e7490', g: '#14b8a6', G: '#67e8f9', H: '#cffafe', S: '#a5f3fc', A: '#0891b2', a: '#0c4a6e', f: '#e0f2fe' },
+    deep_sonic_bow:    { D: '#082f49', W: '#38bdf8', M: '#0284c7', g: '#7dd3fc', G: '#e0f2fe', H: '#f8fafc', S: '#bae6fd', A: '#0369a1', a: '#0e7490', f: '#f0f9ff' },
+    soul_harbinger_bow:{ D: '#161136', W: '#6d5bd0', M: '#4338ca', g: '#7dd3fc', G: '#e9d5ff', H: '#f5f3ff', S: '#c4b5fd', A: '#4c1d95', a: '#312e81', f: '#e9d5ff' }
+  };
+  const _BOW_PAL_BY_ID = {
+    [B.DRAGON_BONE_BOW]:    BOW_PALETTES.dragon_bone_bow,
+    [B.SCULK_ECHO_BOW]:     BOW_PALETTES.sculk_echo_bow,
+    [B.DEEP_SONIC_BOW]:     BOW_PALETTES.deep_sonic_bow,
+    [B.SOUL_HARBINGER_BOW]: BOW_PALETTES.soul_harbinger_bow
   };
   function getBowStageSprite(blockId, stage = 0) {
     const st = Math.max(0, Math.min(3, stage | 0));
-    if (blockId === B.DRAGON_BONE_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.dragon_bone_bow };
-    if (blockId === B.SCULK_ECHO_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.sculk_echo_bow };
-    if (blockId === B.DEEP_SONIC_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.deep_sonic_bow };
-    if (blockId === B.SOUL_HARBINGER_BOW) return { rows: _HORNED_BOW_STAGES[st], pal: BOW_PALETTES.soul_harbinger_bow };
-    return { rows: _STD_BOW_STAGES[st], pal: BOW_PALETTES.bow };
+    return { rows: _STD_BOW_STAGES[st], pal: _BOW_PAL_BY_ID[blockId] || BOW_PALETTES.bow };
   }
   window.getBowStageSprite = getBowStageSprite;
 
@@ -1399,12 +1327,118 @@
       return pal[ch] || (isDeep ? deepslateColor(x, y, r) : stoneColor(x, y, r));
     };
 
-    const PICK_SPRITE = ['................','.....DDDDDD.....','....DHHHHHHD....','....DMMMMMHMD...','.....DDDDDMMHD..','.........DMMHD..','........DWDMMD..','.......DWD.DMD..','......DWD...DD..','.....DWD........','....DWD.........','...DWD..........','..DWD...........','.DWD............','.DD.............','................'];
-    const SWORD_SPRITE = ['................','............DDD.','...........DHHMD','..........DHHMMD','.........DHHMMD.','........DHHMMD..','.......DHHMMD...','......DHHMMD....','...DDDHHMMD.....','...DGGGGMD......','....DGGMD.......','...DWDGGD.......','..DWD.DDD.......','.DWD............','.DD.............','................'];
-    const AXE_SPRITE = ['................','.......DDDDDD...','......DDMMMMHD..','......DHHMMMHHD.','.......DMMMMHHD.','........DWMMHHD.','........DWDMMHD.','.......DWD.DMHD.','......DWD...DDD.','.....DWD........','....DWD.........','...DWD..........','..DWD...........','.DWD............','.DD.............','................'];
-    const SHOVEL_SPRITE = ['................','..........DDDD..','.........DHHHMD.','.........DHMMMD.','........DHMMMD..','........DMMMD...','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','...DWD..........','..DWD...........','.DWD............','.DD.............','................'];
-    const BOW_SPRITE = ['................','.......DDD......','......DMMMD.....','.....DMD..SD....','....DMD....SD...','...DMD......SD..','..DWD........SD.','..DWD........SD.','..DWD........SD.','...DMD......SD..','....DMD....SD...','.....DMD..SD....','......DMMMD.....','.......DDD......','................','................'];
-    const ARROW_SPRITE = ['................','...........DDD..','..........DHHMD.','..........DHMMMD','.........DWD.DD.','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','...DWD..........','..RWD...........','.RRD............','.RR.............','................','................'];
+    // Canonical 16x16 Minecraft Tool Silhouettes (MANDATORY Rule 6: NEVER alter tool geometry, only recolor palettes)
+    const CANONICAL_TOOL_MAPS = {
+      pick: [
+        '................',
+        '................',
+        '......00000.....',
+        '.....0231120ss..',
+        '......000011Sw..',
+        '..........s210..',
+        '.........ssw120.',
+        '........sSw.030.',
+        '.......ssw..010.',
+        '......sSw...020.',
+        '.....ssw....020.',
+        '....sSw......0..',
+        '...ssw..........',
+        '..sSw...........',
+        '..ww............',
+        '................'
+      ],
+      sword: [
+        '.............000',
+        '............0330',
+        '...........03230',
+        '..........03230.',
+        '.........03220..',
+        '........03220...',
+        '..00...02320....',
+        '..000.02220.....',
+        '...0102120......',
+        '...011020.......',
+        '....0000........',
+        '...ss0000.......',
+        '..sSw.0000......',
+        '00sw....00......',
+        '020.............',
+        '000.............'
+      ],
+      axe: [
+        '................',
+        '.........00.....',
+        '........0230....',
+        '.......03120....',
+        '......02111ss...',
+        '......022111w...',
+        '.......00s1110..',
+        '........ssw310..',
+        '.......sSw.00...',
+        '......ssw.......',
+        '.....ssw........',
+        '....sSw.........',
+        '...ssw..........',
+        '..sSw...........',
+        '..ww............',
+        '................'
+      ],
+      shovel: [
+        '................',
+        '................',
+        '...........000..',
+        '..........03210.',
+        '.........022120.',
+        '........0221320.',
+        '.........s1220..',
+        '........sSw20...',
+        '.......sSw.0....',
+        '......ssw.......',
+        '.....sSw........',
+        '....ssw.........',
+        '..ssSw..........',
+        '..sSw...........',
+        '...ww...........',
+        '................'
+      ],
+      hoe: [
+        '................',
+        '.......000......',
+        '......02320.....',
+        '.......00210ss..',
+        '.........021Sw..',
+        '..........0210..',
+        '.........sS00...',
+        '........sSw.....',
+        '.......ssw......',
+        '......sSw.......',
+        '.....ssw........',
+        '....sSw.........',
+        '...ssw..........',
+        '..sSw...........',
+        '..ww............',
+        '................'
+      ]
+    };
+    const drawCanonicalTool = (idx, kind, pal) => {
+      const grid = CANONICAL_TOOL_MAPS[kind];
+      const sx = (idx & 7) * 16, sy = (idx >> 3) * 16;
+      const c0 = pal.c0 || pal.D || '#0f172a';
+      const c1 = pal.c1 || pal.G || pal.W || pal.M;
+      const c2 = pal.c2 || pal.M;
+      const c3 = pal.c3 || pal.H || pal.M;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const ch = grid[y][x];
+        if (ch === '.') continue;
+        let col;
+        if (ch === 's') col = pal.s || '#684e23';
+        else if (ch === 'S') col = pal.S || '#8b6932';
+        else if (ch === 'w') col = pal.w || '#4a3518';
+        else col = ch === '0' ? c0 : (ch === '1' ? c1 : (ch === '3' ? c3 : c2));
+        ctx.fillStyle = col;
+        ctx.fillRect(sx + x, sy + y, 1, 1);
+      }
+    };
     const STD_ARROW_SPRITE = ['................','............HHH.','...........DHHMD','...........DHMMD','..........DWD.D.','.........DWD....','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','..FFD...........','.FFFD...........','.FFF............','..F.............','................'];
     const ARMOR_SPRITE = ['................','...DDD....DDD...','..DHHMD..DHHMD..','.DHHHHMDDHHHHMD.','.DHMMMMMMMMMMHD.','.DDDMMMMMMMMDDD.','...DMMMMHHMMMD..','...DMMMMHHMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DMMDDDDMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DDDDDDDDDDD..','................','................'];
     const TALL_GRASS_SPRITE = ['....g......g....','..g.g..g...g..g.','..g.G.gG..gG..g.','.gG.G.gG..gG.gG.','.gG.GG.G.gGG.gG.','.GG.GG.GG.GG.GG.','gGG.GGgGG.GGgGG.','GGg.GGGGGGgGGGG.','GGGGGGGGGGGGGGGg','GGGGGGGGGGGGGGGG','.GGGGGGGGGGGGGG.','.gGGGGdGGGGdGGG.','..GGGdGGGdGGGG..','..dGGddGGdGGGg..','..ddd.dddd.ddd..','...dd..ddd..dd..'];
@@ -1414,11 +1448,19 @@
     const SEAGRASS_SPRITE = ['..g........g....','.gG...g....gG...','.GG..gG....GG.g.','.Gg..GG...gGG.gG','..GG.GG...GG..GG','g.GG.Gg..gGG.gGG','G.GG.GG..GGG.GG.','G.GGgGG.gGGG.GG.','GGGGGGGGGGGGgGG.','.GGGGGGGGGGGGGG.','.gGGGGGGGGGGGG..','..GGGGdGGGGdGG..','..dGGGdGGGdGGG..','..ddd.dddd.ddd..','...dd..ddd..dd..','...d...ddd..d...'];
     const MUSHROOM_GLOW_SPRITE = ['................','................','................','................','....CCCC........','...CHCCCH.......','..CCCCCCCC......','..CHCCCCCHC..cc.','..SSSSSSSS..cHCc','....SSSS....SSSS','.....SS......SS.','.....SS......ss.','.....ss......ss.','....sss......ss.','....sss......ss.','....ddd......dd.'];
 
-    const palWood = { D:'#3b2410', W:'#85532a', M:'#a8753e', H:'#cfa063', G:'#6b4423' };
-    const palStone = { D:'#2d3138', W:'#85532a', M:'#848d96', H:'#c5cdd6', G:'#5c636e' };
-    const palIron = { D:'#39414a', W:'#85532a', M:'#cbd5e1', H:'#ffffff', G:'#94a3b8' };
-    const palDiamond = { D:'#0e4f5c', W:'#85532a', M:'#14c8d8', H:'#a5f8ff', G:'#0d8fa0' };
-    const palFire = { D:'#7c2d12', W:'#431407', M:'#f97316', H:'#fef08a', G:'#ea580c' };
+    const palWood      = { D:'#3b2410', W:'#85532a', M:'#a8753e', H:'#cfa063', G:'#6b4423' };
+    const palStone     = { D:'#2d3138', W:'#85532a', M:'#848d96', H:'#c5cdd6', G:'#5c636e' };
+    const palIron      = { D:'#39414a', W:'#85532a', M:'#cbd5e1', H:'#ffffff', G:'#94a3b8' };
+    const palDiamond   = { D:'#0e4f5c', W:'#85532a', M:'#14c8d8', H:'#b8f8ff', G:'#0d8fa0' };
+    const palFire      = { D:'#611a08', W:'#431407', M:'#f97316', H:'#fde047', G:'#c2410c', s:'#431407', S:'#7c2d12', w:'#290b03' };
+    const palGoldTool  = { D:'#78350f', W:'#85532a', M:'#eab308', H:'#fef08a', G:'#a16207' };
+    const palNeth      = { D:'#1b181d', W:'#6b4423', M:'#4e4650', H:'#827885', G:'#353036', s:'#3e3034', S:'#5c474c', w:'#261d21' };
+    const palIchor     = { D:'#5c243d', W:'#b85b83', M:'#eba0c1', H:'#fce7f3', G:'#b85b83' };
+    const palAether    = { D:'#114a59', W:'#238ba3', M:'#5ecce0', H:'#dcfafe', G:'#238ba3' };
+    const palMoonstone = { D:'#2b2c59', W:'#5a65b0', M:'#9aa8eb', H:'#eef2ff', G:'#5a65b0' };
+    const palNebula    = { D:'#381b52', W:'#7647ad', M:'#b682ed', H:'#f3e8ff', G:'#7647ad' };
+    const palDream     = { D:'#33265c', W:'#7484db', M:'#afc2ff', H:'#f5f3ff', G:'#7484db', s:'#5b4c8a', S:'#8e82bd', w:'#342b57' };
+    const palDragon    = { D:'#4a1010', W:'#e7e5e4', M:'#e8dfd5', H:'#fffdf7', G:'#b8322e', s:'#44271c', S:'#784431', w:'#2b1610' };
 
     tilePixels(0, (x, y, r) => grassTopColor(x, y, r));
     tilePixels(1, (x, y, r) => {
@@ -1646,13 +1688,13 @@
     });
     tilePixels(36, (x, y) => (Math.abs((15 - x) - y) <= 1 && x >= 3 && x <= 12) ? ((15 - x === y) ? '#b07b42' : '#5e3918') : null);
 
-    drawSpriteMap(37, PICK_SPRITE, palWood); drawSpriteMap(38, PICK_SPRITE, palStone);
-    drawSpriteMap(39, PICK_SPRITE, palIron); drawSpriteMap(40, PICK_SPRITE, palDiamond);
-    drawSpriteMap(41, SWORD_SPRITE, palWood); drawSpriteMap(42, SWORD_SPRITE, palStone);
-    drawSpriteMap(43, SWORD_SPRITE, palIron); drawSpriteMap(44, SWORD_SPRITE, palDiamond);
-    drawSpriteMap(45, AXE_SPRITE, palWood); drawSpriteMap(46, AXE_SPRITE, palStone);
-    drawSpriteMap(47, AXE_SPRITE, palIron); drawSpriteMap(48, AXE_SPRITE, palDiamond);
-    drawSpriteMap(49, SHOVEL_SPRITE, palStone);
+    drawCanonicalTool(37, 'pick', palWood);   drawCanonicalTool(38, 'pick', palStone);
+    drawCanonicalTool(39, 'pick', palIron);   drawCanonicalTool(40, 'pick', palDiamond);
+    drawCanonicalTool(41, 'sword', palWood);  drawCanonicalTool(42, 'sword', palStone);
+    drawCanonicalTool(43, 'sword', palIron);  drawCanonicalTool(44, 'sword', palDiamond);
+    drawCanonicalTool(45, 'axe', palWood);    drawCanonicalTool(46, 'axe', palStone);
+    drawCanonicalTool(47, 'axe', palIron);    drawCanonicalTool(48, 'axe', palDiamond);
+    drawCanonicalTool(49, 'shovel', palStone);
     tilePixels(50, (x, y, r) => {
       if (x === 8 && y >= 2 && y <= 4) return '#6b4423';
       if (x === 9 && y === 3) return '#4ade80';
@@ -1702,7 +1744,7 @@
     { const _sb0 = getBowStageSprite(B.BOW, 0); drawSpriteMap(64, _sb0.rows, _sb0.pal); }
     drawSpriteMap(65, STD_ARROW_SPRITE, { D:'#422610', H:'#cbd5e1', M:'#64748b', W:'#965b26', F:'#e2e8f0' });
     drawSpriteMap(66, ARMOR_SPRITE, palIron); drawSpriteMap(67, ARMOR_SPRITE, palDiamond);
-    drawSpriteMap(68, SWORD_SPRITE, palFire);
+    drawCanonicalTool(68, 'sword', palFire);
     drawSpriteMap(69, MUSHROOM_GLOW_SPRITE, { C:'#2dd4bf', H:'#ccfbf1', c:'#14b8a6', S:'#e2e8f0', s:'#94a3b8', d:'#475569' });
     tilePixels(70, (x, y, r) => {
       const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy);
@@ -1897,8 +1939,8 @@
       if (Math.hypot(x - 7.5, y - 10) < 4.5) return shade(y < 9 ? '#bae6fd' : '#06b6d4', (r - 0.5) * 14);
       return null;
     });
-    drawSpriteMap(130, SHOVEL_SPRITE, palIron);
-    drawSpriteMap(131, SHOVEL_SPRITE, palDiamond);
+    drawCanonicalTool(130, 'shovel', palIron);
+    drawCanonicalTool(131, 'shovel', palDiamond);
 
     // v17 Crisp 16x16 Tiles (132-157): Real Minecraft Torch, Shield, 4-Piece Armor, Abandoned Modern City & New Flora!
     tilePixels(132, (x, y, r) => {
@@ -2011,11 +2053,11 @@
     const palGold      = { D:'#78350f', W:'#85532a', M:'#facc15', H:'#fef08a', G:'#ca8a04' };
     const palRuby      = { D:'#6b0924', W:'#85532a', M:'#f43f5e', H:'#fda4af', G:'#be123c' };
     const palNetherite = { D:'#181322', W:'#3b2514', M:'#4c3d5e', H:'#a78bfa', G:'#2d233a' };
-    drawSpriteMap(163, PICK_SPRITE, palCopper);
-    drawSpriteMap(164, PICK_SPRITE, palRuby);
-    drawSpriteMap(165, PICK_SPRITE, palNetherite);
-    drawSpriteMap(166, SWORD_SPRITE, palRuby);
-    drawSpriteMap(167, SWORD_SPRITE, palNetherite);
+    drawCanonicalTool(163, 'pick', palCopper);
+    drawCanonicalTool(164, 'pick', palRuby);
+    drawCanonicalTool(165, 'pick', palNeth);
+    drawCanonicalTool(166, 'sword', palRuby);
+    drawCanonicalTool(167, 'sword', palNeth);
     const drawChest = (idx, pal) => tilePixels(idx, (x, y) => {
       if (y < 2 || y > 13 || x < 2 || x > 13) return null;
       if (y <= 4 && x >= 6 && x <= 9) return null;
@@ -3171,117 +3213,17 @@
       '................'
     ], { d: '#083344', W: '#e0f2fe', C: '#22d3ee', B: '#0e7490', c: '#67e8f9' });
 
-    // Canonical 16x16 Minecraft Tool Silhouettes + 7-Color Dream Water Gradient (exact match to MC_ICONS_BUNDLE!)
-    const CANONICAL_TOOL_MAPS = {
-      pick: [
-        '................',
-        '................',
-        '......00000.....',
-        '.....0231120ss..',
-        '......000011Sw..',
-        '..........s210..',
-        '.........ssw120.',
-        '........sSw.030.',
-        '.......ssw..010.',
-        '......sSw...020.',
-        '.....ssw....020.',
-        '....sSw......0..',
-        '...ssw..........',
-        '..sSw...........',
-        '..ww............',
-        '................'
-      ],
-      sword: [
-        '.............000',
-        '............0330',
-        '...........03230',
-        '..........03230.',
-        '.........03220..',
-        '........03220...',
-        '..00...02320....',
-        '..000.02220.....',
-        '...0102120......',
-        '...011020.......',
-        '....0000........',
-        '...ss0000.......',
-        '..sSw.0000......',
-        '00sw....00......',
-        '000.............',
-        '000.............'
-      ],
-      axe: [
-        '................',
-        '.........00.....',
-        '........0230....',
-        '.......03120....',
-        '......02111ss...',
-        '......022111w...',
-        '.......00s1110..',
-        '........ssw310..',
-        '.......sSw.00...',
-        '......ssw.......',
-        '.....ssw........',
-        '....sSw.........',
-        '...ssw..........',
-        '..sSw...........',
-        '..ww............',
-        '................'
-      ],
-      shovel: [
-        '................',
-        '................',
-        '...........000..',
-        '..........03210.',
-        '.........022120.',
-        '........0221320.',
-        '.........s1220..',
-        '........sSw20...',
-        '.......sSw.0....',
-        '......ssw.......',
-        '.....sSw........',
-        '....ssw.........',
-        '..ssSw..........',
-        '..sSw...........',
-        '...ww...........',
-        '................'
-      ]
-    };
-    const drawCanonicalTool = (idx, kind, palOrDreamSeed) => {
-      const grid = CANONICAL_TOOL_MAPS[kind];
-      const isDream = (typeof palOrDreamSeed === 'number');
-      const sx = (idx & 7) * 16, sy = (idx >> 3) * 16;
-      const p = isDream ? null : palOrDreamSeed;
-      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-        const ch = grid[y][x];
-        if (ch === '.') continue;
-        let col;
-        if (ch === 's') col = isDream ? '#4c1d95' : '#684e23';
-        else if (ch === 'S') col = isDream ? '#94a3b8' : '#8b6932';
-        else if (ch === 'w') col = isDream ? '#1e1b4b' : '#4a3518';
-        else if (isDream) {
-          const [r, g, b] = sampleDreamWaterRGB(x / 16, y / 16, palOrDreamSeed);
-          if (ch === '0') col = `rgb(${Math.round(r * 0.36)},${Math.round(g * 0.36)},${Math.round(b * 0.36)})`;
-          else if (ch === '1') col = `rgb(${Math.round(r * 0.80)},${Math.round(g * 0.80)},${Math.round(b * 0.80)})`;
-          else if (ch === '3') col = ((x + y) & 1) ? '#ffffff' : `rgb(${Math.min(255, Math.round(r * 0.60 + 102))},${Math.min(255, Math.round(g * 0.60 + 102))},${Math.min(255, Math.round(b * 0.60 + 102))})`;
-          else col = `rgb(${r},${g},${b})`;
-        } else {
-          col = ch === '0' ? '#0f172a' : (ch === '1' ? p.c1 : (ch === '3' ? p.c3 : p.c2));
-        }
-        ctx.fillStyle = col;
-        ctx.fillRect(sx + x, sy + y, 1, 1);
-      }
-    };
     const _mkHelm  = (idx, c1, c2, c3) => drawSpriteMap(idx, ARMOR_ICON_MAPS.helmet, { '1': c1, '2': c2, '3': c3, '4': c3, '5': c3 });
     const _mkChest = (idx, c1, c2, c3) => drawSpriteMap(idx, ARMOR_ICON_MAPS.chest,  { '1': c1, '2': c2, '3': c3, '4': c3, '5': c3 });
     const _mkLegs  = (idx, c1, c2, c3) => drawSpriteMap(idx, ARMOR_ICON_MAPS.legs,   { '1': c1, '2': c2, '3': c3, '4': c3, '5': c3 });
     const _mkBoots = (idx, c1, c2, c3) => drawSpriteMap(idx, ARMOR_ICON_MAPS.boots,  { '1': c1, '2': c2, '3': c3, '4': c3, '5': c3 });
 
-    drawCanonicalTool(310, 'pick',  1.2); // Ichor Dream Water Pick
-    drawCanonicalTool(311, 'sword', 1.2); // Ichor Dream Water Sword
-    drawCanonicalTool(312, 'axe',   1.2); // Ichor Dream Water Axe
-    drawCanonicalTool(313, 'pick',  3.8); // Aetherium Dream Water Pick
-    drawCanonicalTool(314, 'sword', 3.8); // Aetherium Dream Water Sword
-    drawCanonicalTool(315, 'axe',   3.8); // Aetherium Dream Water Axe
+    drawCanonicalTool(310, 'pick',  palIchor);
+    drawCanonicalTool(311, 'sword', palIchor);
+    drawCanonicalTool(312, 'axe',   palIchor);
+    drawCanonicalTool(313, 'pick',  palAether);
+    drawCanonicalTool(314, 'sword', palAether);
+    drawCanonicalTool(315, 'axe',   palAether);
     _mkHelm(316,  '#9d174d', '#f472b6', '#67e8f9');
     _mkChest(317, '#9d174d', '#f472b6', '#67e8f9');
     _mkLegs(318,  '#9d174d', '#f472b6', '#67e8f9');
@@ -3395,19 +3337,19 @@
       if (x >= 5 && x <= 7 && y >= 4 && y <= 6) return '#ffffff';
       return `rgb(${r},${g},${b})`;
     });
-    // Canonical 16x16 Dream Water Tools for Moonstone (334-337), Nebula (338-341), Dream Prism (342-345)
-    drawCanonicalTool(334, 'pick',   0.0);
-    drawCanonicalTool(335, 'sword',  0.0);
-    drawCanonicalTool(336, 'axe',    0.0);
-    drawCanonicalTool(337, 'shovel', 0.0);
-    drawCanonicalTool(338, 'pick',   2.5);
-    drawCanonicalTool(339, 'sword',  2.5);
-    drawCanonicalTool(340, 'axe',    2.5);
-    drawCanonicalTool(341, 'shovel', 2.5);
-    drawCanonicalTool(342, 'pick',   5.1);
-    drawCanonicalTool(343, 'sword',  5.1);
-    drawCanonicalTool(344, 'axe',    5.1);
-    drawCanonicalTool(345, 'shovel', 5.1);
+    // Canonical 16x16 Tools for Moonstone (334-337), Nebula (338-341), Dream Prism (342-345)
+    drawCanonicalTool(334, 'pick',   palMoonstone);
+    drawCanonicalTool(335, 'sword',  palMoonstone);
+    drawCanonicalTool(336, 'axe',    palMoonstone);
+    drawCanonicalTool(337, 'shovel', palMoonstone);
+    drawCanonicalTool(338, 'pick',   palNebula);
+    drawCanonicalTool(339, 'sword',  palNebula);
+    drawCanonicalTool(340, 'axe',    palNebula);
+    drawCanonicalTool(341, 'shovel', palNebula);
+    drawCanonicalTool(342, 'pick',   palDream);
+    drawCanonicalTool(343, 'sword',  palDream);
+    drawCanonicalTool(344, 'axe',    palDream);
+    drawCanonicalTool(345, 'shovel', palDream);
     // v70 New Upgraded Ore Chest Tiles (346..353): Copper (riveted plate like ref photo), Emerald, Ruby & 7-Color Dream Water!
     drawChestTiles(346, 347, '#9a4522', '#d97745', '#fbd38d');
     tilePixels(346, (x, y, r) => {
@@ -3523,9 +3465,8 @@
       return smithingSideBase(x, y, r);
     });
     // Netherite Axe (362) & Shovel (363)
-    const palNeth = { D: '#1b181d', W: '#6b4423', M: '#453e46', H: '#746c76', G: '#2c282e' };
-    drawSpriteMap(362, AXE_SPRITE, palNeth);
-    drawSpriteMap(363, SHOVEL_SPRITE, palNeth);
+    drawCanonicalTool(362, 'axe',    palNeth);
+    drawCanonicalTool(363, 'shovel', palNeth);
     // Smithing Templates (364..370, 372..383): Upgrade Tablet + All 18 Armor Trims (tilted stone tablets + bright cyan runes!)
     // 364: Netherite Upgrade (upright dark red Netherrack tablet w/ glowing cyan UP ARROW, matching netherrite.jpg & manhren.png)
     tilePixels(364, (x, y, r) => {
@@ -4209,25 +4150,17 @@
       '................',
       '................'
     ], palArmorDrg);
-    const palDragon = { D:'#450a0a', W:'#e7e5e4', M:'#dc2626', H:'#fde047', G:'#f59e0b' };
-    drawSpriteMap(500, SWORD_SPRITE, palDragon);
-    drawSpriteMap(501, AXE_SPRITE,   palDragon);
-    drawSpriteMap(502, PICK_SPRITE,  palDragon);
+    drawCanonicalTool(500, 'sword', palDragon);
+    drawCanonicalTool(501, 'axe',   palDragon);
+    drawCanonicalTool(502, 'pick',  palDragon);
     { const _db0 = getBowStageSprite(B.DRAGON_BONE_BOW, 0); drawSpriteMap(503, _db0.rows, _db0.pal); }
     // 504..509: Canonical 16x16 Minecraft Farming Hoes (Wood, Stone, Iron, Gold, Diamond, Netherite)
-    const HOE_SPRITE = [
-      '................','......DDDDDD....','.....DHHHHHHD...','.....DMMMMMMHD..',
-      '......DDDDDMHD..','..........DMMD..','.........DWD.D..','........DWD.....',
-      '.......DWD......','......DWD.......','.....DWD........','....DWD.........',
-      '...DWD..........','..DWD...........','.DD.............','................'
-    ];
-    const palGoldTool = { D: '#78350f', W: '#85532a', M: '#eab308', H: '#fef08a', G: '#a16207' };
-    drawSpriteMap(504, HOE_SPRITE, palWood);
-    drawSpriteMap(505, HOE_SPRITE, palStone);
-    drawSpriteMap(506, HOE_SPRITE, palIron);
-    drawSpriteMap(507, HOE_SPRITE, palGoldTool);
-    drawSpriteMap(508, HOE_SPRITE, palDiamond);
-    drawSpriteMap(509, HOE_SPRITE, palNeth);
+    drawCanonicalTool(504, 'hoe', palWood);
+    drawCanonicalTool(505, 'hoe', palStone);
+    drawCanonicalTool(506, 'hoe', palIron);
+    drawCanonicalTool(507, 'hoe', palGoldTool);
+    drawCanonicalTool(508, 'hoe', palDiamond);
+    drawCanonicalTool(509, 'hoe', palNeth);
 
     // 510: End Gateway Cosmos Vortex
     tilePixels(510, (x, y, n) => {
@@ -4481,15 +4414,15 @@
       if (d < 2.2) return '#ecfeff';
       return ((x + y) & 1) ? '#22d3ee' : '#0e7490';
     });
-    // 561..572: 3 Warden Tool + Bow Sets
-    const palW1 = { D: '#041c24', W: '#0f2d3a', M: '#0e7490', H: '#67e8f9', G: '#14b8a6' };
-    const palW2 = { D: '#082f49', W: '#155e75', M: '#22d3ee', H: '#ecfeff', G: '#06b6d4' };
-    const palW3 = { D: '#0f0c29', W: '#312e81', M: '#38bdf8', H: '#f5d0fe', G: '#c084fc' };
-    drawSpriteMap(561, SWORD_SPRITE, palW1); drawSpriteMap(562, PICK_SPRITE, palW1); drawSpriteMap(563, AXE_SPRITE, palW1);
+    // 561..572: 3 Warden Tool + Bow Sets (Canonical Minecraft silhouettes, deep sculk/soul palettes)
+    const palW1 = { D: '#062029', W: '#0e5c6b', M: '#1e8ea1', H: '#7ee0ed', G: '#0e5c6b', s: '#133642', S: '#245869', w: '#0a1f26' };
+    const palW2 = { D: '#083047', W: '#155e75', M: '#3bc0d6', H: '#cef8ff', G: '#137999', s: '#16465e', S: '#296d8a', w: '#0b2533' };
+    const palW3 = { D: '#151238', W: '#3c4ea3', M: '#64adf0', H: '#ebe0ff', G: '#3c4ea3', s: '#241f57', S: '#453c8c', w: '#131033' };
+    drawCanonicalTool(561, 'sword', palW1); drawCanonicalTool(562, 'pick', palW1); drawCanonicalTool(563, 'axe', palW1);
     { const b1 = getBowStageSprite(B.SCULK_ECHO_BOW, 0); drawSpriteMap(564, b1.rows, b1.pal); }
-    drawSpriteMap(565, SWORD_SPRITE, palW2); drawSpriteMap(566, PICK_SPRITE, palW2); drawSpriteMap(567, AXE_SPRITE, palW2);
+    drawCanonicalTool(565, 'sword', palW2); drawCanonicalTool(566, 'pick', palW2); drawCanonicalTool(567, 'axe', palW2);
     { const b2 = getBowStageSprite(B.DEEP_SONIC_BOW, 0); drawSpriteMap(568, b2.rows, b2.pal); }
-    drawSpriteMap(569, SWORD_SPRITE, palW3); drawSpriteMap(570, PICK_SPRITE, palW3); drawSpriteMap(571, AXE_SPRITE, palW3);
+    drawCanonicalTool(569, 'sword', palW3); drawCanonicalTool(570, 'pick', palW3); drawCanonicalTool(571, 'axe', palW3);
     { const b3 = getBowStageSprite(B.SOUL_HARBINGER_BOW, 0); drawSpriteMap(572, b3.rows, b3.pal); }
     // 573..576: Warden Armor Atlas Icons
     drawSpriteMap(573, ARMOR_SPRITE, palW2);

@@ -2096,10 +2096,34 @@
     return null;
   }
 
+  function _isSpecialGlintItem(blockId) {
+    const def = BLOCK_DEF[blockId];
+    if (def && def.rainbow) return true;
+    return blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE ||
+      blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD ||
+      blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW ||
+      blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE ||
+      blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK ||
+      blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW;
+  }
+  function _apply2DEnchantSheen(c2d, W, H, isEnch, isSpecial) {
+    if (!isEnch && !isSpecial) return;
+    c2d.save();
+    c2d.globalCompositeOperation = 'source-atop';
+    const gr = c2d.createLinearGradient(0, 0, W, H);
+    const a = isEnch ? 0.22 : 0.14;
+    gr.addColorStop(0.0, `rgba(196, 172, 255, ${(a * 0.55).toFixed(2)})`);
+    gr.addColorStop(0.45, `rgba(255, 250, 255, ${a.toFixed(2)})`);
+    gr.addColorStop(1.0, `rgba(168, 210, 255, ${(a * 0.6).toFixed(2)})`);
+    c2d.fillStyle = gr;
+    c2d.fillRect(0, 0, W, H);
+    c2d.restore();
+  }
   function drawBlockPreview(c2d, blockId, meta = null) {
     const W = c2d.canvas.width, H = c2d.canvas.height;
     const def = BLOCK_DEF[blockId];
-    if (c2d.canvas && c2d.canvas.classList) c2d.canvas.classList.toggle('dream-rainbow-icon', !!(def && def.rainbow));
+    const isEnch = !!(meta && meta.ench);
+    if (c2d.canvas && c2d.canvas.classList) c2d.canvas.classList.toggle('dream-rainbow-icon', !!(def && def.rainbow) || isEnch);
     if (!def) { c2d.clearRect(0, 0, W, H); return; }
     const isPlainStatic = (!meta || (!meta.ench && !meta.trim)) && _mcPendingImgs === 0;
     if (isPlainStatic) {
@@ -2116,6 +2140,12 @@
     _drawBlockPreviewUncached(c2d, blockId, meta);
   }
   function _drawBlockPreviewUncached(c2d, blockId, meta = null) {
+    _drawBlockPreviewBody(c2d, blockId, meta);
+    const isEnch = !!(meta && meta.ench);
+    const isSpecial = _isSpecialGlintItem(blockId);
+    if (isEnch || isSpecial) _apply2DEnchantSheen(c2d, c2d.canvas.width, c2d.canvas.height, isEnch, isSpecial);
+  }
+  function _drawBlockPreviewBody(c2d, blockId, meta = null) {
     const W = c2d.canvas.width, H = c2d.canvas.height;
     c2d.clearRect(0, 0, W, H);
     const def = BLOCK_DEF[blockId];
@@ -2147,10 +2177,6 @@
           c2d.fillRect(Math.floor(pad + x * pw), Math.floor(pad + y * ph), Math.ceil(pw), Math.ceil(ph));
         }
       }
-      if (meta && meta.ench) {
-        c2d.fillStyle = '#d8b4fe';
-        c2d.fillRect(Math.round(W * 0.72), Math.round(H * 0.14), Math.max(2, Math.round(W * 0.11)), Math.max(2, Math.round(H * 0.11)));
-      }
       return;
     }
     if (blockId === B.END_ROD) {
@@ -2180,10 +2206,6 @@
       if (aCv) {
         const pad = Math.max(0, Math.round(W * 0.04));
         c2d.drawImage(aCv, 0, 0, aCv.width, aCv.height, pad, pad, W - pad * 2, H - pad * 2);
-        if (meta && meta.ench) {
-          c2d.fillStyle = '#d8b4fe';
-          c2d.fillRect(Math.round(W * 0.72), Math.round(H * 0.14), Math.max(2, Math.round(W * 0.11)), Math.max(2, Math.round(H * 0.11)));
-        }
         return;
       }
     }

@@ -925,11 +925,11 @@
       grip.add(clone);
       rig.handHold.add(grip);
     } else if (def.tool === 'bow') {
-      // Authentic Minecraft 3rd-person Bow Grip: hand holds center wood grip, curved arc forward (+Z), string facing player (-Z)!
+      // Authentic Minecraft 3rd-person Bow Grip: hand holds center grip, curved stave forward (+Z), string facing player (-Z)!
       const grip = new THREE.Group();
       grip.rotation.order = 'YXZ';
       grip.position.set(0.0, -0.01, 0.09);
-      grip.rotation.set(0.0, -Math.PI * 0.5, -Math.PI * 0.25 + 0.12);
+      grip.rotation.set(0.0, Math.PI * 0.5, Math.PI * 0.25 + 0.14);
       clone.scale.setScalar(1.22);
       clone.position.set(0.03, 0.03, 0.0);
       grip.add(clone);
@@ -1509,7 +1509,7 @@
         }
       }
     } else if ((st.swingActive || swing > 0.01 || rig.actionBlend > 0.02) && hasR6) {
-      const actType = st.actionType || rig.lastActionType || (isSword ? 'attack' : (toolKind === 'axe' ? 'chop' : 'mine'));
+      const actType = st.actionType || rig.lastActionType || (isSword ? 'attack' : 'mine');
       if (st.swingActive) rig._lastSwingU = Math.max(0, Math.min(1, st.swingU || 0));
       else if (rig.actionBlend <= 0.05) rig._lastSwingU = 0;
       const u = (rig._lastSwingU !== undefined) ? rig._lastSwingU : 0;
@@ -1526,9 +1526,7 @@
       const arc = (u < 0.34 ? smoothstep01(u / 0.34) : (u < 0.54 ? 1.0 - (u - 0.34) * 0.45 : Math.max(0, 1.0 - smoothstep01((u - 0.54) / 0.46)) * 0.91)) * rig.actionBlend;
       const altSign = ((st.comboStep || 0) & 1) ? -1 : 1;
       if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
-        if (actType === 'chop') {
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.58, -arc * 0.44 * altSign, -arc * 0.34 * altSign);
-        } else if (actType === 'attack') {
+        if (actType === 'attack') {
           mulJointEuler(_r6TargetBuf.armR, -arc * 1.42, arc * 0.48 * altSign, arc * 0.26 * altSign);
         } else {
           mulJointEuler(_r6TargetBuf.armR, -arc * 1.68, -arc * 0.16, arc * 0.10);
@@ -3703,7 +3701,7 @@
     player.bowStage = 1;
     player._bowAimPos = (screenX !== null && screenY !== null) ? { x: screenX, y: screenY } : null;
     player._lastFpBowStage = 1;
-    if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: 1 });
+    if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: 1, ench: !!(slot && slot.ench) });
     return true;
   }
 
@@ -3737,7 +3735,7 @@
     }
     if ((player._lastFpBowStage || 0) !== nextSt) {
       player._lastFpBowStage = nextSt;
-      if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: nextSt });
+      if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot.id, { bowStage: nextSt, ench: !!(slot && slot.ench) });
     }
   }
 
@@ -4554,9 +4552,8 @@
     }
     mining.swinging = true;
     mining.heldDur = (mining.heldDur || 0) + dt;
-    const _mineAct = (selDef && selDef.tool === 'axe') ? 'chop' : 'mine';
-    if (player.swingT <= 0.001 && (!mining._didInitialSwing || mining.heldDur >= 0.36)) {
-      startHandSwing(0.32, _mineAct);
+    if (player.swingT <= 0.001) {
+      startHandSwing(0.30, 'mine');
       if (selDef && (selDef.tool === 'pick' || selDef.tool === 'axe' || selDef.tool === 'shovel' || selDef.tool === 'hoe')) {
         spawnSwordSlashArc(((player.swingStep || 0) % 2) + 1, selDef, true, false);
       }
@@ -5680,7 +5677,7 @@
         playerAvatar.g.rotation.y = player.yaw + Math.PI;
       }
       const rightIn = canCtrl ? ((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + touchState.joyX) : 0;
-      const _actType = isMiningSwing ? ((heldToolKind === 'axe') ? 'chop' : 'mine') : ((heldToolKind === 'sword' || !heldDef) ? 'attack' : (heldToolKind === 'axe' ? 'chop' : 'mine'));
+      const _actType = isMiningSwing ? 'mine' : ((heldToolKind === 'sword' || !heldDef) ? 'attack' : 'mine');
       animatePlayerRig(playerAvatar, {
         speed: player.ridingDragon ? 0 : player.curSpeed, sprinting: !player.ridingDragon && sprinting, sneaking: player.sneaking,
         sitting: !!(player.sitting || player.inBoat),
@@ -5787,12 +5784,8 @@
         kv = ((player.swingStep || 0) & 1)
           ? [[0,0,0,0,0,0,0],[0.10,0.06,0.14,0.05,0.28,-0.22,-0.22],[0.30,-0.36,-0.20,-0.32,-1.56,0.50,0.50],[0.52,-0.24,-0.14,-0.20,-1.18,0.38,0.36],[1,0,0,0,0,0,0]]
           : _AS_SWORD_KEYS[0];
-      } else if (heldToolKind === 'pick') {
+      } else if (heldToolKind === 'pick' || heldToolKind === 'axe') {
         kv = [[0,0,0,0,0,0,0],[0.10,0.02,0.16,0.06,0.36,0.10,-0.14],[0.30,-0.26,-0.22,-0.34,-1.54,0.32,0.22],[0.54,-0.18,-0.12,-0.22,-1.12,0.22,0.14],[1,0,0,0,0,0,0]];
-      } else if (heldToolKind === 'axe') {
-        kv = ((player.swingStep || 0) & 1)
-          ? [[0,0,0,0,0,0,0],[0.09,0.05,0.12,0.04,0.28,-0.28,-0.24],[0.28,-0.46,-0.20,-0.30,-1.44,0.88,0.72],[0.52,-0.32,-0.14,-0.22,-1.10,0.68,0.54],[1,0,0,0,0,0,0]]
-          : [[0,0,0,0,0,0,0],[0.09,-0.38,-0.14,-0.18,-0.92,0.78,0.58],[0.28,0.14,-0.08,-0.24,-1.04,-0.68,-0.60],[0.52,0.08,-0.08,-0.16,-0.78,-0.50,-0.42],[1,0,0,0,0,0,0]];
       } else if (heldToolKind === 'shovel') {
         kv = [[0,0,0,0,0,0,0],[0.10,-0.02,-0.06,0.06,0.20,-0.10,0.06],[0.32,-0.26,0.08,-0.36,-1.22,0.28,0.22],[0.54,-0.18,0.02,-0.24,-0.88,0.20,0.14],[1,0,0,0,0,0,0]];
       } else if (heldToolKind === 'hoe') {
