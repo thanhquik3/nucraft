@@ -279,6 +279,13 @@
   function isAbandonedCity(wx, wz) {
     return currentDimension === 'overworld' && wx >= 2000 && wx <= 7000 && wz >= 2000 && wz <= 7000;
   }
+  // Monumental 1000x1000 Grand Ancient Ruins & Relocated End Portal Citadel (wx, wz in [-3504..-2497])
+  const GRAND_RUINS_MIN_X = -3504, GRAND_RUINS_MAX_X = -2497;
+  const GRAND_RUINS_MIN_Z = -3504, GRAND_RUINS_MAX_Z = -2497;
+  const GRAND_RUINS_CX = -3000, GRAND_RUINS_CZ = -3000, GRAND_RUINS_PORTAL_Y = 16;
+  function isGrandRuins(wx, wz) {
+    return currentDimension === 'overworld' && wx >= GRAND_RUINS_MIN_X && wx <= GRAND_RUINS_MAX_X && wz >= GRAND_RUINS_MIN_Z && wz <= GRAND_RUINS_MAX_Z;
+  }
   function getSpawnContinentAnchor(seed) {
     const a = Math.imul((seed || 1) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
     const b = Math.imul((seed || 1) ^ 0xc2b2ae35, 0x27d4eb2f) >>> 0;
@@ -364,6 +371,27 @@
     }
     return Math.max(-700, Math.min(-2, floorY));
   }
+  function getNetherCastleAnchor(wx, wz) {
+    if (Math.hypot(wx - 64, wz + 72) < 56) {
+      return { x: 64, z: -72, baseY: 7, hero: true };
+    }
+    const GRID = 256;
+    const gx0 = Math.floor(wx / GRID), gz0 = Math.floor(wz / GRID);
+    for (let dzg = -1; dzg <= 1; dzg++) {
+      for (let dxg = -1; dxg <= 1; dxg++) {
+        const rgx = gx0 + dxg, rgz = gz0 + dzg;
+        if (rgx === 0 && (rgz === 0 || rgz === -1)) continue;
+        if (hash2i(rgx, rgz, worldSeed + 8821) > 0.56) continue;
+        const ax = Math.round((rgx + 0.28 + hash2i(rgx, rgz, worldSeed + 8837) * 0.44) * GRID);
+        const az = Math.round((rgz + 0.28 + hash2i(rgx, rgz, worldSeed + 8861) * 0.44) * GRID);
+        if (Math.abs(wx - ax) <= 44 && Math.abs(wz - az) <= 50) {
+          return { x: ax, z: az, baseY: 7, hero: false };
+        }
+      }
+    }
+    return null;
+  }
+
   function getBiomeAt(wx, wz) {
     if (currentDimension === 'warden') {
       if (Math.hypot(wx, wz) < 38) return BIOMES.WARDEN_CITADEL;
@@ -393,13 +421,18 @@
     }
     if (currentDimension === 'end') return BIOMES.THE_END;
     if (currentDimension === 'nether') {
-      const nB = fbm2D(wx * 0.0038, wz * 0.0038, 2, 0.5, 2.0, worldSeed + 707);
-      if (nB < 0.39) return BIOMES.NETHER_CRIMSON;
-      if (nB > 0.61) return BIOMES.NETHER_WARPED;
+      if (Math.hypot(wx - 64, wz + 72) < 42) return BIOMES.NETHER_BASALT_DELTAS;
+      const nB = fbm2D(wx * 0.0036, wz * 0.0036, 2, 0.5, 2.0, worldSeed + 707);
+      const nB2 = fbm2D(wx * 0.0042 + 19.3, wz * 0.0042 - 14.7, 2, 0.5, 2.0, worldSeed + 733);
+      if (nB < 0.34) return BIOMES.NETHER_CRIMSON;
+      if (nB > 0.66) return BIOMES.NETHER_WARPED;
+      if (nB2 < 0.37) return BIOMES.NETHER_BASALT_DELTAS;
+      if (nB2 > 0.65) return BIOMES.NETHER_SOUL_VALLEY;
       return BIOMES.NETHER_WASTES;
     }
     if (isWheatMegaPlain(wx, wz)) return BIOMES.WHEAT_VALLEY;
     if (isAbandonedCity(wx, wz)) return BIOMES.ABANDONED_CITY;
+    if (isGrandRuins(wx, wz)) return BIOMES.GRAND_RUINS;
     const _oMac = getOceanMacro(wx, wz);
     if (_oMac.isOcean) {
       const _isl = getOceanIslandInfo(wx, wz, _oMac.openness);
@@ -467,6 +500,7 @@
   }
   function getRawBiomeHeight(wx, wz, biome) {
     if (biome === BIOMES.ABANDONED_CITY) return 2;
+    if (biome === BIOMES.GRAND_RUINS) return 14;
     if (isWheatMegaPlain(wx, wz)) {
       const hill = fbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, worldSeed + 881);
       const wave = valueNoise2D(wx * 0.018, wz * 0.018, worldSeed + 883);
@@ -636,11 +670,31 @@
       return isl > 0.57 ? Math.floor(3 + (isl - 0.57) * 30) : -99;
     }
     if (currentDimension === 'nether') {
+      const castle = getNetherCastleAnchor(wx, wz);
+      if (castle) {
+        const dx = wx - castle.x, dz = wz - castle.z;
+        const islandD = Math.hypot(dx / 17.5, dz / 15.5);
+        if (islandD <= 1.05) {
+          const drop = Math.pow(Math.max(0, islandD - 0.58) / 0.47, 1.7) * 5.2;
+          return Math.max(WATER_LEVEL + 1, Math.round(castle.baseY - drop));
+        }
+        if (Math.hypot(dx, dz) < 38) return WATER_LEVEL - 4;
+      }
       const cont = fbm2D(wx * 0.017, wz * 0.017, 2, 0.5, 2.0, worldSeed + 505);
       const det = valueNoise2D(wx * 0.06, wz * 0.06, worldSeed + 606);
       // Continuous meandering Nether lava river channel + sea basins so Nether ALWAYS has flowing lava rivers!
       const riverN = Math.abs(fbm2D(wx * 0.011, wz * 0.011, 2, 0.5, 2.0, worldSeed + 577) - 0.5);
-      let nh = (biome === BIOMES.NETHER_WASTES) ? (-8.5 + cont * 17.5 + det * 2.6) : (-5.0 + cont * 17.0 + det * 2.6);
+      let nh;
+      if (biome === BIOMES.NETHER_BASALT_DELTAS) {
+        nh = -4.5 + cont * 16.5 + Math.round(det * 4.5);
+      } else if (biome === BIOMES.NETHER_SOUL_VALLEY) {
+        nh = -2.5 + cont * 12.5 + det * 2.2;
+      } else if (biome === BIOMES.NETHER_CRIMSON || biome === BIOMES.NETHER_WARPED) {
+        const rawH = -4.2 + cont * 17.2 + det * 2.4;
+        nh = rawH * 0.58 + Math.round(rawH / 3) * 3 * 0.42;
+      } else {
+        nh = -8.5 + cont * 17.5 + det * 2.6;
+      }
       if (riverN < 0.095) {
         const t = 1.0 - riverN / 0.095;
         nh = Math.min(nh, WATER_LEVEL - 1.5 - t * 6.0);
@@ -648,6 +702,7 @@
       return Math.max(MIN_Y + 6, Math.floor(nh));
     }
     if (biome === BIOMES.ABANDONED_CITY) return 2;
+    if (biome === BIOMES.GRAND_RUINS) return 14;
     const bC = biome || getBiomeAt(wx, wz);
     const b1 = getBiomeAt(wx + 8, wz), b2 = getBiomeAt(wx - 8, wz);
     const b3 = getBiomeAt(wx, wz + 8), b4 = getBiomeAt(wx, wz - 8);
@@ -1311,7 +1366,10 @@
               portalNodes.push({ x: lwx, y: lwy, z: lwz, kind: isWardP ? 3 : (id === B.DREAM_PORTAL ? 1 : 0) });
             }
           } else if (secLen < maxEm) {
-            if (id === B.LAVA) {
+            if (id === B.MAGMA_BLOCK) {
+              _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.85; _secEmBuf[secLen+4]=0.34; _secEmBuf[secLen+5]=0.10; _secEmBuf[secLen+6]=121.0; secLen+=7;
+              if (secLightNodes.length < 14) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff6b1a, int: 0.72, r: 0.85, g: 0.34, b: 0.10, rad2: 121.0 });
+            } else if (id === B.LAVA) {
               if ((lx & 3) === 0 && (lz & 3) === 0 && (ly & 1) === 0) {
                 _secEmBuf[secLen]=lx+0.5; _secEmBuf[secLen+1]=ly+0.5; _secEmBuf[secLen+2]=lz+0.5; _secEmBuf[secLen+3]=0.82; _secEmBuf[secLen+4]=0.36; _secEmBuf[secLen+5]=0.12; _secEmBuf[secLen+6]=144.0; secLen+=7;
                 if (secLightNodes.length < 12) secLightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff6b1a, int: 0.72, r: 0.82, g: 0.36, b: 0.12, rad2: 144.0 });
@@ -1651,7 +1709,7 @@
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
     const isFlat = (id === B.SAKURA_PETALS || id === B.LILY_PAD || !!def.flatTrack);
     const flatY = (id === B.LILY_PAD) ? -0.11 : (def.flatTrack ? 0.04 : 0.03);
-    const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.MANGROVE_PROPAGULE);
+    const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.MANGROVE_PROPAGULE || id === B.WEEPING_VINES);
     let stackBelow = 0, stackAbove = 0;
     if (!isFlat) {
       if (isHanging) {

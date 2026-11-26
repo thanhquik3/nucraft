@@ -128,6 +128,7 @@
     uTexelSize: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
     uMoonBoost: { value: 0.0 },
     uUnderwater: { value: 0.0 },
+    uInLava: { value: 0.0 },
     uWaterDepth: { value: 0.0 },
     uDimension: { value: 0.0 },
     uHasGodRays: { value: 0.0 },
@@ -153,14 +154,14 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v69';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v70';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
       uSunColor: envUniforms.uSunColor, uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon,
       uRainWetness: envUniforms.uRainWetness,
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
-      uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
+      uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
       uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
@@ -170,7 +171,7 @@
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNorm = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing;
+        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
         // Authentic BSL / Eclipse Rotated Cellular Underwater Caustics
@@ -296,7 +297,10 @@
         vec3 viewVecF = vWPos - cameraPosition;
         float distF = length(viewVecF);
         vec3 viewDirF = viewVecF / max(distF, 0.0001);
-        if (uUnderwater > 0.5) {
+        if (uInLava > 0.5) {
+          float lvFog = smoothstep(0.30, 3.05, distF);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb * vec3(1.12, 0.56, 0.32), uFogColor, clamp(lvFog, 0.0, 0.995));
+        } else if (uUnderwater > 0.5) {
           float abyssK = clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0);
           float fogDens = mix(0.036, 0.095, abyssK);
           float uwFog = 1.0 - exp(-distF * fogDens);
@@ -328,12 +332,13 @@
     map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v35';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v36';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
       uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
+      uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
       uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
     });
@@ -352,7 +357,7 @@
         }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormL = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;')
+      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;')
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         normal = normalize( vNormal );
         geometryNormal = normal;`)
@@ -391,16 +396,21 @@
         vec3 viewVecL = vWPos - cameraPosition;
         float distL = length(viewVecL);
         vec3 viewDirL = viewVecL / max(distL, 0.0001);
-        float fogL = smoothstep(uFogStart, uFogEnd, distL);
-        vec3 lSun = normalize(uSunDir);
-        vec3 activeSunL = lSun.y > -0.05 ? lSun : -lSun;
-        vec3 activeColL = lSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
-        float lNoonTame = 1.0 - smoothstep(0.45, 0.92, lSun.y) * mix(0.68, 0.42, uEclipseMode);
-        float lScatter = pow(max(dot(viewDirL, activeSunL), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (lSun.y > -0.05 ? smoothstep(-0.1, 0.25, lSun.y) * lNoonTame : 0.35);
-        vec3 lFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, lSun.y));
-        float blLumaL = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-        float lightFogResistL = 1.0 - clamp(blLumaL * 0.72, 0.0, 0.74);
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(lFogBase, min(activeColL * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), lScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogL * lightFogResistL);
+        if (uInLava > 0.5) {
+          float lvFogL = smoothstep(0.30, 3.05, distL);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb * vec3(1.12, 0.56, 0.32), uFogColor, clamp(lvFogL, 0.0, 0.995));
+        } else {
+          float fogL = smoothstep(uFogStart, uFogEnd, distL);
+          vec3 lSun = normalize(uSunDir);
+          vec3 activeSunL = lSun.y > -0.05 ? lSun : -lSun;
+          vec3 activeColL = lSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
+          float lNoonTame = 1.0 - smoothstep(0.45, 0.92, lSun.y) * mix(0.68, 0.42, uEclipseMode);
+          float lScatter = pow(max(dot(viewDirL, activeSunL), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (lSun.y > -0.05 ? smoothstep(-0.1, 0.25, lSun.y) * lNoonTame : 0.35);
+          vec3 lFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, lSun.y));
+          float blLumaL = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
+          float lightFogResistL = 1.0 - clamp(blLumaL * 0.72, 0.0, 0.74);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(lFogBase, min(activeColL * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), lScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogL * lightFogResistL);
+        }
         gl_FragColor.a = 1.0;`);
   };
 
@@ -435,13 +445,13 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v34';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v35';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
       uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
-      uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
+      uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
       uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing
     });
@@ -470,7 +480,7 @@
         }`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPlantTip = clamp(aPlantSway, 0.0, 1.0);\nvSkyShade = aSkyShade;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;')
+      .replace('#include <common>', '#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;')
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // Prevent DoubleSide backfaces from flipping upward (0,1,0) normals downward into black!
         normal = normalize( vNormal );
@@ -518,7 +528,10 @@
         vec3 viewVecP = vWPos - cameraPosition;
         float distP = length(viewVecP);
         vec3 viewDirP = viewVecP / max(distP, 0.0001);
-        if (uUnderwater > 0.5) {
+        if (uInLava > 0.5) {
+          float lvFogP = smoothstep(0.30, 3.05, distP);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb * vec3(1.12, 0.56, 0.32), uFogColor, clamp(lvFogP, 0.0, 0.995));
+        } else if (uUnderwater > 0.5) {
           float abyssKP = clamp(uWaterDepth / 34.0, 0.0, 1.0);
           float uwFogP = 1.0 - exp(-distP * mix(0.044, 0.132, abyssKP));
           vec3 uwColP = mix(uFogColor * vec3(0.18, 0.28, 0.44), uFogColor * vec3(1.16, 1.38, 1.52), smoothstep(-0.62, 0.68, viewDirP.y));
@@ -540,7 +553,7 @@
 
   // Animated Emissive Material (Pulsing Lava, Lanterns, Glowing Cave Mushrooms & 4-Frame Voxel Fire!)
   const emissiveMat = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: atlasTex }, uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength, uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uReflClipY: envUniforms.uReflClipY },
+    uniforms: { uMap: { value: atlasTex }, uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength, uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uReflClipY: envUniforms.uReflClipY, uInLava: envUniforms.uInLava },
     side: THREE.DoubleSide,
     vertexShader: `
       uniform float uTime, uWindStrength;
@@ -575,7 +588,7 @@
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform sampler2D uMap; uniform float uTime, uFogStart, uFogEnd, uReflClipY; uniform vec3 uFogColor;
+      uniform sampler2D uMap; uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava; uniform vec3 uFogColor;
       varying vec2 vUv; varying float vDist, vEType, vFireSeed; varying vec3 vWPos;
       void main() {
         if (vWPos.y < uReflClipY) discard;
@@ -586,7 +599,7 @@
           if (fTex.a < 0.45) discard;
           float flick = 0.94 + 0.08 * sin(uTime * 21.0 + vFireSeed * 3.1) + 0.04 * cos(uTime * 34.0 + vFireSeed);
           vec3 fCol = fTex.rgb * flick + (vEType > 4.5 ? vec3(0.01, 0.07, 0.11) : vec3(0.06, 0.025, 0.005));
-          float fFog = smoothstep(uFogStart * 1.35, uFogEnd * 2.4, vDist) * 0.30;
+          float fFog = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : smoothstep(uFogStart * 1.35, uFogEnd * 2.4, vDist) * 0.30;
           gl_FragColor = vec4(mix(fCol, uFogColor, fFog), 1.0);
           return;
         }
@@ -609,6 +622,7 @@
           col = tex.rgb * pulse;
           fogF = smoothstep(uFogStart * 1.35, uFogEnd * 2.4, vDist) * 0.32;
         }
+        if (uInLava > 0.5) fogF = clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995);
         gl_FragColor = vec4(mix(col, uFogColor, fogF), 1.0);
       }`
   });
@@ -629,7 +643,7 @@
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform sampler2D uMap; uniform float uTime, uFogStart, uFogEnd, uReflClipY; uniform vec3 uFogColor;
+      uniform sampler2D uMap; uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava; uniform vec3 uFogColor;
       varying vec2 vUv; varying float vDist, vKind; varying vec3 vWPos;
       float pHash(vec2 p) {
         return fract(sin(dot(mod(p, 256.0), vec2(127.1, 311.7))) * 43758.5453);
@@ -712,14 +726,14 @@
       uSunDir: envUniforms.uSunDir, uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon, uFogColor: envUniforms.uFogColor,
       uSunColor: envUniforms.uSunColor, uTime: envUniforms.uTime,
       uCloudCover: envUniforms.uCloudCover, uVolumetricClouds: envUniforms.uVolumetricClouds,
-      uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth,
+      uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth,
       uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode
     },
     vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * (modelViewMatrix * vec4(position, 1.0)); }`,
     fragmentShader: `
       precision mediump float;
       uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor, uFogColor;
-      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uWaterDepth, uChillMode, uDlssMode, uEclipseMode;
+      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode;
       varying vec3 vDir;
       float cHash(vec2 p) { return fract(sin(dot(mod(p, 289.0), vec2(127.1, 311.7))) * 43758.5453); }
       float cNoise(vec2 p) {
@@ -773,6 +787,10 @@
       }
       void main() {
         vec3 d = normalize(vDir); float h = clamp(d.y, 0.0, 1.0);
+        if (uInLava > 0.5) {
+          gl_FragColor = vec4(mix(uSkyHorizon, uSkyTop, clamp(d.y * 0.5 + 0.5, 0.0, 1.0)), 1.0);
+          return;
+        }
         // Dimension 4 = WARDEN REALM (Deep Abyssal Sculk Cavern Sky + Cyan Bioluminescence)
         if (uDimension > 3.5) {
           vec3 colW = mix(uSkyHorizon, uSkyTop, pow(abs(d.y), 0.58));
@@ -1027,7 +1045,7 @@
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon, uFogColor: envUniforms.uFogColor,
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
-      uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
+      uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing
     },
@@ -1047,7 +1065,7 @@
         vReflClip = uReflMatrix * vec4(wp.x, 0.86, wp.z, 1.0);
       }`,
     fragmentShader: `
-      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uRayTracing;
+      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uInLava, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uRayTracing;
       uniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor, uPlayerPos;
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
@@ -1276,7 +1294,10 @@
           col = mix(col, ichor + vec3(sparkle * 0.55) + vec3(0.18, 0.22, 0.25) * vShore, 0.90);
           alpha = clamp(alpha + 0.18, 0.78, 0.96);
         }
-        if (uUnderwater > 0.5) {
+        if (uInLava > 0.5) {
+          float lvFogW = clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995);
+          gl_FragColor = vec4(mix(col * vec3(1.10, 0.54, 0.30), uFogColor, lvFogW), alpha);
+        } else if (uUnderwater > 0.5) {
           float uwFogW = (1.0 - exp(-vDist * mix(0.042, 0.125, clamp(uWaterDepth / 34.0, 0.0, 1.0)))) * ((fromBelow && vIsTop > 0.5) ? 0.38 : 1.0);
           gl_FragColor = vec4(mix(col, uFogColor, clamp(uwFogW, 0.0, 0.98)), alpha);
         } else {
@@ -1298,7 +1319,7 @@
     uniforms: {
       uTime: envUniforms.uTime, uFogColor: envUniforms.uFogColor,
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
-      uReflClipY: envUniforms.uReflClipY
+      uReflClipY: envUniforms.uReflClipY, uInLava: envUniforms.uInLava
     },
     vertexShader: `
       attribute float aIsTop;
@@ -1318,7 +1339,7 @@
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform float uTime, uFogStart, uFogEnd, uReflClipY;
+      uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava;
       uniform vec3 uFogColor;
       varying vec3 vWorldPos, vNormal; varying float vDist, vIsTop, vShore;
 
@@ -1393,7 +1414,7 @@
             + vec3(0.96, 0.28, 0.03) * fresnel * 0.30
             + vec3(0.60, 0.16, 0.02) * vShore * (1.0 - smoothstep(0.55, 0.88, heat)) * 0.35;
 
-        float fogF = smoothstep(uFogStart, uFogEnd * 1.12, vDist);
+        float fogF = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : smoothstep(uFogStart, uFogEnd * 1.12, vDist);
         gl_FragColor = vec4(mix(col, uFogColor, fogF), 1.0);
       }`
   });
@@ -1564,7 +1585,7 @@
   const compositeMat = new THREE.ShaderMaterial({
     uniforms: {
       tScene: { value: null }, tBloom: { value: null }, tBloomWide: { value: null }, tGodRays: { value: null },
-      uUnderwater: envUniforms.uUnderwater, uWaterDepth: envUniforms.uWaterDepth, uTime: envUniforms.uTime,
+      uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uTime: envUniforms.uTime,
       uVibrance: envUniforms.uVibrance, uWarmth: envUniforms.uWarmth,
       uExposure: envUniforms.uExposure, uContrast: envUniforms.uContrast,
       uSharpness: envUniforms.uSharpness, uTexelSize: envUniforms.uTexelSize,
@@ -1577,7 +1598,7 @@
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
     fragmentShader: `
       uniform sampler2D tScene, tBloom, tBloomWide, tGodRays;
-      uniform float uUnderwater, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uSunVis, uRayTracing;
+      uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uSunVis, uRayTracing;
       uniform vec2 uTexelSize, uLightScreen;
       varying vec2 vUv;
       // Narkowicz ACES Filmic Tonemap (BSL / Complementary / ShaderLABS standard)
@@ -1630,10 +1651,19 @@
         if (uUnderwater > 0.5) {
           uv.x += sin(uv.y * 14.0 + uTime * 2.4) * mix(0.0018, 0.0024, uEclipseMode);
           uv.y += cos(uv.x * 12.0 + uTime * 2.0) * mix(0.0014, 0.0018, uEclipseMode);
+        } else if (uInLava > 0.5) {
+          uv.x += sin(uv.y * 9.0 + uTime * 1.8) * 0.0022;
+          uv.y += cos(uv.x * 8.0 + uTime * 1.5) * 0.0016;
         }
         vec3 col = texture2D(tScene, uv).rgb;
-        // Crisp Contrast-Adaptive Sharpening (CAS) in DLSS Ultra / Eclipse mode + 4-tap clarity otherwise
-        if (uUnderwater < 0.5 && uSharpness > 0.01) {
+        if (uInLava > 0.5) {
+          vec2 lvTap = uTexelSize * 2.2;
+          col = col * 0.28
+            + texture2D(tScene, clamp(uv + vec2(lvTap.x, lvTap.y), 0.002, 0.998)).rgb * 0.18
+            + texture2D(tScene, clamp(uv + vec2(-lvTap.x, lvTap.y), 0.002, 0.998)).rgb * 0.18
+            + texture2D(tScene, clamp(uv + vec2(lvTap.x, -lvTap.y), 0.002, 0.998)).rgb * 0.18
+            + texture2D(tScene, clamp(uv + vec2(-lvTap.x, -lvTap.y), 0.002, 0.998)).rgb * 0.18;
+        } else if (uUnderwater < 0.5 && uSharpness > 0.01) {
           vec3 nN = texture2D(tScene, uv + vec2(0.0, uTexelSize.y)).rgb;
           vec3 nS = texture2D(tScene, uv - vec2(0.0, uTexelSize.y)).rgb;
           vec3 nE = texture2D(tScene, uv + vec2(uTexelSize.x, 0.0)).rgb;
@@ -1725,6 +1755,9 @@
           float vigAmt = uUnderwater > 0.5 ? mix(0.22, 0.48, clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0)) : mix(0.14, 0.19, uChillMode);
           float vig = 1.0 - dot(vUv - 0.5, vUv - 0.5) * vigAmt;
           col *= vig;
+        }
+        if (uInLava > 0.5) {
+          col = mix(col, vec3(0.62, 0.14, 0.02), 0.20);
         }
         gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
       }`
@@ -3713,7 +3746,7 @@
       uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uSkyTop: envUniforms.uSkyTop, uFogColor: envUniforms.uFogColor,
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
-      uReflClipY: envUniforms.uReflClipY
+      uReflClipY: envUniforms.uReflClipY, uInLava: envUniforms.uInLava
     },
     vertexShader: `
       attribute float aBladeH;
@@ -3799,7 +3832,7 @@
       }`,
     fragmentShader: `
       uniform vec3 uSunDir, uSunColor, uSkyTop, uFogColor;
-      uniform float uTime, uFogStart, uFogEnd, uReflClipY;
+      uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava;
       varying vec3 vCol, vWPos;
       varying float vBladeH, vHeightFade, vSide, vDist, vSkyAo, vGust;
       void main() {
@@ -3825,7 +3858,11 @@
         float fogF = smoothstep(uFogStart, uFogEnd, vDist);
         float sunSc = pow(max(dot(vDir, sDir.y > -0.05 ? sDir : -sDir), 0.0), 4.2) * (sDir.y > -0.05 ? sunUp : 0.35);
         vec3 fogCol = mix(uFogColor * 0.92, min(uSunColor * 1.05, vec3(1.0, 0.91, 0.78)), sunSc * 0.46);
-        gl_FragColor = vec4(mix(litCol, fogCol, fogF), 1.0);
+        if (uInLava > 0.5) {
+          gl_FragColor = vec4(mix(litCol * vec3(1.10, 0.54, 0.30), uFogColor, clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995)), 1.0);
+        } else {
+          gl_FragColor = vec4(mix(litCol, fogCol, fogF), 1.0);
+        }
       }`
   });
   const eclipseGrassMesh = new THREE.Mesh(grassInstGeoNear, eclipseGrassMat);

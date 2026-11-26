@@ -263,6 +263,10 @@
     { cat: 'blocks', out: B.BAMBOO_SHOOT,    qty: 2, req: [{ id: B.BAMBOO, qty: 1 }], grid: [0,0,0, 0,B.BAMBOO,0, 0,0,0] },
     { cat: 'blocks', out: B.RAIL,            qty: 8, req: [{ id: B.IRON_INGOT, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [B.IRON_INGOT,0,B.IRON_INGOT, B.IRON_INGOT,B.STICK,B.IRON_INGOT, B.IRON_INGOT,0,B.IRON_INGOT] },
     { cat: 'blocks', out: B.MOSS_BLOCK,      qty: 4, req: [{ id: B.TALL_GRASS, qty: 2 }, { id: B.DIRT, qty: 2 }], grid: [B.TALL_GRASS,B.TALL_GRASS,0, B.DIRT,B.DIRT,0, 0,0,0] },
+    { cat: 'blocks', out: B.BLACKSTONE_BRICKS, qty: 4, req: [{ id: B.BLACKSTONE, qty: 4 }], grid: [B.BLACKSTONE,B.BLACKSTONE,0, B.BLACKSTONE,B.BLACKSTONE,0, 0,0,0] },
+    { cat: 'blocks', out: B.MOSSY_STONE_BRICK, qty: 1, req: [{ id: B.STONE_BRICK, qty: 1 }, { id: B.VINE, qty: 1 }], grid: [B.STONE_BRICK,B.VINE,0, 0,0,0, 0,0,0] },
+    { cat: 'blocks', out: B.IRON_GRATE,      qty: 4, req: [{ id: B.IRON_INGOT, qty: 4 }], grid: [0,B.IRON_INGOT,0, B.IRON_INGOT,0,B.IRON_INGOT, 0,B.IRON_INGOT,0] },
+    { cat: 'blocks', out: B.MAGMA_BLOCK,     qty: 1, req: [{ id: B.NETHERRACK, qty: 1 }, { id: B.MAGMA_CORE, qty: 1 }], grid: [B.NETHERRACK,B.MAGMA_CORE,0, 0,0,0, 0,0,0] },
     { cat: 'misc',   out: B.GLOW_VINES,      qty: 4, req: [{ id: B.VINE, qty: 2 }, { id: B.MUSHROOM_GLOW, qty: 1 }], grid: [0,B.VINE,0, 0,B.MUSHROOM_GLOW,0, 0,B.VINE,0] },
     { cat: 'tools',  is2x2: true, out: B.FLINT_AND_STEEL, qty: 1, req: [{ id: B.IRON_INGOT, qty: 1 }, { id: B.FLINT, qty: 1 }], grid: [B.IRON_INGOT,0,0, 0,B.FLINT,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.BLAZE_POWDER,    qty: 2, req: [{ id: B.BLAZE_ROD, qty: 1 }], grid: [B.BLAZE_ROD,0,0, 0,0,0, 0,0,0] },
@@ -474,7 +478,10 @@
     WARDEN_FOREST:    { id: 66, name: 'Rừng Linh Hồn Sculk' },
     WARDEN_CITADEL:   { id: 67, name: 'Thung Lũng Pháo Đài Cổ' },
     GREEN_PLAINS:     { id: 68, name: 'Đồng Bằng Cỏ Xanh' },
-    SNOWY_PLAINS:     { id: 69, name: 'Đồng Bằng Tuyết' }
+    SNOWY_PLAINS:         { id: 69, name: 'Đồng Bằng Tuyết' },
+    NETHER_BASALT_DELTAS: { id: 70, name: 'Địa Ngục • Đồng Bằng Đá Bazan' },
+    NETHER_SOUL_VALLEY:   { id: 71, name: 'Địa Ngục • Thung Lũng Cát Linh Hồn' },
+    GRAND_RUINS:          { id: 72, name: 'Khu Tàn Tích Cổ Đại 1000×1000' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -4653,6 +4660,59 @@
         });
       }
     }
+
+    // v143 Magma Block, Blackstone, Polished Blackstone Bricks, Mossy Stone Bricks, Weeping/Twisting Vines & Iron Grate
+    tilePixels(V143_TILES.magmaBlock, (x, y, r) => {
+      const n1 = Math.sin(x * 0.92 + Math.cos(y * 0.85) * 1.6);
+      const n2 = Math.cos(y * 1.05 - Math.sin(x * 0.78) * 1.5);
+      const vein = Math.abs(n1 + n2);
+      if (vein < 0.30) return r > 0.48 ? '#fde047' : '#fb923c';
+      if (vein < 0.62) return (x + y) & 1 ? '#ea580c' : '#c2410c';
+      if (vein < 0.92) return '#7f1d1d';
+      return shade(((x * 3 + y * 5) & 3) === 0 ? '#441a14' : '#2a1210', (r - 0.5) * 10);
+    });
+    tilePixels(V143_TILES.blackstone, (x, y, r) => {
+      const band = ((x * 5 + y * 3) & 7);
+      if (band === 0) return '#151218';
+      if (band === 4 && (y & 1) === 0) return '#3b3544';
+      return shade(r > 0.6 ? '#2d2834' : '#221e28', (r - 0.5) * 10);
+    });
+    tilePixels(V143_TILES.blackstoneBricks, (x, y, r) => {
+      const seamY = (y === 0 || y === 7 || y === 8 || y === 15);
+      const seamX = (y < 8) ? (x === 0 || x === 8) : (x === 4 || x === 12);
+      if (seamY || seamX) return '#120f16';
+      if (y === 1 || y === 9) return shade('#433d4d', (r - 0.5) * 6);
+      return shade(r > 0.68 ? '#312c39' : '#26212c', (r - 0.5) * 8);
+    });
+    tilePixels(V143_TILES.mossyStoneBrick, (x, y, r) => {
+      const seamY = (y === 0 || y === 7 || y === 8 || y === 15);
+      const seamX = (y < 8) ? (x === 0 || x === 8) : (x === 4 || x === 12);
+      const mHash = Math.sin(x * 1.7 + y * 2.3) * 0.5 + Math.cos((x - y) * 1.3) * 0.5;
+      const isMoss = (seamY && mHash > -0.15) || (seamX && mHash > -0.10) || (mHash > 0.42 && r > 0.25);
+      if (isMoss) return shade(mHash > 0.55 ? '#6ea63f' : (r > 0.4 ? '#4d822c' : '#386321'), (r - 0.5) * 10);
+      if (seamY || seamX) return '#4b4e52';
+      if (y === 1 || y === 9) return shade('#8b8f94', (r - 0.5) * 6);
+      return shade(r > 0.6 ? '#767a7e' : '#65686c', (r - 0.5) * 8);
+    });
+    tilePixels(V143_TILES.weepingVines, (x, y, r) => {
+      const stem = (x === 7 || x === 8) && y < 14;
+      const leaf = (y % 3 === 1 && Math.abs(x - 7.5) <= (3.8 - y * 0.16)) || ((x === 5 || x === 10) && y >= 2 && y <= 10 && r > 0.35);
+      if (!stem && !leaf) return null;
+      return shade(stem ? '#881337' : (r > 0.55 ? '#ef4444' : '#be123c'), (r - 0.5) * 10);
+    });
+    tilePixels(V143_TILES.twistingVines, (x, y, r) => {
+      const wave = 7.5 + Math.sin(y * 0.7) * 1.4;
+      const stem = Math.abs(x - wave) <= 1.15 && y >= 2;
+      const sprout = (y % 4 === 2 && Math.abs(x - wave) <= 2.6) || (y <= 3 && Math.abs(x - 7.5) <= 2.0 && r > 0.45);
+      if (!stem && !sprout) return null;
+      return shade(y < 4 ? '#5eead4' : (stem ? '#0f766e' : '#14b8a6'), (r - 0.5) * 10);
+    });
+    tilePixels(V143_TILES.ironGrate, (x, y, r) => {
+      const rim = (x <= 1 || x >= 14 || y <= 1 || y >= 14);
+      const bar = (x === 7 || x === 8 || y === 7 || y === 8);
+      if (!rim && !bar) return null;
+      return shade((x + y) & 1 ? '#525b66' : '#363d47', (r - 0.5) * 8);
+    });
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
     const bumpCanvas = document.createElement('canvas');

@@ -95,6 +95,7 @@
     };
     if (targetKey === 'dim_overworld') { _wrapDimLoad('Đang tải thế giới', 'Đang dựng lại khu vực Thế Giới Chính...', 'OVERWORLD', () => switchDimension('overworld')); return; }
     if (targetKey === 'dim_nether') { _wrapDimLoad('Đang tải Địa Ngục', 'Đang kiến tạo dung nham & thành trì The Nether...', 'THE NETHER', () => switchDimension('nether')); return; }
+    if (targetKey === 'nether_castle') { _wrapDimLoad('Đang tải Lâu Đài Địa Ngục', 'Đang dựng Lâu Đài Gothic Địa Ngục & cầu đá đen trên biển dung nham...', 'NETHER CASTLE', () => switchDimension('nether', '🏰 Đã tới Lâu Đài Địa Ngục! Khám phá tòa thành tháp ngọc lam giữa biển dung nham!', { castleHero: true })); return; }
     if (targetKey === 'dim_end') { _wrapDimLoad('Đang tải Khu Kết Thúc', 'Đang dựng đảo Ender & Đấu Trường Rồng...', 'THE END', () => switchDimension('end')); return; }
     if (targetKey === 'dim_warden') { _wrapDimLoad('Đang tải Thế Giới Warden', 'Đang dựng Cổ Thành Sculk, Rừng Linh Hồn & Quặng Tier 6...', 'WARDEN REALM', () => switchDimension('warden')); return; }
     if (targetKey === 'dim_sift') { _wrapDimLoad('Đang tải The Sift', 'Đang dệt vùng đất Giấc Mơ & ao Ichor cầu vồng...', 'THE SIFT', () => switchDimension('sift')); return; }
@@ -192,6 +193,29 @@
     }
     _wrapDimLoad('Đang tải khu vực mới', 'Đang kiến tạo địa hình & dựng khối 3D...', 'OVERWORLD', () => {
     if (currentDimension !== 'overworld' || depthOffset !== 0) switchDimension('overworld');
+    if (targetKey === 'grand_ruins') {
+      const ccx = GRAND_RUINS_CX >> 4, ccz = GRAND_RUINS_CZ >> 4;
+      for (const ch of chunks.values()) disposeChunkMeshes(ch);
+      chunks.clear(); _invChunkCache(); emergeQueue.length = 0; emergeSet.clear(); _chunkUnloadQueue.length = 0; _chunkUnloadSet.clear();
+      _dirtyChunkSet.clear(); _urgentChunkSet.clear(); _borderChunkSet.clear(); endCrystalVisuals.clear();
+      for (let i = mobs.length - 1; i >= 0; i--) disposeMobInstance(mobs[i]);
+      mobs.length = 0;
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) generateChunk(ccx + dx, ccz + dz);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const chR = chunks.get(chunkKey(ccx + dx, ccz + dz));
+        if (chR && chR.dirty) rebuildChunkMesh(chR);
+      }
+      _teleportWarmupFrames = 24;
+      player.x = GRAND_RUINS_CX + 0.5; player.y = 15.2; player.z = GRAND_RUINS_CZ + 8.5;
+      player.yaw = 0.0; player.pitch = 0.08;
+      player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = 15.2;
+      lastPlayerCx = 99999; lastPlayerCz = 99999;
+      if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+      dayTime = 0.30;
+      if (!isWorldLoading) startPlaying();
+      showToast('🏛️ Chào mừng tới Khu Tàn Tích Cổ Đại 1000×1000 & Đền Cổng The End! Đặt đủ 12 Mắt Ender để mở cổng!');
+      return;
+    }
     if (targetKey === 'abandoned_city') {
       // Snap cleanly to a Grand Boulevard chunk ((ccx % 3) === 0, (ccz % 3) !== 0) so spawn faces down an overgrown avenue!
       const _acOffCx = (((Math.imul(worldSeed ^ 0x1b873593, 0x85ebca6b) >>> 0) % 8) - 4) * 3;
@@ -636,8 +660,9 @@
       player.fallStartY = player.y;
       player.flying = false;
       player.hp = 20; player.hunger = 20; player.air = player.maxAir; player.dead = false; player.inBoat = false;
-      player.eyesInWater = false; player.inWater = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
+      player.eyesInWater = false; player.inWater = false; player.eyesInLava = false; player.inLava = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
       if (typeof _elUnderwater !== 'undefined' && _elUnderwater) { _elUnderwater.classList.remove('active'); _lastEyesInWater = false; }
+      if (typeof _elLava !== 'undefined' && _elLava) { _elLava.classList.remove('active'); _lastEyesInLava = false; }
       if (typeof _elFireHud !== 'undefined' && _elFireHud) { _elFireHud.classList.remove('active'); _lastFireHudOn = false; }
       document.getElementById('airRow')?.classList.remove('visible');
       player.invuln = 2.5;
@@ -1271,6 +1296,7 @@
     autumn:         { label: '🍁 Autumn Forest',    desc: 'Crimson and amber maple trees glowing along calm rocky riverside slopes.' },
     castle_city:    { label: '🏰 Castle City',      desc: 'Majestic royal castle surrounded by reflective moats, copper-roofed watchtowers, and stone bridges.' },
     abandoned_city: { label: '🏙️ Abandoned City',   desc: 'An overgrown modern boulevard of moss-covered glass skyscrapers standing in quiet twilight.' },
+    grand_ruins:    { label: '🏛️ Grand End Ruins',  desc: 'Massive 1000×1000 overgrown ancient ruins housing the majestic End Portal Citadel Shrine, waterfalls, and guardian courtyard.' },
     seaport:        { label: '⚓ Seaport Harbor',   desc: 'Bustling oak timber docks reaching into blue waters beneath a glowing coastal lighthouse.' },
     blue_forest:    { label: '💙 Cerulean Forest',  desc: 'Mystic blue-foliage woods dotted with giant red mushrooms, teal grass, and lantern-lit trails.' },
     wheat_valley:   { label: '🌾 Wheat Fields',     desc: 'Endless golden wheat fields glowing in warm chill sunlight beside wooden windmills.' },
@@ -1517,6 +1543,7 @@ const ORE_BIOME_PREVIEWS = {
   autumn:         { label: '🍁 Rừng Mùa Thu',     desc: 'Rừng phong lá đỏ cam rực rỡ hòa cùng sắc vàng cuối chiều trên triền sông đá êm đềm.',                                 sky1: '#3b82f6', sky2: '#fed7aa', grass: '#c27a2c', dirt: '#7c4e38', water: '#2563eb', tree: '#ea580c', trunk: '#6d4c2f', accent: '#facc15', kind: 'trees' },
   castle_city:    { label: '🏰 Đại Thành',        desc: 'Tòa lâu đài hoàng gia uy nghiêm với hào nước phản chiếu ánh nắng, tháp canh mái đồng và cầu gỗ cổ kính.',             sky1: '#2f7df0', sky2: '#fde68a', grass: '#4d9b34', dirt: '#367023', water: '#2563eb', tree: '#9ca3af', trunk: '#4b5563', accent: '#dc2626', kind: 'castle' },
   abandoned_city: { label: '🏙️ Đô Thị Hoang',     desc: 'Đại lộ thành phố hiện đại bị bỏ hoang với những tòa cao ốc kính vỡ phủ rêu xanh dưới ánh hoàng hôn.',                 sky1: '#3b4d63', sky2: '#cbd5e1', grass: '#526052', dirt: '#3f3f46', water: '#334155', tree: '#64748b', trunk: '#27272a', accent: '#84cc16', kind: 'city' },
+  grand_ruins:    { label: '🏛️ Tàn Tích Cổng End', desc: 'Khu tàn tích cổ đại 1000×1000 hùng vĩ với Đền Cổng The End, vòm đá rêu, thác nước, tượng cổ và vực dung nham.',      sky1: '#235a78', sky2: '#c8ead8', grass: '#4f8c3c', dirt: '#5c6266', water: '#2563eb', tree: '#3b7d31', trunk: '#4b5563', accent: '#34d399', kind: 'castle' },
   seaport:        { label: '⚓ Cảng Biển',        desc: 'Bến cảng gỗ sồi sầm uất vươn ra vịnh biển xanh biếc cùng ngọn hải đăng phát sáng rực.',                              sky1: '#2589e8', sky2: '#d8f0ff', grass: '#52a33a', dirt: '#785130', water: '#1d4ed8', tree: '#ef4444', trunk: '#f8fafc', accent: '#fde047', kind: 'seaport' },
   blue_forest:    { label: '💙 Rừng Xanh Lam',    desc: 'Rừng cây lá xanh lam huyền ảo xen lẫn nấm đỏ khổng lồ, thảm cỏ ngọc lam và đèn lồng dọc lối mòn.',                   sky1: '#1a6fd6', sky2: '#9fe8f8', grass: '#25a89d', dirt: '#5c6e8a', water: '#1e88e5', tree: '#1d8cf8', trunk: '#788ba3', accent: '#dc2626', kind: 'trees' },
   wheat_valley:   { label: '🌾 Cánh Đồng Lúa',    desc: 'Cánh đồng lúa mì chín vàng bất tận hòa cùng ánh hoàng hôn ấm chill và những chiếc cối xay gió cổ kính.', sky1: '#1c244f', sky2: '#f59f63', grass: '#d99e26', dirt: '#6b4423', water: '#2563eb', tree: '#eab308', trunk: '#5c3a21', accent: '#fde047', kind: 'trees' },
@@ -3265,6 +3292,7 @@ function _buildBiomeDioramaScene(biomeKey) {
     beach_palm:     { skyTop: '#1084e8', skyMid: '#6cd0ff', skyBot: '#fff0c7', fog: 0xc4ecff, sun: 0xfff4c2, amb: 0x99e0ff, gnd: 0x9b8249, fluid: 0x0ea5e9, fluidSpec: 0xffffff, fluidAlpha: 0.74, clouds: true, sunX: 0.75, sunY: 0.20, rayTint: 'rgba(255,235,168,0.30)', mistRgba: 'rgba(224,246,255,0.20)' },
     autumn:         { skyTop: '#2a6bd6', skyMid: '#f29e6d', skyBot: '#ffe0a3', fog: 0xf5bd8c, sun: 0xffc978, amb: 0xfdba74, gnd: 0x59341d, fluid: 0x1d68b8, fluidSpec: 0xffe4a0, fluidAlpha: 0.78, clouds: true, sunX: 0.68, sunY: 0.24, rayTint: 'rgba(255,186,104,0.34)', mistRgba: 'rgba(255,209,150,0.26)' },
     abandoned_city: { skyTop: '#263447', skyMid: '#68798f', skyBot: '#f5b895', fog: 0x9aa3b2, sun: 0xffd2a6, amb: 0x94a3b8, gnd: 0x27272a, fluid: 0x334155, fluidSpec: 0xffdcb8, fluidAlpha: 0.76, clouds: true, sunX: 0.56, sunY: 0.26, rayTint: 'rgba(255,196,148,0.28)', mistRgba: 'rgba(216,184,168,0.22)' },
+    grand_ruins:    { skyTop: '#1c4f6b', skyMid: '#589b8d', skyBot: '#d6f5e3', fog: 0x9ec9b8, sun: 0xffe6a6, amb: 0xa7f3d0, gnd: 0x3a473c, fluid: 0x2563eb, fluidSpec: 0xffffff, fluidAlpha: 0.80, clouds: true, sunX: 0.62, sunY: 0.28, rayTint: 'rgba(255,236,170,0.34)', mistRgba: 'rgba(180,235,210,0.24)' },
     castle_city:    { skyTop: '#1f6fe8', skyMid: '#7cc2ff', skyBot: '#ffe8bd', fog: 0xd9e6f7, sun: 0xffebc2, amb: 0xa5ccff, gnd: 0x3f4e32, fluid: 0x1e6bb8, fluidSpec: 0xfff0c4, fluidAlpha: 0.80, clouds: true, sunX: 0.74, sunY: 0.20, rayTint: 'rgba(255,226,158,0.28)', mistRgba: 'rgba(232,238,252,0.22)' },
     seaport:        { skyTop: '#1676e3', skyMid: '#74cbff', skyBot: '#fff0d4', fog: 0xcbe8ff, sun: 0xfff2c7, amb: 0x9fd2ff, gnd: 0x3b4d38, fluid: 0x1d4ed8, fluidSpec: 0xffffff, fluidAlpha: 0.78, clouds: true, sunX: 0.30, sunY: 0.21, rayTint: 'rgba(255,238,185,0.28)', mistRgba: 'rgba(220,242,255,0.22)' },
     blue_forest:    { skyTop: '#156cd6', skyMid: '#4eb3f2', skyBot: '#b6f0f8', fog: 0x89d6eb, sun: 0xffe9c4, amb: 0x8ce2f7, gnd: 0x1b4d52, fluid: 0x1e88e5, fluidSpec: 0xd8f3ff, fluidAlpha: 0.78, clouds: true, sunX: 0.68, sunY: 0.20, rayTint: 'rgba(180,240,255,0.24)', mistRgba: 'rgba(165,236,245,0.22)' },
@@ -3539,6 +3567,21 @@ function _buildBiomeDioramaScene(biomeKey) {
     setB(9, 6, 13, B_.VINE); setB(13, 6, 11, B_.VINE);
     for (let y = 4; y <= 8; y++) setB(15, y, 16, B_.CONCRETE);
     setB(14, 8, 16, B_.CONCRETE); setB(14, 7, 16, B_.SEA_LANTERN || B_.LANTERN);
+  } else if (biomeKey === 'grand_ruins') {
+    for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
+      setB(x, 0, z, B_.DEEPSLATE_BRICKS || B_.STONE);
+      setB(x, 3, z, ((x + z) % 3 === 0) ? (B_.MOSSY_STONE_BRICK || B_.MOSS_BLOCK) : B_.STONE_BRICK);
+    }
+    fillBox(9, 4, 9, 14, 4, 14, B_.MOSSY_STONE_BRICK || B_.STONE_BRICK);
+    fillBox(10, 5, 10, 13, 5, 13, B_.END_PORTAL_FRAME);
+    fillBox(11, 5, 11, 12, 5, 12, B_.LAVA);
+    fillBox(5, 4, 5, 8, 12, 6, B_.STONE_BRICK);
+    fillBox(15, 4, 5, 18, 12, 6, B_.STONE_BRICK);
+    fillBox(6, 12, 5, 17, 13, 6, B_.MOSSY_STONE_BRICK || B_.STONE_BRICK);
+    fillBox(1, 5, 8, 4, 8, 16, B_.GRASS);
+    placeTree(2, 9, 13, B_.SPRUCE_LOG || B_.OAK_LOG, B_.SPRUCE_LEAVES || B_.OAK_LEAVES, 5);
+    setB(7, 4, 10, B_.IRON_GRATE || B_.STONE_BRICK); setB(16, 4, 10, B_.IRON_GRATE || B_.STONE_BRICK);
+    setB(5, 13, 5, B_.CAMPFIRE); setB(18, 13, 5, B_.CAMPFIRE);
   } else if (biomeKey === 'castle_city') {
     for (let z = 0; z < SZ; z++) for (let x = 0; x < SX; x++) {
       setB(x, 0, z, B_.STONE); setB(x, 1, z, B_.DIRT);
@@ -3866,7 +3909,7 @@ function _buildBiomeDioramaScene(biomeKey) {
       wheat_valley: 0xc99322, desert: 0xd8bf7a, alpine: 0xdce8f5, autumn: 0xb26d2a,
       sakura: 0x4b9e38, meadow: 0x4ea83b, mangrove: 0x3b6e35, bamboo: 0x3e9134,
       pine_valley: 0x438731, giant_jungle: 0x37852e, castle_city: 0x458e33,
-      abandoned_city: 0x485058, blue_forest: 0x1e8f85, dim_sift: 0x4b2a7b,
+      abandoned_city: 0x485058, grand_ruins: 0x3b4d3f, blue_forest: 0x1e8f85, dim_sift: 0x4b2a7b,
       dim_warden: 0x08232e, dim_nether: 0x5c180c, beach_palm: 0x1a7fc4, seaport: 0x1b4db8
     };
     const skGeo = new THREE.PlaneGeometry(220, 220);

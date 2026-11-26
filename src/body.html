@@ -1,6 +1,7 @@
 <div id="gameStage">
   <canvas id="gameCanvas"></canvas>
   <div id="underwaterOverlay"></div>
+  <div id="lavaOverlay"></div>
   <div id="netherPortalOverlay"><div class="portal-msg" id="netherPortalMsg">🌀 Đang bước vào Cổng Địa Ngục...</div></div>
   <div id="dreamPortalOverlay"><div class="portal-msg" id="dreamPortalMsg">✨ Đang bước vào Cổng Giấc Mơ (The Sift)...</div></div>
   <div id="damageOverlay"></div>
@@ -751,6 +752,7 @@
                       <button class="seg-btn" data-lbiome="autumn" type="button">🍁 Rừng Mùa Thu</button>
                       <button class="seg-btn" data-lbiome="castle_city" type="button">🏰 Đại Thành</button>
                       <button class="seg-btn" data-lbiome="abandoned_city" type="button">🏙️ Đô Thị Hoang</button>
+                      <button class="seg-btn" data-lbiome="grand_ruins" type="button">🏛️ Tàn Tích Cổng End</button>
                       <button class="seg-btn" data-lbiome="seaport" type="button">⚓ Cảng Biển</button>
                       <button class="seg-btn" data-lbiome="blue_forest" type="button">💙 Rừng Xanh Lam</button>
                       <button class="seg-btn" data-lbiome="wheat_valley" type="button">🌾 Cánh Đồng Lúa</button>
@@ -1393,6 +1395,7 @@
             <div class="gm-section" data-title="DỊCH CHUYỂN CHIỀU KHÔNG GIAN" data-desc="Chọn một khu vực hoặc chiều không gian bên trái để dịch chuyển trực tiếp (chỉ dành cho Admin)." data-def="Thế Giới Chính">
               <div class="gm-section-title">Chiều Không Gian &amp; Khu Vực Đặc Biệt</div>
               <div class="gm-btn-grid" id="scenicSeg">
+                <button class="spawn-btn" data-scenic="grand_ruins" style="border-color:#34d399;color:#a7f3d0;">🏛️ Tàn Tích Cổng End 1000m</button>
                 <button class="spawn-btn" data-scenic="ancient_ruins" style="border-color:#c084fc;">Tàn Tích Bí Ẩn (Quái Đông)</button>
                 <button class="spawn-btn" data-scenic="abandoned_city" style="border-color:#f59e0b;">Đô Thị Bỏ Hoang 500m</button>
                 <button class="spawn-btn" data-scenic="autumn" style="border-color:#fb923c;">Rừng Lá Cam Mùa Thu</button>
@@ -1407,6 +1410,7 @@
                 <button class="spawn-btn" data-scenic="castle_city">Đại Thành &amp; Lâu Đài</button>
                 <button class="spawn-btn" data-scenic="dim_overworld">🌿 Thế Giới Chính</button>
                 <button class="spawn-btn" data-scenic="dim_nether">🔥 Địa Ngục (Nether)</button>
+                <button class="spawn-btn" data-scenic="nether_castle" style="border-color:#2dd4bf;color:#99f6e4;">🏰 Lâu Đài Địa Ngục</button>
                 <button class="spawn-btn" data-scenic="dim_end">🌌 Khu Kết Thúc (End)</button>
                 <button class="spawn-btn" id="btnTpWardenDim" data-scenic="dim_warden" style="border-color:#22d3ee;color:#a5f3fc;background:rgba(6,36,48,0.92);">👁️ Thế Giới Warden (Cổ Thành)</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="dim_sift">✨ Khu Giấc Mơ (The Sift)</button>

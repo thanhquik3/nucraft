@@ -679,6 +679,7 @@
   const _elLobby = document.getElementById('lobbyScreen'), _elCoords = document.getElementById('coordsText');
   const _elDays = document.getElementById('daysText'), _elDepth = document.getElementById('depthText');
   const _elUnderwater = document.getElementById('underwaterOverlay');
+  const _elLava = document.getElementById('lavaOverlay');
   const _elFireHud = document.getElementById('fireHudOverlay');
   const _elDarknessOv = document.getElementById('darknessOverlay');
   const _elDressingRoom = document.getElementById('dressingRoomScreen');
@@ -693,6 +694,24 @@
   const _tmpFog = new THREE.Color(0xc8f2ef);
   function updateAtmosphere(dt) {
     envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0)));
+    const applyLavaAtmo = () => {
+      const inLv = !!(player && player.eyesInLava);
+      envUniforms.uInLava.value = inLv ? 1.0 : 0.0;
+      if (!inLv) return;
+      envUniforms.uUnderwater.value = 0.0;
+      envUniforms.uFogColor.value.setHex(0x8e1e04);
+      envUniforms.uSkyTop.value.setHex(0x6c1202);
+      envUniforms.uSkyHorizon.value.setHex(0x9c2405);
+      envUniforms.uFogStart.value = 0.35;
+      envUniforms.uFogEnd.value = 3.0;
+      scene.fog.color.copy(envUniforms.uFogColor.value);
+      scene.fog.near = 0.35;
+      scene.fog.far = 3.0;
+      renderer.setClearColor(envUniforms.uFogColor.value, 1);
+      envUniforms.uShaftStrength.value = 0.0;
+      envUniforms.uSunVis.value = 0.0;
+      cloudMesh.visible = false;
+    };
 
     // ===================== DIMENSION 5: WARDEN REALM ATMOSPHERE =====================
     if (currentDimension === 'warden') {
@@ -723,6 +742,7 @@
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');
+      applyLavaAtmo();
       return;
     }
 
@@ -755,6 +775,7 @@
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');
+      applyLavaAtmo();
       return;
     }
 
@@ -762,27 +783,31 @@
     if (currentDimension === 'nether') {
       const curB = getPlayerBiome();
       const isWarped = (curB === BIOMES.NETHER_WARPED);
-      _tmpTop.setHex(isWarped ? 0x101c28 : 0x26080b);
-      _tmpHor.setHex(isWarped ? 0x183842 : 0x451216);
+      const isBasalt = (curB === BIOMES.NETHER_BASALT_DELTAS);
+      const isSoulV  = (curB === BIOMES.NETHER_SOUL_VALLEY);
+      _tmpTop.setHex(isBasalt ? 0x241d2e : (isSoulV ? 0x0b1c24 : (isWarped ? 0x0e1c28 : 0x26080b)));
+      _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : 0x451216)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
-      envUniforms.uFogStart.value = 14.0; envUniforms.uFogEnd.value = renderDistance * 16.5;
+      envUniforms.uFogStart.value = isBasalt ? 11.0 : 14.0;
+      envUniforms.uFogEnd.value = renderDistance * (isBasalt ? 14.5 : 16.5);
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
-      envUniforms.uSunColor.value.setHex(isWarped ? 0x5eead4 : 0xff9b54);
+      envUniforms.uSunColor.value.setHex(isBasalt ? 0xd8c4e8 : (isSoulV ? 0x67e8f9 : (isWarped ? 0x5eead4 : 0xff9b54)));
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 16, snapY + 34, snapZ + 14);
-      sunLight.color.setHex(isWarped ? 0x99f6e4 : 0xffa66b);
-      sunLight.intensity = 0.68;
-      hemiLight.color.setHex(isWarped ? 0x2dd4bf : 0xc2412d);
-      hemiLight.groundColor.setHex(0x3a110d);
+      sunLight.color.setHex(isBasalt ? 0xd6c7e3 : (isSoulV ? 0x7dd3fc : (isWarped ? 0x99f6e4 : 0xffa66b)));
+      sunLight.intensity = isBasalt ? 0.64 : 0.68;
+      hemiLight.color.setHex(isBasalt ? 0x7c6f8a : (isSoulV ? 0x38bdf8 : (isWarped ? 0x2dd4bf : 0xc2412d)));
+      hemiLight.groundColor.setHex(isBasalt ? 0x221b2b : (isSoulV ? 0x132732 : 0x3a110d));
       hemiLight.intensity = 0.62;
       if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.0;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
-      updateAirMotesBatch(dt, shaderQuality !== 'low', isWarped ? 'nether_warped' : 'nether_crimson');
+      updateAirMotesBatch(dt, shaderQuality !== 'low', (isWarped || isSoulV) ? 'nether_warped' : 'nether_crimson');
+      applyLavaAtmo();
       return;
     }
 
@@ -805,6 +830,7 @@
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', 'end');
+      applyLavaAtmo();
       return;
     }
 
@@ -1074,6 +1100,7 @@
     const isGoldenChill = !player.eyesInWater && (shaderPreset === 'chill_sunset' || inChillWheatAtmo);
     const showMotes = (shaderQuality !== 'low' && (player.eyesInWater || (player.y > -2 && rainIntensity < (isGoldenChill ? 0.85 : 0.5))));
     updateAirMotesBatch(dt, showMotes, player.eyesInWater ? 'underwater' : (isGoldenChill ? 'golden' : (isNight ? 'night' : (isAutumn ? 'autumn' : 'day'))));
+    applyLavaAtmo();
   }
 
   const _isWaterLike = (bid) => (bid === B.WATER || bid === B.SEAGRASS || bid === B.CORAL_PINK || bid === B.CORAL_BLUE || bid === B.CORAL_GOLD);
@@ -1161,7 +1188,7 @@
   const _reflHiddenChunks = [], _reflHiddenMobs = [];
   const _REFL_CLIP_ARR = [reflClipPlane], _EMPTY_CLIP_ARR = [];
   function renderWaterReflectionPass(inLobby = false, rawDt = 0.016) {
-    if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.y < -4 || camera.rotation.x > 0.35) {
+    if (!sodiumOpts.waterRefl || _autoPerfLow || shaderQuality === 'low' || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.eyesInLava || player.y < -4 || camera.rotation.x > 0.35) {
       envUniforms.uUsePlanarRefl.value = 0.0;
       _reflDoneOnce = false;
       return;

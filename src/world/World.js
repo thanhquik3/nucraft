@@ -532,39 +532,79 @@
       if (hash2i(wx + 19, wz - 23, worldSeed + 79) > 0.74) {
         setLocalSafe(data, lx, baseWy + ch, lz, B.CACTUS_FLOWER, false);
       }
-    } else if (style === 'crimson_fungus' || style === 'warped_fungus') {
-      // Detailed Multi-Tier Sculpted Nether Giant Fungus (flared roots, thick curved stem, layered dome cap, glowing shroomlights & weeping wart vines!)
-      const isWarped = (style === 'warped_fungus');
+    } else if (style === 'crimson_fungus' || style === 'warped_fungus' || style === 'crimson_spire' || style === 'warped_weeping_giant') {
+      // Multi-tier sculpted Nether giant fungi (chunky overhanging wart caps, shroomlight clusters, weeping & twisting vines)
+      const isWarped = (style === 'warped_fungus' || style === 'warped_weeping_giant');
+      const isGiant = (style === 'crimson_spire' || style === 'warped_weeping_giant');
       const stemB = isWarped ? B.WARPED_STEM : B.CRIMSON_STEM;
       const capB  = isWarped ? B.WARPED_WART_BLOCK : B.NETHER_WART_BLOCK;
-      const trunkH = 7 + Math.floor(r0 * 5);
+      const vineB = isWarped ? B.TWISTING_VINES : B.WEEPING_VINES;
+      const trunkH = (isGiant ? 9 : 7) + Math.floor(r0 * 5);
       const bendX = r1 > 0.6 ? 1 : (r1 < 0.3 ? -1 : 0);
       for (const [rx, rz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        if (hash2i(wx + rx, wz + rz, worldSeed + 73) > 0.38) setLocalSafe(data, lx + rx, baseWy, lz + rz, stemB, true);
+        if (hash2i(wx + rx, wz + rz, worldSeed + 73) > 0.32) setLocalSafe(data, lx + rx, baseWy, lz + rz, stemB, true);
       }
       let tx = lx;
       for (let i = 0; i < trunkH; i++) {
         if (i === 4) tx += bendX;
         setLocalSafe(data, tx, baseWy + i, lz, stemB, true);
-        if (i < 2) setLocalSafe(data, tx + 1, baseWy + i, lz, stemB, true);
+        if (i < (isGiant ? 4 : 2)) setLocalSafe(data, tx + 1, baseWy + i, lz, stemB, true);
       }
       const cy = baseWy + trunkH - 2;
-      for (let dy = 0; dy <= 4; dy++) {
-        const rad = (dy === 1 || dy === 2) ? 3 : (dy === 4 ? 1 : 2);
+      const topR = isGiant ? 4 : 3;
+      for (let dy = 0; dy <= (isGiant ? 5 : 4); dy++) {
+        const rad = (dy <= 2) ? topR : (dy >= (isGiant ? 4 : 4) ? 1 : 2);
         for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
           const dist = Math.abs(dx) + Math.abs(dz);
-          if ((rad === 3 && dist > 4) || (rad === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2 && dy >= 3) || (dy === 4 && dist > 1)) continue;
-          const isShroom = (dy <= 2 && dist === 2 && hash3i(wx + dx, cy + dy, wz + dz, worldSeed + 71) > 0.72);
+          if ((rad === 4 && dist > 6) || (rad === 3 && dist > 4) || (rad === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2 && dy >= 3) || (dy >= 4 && dist > 1)) continue;
+          const isShroom = (dy <= 2 && dist >= 2 && hash3i(wx + dx, cy + dy, wz + dz, worldSeed + 71) > 0.84);
           setLocalSafe(data, tx + dx, cy + dy, lz + dz, isShroom ? B.SHROOMLIGHT : capB, false);
         }
       }
-      for (const [hx, hz] of [[3,0],[-3,0],[0,3],[0,-3],[2,2],[-2,-2],[2,-2],[-2,2]]) {
-        if (hash2i(wx + hx, wz + hz, worldSeed + 123) > 0.36) {
-          setLocalSafe(data, tx + hx, cy - 1, lz + hz, capB, false);
-          if (hash2i(wx + hx, wz + hz, worldSeed + 129) > 0.56) setLocalSafe(data, tx + hx, cy - 2, lz + hz, capB, false);
-          if (hash2i(wx + hx, wz + hz, worldSeed + 131) > 0.78) setLocalSafe(data, tx + hx, cy - 3, lz + hz, B.SHROOMLIGHT, false);
+      if (isGiant) {
+        // Second lower tier overhang for dramatic multi-canopy silhouette (Images 6 & 7)
+        const subY = cy - 3;
+        for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+          if (Math.abs(dx) + Math.abs(dz) > 4 || (dx === 0 && dz === 0)) continue;
+          const isShr = (Math.abs(dx) + Math.abs(dz) === 3 && hash3i(wx + dx, subY, wz + dz, worldSeed + 141) > 0.78);
+          setLocalSafe(data, tx + dx, subY, lz + dz, isShr ? B.SHROOMLIGHT : capB, false);
         }
       }
+      for (const [hx, hz] of [[topR,0],[-topR,0],[0,topR],[0,-topR],[2,2],[-2,-2],[2,-2],[-2,2],[3,1],[-3,-1]]) {
+        if (hash2i(wx + hx, wz + hz, worldSeed + 123) > 0.34) {
+          setLocalSafe(data, tx + hx, cy - 1, lz + hz, capB, false);
+          if (hash2i(wx + hx, wz + hz, worldSeed + 129) > 0.50) setLocalSafe(data, tx + hx, cy - 2, lz + hz, capB, false);
+          if (hash2i(wx + hx, wz + hz, worldSeed + 131) > 0.84) setLocalSafe(data, tx + hx, cy - 3, lz + hz, B.SHROOMLIGHT, false);
+          if (!isWarped && hash2i(wx + hx, wz + hz, worldSeed + 137) > 0.45) {
+            const vLen = 2 + Math.floor(hash2i(wx + hx, wz + hz, worldSeed + 139) * 3);
+            for (let v = 1; v <= vLen; v++) setLocalSafe(data, tx + hx, cy - 2 - v, lz + hz, vineB, false);
+          }
+        }
+      }
+      if (isWarped) {
+        for (const [vx, vz] of [[2,1],[-2,1],[1,-2],[-1,-2]]) {
+          if (hash2i(wx + vx, wz + vz, worldSeed + 149) > 0.45) {
+            const vLen = 2 + Math.floor(hash2i(wx + vx, wz + vz, worldSeed + 151) * 3);
+            for (let v = 0; v < vLen; v++) setLocalSafe(data, lx + vx, baseWy + v, lz + vz, vineB, false);
+          }
+        }
+      }
+    } else if (style === 'basalt_ember_tree') {
+      // Gnarled Basalt / Soul Ash Nether tree with glowing magma or soul-lantern ember boughs
+      const th = 5 + Math.floor(r0 * 4);
+      const isSoul = (r1 > 0.52);
+      const woodB = isSoul ? B.BLACKSTONE : B.BASALT;
+      const emberB = isSoul ? B.SOUL_LANTERN : B.MAGMA_BLOCK;
+      for (let i = 0; i < th; i++) setLocalSafe(data, lx, baseWy + i, lz, woodB, true);
+      for (const [bx, bz, bh] of [[1, 0, th - 2], [-1, 1, th - 1], [0, -1, th - 2], [-2, -1, th]]) {
+        if (hash2i(wx + bx, wz + bz, worldSeed + 163) < 0.35) continue;
+        setLocalSafe(data, lx + Math.sign(bx), baseWy + bh, lz + Math.sign(bz), B.BLACKSTONE_BRICKS, true);
+        setLocalSafe(data, lx + bx, baseWy + bh + 1, lz + bz, woodB, true);
+        if (hash2i(wx + bx * 3, wz + bz * 3, worldSeed + 167) > 0.42) {
+          setLocalSafe(data, lx + bx, baseWy + bh + 2, lz + bz, emberB, false);
+        }
+      }
+      setLocalSafe(data, lx, baseWy + th, lz, emberB, false);
     } else if (style === 'chorus') {
       // Detailed Branching Tall End Chorus Tree w/ Multiple Glowing Purpur Flower Crowns!
       const ch = 5 + Math.floor(r0 * 5);
@@ -1374,17 +1414,159 @@
     return Math.min(WORLD_H - 1, topY - MIN_Y);
   }
 
+  // Gothic Nether Castle (Lâu Đài Địa Ngục trên đảo đá Bazan/Crimson & cầu đá đen gãy bắc qua biển dung nham!)
+  function stampNetherCastleInChunk(data, wx0, wz0, castle, maxLy) {
+    if (!castle) return maxLy;
+    const baseY = castle.baseY;
+    const put = (lx, wy, lz, id) => {
+      const ly = wy - MIN_Y;
+      if (lx >= 0 && lx < CHUNK_W && lz >= 0 && lz < CHUNK_W && ly >= 1 && ly < WORLD_H - 1) {
+        data[(ly << 8) | (lz << 4) | lx] = id;
+        if (ly > maxLy) maxLy = ly;
+      }
+    };
+    const darkBrick = (wx, wy, wz) => {
+      const h = hash3i(wx, wy, wz, worldSeed + 8901);
+      return h > 0.76 ? B.BLACKSTONE : (h > 0.52 ? B.DEEPSLATE_BRICKS : B.BLACKSTONE_BRICKS);
+    };
+    const tealSpire = (wx, wy, wz) => {
+      const h = hash3i(wx, wy, wz, worldSeed + 8917);
+      return h > 0.58 ? B.COPPER_ROOF : (h > 0.25 ? B.WARPED_WART_BLOCK : B.WARPED_PLANKS);
+    };
+    const turrets = [
+      { cx: -9, cz: 5, rad: 3, h: 14, spireH: 9 },
+      { cx:  9, cz: 5, rad: 3, h: 14, spireH: 9 },
+      { cx: -8, cz: -7, rad: 3, h: 16, spireH: 10 },
+      { cx:  8, cz: -7, rad: 3, h: 16, spireH: 10 }
+    ];
+
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      const wz = wz0 + lz, dz = wz - castle.z;
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx, dx = wx - castle.x;
+        const ax = Math.abs(dx), az = Math.abs(dz);
+
+        // 1) Crag island rocky skirt & Crimson rim around keep (dz in [-16..14], ax <= 17)
+        const islandD = Math.hypot(dx / 17.5, dz / 15.5);
+        if (islandD <= 1.04) {
+          const topC = colHeights[(lz << 4) | lx];
+          for (let wy = MIN_Y + 3; wy <= topC; wy++) {
+            const isRim = (wy === topC && islandD > 0.55);
+            put(lx, wy, lz, isRim ? B.CRIMSON_NYLIUM : (wy >= topC - 2 ? B.BLACKSTONE : B.BASALT));
+          }
+          for (let wy = topC + 1; wy <= baseY + 28; wy++) put(lx, wy, lz, B.AIR);
+        }
+
+        // 2) Broken Blackstone Causeway Bridge jutting south over molten lava sea (dx in [-3..3], dz in [10..34])
+        if (dz >= 10 && dz <= 34 && ax <= 3) {
+          const breakNoise = hash2i(wx, wz, worldSeed + 8929);
+          const brokenTip = (dz >= 29 && ((dz === 34 && ax < 2) ? false : (breakNoise > (34 - dz) * 0.16)));
+          if (!brokenTip) {
+            const brY = baseY + 1;
+            for (let wy = brY + 1; wy <= brY + 8; wy++) put(lx, wy, lz, B.AIR);
+            if (dz <= 30 || ax <= 1) {
+              put(lx, brY, lz, ax === 0 ? B.DEEPSLATE_TILES : darkBrick(wx, brY, wz));
+              put(lx, brY - 1, lz, B.BLACKSTONE);
+            }
+            if (ax === 3 && dz <= 31 && ((dz & 1) === 0 || dz < 26)) {
+              put(lx, brY + 1, lz, (dz % 6 === 0) ? B.DEEPSLATE_BRICKS : B.DEEPSLATE_WALL);
+              if (dz % 6 === 0) put(lx, brY + 2, lz, B.SOUL_LANTERN);
+            }
+            if (ax === 2 && (dz === 17 || dz === 25)) {
+              for (let wy = MIN_Y + 2; wy < brY; wy++) put(lx, wy, lz, B.BASALT);
+            }
+          }
+        }
+
+        // 3) Main Gothic Fortress Keep (dx in [-11..11], dz in [-10..9])
+        if (ax <= 11 && dz >= -10 && dz <= 9) {
+          const inGate = (dz >= 8 && ax <= 2);
+          const inHall = (ax <= 10 && dz >= -9 && dz <= 8);
+          const isKeepWall = (ax === 11 || dz === -10 || dz === 9);
+          put(lx, baseY, lz, ((dx + dz) & 3) === 0 ? B.BLACKSTONE : B.BLACKSTONE_BRICKS);
+          put(lx, baseY - 1, lz, B.BASALT);
+
+          if (isKeepWall) {
+            const wallH = (ax === 0 || dz === -10) ? 12 : 10;
+            for (let ry = 1; ry <= wallH; ry++) {
+              if (inGate && ry <= 5 && !(ry === 5 && ax === 2)) continue;
+              const isSlit = (ry >= 4 && ry <= 7 && ry !== 6 && ((ax === 11 && (dz & 3) === 0) || ((dz === -10 || dz === 9) && (ax === 5 || ax === 7))));
+              if (isSlit) {
+                put(lx, baseY + ry, lz, (ry === 5) ? B.SOUL_LANTERN : B.NETHER_FENCE);
+              } else if (ry === wallH && ((dx + dz) & 1) === 0) {
+                put(lx, baseY + ry, lz, B.BLACKSTONE_BRICKS);
+              } else {
+                put(lx, baseY + ry, lz, darkBrick(wx, baseY + ry, wz));
+              }
+            }
+          } else if (inHall) {
+            // Steep Gothic Warped-Teal Gable Roof over central hall
+            const ridgeY = baseY + 11 + Math.max(0, 6 - Math.floor(ax * 0.65));
+            for (let ry = 1; ry <= 19; ry++) put(lx, baseY + ry, lz, B.AIR);
+            if (ax <= 9 && dz >= -9 && dz <= 7) {
+              put(lx, ridgeY, lz, tealSpire(wx, ridgeY, wz));
+              if (ax === 0 && (dz & 3) === 0) put(lx, baseY + 9, lz, B.SOUL_LANTERN);
+            }
+            // Throne dais, braziers & loot chests inside Keep
+            if (ax === 4 && (dz === -4 || dz === 2)) {
+              put(lx, baseY + 1, lz, B.SOUL_SAND);
+              put(lx, baseY + 2, lz, B.SOUL_FIRE);
+            }
+            if (dz === -7 && ax <= 2) put(lx, baseY + 1, lz, B.DEEPSLATE_BRICKS);
+            if (dz === -7 && dx === 0) put(lx, baseY + 2, lz, B.NETHERITE_CHEST);
+            if (dz === -7 && dx === -2) put(lx, baseY + 2, lz, B.GOLD_CHEST);
+            if (dz === -7 && dx === 2) put(lx, baseY + 2, lz, B.ANCIENT_DEBRIS);
+          }
+        }
+
+        // 4) Four Soaring Corner Spires w/ Steep Turquoise Gothic Roofs!
+        for (let ti = 0; ti < turrets.length; ti++) {
+          const t = turrets[ti];
+          const tdx = Math.abs(dx - t.cx), tdz = Math.abs(dz - t.cz);
+          const td = Math.max(tdx, tdz);
+          if (td > t.rad || (tdx === t.rad && tdz === t.rad && td >= 3)) continue;
+          const tWall = (tdx === t.rad || tdz === t.rad);
+          for (let ry = 1; ry <= t.h; ry++) {
+            const wy = baseY + ry;
+            if (wy >= MAX_Y - 1) continue;
+            if (tWall) {
+              const slit = (ry >= 5 && ry <= 11 && (ry % 3 !== 0) && (tdx === 0 || tdz === 0));
+              put(lx, wy, lz, slit ? (ry === 8 ? B.SOUL_LANTERN : B.NETHER_FENCE) : darkBrick(wx, wy, wz));
+            } else {
+              put(lx, wy, lz, (ry === 6 || ry === 12) ? B.WARPED_PLANKS : B.AIR);
+            }
+          }
+          // Pointed Steep Warped-Teal Spire Cone
+          for (let sy = 0; sy < t.spireH; sy++) {
+            const wy = baseY + t.h + 1 + sy;
+            if (wy >= MAX_Y - 1) break;
+            const sRad = Math.max(0, t.rad - Math.floor(sy / 2.2));
+            if (tdx <= sRad && tdz <= sRad) {
+              const isTip = (sy === t.spireH - 1 && tdx === 0 && tdz === 0);
+              put(lx, wy, lz, isTip ? B.SOUL_LANTERN : tealSpire(wx, wy, wz));
+            }
+          }
+        }
+      }
+    }
+    return maxLy;
+  }
+
   function _genNetherChunk(cx, cz, wx0, wz0, data) {
     if ((depthOffset || 0) !== 0) return _genDeepUndergroundChunk(cx, cz, wx0, wz0, data);
     let maxLy = WORLD_H - 1;
     if (!chunkWorkerPool.take(wx0, wz0, depthOffset || 0)) fillCoarseCaveGrid(wx0, wz0);
+    let nearCastle = null;
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz;
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const wx = wx0 + lx, biome = getBiomeAt(wx, wz), h = getTerrainHeight(wx, wz, biome);
         const ci = (lz << 4) | lx; colHeights[ci] = h; colBiomes[ci] = biome.id;
-        // Main Nether Cavern ceiling starts at wy ~ 24..29; above ceilY is the 200-block thick Nether Roof rock stratum (trueY = 26..226)!
-        const ceilY = Math.floor(24 + valueNoise2D(wx * 0.05, wz * 0.05, worldSeed + 811) * 5);
+        const locCastle = getNetherCastleAnchor(wx, wz);
+        if (locCastle && !nearCastle) nearCastle = locCastle;
+        // Raise Nether cavern roof cleanly around castles so gothic turquoise spires stand out dramatically!
+        const castleBoost = locCastle ? Math.max(0, Math.round((1 - Math.hypot(wx - locCastle.x, wz - locCastle.z) / 48) * 10)) : 0;
+        const ceilY = Math.min(MAX_Y - 10, Math.floor(25 + castleBoost + valueNoise2D(wx * 0.05, wz * 0.05, worldSeed + 811) * 5));
         for (let ly = 0; ly < WORLD_H; ly++) {
           const wy = MIN_Y + ly; let id = B.AIR;
           const trueY = wy - (depthOffset || 0);
@@ -1392,12 +1574,18 @@
           else if (trueY < -1010) id = B.AIR;
           else if (wy <= h) {
             if (wy === h && h > WATER_LEVEL) {
-              id = biome === BIOMES.NETHER_CRIMSON ? B.CRIMSON_NYLIUM : (biome === BIOMES.NETHER_WARPED ? B.WARPED_NYLIUM : (hash2i(wx, wz, worldSeed + 413) > 0.65 ? B.SOUL_SAND : B.NETHERRACK));
+              if (biome === BIOMES.NETHER_CRIMSON) id = B.CRIMSON_NYLIUM;
+              else if (biome === BIOMES.NETHER_WARPED) id = B.WARPED_NYLIUM;
+              else if (biome === BIOMES.NETHER_BASALT_DELTAS) id = (hash2i(wx, wz, worldSeed + 419) > 0.56 ? B.BLACKSTONE : B.BASALT);
+              else if (biome === BIOMES.NETHER_SOUL_VALLEY) id = (hash2i(wx, wz, worldSeed + 421) > 0.25 ? B.SOUL_SAND : B.BASALT);
+              else id = (hash2i(wx, wz, worldSeed + 413) > 0.68 ? B.SOUL_SAND : B.NETHERRACK);
+            } else if (wy >= h - 1 && biome === BIOMES.NETHER_BASALT_DELTAS && h <= WATER_LEVEL + 1 && hash2i(wx, wz, worldSeed + 433) > 0.62) {
+              id = B.MAGMA_BLOCK;
             } else if (h > WATER_LEVEL + 2 && wy < h - 5 && wy > MIN_Y + 4 && sampleCaveFast(lx, ly, lz) > 0.78) {
               id = (wy <= MIN_Y + 6) ? B.LAVA : B.AIR;
             } else {
               const oh = hash3i(wx, wy, wz, worldSeed + 777);
-              id = (oh > 0.9945) ? B.GOLD_ORE : (oh > 0.9850 ? B.QUARTZ_ORE : B.NETHERRACK);
+              id = (oh > 0.9945) ? B.GOLD_ORE : (oh > 0.9850 ? B.QUARTZ_ORE : (biome === BIOMES.NETHER_BASALT_DELTAS && oh > 0.62 ? B.BLACKSTONE : B.NETHERRACK));
             }
           } else if (wy <= WATER_LEVEL) {
             id = B.LAVA;
@@ -1405,12 +1593,24 @@
             if (wy === ceilY && hash2i(wx, wz, worldSeed + 515) > 0.955) id = B.SHROOMLIGHT;
             else {
               const rh = hash3i(wx, wy, wz, worldSeed + 853);
-              id = rh > 0.9996 ? B.ANCIENT_DEBRIS : (rh > 0.9940 ? B.GOLD_ORE : (rh > 0.9830 ? B.QUARTZ_ORE : (rh > 0.74 ? B.BASALT : B.NETHERRACK)));
+              id = rh > 0.9996 ? B.ANCIENT_DEBRIS : (rh > 0.9940 ? B.GOLD_ORE : (rh > 0.9830 ? B.QUARTZ_ORE : (rh > 0.72 ? B.BASALT : B.NETHERRACK)));
             }
           }
           data[(ly << 8) | (lz << 4) | lx] = id;
         }
-        if (hash2i(wx, wz, worldSeed + 997) > 0.9975) {
+        // Basalt Delta vertical volcanic pillars & Soul Sand Valley soul flames
+        if (biome === BIOMES.NETHER_BASALT_DELTAS && h >= WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 449) > 0.942) {
+          const ph = 3 + Math.floor(hash2i(wx, wz, worldSeed + 457) * 5);
+          for (let py = 1; py <= ph; py++) setLocalSafe(data, lx, h + py, lz, py === ph && hash2i(wx, wz, worldSeed + 461) > 0.7 ? B.MAGMA_BLOCK : B.BASALT, true);
+        } else if (biome === BIOMES.NETHER_SOUL_VALLEY && h > WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 463) > 0.972) {
+          setLocalSafe(data, lx, h + 1, lz, B.SOUL_FIRE, false);
+        }
+        // Hanging ceiling Weeping Vines in Crimson canyons (matching Image 7)
+        if (biome === BIOMES.NETHER_CRIMSON && ceilY - h > 8 && hash2i(wx, wz, worldSeed + 479) > 0.935) {
+          const vLen = 2 + Math.floor(hash2i(wx, wz, worldSeed + 487) * 4);
+          for (let vy = 1; vy <= vLen; vy++) setLocalSafe(data, lx, ceilY - vy, lz, B.WEEPING_VINES, false);
+        }
+        if (!locCastle && hash2i(wx, wz, worldSeed + 997) > 0.9974) {
           for (let wy = Math.max(WATER_LEVEL + 1, h + 1); wy <= ceilY; wy++) setLocalSafe(data, lx, wy, lz, B.LAVA, true);
         }
         if (wz >= -18 && wz <= -14) {
@@ -1430,28 +1630,40 @@
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const ci = (lz << 4) | lx, h = colHeights[ci], wx = wx0 + lx, biome = BIOME_LIST[colBiomes[ci]];
         if (h <= WATER_LEVEL) continue;
+        if (nearCastle && Math.hypot(wx - nearCastle.x, wz - nearCastle.z) < 28) continue;
         const rf = hash2i(wx, wz, worldSeed + 613);
-        if (biome === BIOMES.NETHER_CRIMSON && rf > 0.52) {
-          setLocalSafe(data, lx, h + 1, lz, rf > 0.91 ? B.MUSHROOM_GLOW : (rf > 0.76 ? B.CRIMSON_FUNGUS : (rf > 0.68 ? B.WARPED_FUNGUS : B.CRIMSON_ROOTS)), false);
-        } else if (biome === BIOMES.NETHER_WARPED && rf > 0.50) {
-          setLocalSafe(data, lx, h + 1, lz, rf > 0.91 ? B.MUSHROOM_GLOW : (rf > 0.74 ? B.WARPED_FUNGUS : (rf > 0.65 ? B.CRIMSON_ROOTS : B.WARPED_ROOTS)), false);
+        if (biome === BIOMES.NETHER_CRIMSON && rf > 0.50) {
+          setLocalSafe(data, lx, h + 1, lz, rf > 0.91 ? B.MUSHROOM_GLOW : (rf > 0.74 ? B.CRIMSON_FUNGUS : (rf > 0.66 ? B.WARPED_FUNGUS : B.CRIMSON_ROOTS)), false);
+        } else if (biome === BIOMES.NETHER_WARPED && rf > 0.48) {
+          setLocalSafe(data, lx, h + 1, lz, rf > 0.90 ? B.TWISTING_VINES : (rf > 0.84 ? B.MUSHROOM_GLOW : (rf > 0.70 ? B.WARPED_FUNGUS : (rf > 0.62 ? B.CRIMSON_ROOTS : B.WARPED_ROOTS))), false);
         } else if (biome === BIOMES.NETHER_WASTES && rf > 0.88) {
           setLocalSafe(data, lx, h + 1, lz, rf > 0.95 ? B.CRIMSON_FUNGUS : B.CRIMSON_ROOTS, false);
         }
-        if (lx >= 3 && lx <= CHUNK_W - 4 && lz >= 3 && lz <= CHUNK_W - 4) {
+        if (lx >= 4 && lx <= CHUNK_W - 5 && lz >= 4 && lz <= CHUNK_W - 5) {
           const rt = hash2i(wx, wz, worldSeed + 909);
-          if (biome === BIOMES.NETHER_CRIMSON && rt > 0.942) placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'crimson_fungus');
-          else if (biome === BIOMES.NETHER_WARPED && rt > 0.938) placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'warped_fungus');
+          if (biome === BIOMES.NETHER_CRIMSON && rt > 0.924) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, rt > 0.962 ? 'crimson_spire' : 'crimson_fungus');
+          } else if (biome === BIOMES.NETHER_WARPED && rt > 0.918) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, rt > 0.956 ? 'warped_weeping_giant' : 'warped_fungus');
+          } else if ((biome === BIOMES.NETHER_BASALT_DELTAS || biome === BIOMES.NETHER_SOUL_VALLEY) && rt > 0.962) {
+            placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'basalt_ember_tree');
+          }
         }
       }
     }
-    // Stamp Nether Cavern structures on solid terrain islands away from spawn portal
+    if (nearCastle) {
+      maxLy = stampNetherCastleInChunk(data, wx0, wz0, nearCastle, maxLy);
+    }
+    // Stamp Nether Cavern structures on solid terrain islands away from spawn portal & castles
     const midNetherH = colHeights[(8 << 4) | 8];
-    if (midNetherH > WATER_LEVEL + 1 && midNetherH <= 13 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
+    const farFromCastle = !nearCastle || Math.hypot(wx0 + 8 - nearCastle.x, wz0 + 8 - nearCastle.z) > 36;
+    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 13 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
       stampNetherRoofAndCavernStructures(data, cx, cz, wx0, wz0, midNetherH, false);
     }
-    // Nether Dinosaur Fossils built out of Bone Blocks (skipping Nether bridge corridor wz in [-18..-14])
-    if (midNetherH > WATER_LEVEL + 1 && midNetherH <= 15 && (Math.abs(cx) > 0 || Math.abs(cz) > 0) && !(wz0 <= -10 && wz0 + 15 >= -22) && hash2i(cx, cz, worldSeed + 4129) > 0.855) {
+    // Nether Dinosaur Fossils built out of Bone Blocks (more frequent in Soul Sand Valley!)
+    const midNetherBio = BIOME_LIST[colBiomes[(8 << 4) | 8]];
+    const fossilThresh = (midNetherBio === BIOMES.NETHER_SOUL_VALLEY) ? 0.74 : 0.855;
+    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 15 && (Math.abs(cx) > 0 || Math.abs(cz) > 0) && !(wz0 <= -10 && wz0 + 15 >= -22) && hash2i(cx, cz, worldSeed + 4129) > fossilThresh) {
       const fTop = stampNetherDinosaurFossil(data, cx, cz, wx0, wz0, midNetherH);
       if (fTop > maxLy) maxLy = fTop;
     }
@@ -2278,6 +2490,481 @@
     return chCity;
   }
 
+  // Monumental 1000x1000 Grand Ancient Ruins & Hero End Portal Citadel Shrine (Images 3, 8, 9, 10)
+  function _genGrandRuinsChunk(cx, cz, wx0, wz0, data) {
+    let maxLy = 38;
+    const plazaY = 14;
+    const ruinStone = (wx, wy, wz) => {
+      const clump = valueNoise2D(wx * 0.24, wz * 0.24, worldSeed + 9307);
+      const h = hash3i(wx, wy, wz, worldSeed + 9311);
+      if (clump > 0.78) return h > 0.65 ? B.MOSS_BLOCK : B.MOSSY_STONE_BRICK;
+      if (clump > 0.58 || h > 0.72) return B.MOSSY_STONE_BRICK;
+      if (clump < 0.22 && h > 0.55) return B.DEEPSLATE_BRICKS;
+      return B.STONE_BRICK;
+    };
+    const darkTrim = (wx, wy, wz) => {
+      const h = hash3i(wx, wy, wz, worldSeed + 9323);
+      return h > 0.65 ? B.DEEPSLATE_TILES : (h > 0.30 ? B.DEEPSLATE_BRICKS : B.BLACKSTONE_BRICKS);
+    };
+    const oxTrim = (wx, wy, wz) => ((wx + wy + wz) & 3) === 0 ? B.PRISMARINE : B.COPPER_ROOF;
+    const put = (lx, wy, lz, id) => {
+      const ly = wy - MIN_Y;
+      if (lx >= 0 && lx < CHUNK_W && lz >= 0 && lz < CHUNK_W && ly >= 1 && ly < WORLD_H - 1) {
+        data[(ly << 8) | (lz << 4) | lx] = id;
+        if (ly > maxLy) maxLy = ly;
+      }
+    };
+    const pendingTrees = [];
+
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      const wz = wz0 + lz, rz = wz - GRAND_RUINS_CZ;
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx, rx = wx - GRAND_RUINS_CX;
+        const ci = (lz << 4) | lx;
+        colBiomes[ci] = BIOMES.GRAND_RUINS.id;
+        colHeights[ci] = plazaY;
+
+        const ax = Math.abs(rx), az = Math.abs(rz);
+        const edgeDist = Math.min(wx - GRAND_RUINS_MIN_X, GRAND_RUINS_MAX_X - wx, wz - GRAND_RUINS_MIN_Z, GRAND_RUINS_MAX_Z - wz);
+        const inZoneA = (ax <= 44 && az <= 44);
+        const inZoneB = (!inZoneA && ax <= 36 && az >= 45 && az <= 144);
+        const inZoneC = (!inZoneA && rx <= -45 && rx >= -144 && az <= 36);
+        const inZoneD = (!inZoneA && rx >= 45 && rx <= 144 && az <= 36);
+        const onCauseway = (!inZoneA && (ax <= 8 || az <= 8));
+
+        // Base subterranean foundation up to y = 11
+        for (let wy = MIN_Y; wy <= 11; wy++) {
+          const trueY = wy - (depthOffset || 0);
+          let bid = wy < 0 ? B.DEEPSLATE : B.STONE;
+          if (trueY <= -1001 && trueY >= -1010) bid = B.BEDROCK;
+          data[((wy - MIN_Y) << 8) | ci] = bid;
+        }
+
+        // ==================== ZONE A: HERO END PORTAL CITADEL SHRINE (IMAGE 8) ====================
+        if (inZoneA) {
+          const inChasm = (rx >= -4 && rx <= 18 && rz >= 11 && rz <= 29);
+          const inChannel = (rz >= -4 && rz <= -2 && ax <= 24);
+          const overChannelBridge = (ax <= 3 || (rx >= 10 && rx <= 14));
+          const inPortalDais = (ax <= 3 && az <= 3);
+          const inPortalPit = (ax <= 1 && az <= 1);
+          const inGrate = ((Math.abs(ax - 7) <= 1 && az <= 1) || (Math.abs(ax - 6) <= 1 && Math.abs(rz + 6) <= 1));
+
+          // 1) Sub-floor / Plaza deck (y = 12..14) or Deep Lower Void Chasm (y = -10..13)
+          if (inChasm) {
+            for (let wy = -10; wy <= 13; wy++) {
+              if (wy === -10) {
+                const vc = hash2i(wx, wz, worldSeed + 9341);
+                put(lx, wy, lz, vc > 0.88 ? B.END_CRYSTAL_BLOCK : (vc > 0.66 ? B.GLOW_CRYSTAL : (vc > 0.35 ? B.PURPUR_BLOCK : B.OBSIDIAN)));
+              } else {
+                put(lx, wy, lz, B.AIR);
+              }
+            }
+            // Twin Lava Falls cascading down chasm north cliff wall (rz = 11..12) into End Void!
+            if (rz <= 12 && ((rx >= 1 && rx <= 2) || (rx >= 6 && rx <= 8))) {
+              for (let wy = -8; wy <= 13; wy++) put(lx, wy, lz, B.LAVA);
+            } else if (rz === 11 || rx === -4 || rx === 18) {
+              for (let wy = -9; wy <= 13; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+            }
+            colHeights[ci] = -9;
+          } else {
+            for (let wy = 12; wy <= plazaY; wy++) put(lx, wy, lz, wy < 14 ? B.STONE : ruinStone(wx, wy, wz));
+            if (inPortalDais) {
+              if (inPortalPit) {
+                put(lx, 13, lz, B.DEEPSLATE_BRICKS);
+                put(lx, 14, lz, B.LAVA);
+                put(lx, 15, lz, B.LAVA);
+              } else {
+                put(lx, 15, lz, (ax === 2 || az === 2) ? B.DEEPSLATE_BRICKS : B.MOSSY_STONE_BRICK);
+              }
+              if ((ax === 2 && az <= 1) || (az === 2 && ax <= 1)) {
+                const preEye = (rx === -2 && rz === 0) || (rx === 2 && rz === -1);
+                put(lx, 16, lz, preEye ? B.END_PORTAL_FRAME_EYE : B.END_PORTAL_FRAME);
+              }
+            } else if (rz >= 3 && rz <= 4 && ax <= 2) {
+              if (rz === 3) put(lx, 15, lz, B.STONE_STAIRS_N);
+              else put(lx, 14, lz, B.STONE_STAIRS_N);
+            } else if (inGrate) {
+              put(lx, 12, lz, B.DEEPSLATE_BRICKS);
+              put(lx, 13, lz, ((wx + wz) & 1) ? B.LAVA : B.MAGMA_BLOCK);
+              put(lx, 14, lz, B.IRON_GRATE);
+            } else if (inChannel && !overChannelBridge) {
+              put(lx, 12, lz, B.STONE_BRICK);
+              put(lx, 13, lz, B.WATER);
+              put(lx, 14, lz, B.WATER);
+            } else if (inChannel && overChannelBridge) {
+              put(lx, 13, lz, B.WATER);
+              put(lx, 14, lz, B.MOSSY_STONE_BRICK);
+              if (rz === -4 || rz === -2) put(lx, 15, lz, B.STONE_BRICK_WALL);
+            }
+          }
+
+          // 2) Twin Monumental Arched Stone-Brick Gateways w/ Diamond Wall Cutouts behind Altar (rz in [-11..-8], ax <= 12)
+          if (rz >= -11 && rz <= -8 && ax <= 12) {
+            const isFrontArch = (rz >= -10 && rz <= -8);
+            const archCenter = rx < 0 ? -6 : 6;
+            const adx = rx - archCenter;
+            const isPier = (ax >= 9 || ax <= 1);
+            if (isFrontArch) {
+              const archCeiling = 20 + Math.round(Math.sqrt(Math.max(0, 22 - adx * adx * 0.85)));
+              const topArchY = isPier ? 25 : 26;
+              for (let wy = 15; wy <= topArchY; wy++) {
+                if (isPier) {
+                  const isFlute = (ax === 10 && rz === -9) ? false : true;
+                  if (isFlute) put(lx, wy, lz, wy >= 24 ? darkTrim(wx, wy, wz) : ruinStone(wx, wy, wz));
+                } else if (wy >= archCeiling && Math.abs(adx) <= 5) {
+                  put(lx, wy, lz, wy >= archCeiling + 1 ? darkTrim(wx, wy, wz) : B.STONE_BRICK);
+                } else if (wy === 15 && rz === -10) {
+                  put(lx, wy, lz, B.STONE_BRICK_WALL);
+                }
+              }
+              if (rz === -8 && !isPier && hash2i(wx, wz, worldSeed + 9349) > 0.62) {
+                for (let vy = 1; vy <= 3; vy++) put(lx, archCeiling - vy, lz, B.VINE);
+              }
+            } else if (rz === -11 && rx < -1 && !isPier) {
+              // Iconic Recessed Backdrop Wall w/ 3 Diamond Cutouts behind Left Arch (right arch opens to NE waterfall!)
+              for (let wy = 15; wy <= 22; wy++) {
+                const dTop = Math.abs(adx) + Math.abs(wy - 21) <= 1;
+                const dL = Math.abs(adx + 2) + Math.abs(wy - 19) <= 1;
+                const dR = Math.abs(adx - 2) + Math.abs(wy - 19) <= 1;
+                if (!dTop && !dL && !dR) put(lx, wy, lz, ruinStone(wx, wy, wz));
+              }
+            }
+          }
+
+          // 3) Cascading Rear Waterfall (rx in [8..12], rz in [-26..-18])
+          if (rx >= 8 && rx <= 12 && rz >= -26 && rz <= -18) {
+            if (rz === -26) {
+              for (let wy = 14; wy <= 35; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+            } else if (rz === -25 && rx >= 9 && rx <= 11) {
+              for (let wy = 14; wy <= 34; wy++) put(lx, wy, lz, B.WATER);
+            } else if (rz >= -25 && rz <= -20 && rx >= 9 && rx <= 11) {
+              put(lx, 13, lz, B.PRISMARINE);
+              put(lx, 14, lz, B.WATER);
+            }
+          }
+
+          // 4) Ascending NE Sanctuary Staircase & Braziers (rx in [12..15], rz in [-16..-5])
+          if (rx >= 12 && rx <= 15 && rz >= -16 && rz <= -5) {
+            const stepTop = 15 + (-5 - rz);
+            for (let wy = 14; wy <= stepTop; wy++) {
+              put(lx, wy, lz, (wy === stepTop && (rx === 12 || rx === 15)) ? B.STONE_BRICK_WALL : (wy === stepTop ? B.STONE_STAIRS_N : ruinStone(wx, wy, wz)));
+            }
+          }
+
+          // 5) Right Foreground Watchtower (rx in [16..27], rz in [5..17])
+          if (rx >= 16 && rx <= 27 && rz >= 5 && rz <= 17) {
+            const twWall = (rx === 16 || rx === 27 || rz === 5 || rz === 17);
+            const twDoor = (rx === 16 && rz >= 10 && rz <= 12);
+            for (let wy = 15; wy <= 29; wy++) {
+              if (twDoor && wy <= 18) continue;
+              if (twWall) {
+                const notch = (wy === 29 && ((rx + rz) & 1) === 1);
+                const slit = (wy >= 24 && wy <= 26 && (rx === 21 || rz === 11));
+                if (!notch) put(lx, wy, lz, slit ? B.LANTERN : (wy >= 27 ? darkTrim(wx, wy, wz) : ruinStone(wx, wy, wz)));
+              } else if (wy === 22 || wy === 27) {
+                put(lx, wy, lz, B.SPRUCE_PLANKS);
+              }
+            }
+            if (rx === 24 && rz === 11) put(lx, 23, lz, B.GOLD_CHEST);
+          }
+
+          // 6) Left Overgrown Cliff Terrace & Foreground Trees (rx in [-25..-11], rz in [1..18])
+          if (rx >= -25 && rx <= -11 && rz >= 1 && rz <= 18) {
+            const cliffH = 16 + Math.max(0, Math.floor((-11 - rx) * 0.55));
+            for (let wy = 14; wy <= cliffH; wy++) {
+              put(lx, wy, lz, wy === cliffH ? (hash2i(wx, wz, worldSeed + 9371) > 0.28 ? B.GRASS : B.MOSS_BLOCK) : ruinStone(wx, wy, wz));
+            }
+            const rf = hash2i(wx, wz, worldSeed + 9377);
+            if (rf > 0.52) put(lx, cliffH + 1, lz, rf > 0.85 ? B.FERN : (rf > 0.72 ? B.FLOWER_POPPY : B.TALL_GRASS));
+            if (rx === -11 && hash2i(wx, wz, worldSeed + 9391) > 0.40) {
+              for (let vy = 1; vy <= 4; vy++) put(lx, cliffH - vy, lz, B.VINE);
+            }
+            if ((rx === -18 && rz === 8) || (rx === -21 && rz === 13) || (rx === -15 && rz === 14)) {
+              pendingTrees.push({ lx, wy: cliffH + 1, lz, wx, wz, style: rz === 8 ? 'pine' : 'oak' });
+            }
+          }
+
+          // 7) Perimeter Canyon Sanctuary Walls, Pillars, Fire Braziers & Hilltop Trees
+          const inPerimeterWall = (ax >= 28 || az >= 28) && !(ax <= 8 || az <= 8);
+          if (inPerimeterWall) {
+            const ringD = Math.max(ax, az) - 27;
+            const wallH = Math.min(37, 23 + Math.floor(ringD * 0.9) + Math.floor(valueNoise2D(wx * 0.14, wz * 0.14, worldSeed + 9403) * 5));
+            for (let wy = 15; wy <= wallH; wy++) {
+              put(lx, wy, lz, wy === wallH ? B.GRASS : (wy >= wallH - 1 ? B.MOSS_BLOCK : ruinStone(wx, wy, wz)));
+            }
+            if (ax === 28 || az === 28) {
+              if (((rx + rz) % 7) === 0) {
+                for (let wy = 15; wy <= 31; wy++) put(lx, wy, lz, darkTrim(wx, wy, wz));
+              } else if (hash2i(wx, wz, worldSeed + 9413) > 0.52) {
+                for (let vy = 0; vy < 4; vy++) put(lx, wallH - 1 - vy, lz, B.VINE);
+              }
+            }
+            if (ringD >= 6 && ringD <= 13 && hash2i(wx, wz, worldSeed + 9419) > 0.962) {
+              pendingTrees.push({ lx, wy: wallH + 1, lz, wx, wz, style: 'pine' });
+            }
+            colHeights[ci] = wallH;
+          }
+          // 4 Monumental Corner Fire Brazier Pillars framing the End Portal Plaza
+          if ((ax === 13 || ax === 14) && (az === 13 || az === 14)) {
+            if (!inChasm) {
+              const pH = (ax === 14 && az === 14) ? 23 : 22;
+              for (let wy = 15; wy <= pH; wy++) put(lx, wy, lz, wy >= pH - 1 ? darkTrim(wx, wy, wz) : ruinStone(wx, wy, wz));
+              if (ax === 14 && az === 14) put(lx, pH + 1, lz, B.CAMPFIRE);
+            }
+          }
+          // NE cliff trees above waterfall (like Image 8 top backdrop!)
+          if ((rx === -4 && rz === -32) || (rx === 4 && rz === -34)) {
+            pendingTrees.push({ lx, wy: 26, lz, wx, wz, style: 'pine' });
+          }
+
+        // ==================== ZONE B: VAULTED SUNKEN CANAL HALLS (IMAGE 3) ====================
+        } else if (inZoneB) {
+          const isCanal = (rx >= 8 && rx <= 22);
+          const isAlcove = (rx >= -32 && rx <= -24);
+          const isVaultArch = ((Math.abs(rz) % 12) <= 1);
+          const isFluteCol = ((Math.abs(rz) % 12) === 0 && (rx === -12 || rx === -11 || rx === 2 || rx === 3));
+          if (isCanal) {
+            for (let wy = 6; wy <= 12; wy++) put(lx, wy, lz, wy === 6 ? B.DEEPSLATE_TILES : (wy <= 12 ? B.WATER : B.AIR));
+            if (rx === 8 || rx === 22) {
+              for (let wy = 6; wy <= 15; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+            }
+          } else {
+            // Terracotta walkways framed by mossy stone brick seams (Image 3 palette!)
+            const onPath = (rx >= -20 && rx <= 7);
+            for (let wy = 12; wy <= 14; wy++) {
+              if (wy === 14 && onPath) {
+                const border = (rx === -20 || rx === 7 || (Math.abs(rz) & 7) === 0);
+                put(lx, wy, lz, border ? B.MOSSY_STONE_BRICK : (hash2i(wx, wz, worldSeed + 9431) > 0.25 ? B.TERRACOTTA_ORANGE : B.MUD_BRICK));
+              } else {
+                put(lx, wy, lz, ruinStone(wx, wy, wz));
+              }
+            }
+          }
+          // Outer gallery walls + lit alcoves + vaulted ceiling arches w/ skylights & hanging foliage
+          const isOuterWallB = (ax >= 33);
+          const archSkyH = 30 - Math.floor((ax * ax) / 160);
+          if (isOuterWallB) {
+            for (let wy = 15; wy <= 31; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+          } else if (isAlcove) {
+            for (let wy = 15; wy <= 24; wy++) {
+              const alWall = (rx === -32 || (Math.abs(rz) % 8 === 0 && wy <= 21));
+              if (alWall) put(lx, wy, lz, ruinStone(wx, wy, wz));
+              else if (rx === -26 && wy === 18 && (Math.abs(rz) % 8 === 4)) put(lx, wy, lz, B.LANTERN);
+            }
+          }
+          if (isFluteCol) {
+            for (let wy = 15; wy <= archSkyH; wy++) put(lx, wy, lz, (wy === 15 || wy >= archSkyH - 1) ? darkTrim(wx, wy, wz) : ruinStone(wx, wy, wz));
+          }
+          // Warm glowing Campfire Braziers along terracotta hall
+          if (rx === -14 && (Math.abs(rz) % 12) === 6) {
+            put(lx, 15, lz, B.TERRACOTTA_YELLOW);
+            put(lx, 16, lz, B.CAMPFIRE);
+          }
+          // Vaulted ceiling + open sky strips for god-rays + lush hanging vine & leaf curtains
+          const skylight = (!isVaultArch && ax <= 6 && (Math.abs(rz) % 12) >= 4 && (Math.abs(rz) % 12) <= 8);
+          if (!skylight && archSkyH >= 20) {
+            put(lx, archSkyH, lz, isVaultArch ? darkTrim(wx, archSkyH, wz) : ruinStone(wx, archSkyH, wz));
+            put(lx, archSkyH + 1, lz, B.GRASS);
+            if (hash2i(wx, wz, worldSeed + 9439) > 0.68) {
+              const hangD = 2 + Math.floor(hash2i(wx, wz, worldSeed + 9461) * 5);
+              for (let d = 1; d <= hangD; d++) put(lx, archSkyH - d, lz, d <= 2 ? B.OAK_LEAVES : B.VINE);
+            }
+          }
+
+        // ==================== ZONE C: COLOSSAL GUARDIAN STATUE COURTYARD (IMAGE 9) ====================
+        } else if (inZoneC) {
+          const floorY = 12;
+          for (let wy = 11; wy <= floorY; wy++) {
+            const cr = hash2i(wx, wz, worldSeed + 9473);
+            put(lx, wy, lz, cr > 0.80 ? B.MOSS_BLOCK : (cr > 0.62 ? B.GRAVEL : ruinStone(wx, wy, wz)));
+          }
+          colHeights[ci] = floorY;
+          if (az <= 15 && hash2i(wx, wz, worldSeed + 9479) > 0.968 && rx > -115) {
+            put(lx, floorY + 1, lz, B.OAK_FENCE);
+            if (((wx + wz) & 3) === 0) put(lx, floorY + 2, lz, B.TORCH_BLOCK);
+          }
+          // North & South Oxidized-Copper & Prismarine Trimmed Multi-Tier Colonnade Alcoves (Image 9!)
+          if (az >= 18) {
+            const tier = az >= 27 ? 2 : 1;
+            const colH = tier === 1 ? 21 : 30;
+            for (let wy = 13; wy <= colH; wy++) {
+              const isTrim = (wy === 16 || wy === 20 || wy === 25 || wy === 29);
+              const isArchOpen = (tier === 1 && wy >= 14 && wy <= 18 && (Math.abs(rx) % 8 >= 2 && Math.abs(rx) % 8 <= 5) && az <= 22);
+              const isUpperOpen = (tier === 2 && wy >= 22 && wy <= 26 && (Math.abs(rx) % 8 >= 2 && Math.abs(rx) % 8 <= 5) && az <= 31);
+              if (isArchOpen || isUpperOpen) {
+                if (wy === 14 && (Math.abs(rx) % 8 === 3)) put(lx, wy, lz, B.TORCH_BLOCK);
+                continue;
+              }
+              put(lx, wy, lz, isTrim ? oxTrim(wx, wy, wz) : ruinStone(wx, wy, wz));
+            }
+          }
+          // Colossal Moss & Terracotta Guardian Statue against western rear cliff (rx in [-138..-118], |rz| <= 12)
+          if (rx <= -118 && rx >= -138 && az <= 12) {
+            const backWall = (rx <= -133);
+            const torso = (rx >= -132 && rx <= -123 && az <= 7);
+            const armReach = (rx >= -124 && rx <= -119 && az >= 5 && az <= 9);
+            const headBox = (rx >= -130 && rx <= -122 && az <= 4);
+            const sMat = (wy) => (hash3i(wx, wy, wz, worldSeed + 9491) > 0.72 ? B.MOSS_BLOCK : (hash3i(wx, wy, wz, worldSeed + 9497) > 0.38 ? B.TERRACOTTA_ORANGE : B.MUD_BRICK));
+            if (backWall) {
+              for (let wy = 13; wy <= 35; wy++) put(lx, wy, lz, darkTrim(wx, wy, wz));
+            }
+            if (torso) {
+              for (let wy = 13; wy <= 26; wy++) put(lx, wy, lz, sMat(wy));
+            }
+            if (armReach) {
+              for (let wy = 13; wy <= 22; wy++) put(lx, wy, lz, sMat(wy));
+            }
+            if (headBox) {
+              for (let wy = 26; wy <= 33; wy++) {
+                const eye = (rx === -122 && wy === 29 && (az === 2 || az === 3));
+                const horn = (wy >= 31 && az >= 3);
+                put(lx, wy, lz, eye ? B.SHROOMLIGHT : (horn ? B.TERRACOTTA_YELLOW : sMat(wy)));
+              }
+            }
+            if (rx === -120 && rz === 0) put(lx, 13, lz, B.GOLD_CHEST);
+          }
+
+        // ==================== ZONE D: OVERGROWN CITADEL & EMERALD POOL (IMAGE 10) ====================
+        } else if (inZoneD) {
+          const inPool = (rx >= 84 && rx <= 108 && az <= 12);
+          if (inPool) {
+            const pd = Math.max(Math.abs(rx - 96), az);
+            const stepY = pd >= 11 ? 13 : (pd >= 9 ? 11 : 9);
+            for (let wy = 8; wy <= stepY; wy++) {
+              put(lx, wy, lz, wy === stepY ? ((pd & 1) ? B.MOSS_BLOCK : B.PRISMARINE) : B.MOSSY_STONE_BRICK);
+            }
+            for (let wy = stepY + 1; wy <= 13; wy++) put(lx, wy, lz, B.WATER);
+          } else {
+            for (let wy = 12; wy <= plazaY; wy++) put(lx, wy, lz, hash2i(wx, wz, worldSeed + 9511) > 0.78 ? B.MOSS_BLOCK : ruinStone(wx, wy, wz));
+            // 4 Multi-Tier Sunlit Ruined Citadel Watchtowers at corners of East Quarter
+            const twCx = (rx < 96) ? 66 : 124;
+            const twCz = (rz < 0) ? -24 : 24;
+            const tdx = Math.abs(rx - twCx), tdz = Math.abs(rz - twCz);
+            if (tdx <= 6 && tdz <= 6) {
+              const tEdge = (tdx === 6 || tdz === 6);
+              const crumble = (hash2i(wx, wz, worldSeed + 9521) > 0.65) ? 4 : 0;
+              const twH = 31 - crumble;
+              if (tEdge) {
+                for (let wy = 15; wy <= twH; wy++) {
+                  if ((tdx <= 1 || tdz <= 1) && wy <= 18) continue;
+                  put(lx, wy, lz, ruinStone(wx, wy, wz));
+                }
+              } else {
+                put(lx, 21, lz, B.SPRUCE_PLANKS);
+                if (tdx === 0 && tdz === 0) put(lx, 22, lz, B.GOLD_CHEST);
+              }
+            }
+            // Ruined Courtyard Trees & Crackling Campfire Braziers (Image 10!)
+            if ((rx === 76 && rz === -11) || (rx === 115 && rz === 11) || (rx === 96 && rz === -20)) {
+              pendingTrees.push({ lx, wy: 15, lz, wx, wz, style: 'canopy_jungle' });
+            }
+            if ((rx === 76 && rz === 10) || (rx === 115 && rz === -10)) {
+              put(lx, 15, lz, B.DEEPSLATE_BRICKS);
+              put(lx, 16, lz, B.CAMPFIRE);
+            }
+          }
+
+        // ==================== ZONE E: OUTER 1000x1000 RUINS & GRAND CAUSEWAYS ====================
+        } else {
+          const isOuterWallR = (edgeDist < 4);
+          if (onCauseway) {
+            // Monumental 16-wide Grand Stone Causeways spanning all 1000x1000!
+            const alongX = (az <= 8);
+            const perp = alongX ? az : ax;
+            const alongCoord = alongX ? rx : rz;
+            for (let wy = 12; wy <= plazaY; wy++) {
+              if (perp >= 5 && perp <= 6 && wy === plazaY) put(lx, wy, lz, B.WATER);
+              else if (perp === 7 && wy === plazaY) put(lx, wy, lz, B.STONE_BRICK_WALL);
+              else put(lx, wy, lz, (perp <= 1 && (alongCoord & 1)) ? B.DEEPSLATE_TILES : ruinStone(wx, wy, wz));
+            }
+            if ((Math.abs(alongCoord) % 24) === 0 && perp >= 7) {
+              for (let wy = 15; wy <= 22; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+              put(lx, 23, lz, B.CAMPFIRE);
+            }
+            if (perp >= 7 && (Math.abs(alongCoord) % 24) === 0) put(lx, 15, lz, B.LANTERN);
+          } else {
+            // Repeating 48x48 Modular Architectural Ruin Districts across full 1000x1000 span
+            const bx = ((wx % 48) + 48) % 48, bz = ((wz % 48) + 48) % 48;
+            const dgx = Math.floor(wx / 48), dgz = Math.floor(wz / 48);
+            const distKind = Math.floor(hash2i(dgx, dgz, worldSeed + 9547) * 5);
+            const bCx = bx - 24, bCz = bz - 24;
+            const badx = Math.abs(bCx), badz = Math.abs(bCz);
+            const surfR = hash2i(wx, wz, worldSeed + 9551);
+            const baseElev = edgeDist < 16 ? Math.max(8, Math.round(8 + (edgeDist / 16) * 6)) : plazaY;
+            for (let wy = 12; wy <= baseElev; wy++) {
+              put(lx, wy, lz, (wy === baseElev && surfR > 0.72) ? (surfR > 0.88 ? B.GRASS : B.MOSS_BLOCK) : ruinStone(wx, wy, wz));
+            }
+            colHeights[ci] = baseElev;
+            if (!isOuterWallR && edgeDist >= 12) {
+              if (distKind === 0 && badx <= 11 && badz <= 11) {
+                // Module 1: Ruined Citadel Tower + Emerald Moss Pool (Image 10 motif)
+                if (badx <= 5 && badz <= 5) {
+                  put(lx, baseElev - 2, lz, B.PRISMARINE);
+                  put(lx, baseElev - 1, lz, B.WATER);
+                  put(lx, baseElev, lz, B.WATER);
+                } else if (badx === 11 || badz === 11) {
+                  const wh = 19 + Math.floor(hash2i(wx, wz, worldSeed + 9587) * 8);
+                  if (badx > 2 && badz > 2) for (let wy = baseElev + 1; wy <= wh; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                } else if (bCx === -7 && bCz === -7) {
+                  put(lx, baseElev + 1, lz, B.GOLD_CHEST);
+                }
+              } else if (distKind === 1 && badx <= 13 && badz <= 13) {
+                // Module 2: Terracotta & Sunken Dark Canal Hall (Image 3 motif)
+                if (bCx >= 4 && bCx <= 9) {
+                  put(lx, baseElev - 2, lz, B.DEEPSLATE_TILES);
+                  put(lx, baseElev - 1, lz, B.WATER);
+                  put(lx, baseElev, lz, B.WATER);
+                } else if (badx === 12 || badz === 12) {
+                  if ((bx & 3) === 0) for (let wy = baseElev + 1; wy <= baseElev + 9; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                } else {
+                  put(lx, baseElev, lz, (bCx & 3) === 0 ? B.MOSSY_STONE_BRICK : B.TERRACOTTA_ORANGE);
+                  if (bCx === 0 && bCz === 0) { put(lx, baseElev + 1, lz, B.DEEPSLATE_BRICKS); put(lx, baseElev + 2, lz, B.CAMPFIRE); }
+                }
+              } else if (distKind === 2 && badx <= 12 && badz <= 12) {
+                // Module 3: Oxidized Copper Colonnade & Monolith Shrine (Image 9 motif)
+                if (badx === 11 || badz === 11) {
+                  for (let wy = baseElev + 1; wy <= baseElev + 8; wy++) {
+                    if ((wy - baseElev) === 4 || (wy - baseElev) === 8) put(lx, wy, lz, oxTrim(wx, wy, wz));
+                    else if ((badx > 2 || badz > 2) && ((bx + bz) & 1) === 0) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                  }
+                } else if (badx <= 2 && badz <= 2) {
+                  const mh = baseElev + (badx === 0 && badz === 0 ? 7 : 4);
+                  for (let wy = baseElev + 1; wy <= mh; wy++) put(lx, wy, lz, (wy === mh - 1) ? B.SHROOMLIGHT : B.TERRACOTTA_ORANGE);
+                }
+              } else if (distKind === 3 && (badx <= 3 || badz <= 3)) {
+                // Module 4: Overgrown Aqueduct Arches & Torch Courtyard
+                if (badx === 3 || badz === 3) {
+                  const ah = baseElev + ((bx + bz) % 6 === 0 ? 7 : 3);
+                  for (let wy = baseElev + 1; wy <= ah; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                } else if (bCx === 0 && bCz === 0) {
+                  put(lx, baseElev + 1, lz, B.CHEST);
+                }
+              } else if (bCx === 0 && bCz === 0) {
+                // Module 5: Overgrown Ancient Woods & Ruin Plaza
+                pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
+              }
+              if (lx >= 4 && lx <= 11 && lz >= 4 && lz <= 11 && hash2i(wx, wz, worldSeed + 9601) > 0.992) {
+                pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: hash2i(wx, wz, worldSeed + 9613) > 0.5 ? 'pine' : 'oak' });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for (let ti = 0; ti < pendingTrees.length; ti++) {
+      const tr = pendingTrees[ti];
+      if (tr.lx >= 2 && tr.lx <= 13 && tr.lz >= 2 && tr.lz <= 13) {
+        placeLuantiTree(data, tr.lx, tr.wy, tr.lz, tr.wx, tr.wz, tr.style);
+      }
+    }
+    maxLy = applyChunkMods(cx, cz, data, Math.min(WORLD_H - 1, maxLy));
+    const chGr = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    registerChunk(chunkKey(cx, cz), chGr);
+    markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
+    return chGr;
+  }
+
   function generateChunk(cx, cz) {
     const data = _allocChunkData();
     const wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
@@ -2287,6 +2974,7 @@
     if (depthOffset !== 0) return _genDeepUndergroundChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'nether') return _genNetherChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'overworld' && isAbandonedCity(wx0 + 8, wz0 + 8)) return _genCityChunk(cx, cz, wx0, wz0, data);
+    if (currentDimension === 'overworld' && isGrandRuins(wx0 + 8, wz0 + 8)) return _genGrandRuinsChunk(cx, cz, wx0, wz0, data);
     let maxLy = 0;
 
     // ===================== DIMENSION 1: OVERWORLD (THẾ GIỚI CHÍNH) =====================
@@ -6582,20 +7270,7 @@
   function getStrongholdLocations() {
     const s = (typeof worldSeed === 'number' ? worldSeed : 1337);
     if (_shLocCache && _shLocSeed === s) return _shLocCache;
-    const spSeedA = Math.imul(s ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
-    const spSeedB = Math.imul(s ^ 0xc2b2ae35, 0x27d4eb2f) >>> 0;
-    const ox = (_ruinOriginX !== 0 || _ruinOriginZ !== 0) ? _ruinOriginX : ((spSeedA % 3600) - 1800);
-    const oz = (_ruinOriginX !== 0 || _ruinOriginZ !== 0) ? _ruinOriginZ : ((spSeedB % 3600) - 1800);
-    const out = [];
-    const dists = [96, 185, 265];
-    for (let i = 0; i < 3; i++) {
-      const ang = ((s * 0.0017 + i * 2.0943951) % (Math.PI * 2));
-      const dist = dists[i] + ((Math.abs((s * (i + 3) * 2654435761) | 0)) % 36);
-      const sx = Math.round(ox + Math.cos(ang) * dist);
-      const sz = Math.round(oz + Math.sin(ang) * dist);
-      // Deep underground at trueY = -26 so the ruined Stronghold castle is always buried beneath rock and never floats!
-      out.push({ x: sx, y: -26, z: sz });
-    }
+    const out = [{ x: GRAND_RUINS_CX, y: GRAND_RUINS_PORTAL_Y, z: GRAND_RUINS_CZ, inGrandRuins: true }];
     _shLocSeed = s; _shLocCache = out;
     return out;
   }
@@ -6614,6 +7289,7 @@
     };
     for (let si = 0; si < strongholds.length; si++) {
       const sh = strongholds[si];
+      if (sh.inGrandRuins) continue;
       if (Math.abs(wx0 + 8 - sh.x) > 26 || Math.abs(wz0 + 8 - sh.z) > 26) continue;
       const baseY = sh.y + dOff; // Local wy corresponding to trueY = sh.y (-26)
       if (baseY + 13 < MIN_Y + 2 || baseY - 3 > MAX_Y - 2) continue;
@@ -7123,7 +7799,7 @@
     scene.add(grp);
 
     const tx = diving ? sh.x + 0.5 : sx + dirX * Math.min(13, dist);
-    const ty = diving ? Math.max(sh.y + 1, sy - 4.0) : sy + 3.6;
+    const ty = diving ? (sh.inGrandRuins ? sh.y + 1.5 : Math.max(sh.y + 1, sy - 4.0)) : sy + 3.6;
     const tz = diving ? sh.z + 0.5 : sz + dirZ * Math.min(13, dist);
 
     flyingEnderEyes.push({
@@ -7132,9 +7808,13 @@
     });
     playSfx('equip');
     if (diving) {
-      showToast(`👁️ Mắt Ender lao xuống đất! Pháo Đài (Cổng End) ở ngay bên dưới (~${Math.round(dist)}m, y=${sh.y})!`);
+      showToast(sh.inGrandRuins
+        ? `👁️ Mắt Ender bay thẳng tới Đền Cổng The End trong Khu Tàn Tích 1000×1000 (~${Math.round(dist)}m, y=${sh.y})!`
+        : `👁️ Mắt Ender lao xuống đất! Pháo Đài (Cổng End) ở ngay bên dưới (~${Math.round(dist)}m, y=${sh.y})!`);
     } else {
-      showToast(`👁️ Mắt Ender đang bay về phía Pháo Đài (cách khoảng ${Math.round(dist)}m)...`);
+      showToast(sh.inGrandRuins
+        ? `👁️ Mắt Ender đang dẫn lối tới Khu Tàn Tích Cổng The End 1000×1000 (cách khoảng ${Math.round(dist)}m)...`
+        : `👁️ Mắt Ender đang bay về phía Pháo Đài (cách khoảng ${Math.round(dist)}m)...`);
     }
     return true;
   }
@@ -7190,7 +7870,7 @@
     );
   }
 
-  let _lastEyesInWater = false, _lastFireHudOn = false;
+  let _lastEyesInWater = false, _lastEyesInLava = false, _lastFireHudOn = false;
   function _clearWorldInteractiveCaches(alsoClearChunks = false, wipeWorldState = false) {
     if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); plantedSaplings.clear(); saplingFertilizeCount.clear(); }
     else { worldModsByChunk.clear(); activeFires.clear(); }
@@ -7276,6 +7956,23 @@
       playSfx('roar');
       showToast(reasonToast || "🌈 CHÀO MỪNG TỚI THE SIFT (KHU GIẤC MƠ)! Khám phá nước cầu vồng Ichor & quặng Aetherium!");
     } else if (targetDim === 'nether') {
+      if (portalOpts && portalOpts.castleHero) {
+        const scx = 64 >> 4, scz = -48 >> 4;
+        for (let dz = -3; dz <= 0; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
+        if (!isWorldLoading) {
+          for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch);
+          _teleportWarmupFrames = 24;
+        }
+        player.x = 64.5; player.y = 9.2; player.z = -46.5; player.yaw = 0.0; player.pitch = 0.14;
+        player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+        spawnMobOfType('wither_skeleton', 63.5, 9.2, -55.5);
+        spawnMobOfType('blaze', 72.5, 13.0, -64.5);
+        mobSpawnTimer = 1.2;
+        playSfx('roar');
+        showToast(reasonToast || '🏰 Đã tới Lâu Đài Địa Ngục! Khám phá tòa thành tháp ngọc lam giữa biển dung nham!');
+        cameraShake = 0.45;
+        return;
+      }
       let sx = 0, sz = 0, sy = 10;
       if (portalOpts && portalOpts.portalCoords) {
         sx = portalOpts.portalCoords.x;
@@ -7456,8 +8153,9 @@
     player._darknessT = 0; player._nightVisionT = 0; player._wardenWarningLevel = 0; player._wardenWarnDecayT = 0;
     if (typeof _elDarknessOv !== 'undefined' && _elDarknessOv) _elDarknessOv.style.opacity = '0';
     player.hp = 20; player.hunger = 20; player.air = player.maxAir; player.xp = 0; player.level = 0; player.daysPlayed = 1;
-    player.eyesInWater = false; player.inWater = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
+    player.eyesInWater = false; player.inWater = false; player.eyesInLava = false; player.inLava = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
     if (typeof _elUnderwater !== 'undefined' && _elUnderwater) { _elUnderwater.classList.remove('active'); _lastEyesInWater = false; }
+    if (typeof _elLava !== 'undefined' && _elLava) { _elLava.classList.remove('active'); _lastEyesInLava = false; }
     if (typeof _elFireHud !== 'undefined' && _elFireHud) { _elFireHud.classList.remove('active'); _lastFireHudOn = false; }
     recalcPlayerArmor();
     player.dead = false; player.fallStartY = sp.y; dayTime = 0.34;

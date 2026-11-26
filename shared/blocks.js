@@ -452,10 +452,28 @@
     cactusSpine:   _nextTile++
   };
 
+  // v143 Lava Magma Block, Blackstone, Mossy Stone Bricks, Nether Vines & Iron Grate
+  B.MAGMA_BLOCK       = _dynBlockId++;
+  B.BLACKSTONE        = _dynBlockId++;
+  B.BLACKSTONE_BRICKS = _dynBlockId++;
+  B.MOSSY_STONE_BRICK = _dynBlockId++;
+  B.WEEPING_VINES     = _dynBlockId++;
+  B.TWISTING_VINES    = _dynBlockId++;
+  B.IRON_GRATE        = _dynBlockId++;
+  const V143_TILES = {
+    magmaBlock:       _nextTile++,
+    blackstone:       _nextTile++,
+    blackstoneBricks: _nextTile++,
+    mossyStoneBrick:  _nextTile++,
+    weepingVines:     _nextTile++,
+    twistingVines:    _nextTile++,
+    ironGrate:        _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

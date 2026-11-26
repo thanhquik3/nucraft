@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -33,7 +33,9 @@ const {
     END_CRYSTAL_BLOCK: 'End Crystal', TOTEM_UNDYING: 'Totem of Undying', SMITHING_TABLE: 'Smithing Table',
     END_GATEWAY: 'End Gateway', END_STONE_BRICKS: 'End Stone Bricks', PURPUR_PILLAR: 'Purpur Pillar',
     END_ROD: 'End Rod', DRAGON_HEAD: 'Dragon Head', ELYTRA: 'Elytra', ENDER_DRAGON_EGG: 'Dragon Egg',
-    WINDMILL_HUB: 'Windmill Hub', SNOWY_DIRT: 'Snowy Dirt', SNOWY_GRASS: 'Snowy Grass', CACTUS_FLOWER: 'Cactus Flower'
+    WINDMILL_HUB: 'Windmill Hub', SNOWY_DIRT: 'Snowy Dirt', SNOWY_GRASS: 'Snowy Grass', CACTUS_FLOWER: 'Cactus Flower',
+    MAGMA_BLOCK: 'Magma Block', BLACKSTONE: 'Blackstone', BLACKSTONE_BRICKS: 'Polished Blackstone Bricks',
+    MOSSY_STONE_BRICK: 'Mossy Stone Bricks', WEEPING_VINES: 'Weeping Vines', TWISTING_VINES: 'Twisting Vines', IRON_GRATE: 'Iron Grate'
   };
   function getLocalizedBlockName(id) {
     const d = BLOCK_DEF[id];
@@ -56,7 +58,10 @@ const {
     'Thung Lũng Thông': 'Pine Valley', 'Rừng Đại Thụ': 'Giant Jungle', 'Thành Phố Cổ': 'Ancient City',
     'Biển Sâu': 'Deep Ocean', 'Vực Biển Sâu': 'Abyssal Trench', 'Rừng Đỏ Địa Ngục': 'Crimson Forest',
     'Rừng Lục Địa Ngục': 'Warped Forest', 'Đất Hoang Địa Ngục': 'Nether Wastes', 'Khu Kết Thúc': 'The End',
-    'Đồng Bằng Cỏ Xanh': 'Green Plains', 'Đồng Bằng Tuyết': 'Snowy Plains'
+    'Đồng Bằng Cỏ Xanh': 'Green Plains', 'Đồng Bằng Tuyết': 'Snowy Plains',
+    'Địa Ngục • Đồng Bằng Đá Bazan': 'Nether • Basalt Deltas',
+    'Địa Ngục • Thung Lũng Cát Linh Hồn': 'Nether • Soul Sand Valley',
+    'Khu Tàn Tích Cổ Đại 1000×1000': 'Grand Ancient Ruins (1000×1000)'
   };
   function getLocalizedBiomeName(bio) {
     const n = (typeof bio === 'string') ? bio : (bio && bio.name) || '';
@@ -815,6 +820,43 @@ const {
     name: 'Hoa Xương Rồng', nameEn: 'Cactus Flower',
     hard: 0.05, solid: false, cross: true, trans: true, foliage: true, customAtlasTex: true,
     drop: B.CACTUS_FLOWER, tiles: [V142_TILES.cactusFlower, V142_TILES.cactusFlower, V142_TILES.cactusFlower], mapColor: '#f472b6'
+  };
+
+  // v143 Magma Block, Blackstone, Mossy Stone Bricks, Nether Vines & Iron Grate
+  BLOCK_DEF[B.MAGMA_BLOCK] = {
+    name: 'Khối Dung Nham (Magma)', nameEn: 'Magma Block',
+    hard: 1.2, solid: true, stone: true, emissive: true, eType: 0, customAtlasTex: true,
+    drop: B.MAGMA_BLOCK, tiles: [V143_TILES.magmaBlock, V143_TILES.magmaBlock, V143_TILES.magmaBlock], mapColor: '#c2410c'
+  };
+  BLOCK_DEF[B.BLACKSTONE] = {
+    name: 'Đá Đen Địa Ngục (Blackstone)', nameEn: 'Blackstone',
+    hard: 1.8, solid: true, stone: true, customAtlasTex: true,
+    drop: B.BLACKSTONE, tiles: [V143_TILES.blackstone, V143_TILES.blackstone, V143_TILES.blackstone], mapColor: '#27232c'
+  };
+  BLOCK_DEF[B.BLACKSTONE_BRICKS] = {
+    name: 'Gạch Đá Đen Địa Ngục', nameEn: 'Polished Blackstone Bricks',
+    hard: 2.0, solid: true, stone: true, customAtlasTex: true,
+    drop: B.BLACKSTONE_BRICKS, tiles: [V143_TILES.blackstoneBricks, V143_TILES.blackstoneBricks, V143_TILES.blackstoneBricks], mapColor: '#2d2833'
+  };
+  BLOCK_DEF[B.MOSSY_STONE_BRICK] = {
+    name: 'Gạch Đá Rêu Cổ Đại', nameEn: 'Mossy Stone Bricks',
+    hard: 1.8, solid: true, stone: true, customAtlasTex: true,
+    drop: B.MOSSY_STONE_BRICK, tiles: [V143_TILES.mossyStoneBrick, V143_TILES.mossyStoneBrick, V143_TILES.mossyStoneBrick], mapColor: '#5c7258'
+  };
+  BLOCK_DEF[B.WEEPING_VINES] = {
+    name: 'Dây Leo Đỏ Địa Ngục', nameEn: 'Weeping Vines',
+    hard: 0.08, solid: false, cross: true, trans: true, foliage: true, customAtlasTex: true,
+    drop: B.WEEPING_VINES, tiles: [V143_TILES.weepingVines, V143_TILES.weepingVines, V143_TILES.weepingVines], mapColor: '#9f1239'
+  };
+  BLOCK_DEF[B.TWISTING_VINES] = {
+    name: 'Dây Leo Biến Dị', nameEn: 'Twisting Vines',
+    hard: 0.08, solid: false, cross: true, trans: true, foliage: true, customAtlasTex: true,
+    drop: B.TWISTING_VINES, tiles: [V143_TILES.twistingVines, V143_TILES.twistingVines, V143_TILES.twistingVines], mapColor: '#0d9488'
+  };
+  BLOCK_DEF[B.IRON_GRATE] = {
+    name: 'Lưới Sắt Cổ Đại', nameEn: 'Iron Grate',
+    hard: 2.2, solid: true, stone: true, glass: true, trans: true, customAtlasTex: true,
+    drop: B.IRON_GRATE, tiles: [V143_TILES.ironGrate, V143_TILES.ironGrate, V143_TILES.ironGrate], mapColor: '#475569'
   };
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {

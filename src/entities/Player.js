@@ -5,7 +5,7 @@
    * ============================================================================ */
   const player = {
     x: 8.5, y: 14, z: 8.5, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: -0.15,
-    onGround: false, inWater: false, eyesInWater: false, sneaking: false,
+    onGround: false, inWater: false, eyesInWater: false, inLava: false, eyesInLava: false, sneaking: false,
     sitting: false, doubleTapSprint: false,
     inBoat: false, spyglassZoom: false, waterBreathT: 0, bedSpawn: null, ridingDragon: null,
     hp: 20, maxHp: 20, armor: 5, hunger: 20, maxHunger: 20, air: 10, maxAir: 10,
@@ -4873,6 +4873,9 @@
     player.waterBotY = wCol.botY;
     player.inWater = wCol.inWater;
     player.eyesInWater = _isWaterLike(eyeBlock) && (!wCol.inWater || eyeWorldY < wCol.surfaceY);
+    const _lavaEyeAbove = getBlockWorld(Math.floor(player.x), Math.floor(eyeWorldY) + 1, Math.floor(player.z)) === B.LAVA;
+    player.inLava = (feetBlock === B.LAVA || eyeBlock === B.LAVA);
+    player.eyesInLava = (eyeBlock === B.LAVA && eyeWorldY < (Math.floor(eyeWorldY) + (_lavaEyeAbove ? 1.0 : 0.90)));
     // Nước nông 1 ô -> đi bộ / chạy bình thường; chỉ >= 2 ô nước & ngập thân mới đứng nước / bơi!
     player.deepWater = wCol.inWater && wCol.depth >= 2 && (player.y < wCol.surfaceY - 0.55);
     if (player.deepWater && !player.inBoat) player.sitting = false;
@@ -4886,12 +4889,19 @@
       _lastEyesInWater = player.eyesInWater;
       _elUnderwater.classList.toggle('active', _lastEyesInWater);
     }
+    if (player.eyesInLava !== _lastEyesInLava) {
+      _lastEyesInLava = player.eyesInLava;
+      if (_elLava) _elLava.classList.toggle('active', _lastEyesInLava);
+    }
 
     const _isFireImmuneEquip = (player.dragonArmorSet === 'fire' || !!(player.equip.chest && BLOCK_DEF[player.equip.chest] && BLOCK_DEF[player.equip.chest].fireImmune));
-    if (feetBlock === B.LAVA && gameMode !== 'creative' && !_isFireImmuneEquip) {
+    if (player.inLava && gameMode !== 'creative' && !_isFireImmuneEquip) {
       player.burnTime = Math.max(player.burnTime || 0, 6.0);
       lavaTick += dt;
-      if (lavaTick >= 0.45) { lavaTick = 0; hurtPlayer(4, 'Bạn rơi xuống hồ Dung Nham ở tầng sâu!'); }
+      if (lavaTick >= 0.45) { lavaTick = 0; hurtPlayer(4, 'Bạn rơi xuống hồ Dung Nham!'); }
+    } else if (player.onGround && !player.sneaking && getBlockWorld(Math.floor(player.x), Math.floor(player.y - 0.15), Math.floor(player.z)) === B.MAGMA_BLOCK && gameMode !== 'creative' && !_isFireImmuneEquip) {
+      lavaTick += dt;
+      if (lavaTick >= 0.85) { lavaTick = 0; hurtPlayer(1, '🔥 Bỏng chân trên Khối Dung Nham (ngồi Shift để tránh)!'); }
     } else lavaTick = 0;
 
     if (gameMode === 'creative' || player.inWater || _isFireImmuneEquip) {
@@ -4913,7 +4923,7 @@
         }
       } else { player._burnSoul = false; fireTick = 0; }
     }
-    const fireHudOn = (player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead;
+    const fireHudOn = ((player.eyesInLava || ((player.burnTime || 0) > 0 && gameMode !== 'creative')) && !player.dead);
     if (_elFireHud && fireHudOn !== _lastFireHudOn) {
       _lastFireHudOn = fireHudOn;
       _elFireHud.classList.toggle('active', fireHudOn);
@@ -5149,10 +5159,11 @@
     const iceBoost = (groundBelow === B.PACKED_ICE || groundBelow === B.ICE) ? 1.65 : 1.0;
     const elemDebuff = (player.entangleT > 0) ? 0.45 : ((player.chillT > 0) ? 0.65 : 1.0);
     const swimSpeedBase = player.inBoat ? (baseSpeed * 2.15)
+      : (player.inLava ? (baseSpeed * 0.48)
       : (player.lowSprintSwim ? (SPRINT_SPEED * 1.28)
         : (player.sprintSwimming ? (SPRINT_SPEED * 1.04)
           : (player.deepWater ? (WALK_SPEED * 0.82)
-            : (player.inWater ? (baseSpeed * 0.82) : (baseSpeed * iceBoost)))));
+            : (player.inWater ? (baseSpeed * 0.82) : (baseSpeed * iceBoost))))));
     const waterArmBoost = (player.dragonArmorSet === 'water' && player.inWater) ? 1.35 : 1.0;
     const moveSpeed = swimSpeedBase * elemDebuff * waterArmBoost;
 
@@ -5282,6 +5293,11 @@
       } else {
         player.vy = Math.max(-4.5, Math.min(4.8, (targetFloatY - player.y) * 5.2));
       }
+      player.fallStartY = player.y;
+    } else if (player.inLava) {
+      if (wantJump) player.vy = 3.6;
+      else if (wantSneak) player.vy = -3.8;
+      else player.vy = Math.max(-2.2, (player.vy || 0) * Math.exp(-6.0 * dt) - 1.6 * dt);
       player.fallStartY = player.y;
     }
     else {

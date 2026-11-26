@@ -4338,17 +4338,32 @@
     let type;
     if (currentDimension === 'nether') {
       if (hostileCnt >= hostileCap && r > 0.14) return;
-      if (r < 0.14) type = 'hoglin';
-      else if (r < 0.28) type = 'zoglin';
-      else if (r < 0.40) type = 'piglin';
-      else if (r < 0.50) type = 'piglin_brute';
-      else if (r < 0.62) type = 'magma_cube';
-      else if (r < 0.72) type = 'strider';
-      else if (r < 0.80) { type = 'soul_wisp'; spawnY += 3.5; }
-      else if (r < 0.88) { type = 'blaze'; spawnY += 3.5; }
-      else if (r < 0.90) { type = 'ghast'; spawnY += 8.5; }
-      else if (r < 0.95) { type = hasBoss ? 'blaze' : 'wildfire'; spawnY += 3.5; }
-      else type = hasBoss ? 'wither_skeleton' : (Math.random() < 0.5 ? 'redstone_monstrosity' : 'magma_golem');
+      if (biome === BIOMES.NETHER_BASALT_DELTAS) {
+        if (r < 0.34) type = 'magma_cube';
+        else if (r < 0.56) type = 'strider';
+        else if (r < 0.72) type = 'piglin_brute';
+        else if (r < 0.86) { type = 'blaze'; spawnY += 3.0; }
+        else if (r < 0.94) { type = 'ghast'; spawnY += 8.0; }
+        else type = hasBoss ? 'wither_skeleton' : 'magma_golem';
+      } else if (biome === BIOMES.NETHER_SOUL_VALLEY) {
+        if (r < 0.34) type = 'wither_skeleton';
+        else if (r < 0.56) { type = 'soul_wisp'; spawnY += 3.0; }
+        else if (r < 0.74) type = 'skeleton';
+        else if (r < 0.90) { type = 'ghast'; spawnY += 8.0; }
+        else type = 'strider';
+      } else {
+        if (r < 0.14) type = 'hoglin';
+        else if (r < 0.28) type = 'zoglin';
+        else if (r < 0.40) type = 'piglin';
+        else if (r < 0.50) type = 'piglin_brute';
+        else if (r < 0.62) type = 'magma_cube';
+        else if (r < 0.72) type = 'strider';
+        else if (r < 0.80) { type = 'soul_wisp'; spawnY += 3.5; }
+        else if (r < 0.88) { type = 'blaze'; spawnY += 3.5; }
+        else if (r < 0.90) { type = 'ghast'; spawnY += 8.5; }
+        else if (r < 0.95) { type = hasBoss ? 'blaze' : 'wildfire'; spawnY += 3.5; }
+        else type = hasBoss ? 'wither_skeleton' : (Math.random() < 0.5 ? 'redstone_monstrosity' : 'magma_golem');
+      }
     } else if (currentDimension === 'end') {
       if (hostileCnt >= hostileCap) return;
       const isOuterEnd = Math.hypot(wx, wz) >= 180;
@@ -4370,6 +4385,15 @@
       else if (r < 0.36) type = 'sculk_stalker';
       else if (r < 0.70) type = 'sculk_sentinel';
       else type = 'sculk_brute';
+    } else if (biome === BIOMES.GRAND_RUINS) {
+      const dC = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
+      if (dC < 20) return;
+      if (hostileCnt >= hostileCap) return;
+      if (r < 0.34) type = 'ruin_stalker';
+      else if (r < 0.62) type = 'skeleton';
+      else if (r < 0.80) { type = 'gargoyle'; spawnY += 5.5; }
+      else if (r < 0.92) type = 'iron_golem';
+      else type = 'pillager';
     } else if (biome === BIOMES.ABANDONED_CITY) {
       if (hostileCnt >= hostileCap) return;
       if (r < 0.40) type = 'ruin_stalker';
