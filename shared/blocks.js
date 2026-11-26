@@ -470,10 +470,29 @@
     ironGrate:        _nextTile++
   };
 
+  // Modular Dragon Armor items (Iron, Gold, Diamond x Head, Neck, Body, Tail)
+  B.DRAGON_ARMOR_IRON_HEAD    = _dynBlockId++;
+  B.DRAGON_ARMOR_IRON_NECK    = _dynBlockId++;
+  B.DRAGON_ARMOR_IRON_BODY    = _dynBlockId++;
+  B.DRAGON_ARMOR_IRON_TAIL    = _dynBlockId++;
+  B.DRAGON_ARMOR_GOLD_HEAD    = _dynBlockId++;
+  B.DRAGON_ARMOR_GOLD_NECK    = _dynBlockId++;
+  B.DRAGON_ARMOR_GOLD_BODY    = _dynBlockId++;
+  B.DRAGON_ARMOR_GOLD_TAIL    = _dynBlockId++;
+  B.DRAGON_ARMOR_DIAMOND_HEAD = _dynBlockId++;
+  B.DRAGON_ARMOR_DIAMOND_NECK = _dynBlockId++;
+  B.DRAGON_ARMOR_DIAMOND_BODY = _dynBlockId++;
+  B.DRAGON_ARMOR_DIAMOND_TAIL = _dynBlockId++;
+  const DRAGON_ARMOR_TILES = {
+    ironHead:    _nextTile++, ironNeck:    _nextTile++, ironBody:    _nextTile++, ironTail:    _nextTile++,
+    goldHead:    _nextTile++, goldNeck:    _nextTile++, goldBody:    _nextTile++, goldTail:    _nextTile++,
+    diamondHead: _nextTile++, diamondNeck: _nextTile++, diamondBody: _nextTile++, diamondTail: _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

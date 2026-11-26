@@ -620,7 +620,7 @@
     c.fillStyle = 'rgba(11, 16, 24, 0.78)'; c.fillRect(8, 6, 240, 36);
     c.strokeStyle = badgeHex; c.lineWidth = 3; c.strokeRect(8, 6, 240, 36);
     c.font = 'bold 22px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = '#f8fafc'; c.fillText(String(label || 'Player').slice(0, 14), 128, 25);
+    c.fillStyle = '#f8fafc'; c.fillText(String(label || 'Player').slice(0, 24), 128, 25, 228);
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.LinearFilter;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true }));
     sp.scale.set(1.55, 0.30, 1); sp.position.set(0, 2.22, 0);
@@ -3650,6 +3650,11 @@
   }
   function _hasClearSightToMob(ox, oy, oz, m) {
     const mh = m.hitboxH || 1.4;
+    if ((m.dragonScale || 1) > 1.5) {
+      const fx = ox + (m.x - ox) * 0.45, fy = m.y + Math.min(2.2, mh * 0.35), fz = oz + (m.z - oz) * 0.45;
+      const fd = Math.hypot(fx - ox, fy - oy, fz - oz);
+      if (fd < 0.12 || _raycastSolidOccluderDist(ox, oy, oz, (fx - ox) / fd, (fy - oy) / fd, (fz - oz) / fd, fd - 0.05) >= fd - 0.07) return true;
+    }
     const fracs = [0.55, 0.84, 0.22];
     for (let fi = 0; fi < fracs.length; fi++) {
       const ty = m.y + mh * fracs[fi];
@@ -3668,18 +3673,20 @@
     const invX = Math.abs(_rayDir.x) > 1e-6 ? 1 / _rayDir.x : 1e9;
     const invY = Math.abs(_rayDir.y) > 1e-6 ? 1 / _rayDir.y : 1e9;
     const invZ = Math.abs(_rayDir.z) > 1e-6 ? 1 / _rayDir.z : 1e9;
-    const wallDist = _raycastSolidOccluderDist(ox, oy, oz, _rayDir.x, _rayDir.y, _rayDir.z, maxDist);
+    const wallDist = _raycastSolidOccluderDist(ox, oy, oz, _rayDir.x, _rayDir.y, _rayDir.z, Math.max(maxDist, 12.0));
     let best = null, bestD = wallDist;
     for (let i = 0; i < mobs.length; i++) {
       const m = mobs[i];
-      const r = Math.max(0.68, (m.hitboxR || 0.4) + 0.28);
+      const scM = (m.elemDragon && (m.dragonScale || 1) > 1.5) ? m.dragonScale : 1;
+      const r = Math.max(0.68, (m.hitboxR || 0.4) + (scM > 1.5 ? 0.6 : 0.28));
       const h = Math.max(0.95, m.hitboxH || 1.4) + 0.22;
+      const effLimit = maxDist + (scM > 1.5 ? Math.min(6.5, (scM - 1) * 1.4) : 0);
       const t1x = (m.x - r - ox) * invX, t2x = (m.x + r - ox) * invX;
       const t1y = (m.y - 0.12 - oy) * invY, t2y = (m.y + h - oy) * invY;
       const t1z = (m.z - r - oz) * invZ, t2z = (m.z + r - oz) * invZ;
       const tmin = Math.max(Math.min(t1x, t2x), Math.min(t1y, t2y), Math.min(t1z, t2z), 0);
       const tmax = Math.min(Math.max(t1x, t2x), Math.max(t1y, t2y), Math.max(t1z, t2z));
-      if (tmax >= tmin && tmin < bestD && _hasClearSightToMob(ox, oy, oz, m)) { best = m; bestD = tmin; }
+      if (tmax >= tmin && tmin <= effLimit && tmin < bestD && _hasClearSightToMob(ox, oy, oz, m)) { best = m; bestD = tmin; }
     }
     return best;
   }
@@ -5069,7 +5076,8 @@
       let rf = f, rs = s;
       if (len > 1) { rf /= len; rs /= len; }
       sprinting = canCtrl && !!(keys['ControlLeft'] || keys['ControlRight'] || touchState.sprint) && rf > 0.15;
-      const rSpd = sprinting ? 23.0 : 16.0;
+      const drgSpdMul = 1 + Math.max(0, (dm.dragonScale || 1) - 1) * 0.14;
+      const rSpd = (sprinting ? 23.0 : 16.0) * drgSpdMul;
       const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
       const cosP = Math.max(0.28, Math.cos(player.pitch)), sinP = Math.sin(player.pitch);
       const tVx = (-sinY * cosP * rf + cosY * rs) * rSpd;
@@ -5807,9 +5815,13 @@
         if (!_camBoxCollides(ox, eyeY + ly, oz, camR)) oy = eyeY + ly;
         else break;
       }
-      const maxCamD = player.ridingDragon ? (isFront ? 5.6 : 7.4) : (isFront ? 3.2 : 3.8);
+      const drgSc = player.ridingDragon ? Math.max(1.0, player.ridingDragon.dragonScale || 1.15) : 1.0;
+      const maxCamD = player.ridingDragon
+        ? (isFront ? (3.8 + drgSc * 3.8) : (4.8 + drgSc * 4.8))
+        : (isFront ? 3.2 : 3.8);
+      const camStep = maxCamD > 10 ? 0.14 : 0.04;
       let camD = 0;
-      for (let d = 0.04; d <= maxCamD; d += 0.04) {
+      for (let d = camStep; d <= maxCamD; d += camStep) {
         if (_camBoxCollides(ox + _rayDir.x * d, oy + _rayDir.y * d, oz + _rayDir.z * d, camR)) {
           let lo = camD, hi = d;
           for (let b = 0; b < 4; b++) {
@@ -5873,7 +5885,10 @@
       camera.rotation.z = strafeTiltZ * 0.6 + hurtK * 0.035;
       if (player.ridingDragon) {
         const fwdX = -Math.sin(player.yaw), fwdZ = -Math.cos(player.yaw);
-        camera.position.set(player.x + fwdX * 1.45 + skX, eyeY + 0.65 + skY, player.z + fwdZ * 1.45);
+        const drgSc1 = Math.max(1.0, player.ridingDragon.dragonScale || 1.15);
+        const fwdOff = 1.05 + drgSc1 * 0.45;
+        const upOff = 0.55 + drgSc1 * 0.20;
+        camera.position.set(player.x + fwdX * fwdOff + skX, eyeY + upOff + skY, player.z + fwdZ * fwdOff);
       } else {
         camera.position.set(player.x + skX, eyeY + landCamDip + skY - hurtK * 0.05, player.z);
       }

@@ -367,6 +367,17 @@
         { cat: 'tools', out: B[`DRAGON_${el}_BOOTS`],  qty: 1, req: [{ id: sc, qty: 4 }], grid: [0,0,0, sc,0,sc, sc,0,sc] }
       ];
     }),
+    // Modular Dragon Armor (Iron, Gold, Diamond x Head, Neck, Body, Tail)
+    ...[
+      ['IRON',    B.IRON_INGOT],
+      ['GOLD',    B.GOLD_INGOT],
+      ['DIAMOND', B.DIAMOND]
+    ].flatMap(([tk, m]) => [
+      { cat: 'tools', out: B[`DRAGON_ARMOR_${tk}_HEAD`], qty: 1, req: [{ id: m, qty: 5 }], grid: [0,m,m, m,m,m, 0,0,0] },
+      { cat: 'tools', out: B[`DRAGON_ARMOR_${tk}_NECK`], qty: 1, req: [{ id: m, qty: 6 }], grid: [m,m,0, 0,m,m, m,m,0] },
+      { cat: 'tools', out: B[`DRAGON_ARMOR_${tk}_BODY`], qty: 1, req: [{ id: m, qty: 8 }], grid: [m,m,m, m,0,m, m,m,m] },
+      { cat: 'tools', out: B[`DRAGON_ARMOR_${tk}_TAIL`], qty: 1, req: [{ id: m, qty: 5 }], grid: [0,0,m, 0,m,m, m,m,0] }
+    ]),
     // v129 Warden Dimension Ignition & 3 Progression Tier Gear Sets
     { cat: 'tools',  is2x2: true, out: B.SOUL_FLINT_AND_STEEL, qty: 1, req: [{ id: B.IRON_INGOT, qty: 1 }, { id: B.ECHO_SHARD, qty: 1 }, { id: B.FLINT, qty: 1 }], grid: [B.IRON_INGOT,B.ECHO_SHARD,0, B.FLINT,0,0, 0,0,0] },
     { cat: 'tools',  out: B.SCULK_CHITIN_SWORD, qty: 1, req: [{ id: B.UMBRA_INGOT, qty: 2 }, { id: B.WARDEN_CHITIN, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.UMBRA_INGOT,0, 0,B.UMBRA_INGOT,B.WARDEN_CHITIN, 0,B.STICK,0] },
@@ -4728,6 +4739,93 @@
       if (!rim && !bar) return null;
       return shade((x + y) & 1 ? '#525b66' : '#363d47', (r - 0.5) * 8);
     });
+    if (typeof DRAGON_ARMOR_TILES !== 'undefined') {
+      const daSprites = {
+        Head: [
+          '................',
+          '......oo..oo....',
+          '.....oHHooHHo...',
+          '....oHHMMMMHo...',
+          '..ooHMMMMMMHHo..',
+          '.oHHMMDDDDMMHoo.',
+          '.oHMDDMoMMMMMMo.',
+          '.oHMDMMoDDDDDDo.',
+          '..ooMMoo.ooBBo..',
+          '...oDDo....oBo..',
+          '...ooo.....oo...',
+          '................',
+          '................',
+          '................',
+          '................',
+          '................'
+        ],
+        Neck: [
+          '................',
+          '................',
+          '.....oo..oo.....',
+          '...ooHooooHoo...',
+          '..oHHMMMMMMHHo..',
+          '..oHMMDDDDMMHo..',
+          '.oHMMMDMMMMMMHo.',
+          '.oHMMMDDDDDDMMo.',
+          '.oHBMoMMBBoMMHo.',
+          '..oBo.ooBBo.oDo.',
+          '..oo....oo..oo..',
+          '................',
+          '................',
+          '................',
+          '................',
+          '................'
+        ],
+        Body: [
+          '................',
+          '....oo.oo.oo....',
+          '..ooHooCCooHoo..',
+          '.oHHMoCCCCoMHHo.',
+          '.oHMMoCCCCoMMHo.',
+          'oHHMMDDDDDDMMHHo',
+          'oHMMMMBMMBMMMMHo',
+          'oHMMDDMoDMDDMMHo',
+          '.ooMMooBBoMMoo..',
+          '..oBo..oo..oBo..',
+          '..oBo......oBo..',
+          '..oo........oo..',
+          '................',
+          '................',
+          '................',
+          '................'
+        ],
+        Tail: [
+          '................',
+          '................',
+          '.....oooo.......',
+          '...ooHHHHoo.....',
+          '..oHHMMMMHHo....',
+          '..oHMDDDDMMHo...',
+          '...ooDMMMMMHo...',
+          '.....oMMMDMHo...',
+          '...ooHMMMMHo....',
+          '..oHHMMMMoo.....',
+          '..oHMDDoo.......',
+          '...oHHo.........',
+          '....oo..........',
+          '................',
+          '................',
+          '................'
+        ]
+      };
+      const daPals = [
+        ['iron',    { o: '#262930', H: '#d8dde4', M: '#9aa3ae', D: '#5f6772', C: '#444750', B: '#4e321e' }],
+        ['gold',    { o: '#4a3207', H: '#fff3a8', M: '#f5d042', D: '#a87b18', C: '#6b1d1d', B: '#4e321e' }],
+        ['diamond', { o: '#083a44', H: '#c6fcff', M: '#50e4f6', D: '#168c9b', C: '#1e346c', B: '#4e321e' }]
+      ];
+      for (const [tk, pal] of daPals) {
+        for (const sk of ['Head', 'Neck', 'Body', 'Tail']) {
+          const ti = DRAGON_ARMOR_TILES[tk + sk];
+          if (ti !== undefined) drawSpriteMap(ti, daSprites[sk], pal);
+        }
+      }
+    }
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
     const bumpCanvas = document.createElement('canvas');

@@ -333,7 +333,7 @@
       ? { dragonStage: m.dragonStage !== undefined ? m.dragonStage : 4, saddled: !!m.saddled }
       : (m.woolColor ? { woolSpec: WOOL_COLORS.find(w => w.key === m.woolColor) || null }
         : (m.villagerProf ? { profIdx: m.villagerProf.idx } : null));
-    const built = sp ? buildAnimalSpeciesMesh(sp) : buildMobMesh(m.type, m.x, m.z, swapOpts);
+    const built = sp ? buildAnimalSpeciesMesh(sp) : buildMobMesh(m.type, m.x, m.z, m.elemDragon ? Object.assign({}, swapOpts, { dragonArmor: m.dragonArmor || null }) : swapOpts);
     if (!built || !built.fromBlender || built.isPlaceholder || !built.group) return;
     _disposeMobAnim(m);
     scene.remove(m.group);
@@ -353,6 +353,12 @@
     m.pendingGlbKey = null;
     m.glbKey = built.glbKey || m.type;
     m.baseScale = built.group.scale.x || 1;
+    if (IS_DRAGON_MOB.has(m.type)) {
+      m.dragonScale = built.group.userData.dragonScale || m.baseScale || 4.6;
+      const hb = _calcDragonHitbox(m.dragonScale);
+      m.hitboxR = hb.r; m.hitboxH = hb.h;
+      _syncDragonOverlayMetrics(m);
+    }
     m.group.position.set(m.x, m.y, m.z);
     m.group.rotation.y = m.yaw || 0;
     scene.add(m.group);
@@ -446,12 +452,46 @@
     sp.scale.set(1.05, 0.17, 1); sp.visible = false;
     return { sp, ctx, tex };
   }
+  function _calcDragonHitbox(sc) {
+    const s = Math.max(0.28, sc || 1);
+    return {
+      r: Math.max(0.55, +(1.05 * s).toFixed(2)),
+      h: Math.max(0.75, +(1.85 * s).toFixed(2))
+    };
+  }
+  function _getDragonGroundSurfaceY(wx, refY, wz) {
+    const ix = Math.floor(wx), iz = Math.floor(wz);
+    const startY = Math.min(MAX_Y - 1, Math.max(1, Math.floor((typeof refY === 'number' ? refY : MAX_Y - 2) + 1.5)));
+    for (let y = startY; y >= MIN_Y + 1; y--) {
+      const b = getBlockWorld(ix, y, iz), d = BLOCK_DEF[b];
+      if (b !== B.AIR && b !== B.WATER && b !== B.LAVA && d && d.solid && !(d.foliage || d.isLog || d.cross || d.hangingFruit)) {
+        return y + 1;
+      }
+    }
+    return WATER_LEVEL + 1;
+  }
+  function _syncDragonOverlayMetrics(m) {
+    if (!m) return;
+    const sc = Math.max(0.30, m.dragonScale || m.baseScale || 1);
+    const inv = 1 / sc;
+    const tagWorld = Math.min(2.2, Math.max(0.75, 0.72 + sc * 0.28));
+    const rel = tagWorld * inv;
+    if (m.petTag) {
+      m.petTag.scale.set(1.55 * rel, 0.30 * rel, 1);
+      m.petTag.position.set(0, ((m.hitboxH || 1.2) + 0.55) * inv, 0);
+    }
+    if (m.hpBar && m.hpBar.sp) {
+      m.hpBar.sp.scale.set(1.05 * rel, 0.17 * rel, 1);
+      m.hpBar.sp.position.set(0, ((m.hitboxH || 1.2) + 0.32) * inv, 0);
+    }
+  }
   function updateMobHpBar(m, pct) {
     if (!m || m.isBoss) return;
     if (!m.hpBar) {
       m.hpBar = makeMobHpBar();
       m.hpBar.sp.position.set(0, (m.hitboxH || 1.6) + 0.42, 0);
       m.group.add(m.hpBar.sp);
+      if (IS_DRAGON_MOB.has(m.type)) _syncDragonOverlayMetrics(m);
     }
     const { ctx, tex, sp } = m.hpBar;
     ctx.fillStyle = '#09090b'; ctx.fillRect(0, 0, 64, 10);
@@ -638,6 +678,120 @@
     return m;
   }
 
+  const _dragonArmorTexCache = new Map();
+  const _dragonArmorMatCache = new Map();
+  const DRAGON_ARMOR_PALETTES = {
+    gold: {
+      primary: [0x8A6314, 0xC8961E, 0xF5D042, 0xFFF3A8],
+      trim:    [0x6E4D0E, 0xA87B18, 0xD8AA2C, 0xF5D042],
+      cushion: [0x320A0A, 0x5A1616, 0x8A2828, 0xF5D042],
+      rivet:   [0xA87B18, 0xFFF3A8]
+    },
+    diamond: {
+      primary: [0x14828E, 0x26C2D4, 0x62ECFA, 0xC6FCFF],
+      trim:    [0x0E5E68, 0x1A96A6, 0x3FD2E4, 0x90F4FF],
+      cushion: [0x101C3E, 0x1E346C, 0x3A58A2, 0x80F2FF],
+      rivet:   [0x1A96A6, 0xC6FCFF]
+    }
+  };
+  const DRAGON_ARMOR_SLOTS = ['head', 'neck', 'body', 'tail'];
+  const DRAGON_ARMOR_DEF_PTS = {
+    iron:    { head: 2, neck: 2, body: 4, tail: 2 },
+    gold:    { head: 3, neck: 3, body: 5, tail: 3 },
+    diamond: { head: 4, neck: 4, body: 8, tail: 4 }
+  };
+
+  function _getDragonArmorAtlas(tier, baseTex) {
+    if (!tier || tier === 'iron' || !baseTex || !baseTex.image) return baseTex;
+    const key = tier;
+    if (_dragonArmorTexCache.has(key)) return _dragonArmorTexCache.get(key);
+    const pal = DRAGON_ARMOR_PALETTES[tier];
+    if (!pal) return baseTex;
+    const img = baseTex.image;
+    const w = img.width || 256, h = img.height || 256;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const halfX = (w >> 1), halfY = (h >> 1);
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        const off = (py * w + px) * 4;
+        if (d[off + 3] === 0) continue;
+        const l = (0.299 * d[off] + 0.587 * d[off + 1] + 0.114 * d[off + 2]) / 255;
+        let rgb = null;
+        if (py < halfY) {
+          rgb = _remapRgbStops(px < halfX ? pal.primary : pal.trim, (l - 0.18) / 0.72);
+        } else if (px < halfX) {
+          rgb = _remapRgbStops(pal.cushion, (l - 0.14) / 0.62);
+        } else if (l > 0.55) {
+          rgb = _remapRgbStops(pal.rivet, (l - 0.55) / 0.38);
+        }
+        if (rgb) { d[off] = rgb[0]; d[off + 1] = rgb[1]; d[off + 2] = rgb[2]; }
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.flipY = false;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    _dragonArmorTexCache.set(key, tex);
+    return tex;
+  }
+
+  function _getDragonArmorMat(tier, origMat, isSkinned) {
+    const tKey = (tier === 'gold' || tier === 'diamond') ? tier : 'iron';
+    const matName = (origMat && origMat.name) || 'Armor';
+    const cacheKey = `${tKey}_${matName}_${isSkinned ? 1 : 0}`;
+    if (_dragonArmorMatCache.has(cacheKey)) return _dragonArmorMatCache.get(cacheKey);
+    const m = origMat.clone();
+    m.skinning = !!isSkinned;
+    if (m.map) m.map = _getDragonArmorAtlas(tKey, m.map);
+    if (m.metalness !== undefined) m.metalness = tKey === 'gold' ? 0.78 : (tKey === 'diamond' ? 0.62 : 0.72);
+    if (m.roughness !== undefined) m.roughness = tKey === 'gold' ? 0.28 : (tKey === 'diamond' ? 0.22 : 0.34);
+    if (m.map) {
+      m.emissive.setHex(0xffffff);
+      m.emissiveMap = m.map;
+      m.emissiveIntensity = 0.22;
+      m.needsUpdate = true;
+    }
+    m.userData = {
+      sharedMat: true,
+      baseEmissive: m.emissive ? m.emissive.clone() : new THREE.Color(0x000000),
+      baseEmissiveInt: m.emissiveIntensity !== undefined ? m.emissiveIntensity : 0
+    };
+    _dragonArmorMatCache.set(cacheKey, m);
+    return m;
+  }
+
+  function _applyDragonArmorToAnim(anim, dragonArmor, saddled) {
+    if (!anim) return;
+    if (anim.armorMeshes) {
+      for (let i = 0; i < DRAGON_ARMOR_SLOTS.length; i++) {
+        const sk = DRAGON_ARMOR_SLOTS[i];
+        const tier = dragonArmor && dragonArmor[sk];
+        const list = anim.armorMeshes[sk] || [];
+        for (let j = 0; j < list.length; j++) {
+          const entry = list[j];
+          if (!entry || !entry.mesh) continue;
+          if (tier) {
+            entry.mesh.visible = true;
+            entry.mesh.material = _getDragonArmorMat(tier, entry.origMat, !!entry.mesh.isSkinnedMesh);
+          } else {
+            entry.mesh.visible = false;
+          }
+        }
+      }
+    }
+    if (anim.saddleGroup) {
+      anim.saddleGroup.visible = !!(saddled && !(dragonArmor && dragonArmor.body));
+    }
+  }
+
   function instantiateBlenderMob(type) {
     const tpl = getBlenderMobTemplate(type);
     if (!tpl) return null;
@@ -664,7 +818,8 @@
     const anim = {
       torso: null, neck1: null, head: null, jaw: null, core: null,
       legs: [], arms: [], wings: [], tail: null, tail2: null, tail3: null,
-      saddleGroup: null, saddleSeat: null, bodyBone: null, headBone: null, jawBone: null,
+      saddleGroup: null, saddleSeat: null, armorMeshes: { head: [], neck: [], body: [], tail: [] },
+      bodyBone: null, headBone: null, jawBone: null,
       mixer: null, armRoot: null, actions: null, activeClip: ''
     };
     const wingMap = {};
@@ -674,8 +829,26 @@
       const clean = (o.name || '').replace(/\.\d+$/, '');
       const cl = clean.toLowerCase();
       if (isSkinnedDragon) {
+        if (!o.isMesh && !o.isBone && cl === 'dragon_saddle_geo') {
+          anim.saddleGroup = o;
+          o.visible = false;
+        }
         if (o.isMesh) {
-          let mat = _getDragonVariantMat(type, o.material, !!o.isSkinnedMesh);
+          const origMat = o.material;
+          const origMatName = (origMat && origMat.name) || '';
+          const parentCl = (o.parent && o.parent.name ? o.parent.name.replace(/\.\d+$/, '').toLowerCase() : '');
+          const nodeTag = cl || parentCl;
+          const armorM = nodeTag.match(/^armor_(head|neck|body|tail)_geo$/);
+          if (armorM) {
+            const sk = armorM[1];
+            anim.armorMeshes[sk].push({ mesh: o, origMat });
+            o.material = _getDragonArmorMat('iron', origMat, !!o.isSkinnedMesh);
+            o.visible = false;
+            o.castShadow = castSh;
+            o.receiveShadow = true;
+            return;
+          }
+          let mat = _getDragonVariantMat(type, origMat, !!o.isSkinnedMesh);
           if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.immFast) {
             mat = mat.clone();
             mat.userData = {
@@ -686,13 +859,13 @@
           }
           if (!mat.map && o.geometry && o.geometry.attributes && o.geometry.attributes.color) mat.vertexColors = true;
           o.material = mat;
-          const isGlow = (mat.emissive && (mat.emissive.r + mat.emissive.g + mat.emissive.b) > 0.5);
+          const isGlow = (origMatName === 'Eye_Orange');
           o.castShadow = !isGlow && castSh;
           o.receiveShadow = !isGlow;
           if (!isGlow) parts.push(o);
-          if (cl === 'dragon_saddle_geo') {
-            anim.saddleGroup = o;
-            o.visible = false;
+          if (nodeTag === 'dragon_saddle_geo') {
+            anim.saddleGroup = (o.parent && parentCl === 'dragon_saddle_geo') ? o.parent : o;
+            anim.saddleGroup.visible = false;
           }
         } else if (o.isBone) {
           if (clean === 'Body') anim.bodyBone = o;
@@ -1120,23 +1293,25 @@
       }
       if (IS_DRAGON_MOB.has(type)) {
         if (type === 'ender_dragon') {
-          blenderMob.group.scale.setScalar(blenderMob.anim.mixer ? 1.32 : 1.15);
-          if (blenderMob.anim.saddleGroup) blenderMob.anim.saddleGroup.visible = false;
+          const endSc = blenderMob.anim.mixer ? 4.85 : 4.20;
+          blenderMob.group.scale.setScalar(endSc);
+          blenderMob.group.userData.dragonScale = endSc;
+          _applyDragonArmorToAnim(blenderMob.anim, null, false);
         } else if (blenderMob.anim.mixer) {
-          const stSc = [0.28, 0.45, 0.68, 0.92, 1.15];
+          const stSc = [0.34, 0.90, 1.85, 3.20, 4.60];
           const dStage = Math.max(0, Math.min(4, (opts && typeof opts.dragonStage === 'number') ? (opts.dragonStage | 0) : 4));
           const sc = stSc[dStage];
           blenderMob.group.scale.setScalar(sc);
           blenderMob.group.userData.dragonStage = dStage;
           blenderMob.group.userData.dragonScale = sc;
-          if (blenderMob.anim.saddleGroup) blenderMob.anim.saddleGroup.visible = !!(opts && opts.saddled);
+          _applyDragonArmorToAnim(blenderMob.anim, opts && opts.dragonArmor, !!(opts && opts.saddled));
         } else {
           const stCfg = [
-            { sc: 0.30, headMul: 1.32, wingMul: 0.40 },
-            { sc: 0.48, headMul: 1.18, wingMul: 0.58 },
-            { sc: 0.70, headMul: 1.08, wingMul: 0.78 },
-            { sc: 0.92, headMul: 1.02, wingMul: 0.94 },
-            { sc: 1.16, headMul: 1.00, wingMul: 1.06 }
+            { sc: 0.34, headMul: 1.32, wingMul: 0.40 },
+            { sc: 0.90, headMul: 1.18, wingMul: 0.58 },
+            { sc: 1.85, headMul: 1.08, wingMul: 0.78 },
+            { sc: 3.20, headMul: 1.02, wingMul: 0.94 },
+            { sc: 4.60, headMul: 1.00, wingMul: 1.06 }
           ];
           const dStage = Math.max(0, Math.min(4, (opts && typeof opts.dragonStage === 'number') ? (opts.dragonStage | 0) : 4));
           const st = stCfg[dStage];
@@ -3789,7 +3964,7 @@
     if (id === 'snow_owl' || id === 'owl_brown') return { key: 'snow_owl', sc: 1.02 };
     if (id === 'fennec' || id === 'fennec_fox') return { key: 'fennec', sc: 1.04 };
     if (id === 'allay') return { key: 'allay', sc: 1.05 };
-    if (id === 'baby_dragon') return { key: 'baby_dragon', sc: 0.28 };
+    if (id === 'baby_dragon') return { key: 'baby_dragon', sc: 0.34 };
     if (id === 'duck' || id === 'duck_mallard') return { key: 'duck', sc: 1.02 };
     if (id === 'flamingo') return { key: 'flamingo', sc: 1.06 };
     if (id === 'hedgehog') return { key: 'hedgehog', sc: 1.04 };
@@ -4092,6 +4267,9 @@
     scene.add(built.group);
     const _rvName = (type === 'spider_jockey') ? (built.riderVariant === 'stray' ? 'Stray Cưỡi Nhện' : (built.riderVariant === 'bogged' ? 'Bogged Cưỡi Nhện' : (built.riderVariant === 'desert_skeleton' ? 'Skeleton Sa Mạc Cưỡi Nhện' : 'Skeleton Cưỡi Nhện'))) : null;
     const _rvRange = (type === 'spider_jockey' && built.riderVariant === 'stray') ? 'frost' : ((type === 'spider_jockey' && built.riderVariant === 'bogged') ? 'poison_arrow' : null);
+    const _isDrgType = IS_DRAGON_MOB.has(type);
+    const _drgScInit = built.group.userData.dragonScale || built.group.scale.x || 1;
+    const _drgHbInit = _isDrgType ? _calcDragonHitbox(_drgScInit) : null;
     const m = {
       uid: (opts && opts.uid) || ('m_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)),
       type, displayName: woolSpec ? `Cừu ${woolSpec.vi}` : (_rvName || st.displayName || type),
@@ -4105,6 +4283,8 @@
       elemDragon: st.elementalDragon || null,
       dragonMode: st.elementalDragon ? 'fly' : null,
       dragonModeTimer: st.elementalDragon ? (8.5 + Math.random() * 2.5) : 0,
+      dragonScale: _isDrgType ? _drgScInit : undefined,
+      dragonArmor: (_isDrgType && opts && opts.dragonArmor) ? { ...opts.dragonArmor } : null,
       homeX: (opts && typeof opts.homeX === 'number') ? opts.homeX : undefined,
       homeY: (opts && typeof opts.homeY === 'number') ? opts.homeY : undefined,
       homeZ: (opts && typeof opts.homeZ === 'number') ? opts.homeZ : undefined,
@@ -4112,7 +4292,7 @@
       nestIdx: (opts && typeof opts.nestIdx === 'number') ? opts.nestIdx : undefined,
       x: wx, y: wy, z: wz, vx: 0, vy: 0, vz: 0,
       yaw: Math.random() * Math.PI * 2,
-      hp: st.hp, maxHp: st.hp, speed: st.speed, hitboxR: st.r, hitboxH: st.h, dmg: st.dmg || 2,
+      hp: st.hp, maxHp: st.hp, speed: st.speed, hitboxR: _drgHbInit ? _drgHbInit.r : st.r, hitboxH: _drgHbInit ? _drgHbInit.h : st.h, dmg: st.dmg || 2,
       hurtFlash: 0, hpBarTimer: 0, atkCd: 0, atkAnimT: 0, voiceT: 4 + Math.random() * 9, chargeKnock: !!st.chargeKnock,
       wanderT: 1 + Math.random() * 3, fleeT: 0, provoked: 0, hopCd: 0.5,
       walkPhase: Math.random() * 6, burning: false, burnTick: 0, lavaTick: 0,
@@ -4143,7 +4323,7 @@
     const wasRiding = (typeof player !== 'undefined' && player.ridingDragon === m);
     if (wasRiding && typeof detachRiderFromDragon === 'function') detachRiderFromDragon();
     m.dragonStage = stage;
-    const built = buildMobMesh(m.type, m.x, m.z, { dragonStage: stage, saddled: !!m.saddled });
+    const built = buildMobMesh(m.type, m.x, m.z, { dragonStage: stage, saddled: !!m.saddled, dragonArmor: m.dragonArmor || null });
     if (!built || !built.group) { if (wasRiding) attachRiderToDragon(m); return; }
     _disposeMobAnim(m);
     scene.remove(m.group);
@@ -4166,17 +4346,19 @@
     m.maxHp = Math.max(40, Math.round(stBase.hp * stageHpMul));
     m.hp = Math.max(1, Math.min(m.maxHp, Math.round(m.maxHp * ratio)));
     m.dmg = Math.max(2, +(stBase.dmg * stageDmgMul).toFixed(1));
-    m.hitboxR = Math.max(0.55, +(stBase.r * m.dragonScale * 0.85).toFixed(2));
-    m.hitboxH = Math.max(0.75, +(stBase.h * m.dragonScale * 0.90).toFixed(2));
+    const hb = _calcDragonHitbox(m.dragonScale);
+    m.hitboxR = hb.r;
+    m.hitboxH = hb.h;
     if (m.petTag) {
       if (m.petTag.material && m.petTag.material.map) m.petTag.material.map.dispose();
       if (m.petTag.material) m.petTag.material.dispose();
     }
     const pctLbl = m.growth >= 100 ? (m.saddled ? '100% ★ Cưỡi' : '100% ★ Lớn') : `${Math.round(m.growth || 0)}%`;
     m.petTag = makeNameTagSprite(`♥ ${m.displayName} (${pctLbl})`, '#fbbf24');
-    m.petTag.position.set(0, m.hitboxH + 0.55, 0);
     m.group.add(m.petTag);
     if (m.hpBar) { m.hpBar.tex.dispose(); m.hpBar.sp.material.dispose(); m.hpBar = null; }
+    _syncDragonOverlayMetrics(m);
+    _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
     m.group.position.set(m.x, m.y, m.z);
     m.group.rotation.y = m.yaw || 0;
     scene.add(m.group);
@@ -4253,7 +4435,7 @@
     const parent = t.parent || m.group;
     if (playerAvatar.g.parent !== parent) parent.add(playerAvatar.g);
     const invS = 1 / Math.max(0.12, m.group.scale.x || 1);
-    playerAvatar.g.position.set(t.lx, t.ly, t.lz);
+    playerAvatar.g.position.set(t.lx, t.ly - 0.44 * invS, t.lz);
     playerAvatar.g.rotation.set(0, 0, 0);
     playerAvatar.g.scale.setScalar(invS);
   }
@@ -4277,8 +4459,10 @@
       tr('Thiếu Niên', 'Juvenile'),
       tr('Trưởng Thành', 'Adult')
     ];
-    const mode = m.saddled ? tr('Đã Đeo Yên', 'Saddled') : (m.sitting ? tr('Đang Ngồi', 'Sitting') : tr('Bay Theo', 'Following'));
-    return `${stNames[stg]} • ${mode}`;
+    const mode = m.saddled ? tr('Đã Đeo Yên', 'Saddled') : (m.sitting ? tr('Đang Ngồi', 'Sitting') : tr('Đứng Yên / Bay Theo', 'Idle / Following'));
+    let eqCnt = 0;
+    if (m.dragonArmor) for (let i = 0; i < DRAGON_ARMOR_SLOTS.length; i++) if (m.dragonArmor[DRAGON_ARMOR_SLOTS[i]]) eqCnt++;
+    return eqCnt > 0 ? `${stNames[stg]} • ${mode} • 🛡️${eqCnt}/4` : `${stNames[stg]} • ${mode}`;
   }
 
   function showDragonGrowthHud(m, holdSec = 3.5) {
@@ -4303,7 +4487,8 @@
     const growth = saved && typeof saved.growth === 'number' ? Math.max(0, Math.min(100, saved.growth)) : 0;
     const stage = growthToDragonStage(growth);
     const saddled = !!(saved && saved.saddled && growth >= 100);
-    const m = spawnMobOfType(type, wx, wy, wz, { dragonStage: stage, saddled, tamed: true });
+    const dragonArmor = (saved && saved.dragonArmor && typeof saved.dragonArmor === 'object') ? { ...saved.dragonArmor } : null;
+    const m = spawnMobOfType(type, wx, wy, wz, { dragonStage: stage, saddled, tamed: true, dragonArmor });
     if (!m) return null;
     m.tamed = true;
     m.hostile = false;
@@ -4312,8 +4497,10 @@
     m.growth = growth;
     m.dragonStage = stage;
     m.saddled = saddled;
+    m.dragonArmor = dragonArmor;
     m.sitting = !!(saved && saved.sitting);
-    m.flying = !m.sitting;
+    m.flying = false;
+    m._landedIdle = true;
     m.elemDragon = el;
     rebuildDragonStageMesh(m);
     if (!saved) {
@@ -4345,12 +4532,13 @@
   }
 
   function findNearestSaddledDragon(maxD = 9.0) {
-    let best = null, bestD = maxD;
+    let best = null, bestD = Infinity;
     for (let i = 0; i < mobs.length; i++) {
       const mb = mobs[i];
       if (!mb || mb._dead || !mb.tamed || !mb.elemDragon || !mb.saddled || (mb.growth || 0) < 100) continue;
-      const d = Math.hypot(mb.x - player.x, mb.y + 0.8 - player.y, mb.z - player.z);
-      if (d < bestD) { bestD = d; best = mb; }
+      const effMax = maxD + Math.max(0, (mb.dragonScale || 1) - 1) * 3.0;
+      const d = Math.hypot(mb.x - player.x, mb.y + Math.min(3.5, (mb.hitboxH || 1.6) * 0.35) - player.y, mb.z - player.z);
+      if (d < effMax && d < bestD) { bestD = d; best = mb; }
     }
     return best;
   }
@@ -4365,6 +4553,7 @@
     player.vy = 0;
     m.sitting = false;
     m.flying = true;
+    m._landedIdle = false;
     m.vx = 0; m.vy = 0; m.vz = 0;
     m._bankRoll = 0; m._flyPitch = 0; m._roarT = 0.9;
     attachRiderToDragon(m);
@@ -4404,8 +4593,9 @@
     if (m && !m._dead) {
       if (m.group) m.group.rotation.z = 0;
       if (m.anim && m.anim.torso) m.anim.torso.rotation.x = 0;
-      player.x = m.x + Math.cos(player.yaw) * 1.6;
-      player.z = m.z - Math.sin(player.yaw) * 1.6;
+      const dismOff = Math.max(1.6, (m.dragonScale || 1) * 1.1);
+      player.x = m.x + Math.cos(player.yaw) * dismOff;
+      player.z = m.z - Math.sin(player.yaw) * dismOff;
       const gy = colGroundY(Math.floor(player.x), Math.floor(player.z));
       if (m.y <= gy + 2.2) player.y = gy + 1.05;
       else player.y = m.y;
@@ -4476,7 +4666,7 @@
   }
   function fireRiddenDragonBreath() { return castRiddenDragonSkill(1); }
 
-  function feedOrInteractTamedDragon(m, slot, selDef, toggleSit = true) {
+  function feedOrInteractTamedDragon(m, slot, selDef, toggleSit = true, mountIfSaddled = true) {
     if (!m || m._dead || !m.tamed || !m.elemDragon) return false;
     if (slot && slot.id === B.DRAGON_CRYSTAL) {
       if ((m.growth || 0) >= 100) {
@@ -4505,6 +4695,32 @@
       }
       return true;
     }
+    if (slot && selDef && selDef.dragonArmorSlot) {
+      const aSlot = selDef.dragonArmorSlot;
+      const aTier = selDef.dragonArmorTier || 'iron';
+      if (!m.dragonArmor || typeof m.dragonArmor !== 'object') m.dragonArmor = {};
+      const prevTier = m.dragonArmor[aSlot];
+      if (prevTier === aTier) {
+        showDragonGrowthHud(m, 3.5);
+        showToast(`🛡️ ${m.displayName} đã mặc ${selDef.name} rồi!`);
+        return true;
+      }
+      if (gameMode !== 'creative') {
+        slot.count--; if (slot.count <= 0) slot.id = 0;
+        if (prevTier) {
+          const prevId = B[`DRAGON_ARMOR_${prevTier.toUpperCase()}_${aSlot.toUpperCase()}`];
+          if (prevId) addItemToInventory(prevId, 1);
+        }
+        renderHotbar();
+      }
+      m.dragonArmor[aSlot] = aTier;
+      _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
+      spawnParticles(m.x, m.y + 1.2 * (m.dragonScale || 1), m.z, 0x38bdf8, 16, true);
+      playSfx('equip');
+      showDragonGrowthHud(m, 4.0);
+      showToast(`🛡️ Đã trang bị ${selDef.name} cho ${m.displayName}!`);
+      return true;
+    }
     if (slot && slot.id === B.DRAGON_SADDLE) {
       if ((m.growth || 0) < 100) {
         showDragonGrowthHud(m, 3.5);
@@ -4514,7 +4730,7 @@
       if (m.saddled) { showToast(`🐉 ${m.displayName} đã có Yên Cưỡi! Hãy bấm nút Cưỡi Rồng!`); return true; }
       if (gameMode !== 'creative') { slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar(); }
       m.saddled = true;
-      if (m.anim && m.anim.saddleGroup) m.anim.saddleGroup.visible = true;
+      _applyDragonArmorToAnim(m.anim, m.dragonArmor, true);
       rebuildDragonStageMesh(m);
       spawnParticles(m.x, m.y + 1.5, m.z, 0x22d3ee, 18, true);
       playSfx('equip');
@@ -4522,14 +4738,18 @@
       showToast(`✨ Đã trang bị Yên Cưỡi cho ${m.displayName}! Nhấn Cưỡi Rồng (R) để bay!`);
       return true;
     }
+    if (mountIfSaddled && m.saddled && (m.growth || 0) >= 100 && !(typeof player !== 'undefined' && player.sneaking)) {
+      return mountDragon(m);
+    }
     if (!toggleSit) return false;
     m.sitting = !m.sitting;
-    m.flying = !m.sitting;
-    if (m.sitting) { m.vx = 0; m.vy = 0; m.vz = 0; }
+    m.flying = false;
+    m._landedIdle = true;
+    if (m.sitting) { m.vx = 0; m.vy = 0; m.vz = 0; m.flyVx = 0; m.flyVy = 0; m.flyVz = 0; }
     spawnParticles(m.x, m.y + 0.9, m.z, m.sitting ? 0x38bdf8 : 0x4ade80, 12, true);
     playSfx('equip');
     showDragonGrowthHud(m, 3.2);
-    showToast(m.sitting ? `🐉 ${m.displayName} đang ngồi nghỉ tại chỗ.` : `🐉 ${m.displayName} đang bay theo bảo vệ bạn!`);
+    showToast(m.sitting ? `🐉 ${m.displayName} đang ngồi nghỉ tại chỗ.` : `🐉 ${m.displayName} đang đi theo bảo vệ bạn!`);
     return true;
   }
 
@@ -4547,13 +4767,13 @@
       if (_elDrgExit) _elDrgExit.textContent = tr('Xuống (R)', 'Dismount (R)');
     }
     const riding = !!(isPlaying && !player.dead && player.ridingDragon && !player.ridingDragon._dead);
-    if (_elDragonFlight && riding !== _lastFlightHudVis) {
+    if (_elDragonFlight && (riding !== _lastFlightHudVis || _elDragonFlight.classList.contains('visible') !== riding)) {
       _lastFlightHudVis = riding;
       _elDragonFlight.classList.toggle('visible', riding);
     }
     const nearSaddled = (!riding && isPlaying && !player.dead) ? findNearestSaddledDragon(9.0) : null;
     const wantMountBtn = !!nearSaddled;
-    if (_elDragonMount && wantMountBtn !== _lastMountBtnVis) {
+    if (_elDragonMount && (wantMountBtn !== _lastMountBtnVis || _elDragonMount.classList.contains('visible') !== wantMountBtn)) {
       _lastMountBtnVis = wantMountBtn;
       _elDragonMount.classList.toggle('visible', wantMountBtn);
     }
@@ -5342,6 +5562,15 @@
     }
     const kd = Math.hypot(kx, kz) + 0.01;
     mob.vx = (kx / kd) * 6.5; mob.vz = (kz / kd) * 6.5; mob.vy = Math.max(mob.vy, ky);
+    if (mob.dragonArmor) {
+      let armorPts = 0;
+      for (let ai = 0; ai < DRAGON_ARMOR_SLOTS.length; ai++) {
+        const sk = DRAGON_ARMOR_SLOTS[ai];
+        const tier = mob.dragonArmor[sk];
+        if (tier && DRAGON_ARMOR_DEF_PTS[tier]) armorPts += DRAGON_ARMOR_DEF_PTS[tier][sk] || 0;
+      }
+      if (armorPts > 0) dmg = Math.max(0.5, dmg * (1 - Math.min(0.75, armorPts * 0.035)));
+    }
     mob.hp -= dmg; mob.hurtFlash = 0.24; mob.hpBarTimer = 4.5;
     if (fromPlayer && !mob.tamed && !mob.villager) { _playerCombatTarget = mob; _playerCombatTargetT = 12.0; }
     if (fromPlayer && !mob.isBoss) { lastTargetMob = mob; lastTargetMobTimer = 3.5; }
@@ -5544,7 +5773,8 @@
         ak: +(m.atkAnimT || 0).toFixed(2),
         hf: +(m.hurtFlash || 0).toFixed(2),
         ds: m.dragonStage !== undefined ? m.dragonStage : 4,
-        sd: m.saddled ? 1 : 0
+        sd: m.saddled ? 1 : 0,
+        da: m.dragonArmor || null
       });
     }
     return out;
@@ -5569,7 +5799,7 @@
         const opts = { uid: it.uid };
         if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
         if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
-        if (it.tm) { opts.tamed = true; opts.dragonStage = it.ds; opts.saddled = !!it.sd; }
+        if (it.tm) { opts.tamed = true; opts.dragonStage = it.ds; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
         m = spawnMobOfType(it.t, it.x, wy, it.z, opts);
         if (m) {
           m.yaw = it.yw || 0;
@@ -5581,6 +5811,11 @@
       if (m) {
         m.hp = it.hp; m.maxHp = it.mh || m.maxHp;
         m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
+        if (m.elemDragon) {
+          m.saddled = !!it.sd;
+          m.dragonArmor = it.da ? { ...it.da } : null;
+          _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
+        }
         if (it.ak > (m.atkAnimT || 0)) m.atkAnimT = it.ak;
         if (it.hf > (m.hurtFlash || 0)) { m.hurtFlash = it.hf; playMobSfx(m.type, 'hurt'); }
         if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
@@ -5898,11 +6133,12 @@
   let _culledEntitiesCount = 0;
   const _mobSnapBuf = [], _snapHostiles = [], _snapVillagers = [];
   function _evalMobCulling(m, mdx, mdy, mdz, dist3D, lookX, lookY, lookZ, playerEyeY, idx) {
-    if (!m.isBoss && sodiumOpts.farEntities === false && dist3D > 28) return false;
+    if (!m.isBoss && !m.elemDragon && sodiumOpts.farEntities === false && dist3D > 28) return false;
     if (!sodiumOpts.entityCulling || m.isBoss || dist3D < 4.5) return true;
+    if (IS_DRAGON_MOB.has(m.type) && dist3D < 80) return true;
     if (_camFrustumReady) {
       _cullSphere.center.set(m.x, m.y + (m.hitboxH || 1.5) * 0.5, m.z);
-      _cullSphere.radius = Math.max(1.25, (m.hitboxR || 0.6) + (m.hitboxH || 1.5) * 0.58);
+      _cullSphere.radius = Math.max(1.25, (m.hitboxR || 0.6) + (m.hitboxH || 1.5) * 0.58, (m.dragonScale || 1) * 5.2);
       if (!_camFrustum.intersectsSphere(_cullSphere)) return false;
     } else {
       const rPad = (m.hitboxR || 0.6) + 1.45;
@@ -5954,6 +6190,9 @@
       if (belowSolid || altAbove <= 0.35 || m.dragonModeTimer <= 0) {
         m.y = Math.max(WATER_LEVEL + 0.6, belowSolid ? Math.floor(m.y - 0.35) + 1.0 : landY);
         m.dragonMode = 'ground'; m.flying = false; m.vy = 0; m._landVy = 0; m.onGround = true;
+        m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
+        m.pauseT = 3.5 + Math.random() * 2.5;
+        m.wanderT = m.pauseT + 2.5;
         m.dragonModeTimer = 9.0 + Math.random() * 2.5;
         m.atkCd = Math.min(m.atkCd || 0, 0.7);
         playSfx('roar'); cameraShake = Math.max(cameraShake, 0.25);
@@ -6771,7 +7010,7 @@
         // Flying Mobs & EPIC 600-HP ENDER DRAGON / ELEMENTAL DRAGONS!
         const isDragon = IS_DRAGON_MOB.has(m.type), isGhast = (m.type === 'ghast'), isBlaze = (m.type === 'blaze' || m.type === 'soul_wisp' || m.type === 'wildfire');
         const isPassiveFlyer = (!m.hostile && !m.neutral && !m.skyBird);
-        const cruiseOffset = isDragon ? 13.5 : (isGhast ? 7.5 : (isBlaze ? 3.8 : (isPassiveFlyer ? 3.6 : 6.0)));
+        const cruiseOffset = isDragon ? (11.5 + (m.dragonScale || 1) * 2.2) : (isGhast ? 7.5 : (isBlaze ? 3.8 : (isPassiveFlyer ? 3.6 : 6.0)));
         if (!m._groundCacheT || m._groundCacheT <= 0) {
           m._groundCacheT = 0.6;
           const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(Math.floor(m.x), Math.floor(m.z)) : getTerrainHeight(Math.floor(m.x), Math.floor(m.z), getBiomeAt(Math.floor(m.x), Math.floor(m.z)));
@@ -6808,33 +7047,37 @@
           m.hostile = false; m.isBoss = false;
           const scD = m.dragonScale || 1.0;
           if (player.ridingDragon === m) {
-            speed = Math.max(0.5, player.curSpeed || 0);
+            speed = player.curSpeed || 0;
           } else if (m.sitting) {
             m.flying = false;
+            m._landedIdle = true;
             speed = 0;
-            const gySit = colGroundY(Math.floor(m.x), Math.floor(m.z));
-            const targetSitY = Math.max(WATER_LEVEL, gySit);
+            const gySit = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z);
+            const targetSitY = Math.max(WATER_LEVEL + 0.02, gySit);
             m.y += (targetSitY - m.y) * Math.min(1, dt * 8.0);
-            m.vx = 0; m.vz = 0;
-            if (dist < 14) {
+            m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
+            m.flyVx = 0; m.flyVy = 0; m.flyVz = 0; m._flyPitch = 0;
+            if (dist < 14 + scD * 2.0) {
               const targetYawS = Math.atan2(player.x - m.x, player.z - m.z);
               let dYS = targetYawS - m.yaw; while (dYS > Math.PI) dYS -= Math.PI * 2; while (dYS < -Math.PI) dYS += Math.PI * 2;
               m.yaw += dYS * Math.min(1, dt * 4.5);
             }
           } else {
-            // Companion Tamed Dragon: Auto-Teleport when far/stuck + >=50% Combat Assist + Smooth Follow!
+            // Companion Tamed Dragon: Auto-Teleport when far/stuck + >=50% Combat Assist + Grounded Idle & Smooth Follow!
             m._stuckCheckT = (m._stuckCheckT || 0) + dt;
             if (m._stuckCheckT > 1.0) {
               const moved1 = Math.hypot(m.x - (m._lastCompX || m.x), m.z - (m._lastCompZ || m.z));
               m._compStuck = (dist3D > 16 && moved1 < 0.85) ? ((m._compStuck || 0) + m._stuckCheckT) : 0;
               m._lastCompX = m.x; m._lastCompZ = m.z; m._stuckCheckT = 0;
             }
-            if (dist3D > 44 || (m._compStuck || 0) > 4.0) {
+            if (dist3D > (44 + scD * 3.0) || (m._compStuck || 0) > 4.0) {
               m._compStuck = 0;
+              m._landedIdle = false;
               const tpAng = player.yaw + 2.2 + Math.random() * 1.4;
-              const txP = player.x + Math.cos(tpAng) * 5.0, tzP = player.z + Math.sin(tpAng) * 5.0;
-              const gyP = colGroundY(Math.floor(txP), Math.floor(tzP));
-              m.x = txP; m.z = tzP; m.y = Math.max(player.y + 2.4, gyP + 2.6);
+              const tpOff = 5.0 + scD * 1.4;
+              const txP = player.x + Math.cos(tpAng) * tpOff, tzP = player.z + Math.sin(tpAng) * tpOff;
+              const gyP = _getDragonGroundSurfaceY(txP, player.y + 4, tzP);
+              m.x = txP; m.z = tzP; m.y = Math.max(player.y + 2.4, gyP + 1.6);
               m.rx = m.x; m.ry = m.y; m.rz = m.z;
               spawnParticles(m.x, m.y + 0.8, m.z, 0xfbbf24, 14, true);
             }
@@ -6850,15 +7093,16 @@
                 if (cd < Math.min(bestD, maxR)) { bestD = cd; assistTgt = cand; }
               }
             }
-            m.flying = true;
             if (assistTgt) {
+              m.flying = true;
+              m._landedIdle = false;
               const adx = assistTgt.x - m.x, ady = (assistTgt.y + assistTgt.hitboxH * 0.5) - (m.y + 1.0), adz = assistTgt.z - m.z;
               const ad = Math.hypot(adx, ady, adz) || 1;
               m.yaw = _turnAngleTowards(m.yaw, Math.atan2(adx, adz), 5.6, dt);
-              const keepD = 7.5;
+              const keepD = 7.5 + scD * 1.4;
               const mvSpd = ad > keepD + 2 ? 11.0 : (ad < keepD - 2 ? -2.0 : 3.6);
-              const gyA = colGroundY(Math.floor(m.x), Math.floor(m.z));
-              const wantAY = Math.max(gyA + 2.8, assistTgt.y + 3.2);
+              const gyA = _getDragonGroundSurfaceY(m.x, m.y + 4, m.z);
+              const wantAY = Math.max(gyA + 2.0 + scD * 1.2, assistTgt.y + 3.2 + scD * 0.6);
               const desVx = (adx / ad) * mvSpd, desVz = (adz / ad) * mvSpd, desVy = (wantAY - m.y) * 2.8;
               const fk = 1 - Math.exp(-6.5 * dt);
               m.flyVx = (m.flyVx || 0) + (desVx - (m.flyVx || 0)) * fk;
@@ -6879,27 +7123,64 @@
               }
               speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
             } else {
-              const orbAng = elapsed * 0.62 + i;
-              const orbR = 4.8 + scD * 1.6;
-              const ftx = player.x + Math.cos(orbAng) * orbR, ftz = player.z + Math.sin(orbAng) * orbR;
-              const fdx = ftx - m.x, fdz = ftz - m.z, fd = Math.hypot(fdx, fdz);
-              if (fd > 0.6) m.yaw = _turnAngleTowards(m.yaw, Math.atan2(fdx, fdz), 4.8, dt);
-              const fSpd = Math.min(13.0, Math.max(0.0, (fd - 0.5) * 2.1));
-              const desVx = fd > 0.01 ? (fdx / fd) * fSpd : 0, desVz = fd > 0.01 ? (fdz / fd) * fSpd : 0;
-              const gyF = colGroundY(Math.floor(m.x), Math.floor(m.z));
-              const wantFY = Math.max(gyF + 2.4, player.y + 2.8 + Math.sin(elapsed * 2.1 + i) * 0.40);
-              const desVy = (wantFY - m.y) * 2.6;
-              const fk = 1 - Math.exp(-5.5 * dt);
-              m.flyVx = (m.flyVx || 0) + (desVx - (m.flyVx || 0)) * fk;
-              m.flyVy = (m.flyVy || 0) + (desVy - (m.flyVy || 0)) * fk;
-              m.flyVz = (m.flyVz || 0) + (desVz - (m.flyVz || 0)) * fk;
-              const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = m.y + m.flyVy * dt;
-              if (!isSolidAt(Math.floor(nxD), Math.floor(nyD), Math.floor(m.z))) m.x = nxD;
-              if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(nzD))) m.z = nzD;
-              if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = nyD;
-              else m.y = Math.min(MAX_Y - 4, m.y + dt * 3.0);
-              m._flyPitch = Math.max(-0.32, Math.min(0.32, -(m.flyVy || 0) * 0.042));
-              speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
+              const gyF = _getDragonGroundSurfaceY(m.x, Math.max(m.y, player.y) + 2, m.z);
+              const wantLandY = Math.max(WATER_LEVEL + 0.02, gyF);
+              const stayGroundedBand = m._landedIdle ? (11.5 + scD * 2.5) : (9.0 + scD * 2.0);
+              if (player.y - gyF < 4.5 && dist < stayGroundedBand) {
+                if (m.y <= wantLandY + 1.25) {
+                  m.flying = false;
+                  m._landedIdle = true;
+                  m.y += (wantLandY - m.y) * Math.min(1, dt * 7.5);
+                  m.vx = 0; m.vz = 0; m.svx = 0; m.svz = 0;
+                  m.flyVx = 0; m.flyVy = 0; m.flyVz = 0;
+                  m._flyPitch = 0;
+                  speed = 0;
+                  if (dist < 16 + scD * 2.0) {
+                    m.yaw = _turnAngleTowards(m.yaw, Math.atan2(player.x - m.x, player.z - m.z), 3.2, dt);
+                  }
+                } else {
+                  m.flying = true;
+                  m._landedIdle = false;
+                  const ldx = (player.x + Math.cos(i * 1.9 + 0.8) * (4.0 + scD * 1.2)) - m.x;
+                  const ldz = (player.z + Math.sin(i * 1.9 + 0.8) * (4.0 + scD * 1.2)) - m.z;
+                  const ld = Math.hypot(ldx, ldz);
+                  if (ld > 0.6) m.yaw = _turnAngleTowards(m.yaw, Math.atan2(ldx, ldz), 4.2, dt);
+                  const lSpd = Math.min(9.5, ld * 1.6);
+                  const fk = 1 - Math.exp(-5.5 * dt);
+                  m.flyVx = (m.flyVx || 0) + ((ld > 0.4 ? (ldx / ld) * lSpd : 0) - (m.flyVx || 0)) * fk;
+                  m.flyVz = (m.flyVz || 0) + ((ld > 0.4 ? (ldz / ld) * lSpd : 0) - (m.flyVz || 0)) * fk;
+                  m.flyVy = (m.flyVy || 0) + (Math.max(-6.5, (wantLandY - m.y) * 2.4) - (m.flyVy || 0)) * fk;
+                  const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = Math.max(wantLandY, m.y + m.flyVy * dt);
+                  if (!isSolidAt(Math.floor(nxD), Math.floor(nyD + 0.5), Math.floor(m.z))) m.x = nxD;
+                  if (!isSolidAt(Math.floor(m.x), Math.floor(nyD + 0.5), Math.floor(nzD))) m.z = nzD;
+                  m.y = nyD;
+                  m._flyPitch = Math.max(-0.26, Math.min(0.26, -(m.flyVy || 0) * 0.04));
+                  speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
+                }
+              } else {
+                m._landedIdle = false;
+                m.flying = true;
+                const orbAng = elapsed * 0.62 + i;
+                const orbR = 4.8 + scD * 2.2;
+                const ftx = player.x + Math.cos(orbAng) * orbR, ftz = player.z + Math.sin(orbAng) * orbR;
+                const fdx = ftx - m.x, fdz = ftz - m.z, fd = Math.hypot(fdx, fdz);
+                if (fd > 0.6) m.yaw = _turnAngleTowards(m.yaw, Math.atan2(fdx, fdz), 4.8, dt);
+                const fSpd = Math.min(13.0, Math.max(0.0, (fd - 0.5) * 2.1));
+                const desVx = fd > 0.01 ? (fdx / fd) * fSpd : 0, desVz = fd > 0.01 ? (fdz / fd) * fSpd : 0;
+                const wantFY = Math.max(gyF + 2.4 + scD * 1.4, player.y + 2.6 + scD * 0.7 + Math.sin(elapsed * 2.1 + i) * 0.40);
+                const desVy = (wantFY - m.y) * 2.6;
+                const fk = 1 - Math.exp(-5.5 * dt);
+                m.flyVx = (m.flyVx || 0) + (desVx - (m.flyVx || 0)) * fk;
+                m.flyVy = (m.flyVy || 0) + (desVy - (m.flyVy || 0)) * fk;
+                m.flyVz = (m.flyVz || 0) + (desVz - (m.flyVz || 0)) * fk;
+                const nxD = m.x + m.flyVx * dt, nzD = m.z + m.flyVz * dt, nyD = m.y + m.flyVy * dt;
+                if (!isSolidAt(Math.floor(nxD), Math.floor(nyD), Math.floor(m.z))) m.x = nxD;
+                if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(nzD))) m.z = nzD;
+                if (!isSolidAt(Math.floor(m.x), Math.floor(nyD), Math.floor(m.z))) m.y = nyD;
+                else m.y = Math.min(MAX_Y - 4, m.y + dt * 3.0);
+                m._flyPitch = Math.max(-0.32, Math.min(0.32, -(m.flyVy || 0) * 0.042));
+                speed = Math.hypot(m.flyVx || 0, m.flyVz || 0);
+              }
             }
           }
         } else {
@@ -6934,7 +7215,7 @@
           const landTargetX = hasTarget ? aimX : (typeof m.homeX === 'number' ? m.homeX : aimX);
           const landTargetZ = hasTarget ? aimZ : (typeof m.homeZ === 'number' ? m.homeZ : aimZ);
           m.yaw = _turnAngleTowards(m.yaw, Math.atan2(landTargetX - m.x, landTargetZ - m.z), 4.5, dt);
-          speed = aimDist > 5.5 ? m.speed * 0.65 : 0.4;
+          speed = (hasTarget && aimDist > Math.max(5.5, (m.hitboxR || 2.0) + 2.2)) ? m.speed * 0.65 : 0;
           const fnx = m.x + (Math.sin(m.yaw) * speed + m.vx) * dt, fnz = m.z + (Math.cos(m.yaw) * speed + m.vz) * dt;
           if ((!_drgHomeLeash || Math.hypot(fnx - m.homeX, fnz - m.homeZ) <= _drgHomeLeash) && !isSolidAt(Math.floor(fnx), Math.floor(m.y + 0.5), Math.floor(fnz))) { m.x = fnx; m.z = fnz; }
           m.vx *= 0.9; m.vz *= 0.9;
@@ -7181,8 +7462,8 @@
             }
           }
         } else {
-          const atkRange = m.elemDragon ? 3.5 : ((m.isBoss || m.guardian || m.type === 'hoglin' || m.type === 'zoglin' || m.type === 'ravager' || m.type === 'void_golem') ? 2.55 : 1.95);
-          if (m.elemDragon && !m.flying && m.atkCd <= 0 && dist3D < 14.5 && dist3D >= atkRange) {
+          const atkRange = m.elemDragon ? Math.max(3.5, (m.hitboxR || 2.0) + 2.4) : ((m.isBoss || m.guardian || m.type === 'hoglin' || m.type === 'zoglin' || m.type === 'ravager' || m.type === 'void_golem') ? 2.55 : 1.95);
+          if (m.elemDragon && !m.flying && m.atkCd <= 0 && dist3D < Math.max(14.5, atkRange + 10.0) && dist3D >= atkRange) {
             castElementalDragonGroundSkill(m, dist3D);
           }
           // Hostile melee sprint pursuit + reactive dodge when player swings nearby!
@@ -7266,7 +7547,7 @@
           // Graceful calm wandering + occasional natural grazing pauses (ZERO frantic spinning!)
           m.wanderT -= dt;
           if (m.wanderT <= 0) {
-            if (Math.random() < 0.34) { m.pauseT = 1.6 + Math.random() * 2.2; m.wanderT = m.pauseT + 2.5 + Math.random() * 3.0; }
+            if (Math.random() < (m.elemDragon ? 0.60 : 0.34)) { m.pauseT = (m.elemDragon ? 3.2 : 1.6) + Math.random() * 2.5; m.wanderT = m.pauseT + 2.5 + Math.random() * 3.0; }
             else { m.pauseT = 0; m.wanderT = 2.8 + Math.random() * 4.2; m.yaw += (Math.random() - 0.5) * 1.5; }
           }
           if (m.pauseT > 0) { m.pauseT -= dt; speed = 0; }
@@ -7666,7 +7947,7 @@
         const isHeavy = (m.isBoss || m.guardian || isRavager || m.type === 'void_golem' || m.type === 'elephant' || m.type === 'hippo' || m.type === 'polar_bear');
         const isQuad = (m.anim.legs.length >= 4 && !m.anim.legs[0].isSpider && !isDragon && !isCreeper);
         const isHerbivore = (!m.hostile && !m.neutral && isQuad && !m.tamed);
-        const effSpeed = (!m.flying && !m.aqua && !m.skyBird && m.svx !== undefined) ? Math.hypot(m.svx, m.svz) : Math.abs(speed);
+        const effSpeed = isRidingThis ? (player.curSpeed || 0) : ((!m.flying && !m.aqua && !m.skyBird && m.svx !== undefined) ? Math.hypot(m.svx, m.svz) : Math.abs(speed));
         const rawMoving = effSpeed > 0.14 || m.flying || m.aqua || m.skyBird;
         const isGallop = (isQuad && effSpeed > m.speed * 1.05);
         // Smooth Moves eased velocity blend (eliminates stiff instant limb snapping!)
@@ -7751,7 +8032,7 @@
 
         if (isSkinnedDragon) {
           const actions = m.anim.actions;
-          const spdDrg = Math.hypot(m.vx || 0, m.vz || 0);
+          const spdDrg = isRidingThis ? (player.curSpeed || 0) : Math.hypot(m.vx || 0, m.vz || 0);
           const swooping = (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
           const gliding = (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
           m._drgSwooping = swooping;

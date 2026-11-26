@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -858,6 +858,34 @@ const {
     hard: 2.2, solid: true, stone: true, glass: true, trans: true, customAtlasTex: true,
     drop: B.IRON_GRATE, tiles: [V143_TILES.ironGrate, V143_TILES.ironGrate, V143_TILES.ironGrate], mapColor: '#475569'
   };
+
+  {
+    const _daTiers = [
+      ['IRON',    'iron',    'Sắt',       'Iron',    '#cbd5e1', [2, 2, 4, 2]],
+      ['GOLD',    'gold',    'Vàng',      'Gold',    '#facc15', [3, 3, 5, 3]],
+      ['DIAMOND', 'diamond', 'Kim Cương', 'Diamond', '#22d3ee', [4, 4, 8, 4]]
+    ];
+    const _daSlots = [
+      ['HEAD', 'head', 'Head', 'Mũ Giáp Đầu Rồng',  'Dragon Head Armor'],
+      ['NECK', 'neck', 'Neck', 'Giáp Cổ Rồng',      'Dragon Neck Armor'],
+      ['BODY', 'body', 'Body', 'Giáp Thân Rồng',    'Dragon Body Armor'],
+      ['TAIL', 'tail', 'Tail', 'Giáp Đuôi Rồng',    'Dragon Tail Armor']
+    ];
+    for (const [TK, tKey, tVi, tEn, col, defs] of _daTiers) {
+      for (let si = 0; si < _daSlots.length; si++) {
+        const [SK, sKey, sCap, sVi, sEn] = _daSlots[si];
+        const bid = B['DRAGON_ARMOR_' + TK + '_' + SK];
+        const tile = DRAGON_ARMOR_TILES[tKey + sCap];
+        BLOCK_DEF[bid] = {
+          name: `${sVi} ${tVi}`,
+          nameEn: `${tEn} ${sEn}`,
+          hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true,
+          dragonArmorTier: tKey, dragonArmorSlot: sKey, dragonArmorDef: defs[si],
+          tiles: [tile, tile, tile], mapColor: col
+        };
+      }
+    }
+  }
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];

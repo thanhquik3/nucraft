@@ -3616,7 +3616,7 @@
       blockId === B.GUNPOWDER || blockId === B.VOID_PEARL || blockId === B.MAGMA_CORE ||
       blockId === B.RAW_IRON || blockId === B.RAW_GOLD || blockId === B.RAW_COPPER ||
       blockId === B.NETHERITE_SCRAP || blockId === B.NETHERITE_INGOT ||
-      blockId === B.DRAGON_SCALE || blockId === B.DRAGON_BONE || blockId === B.DRAGON_SADDLE || blockId === B.DRAGON_CRYSTAL || !!def.smithTemplate ||
+      blockId === B.DRAGON_SCALE || blockId === B.DRAGON_BONE || blockId === B.DRAGON_SADDLE || blockId === B.DRAGON_CRYSTAL || !!def.smithTemplate || !!def.dragonArmorSlot ||
       (_vKey && /INGOT$/.test(_vKey))
     );
     // Volumetric 16x16 3D extruded item model (embossed thicker center bevel on meats, foods, ingots & gems!)

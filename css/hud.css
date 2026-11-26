@@ -569,7 +569,9 @@
   .dg-sub { font-size: 10px; color: #d0d4dc; display: flex; justify-content: flex-start; text-shadow: 1px 1px 0 #000; }
   #dragonFlightHud {
     position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%);
-    display: none; align-items: center; gap: 6px; z-index: 35; pointer-events: auto;
+    display: none; flex-wrap: wrap; justify-content: center;
+    max-width: calc(100vw - 12px);
+    align-items: center; gap: 6px; z-index: 35; pointer-events: auto;
   }
   #dragonFlightHud.visible { display: flex; }
   .df-btn {

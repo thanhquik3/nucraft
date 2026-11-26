@@ -727,7 +727,7 @@
     }
     if (e.code === 'KeyR' && !e.repeat && isPlaying && !player.dead) {
       if (player.ridingDragon) { dismountDragon(); return; }
-      const drg = findNearestSaddledDragon(5.6);
+      const drg = findNearestSaddledDragon(9.0);
       if (drg) { mountDragon(drg); return; }
     }
     if (e.code === 'KeyC' && !e.repeat && isPlaying && !player.dead) {
@@ -1013,8 +1013,8 @@
           const hSlot = inventory[player.selectedSlot];
           const hDef = (hSlot && hSlot.count > 0) ? BLOCK_DEF[hSlot.id] : null;
           const holdMob = isDir ? raycastMob(4.8, lastTouchX, lastTouchY) : null;
-          if (holdMob && holdMob.tamed && holdMob.elemDragon && (!hSlot || (hSlot.id !== B.DRAGON_CRYSTAL && hSlot.id !== B.DRAGON_SADDLE))) {
-            feedOrInteractTamedDragon(holdMob, hSlot, hDef, true);
+          if (holdMob && holdMob.tamed && holdMob.elemDragon && (!hSlot || (hSlot.id !== B.DRAGON_CRYSTAL && hSlot.id !== B.DRAGON_SADDLE && !(hDef && hDef.dragonArmorSlot)))) {
+            feedOrInteractTamedDragon(holdMob, hSlot, hDef, true, false);
             clearClassicHold();
             return;
           }
@@ -1079,7 +1079,7 @@
       const hit = raycastBlock(5.4, false, false, tapX, tapY);
       if (mobHit) {
         if ((slot && (slot.id === B.FLINT_AND_STEEL || slot.id === B.SOUL_FLINT_AND_STEEL))
-          || (mobHit.tamed && mobHit.elemDragon && (slot?.id === B.DRAGON_CRYSTAL || slot?.id === B.DRAGON_SADDLE || !selDef || !selDef.dmg))
+          || (mobHit.tamed && mobHit.elemDragon && (slot?.id === B.DRAGON_CRYSTAL || slot?.id === B.DRAGON_SADDLE || selDef?.dragonArmorSlot || !selDef || !selDef.dmg))
           || (mobHit.type === 'villager' && (!selDef || !selDef.dmg))
           || (mobHit.tamed && TAMEABLE_PETS.has(mobHit.type) && (!selDef || selDef.food || !selDef.dmg))) {
           handlePlaceOrEat(tapX, tapY);
@@ -2860,7 +2860,7 @@
 
   function getCreativeItemCategory(id, def) {
     if (!def) return 'misc';
-    if (def.tool || def.armorSlot || id === B.ARROW || id === B.SHIELD || id === B.TOTEM_UNDYING || id === B.SWIFT_SNEAK_BOOK || id === B.SNOWBALL || id === B.DRAGON_SADDLE) return 'tools';
+    if (def.tool || def.armorSlot || def.dragonArmorSlot || id === B.ARROW || id === B.SHIELD || id === B.TOTEM_UNDYING || id === B.SWIFT_SNEAK_BOOK || id === B.SNOWBALL || id === B.DRAGON_SADDLE) return 'tools';
     if (def.food || def.cross || def.cropStage !== undefined || id === B.WHEAT_SEEDS || id === B.WHEAT || id === B.MELON_SLICE || id === B.APPLE || id === B.GOLD_APPLE || id === B.NIGHT_VISION_POTION) return 'food';
     if (def.solid && !def.light && !def.furnaceType && !def.chest && !def.door && !def.trapdoor && !def.bed && id !== B.TNT && id !== B.CRAFT_TABLE && id !== B.ENCHANT_TABLE && id !== B.ANVIL && id !== B.SMITHING_TABLE) return 'blocks';
     return 'misc';
@@ -2872,7 +2872,7 @@
     // Left Creative item picked -> click any Right slot to place it cleanly!
     if (creativePickId > 0) {
       const cDef = BLOCK_DEF[creativePickId];
-      const cQty = (cDef?.tool || cDef?.armorSlot || creativePickId === B.SHIELD) ? 1 : 99;
+      const cQty = (cDef?.tool || cDef?.armorSlot || cDef?.dragonArmorSlot || creativePickId === B.SHIELD) ? 1 : 99;
       setSlotItem(idx, creativePickId, cQty);
       creativePickId = 0; swapIdx = -1; selectedEquipSlot = null;
       playSfx('pickup'); renderInventoryModal(); renderHotbar();
@@ -2945,7 +2945,7 @@
     if (!s) return;
     if (swapIdx >= 0 && swapIdx !== idx && inventory[swapIdx]?.count > 0) {
       const oldSwap = swapIdx, src = inventory[oldSwap];
-      const srcSingle = !!(BLOCK_DEF[src.id]?.tool || BLOCK_DEF[src.id]?.armorSlot || src.ench || src.trim);
+      const srcSingle = !!(BLOCK_DEF[src.id]?.tool || BLOCK_DEF[src.id]?.armorSlot || BLOCK_DEF[src.id]?.dragonArmorSlot || src.ench || src.trim);
       if (s.count <= 0) {
         inventory[idx] = { id: src.id, count: 1, dur: src.dur || 0, maxDur: src.maxDur || 0, ench: !!src.ench, trim: src.trim ? { ...src.trim } : null };
       } else if (s.id === src.id && !srcSingle && !s.ench && !s.trim && s.count < 99) {
@@ -2957,7 +2957,7 @@
       if (oldSwap < 9 || idx < 9) renderHotbar();
       return;
     }
-    if (swapIdx === -1 && s.count > 1 && !(BLOCK_DEF[s.id]?.tool || BLOCK_DEF[s.id]?.armorSlot || s.ench || s.trim)) {
+    if (swapIdx === -1 && s.count > 1 && !(BLOCK_DEF[s.id]?.tool || BLOCK_DEF[s.id]?.armorSlot || BLOCK_DEF[s.id]?.dragonArmorSlot || s.ench || s.trim)) {
       const half = Math.floor(s.count / 2);
       let emptyIdx = -1;
       for (let k = 1; k < 36; k++) {
@@ -3074,7 +3074,7 @@
       if (isCreativeCatalog && entry.bid > 0) {
         const bid = entry.bid, def = BLOCK_DEF[bid];
         if (!def) return;
-        const qty = (def.tool || def.armorSlot || bid === B.SHIELD) ? 1 : 99;
+        const qty = (def.tool || def.armorSlot || def.dragonArmorSlot || bid === B.SHIELD) ? 1 : 99;
         if (swapIdx >= 0 && swapIdx < inventory.length) {
           setSlotItem(swapIdx, bid, qty);
           swapIdx = -1; creativePickId = 0;
@@ -3549,7 +3549,7 @@
     for (let i = 0; i < mobs.length; i++) {
       const mb = mobs[i];
       if (!mb || mb._dead || !mb.tamed || !mb.elemDragon) continue;
-      tamedDragons.push({ el: mb.elemDragon, x: +mb.x.toFixed(2), y: +mb.y.toFixed(2), z: +mb.z.toFixed(2), growth: mb.growth || 0, saddled: !!mb.saddled, sitting: !!mb.sitting, hp: Math.round(mb.hp) });
+      tamedDragons.push({ el: mb.elemDragon, x: +mb.x.toFixed(2), y: +mb.y.toFixed(2), z: +mb.z.toFixed(2), growth: mb.growth || 0, saddled: !!mb.saddled, sitting: !!mb.sitting, hp: Math.round(mb.hp), dragonArmor: mb.dragonArmor ? { ...mb.dragonArmor } : null });
     }
     const incEggs = [];
     for (const eg of incubatingEggs.values()) incEggs.push({ x: eg.x, y: eg.y, z: eg.z, el: eg.el, eggId: eg.eggId, timer: +eg.timer.toFixed(2) });

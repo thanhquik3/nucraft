@@ -16,6 +16,7 @@ from mathutils import Matrix, Vector
 ROOT = r"d:\mine2"
 sys.path.insert(0, ROOT)
 import build_dragon as bd  # noqa: E402
+import build_dragon_armor as bda  # noqa: E402
 
 PX = bd.PX
 BLEND_PATH = os.path.join(ROOT, "dragon.blend")
@@ -76,21 +77,55 @@ def add_saddle_to_body(arm_obj):
     return saddle_obj
 
 
+def add_modular_armor(arm_obj):
+    """Attach 4 external skinned Dragon Armor meshes (Head, Neck, Body, Tail) using shared Iron atlas."""
+    col = bpy.context.scene.collection
+    mats = bda.create_tier_materials("Iron")
+    builders = (
+        ("Head", bda.build_head_armor),
+        ("Neck", bda.build_neck_armor),
+        ("Body", bda.build_body_armor),
+        ("Tail", bda.build_tail_armor),
+    )
+    armor_pairs = []
+    for slot, fn in builders:
+        obj, vw = fn("Iron", mats, col)
+        obj.name = f"Armor_{slot}_Geo"
+        armor_pairs.append((obj, vw))
+    bda.bind_armor_to_armature(arm_obj, armor_pairs)
+    for m in mats:
+        m.name = "Armor_Metal" if m.name.endswith("_Metal") else "Armor_Trim"
+    return [o for o, _ in armor_pairs]
+
+
 def main():
     bpy.ops.wm.open_mainfile(filepath=BLEND_PATH)
     arm_obj = bpy.data.objects["Dragon_Armature"]
     bd.play("Rest_Pose")
     bpy.context.view_layer.update()
 
-    # 1. Deduplicate image texture nodes to 1 single Dragon_Atlas PNG and keep flat PBR roughness (Three.js reads baseColor only)
+    # 1. Attach toggleable vertex-colored riding saddle + 4 external skinned armor meshes onto Dragon_Armature
+    bone_names = set(arm_obj.data.bones.keys())
+    for obj in list(bpy.data.objects):
+        if obj.type == "MESH" and obj.name in bone_names:
+            obj.name = f"{obj.name}_Geo"
+
+    add_saddle_to_body(arm_obj)
+    add_modular_armor(arm_obj)
+
+    # 2. Deduplicate Dragon_Atlas & keep flat PBR inputs (no extra bump/roughness images exported)
     atlas = bpy.data.images["Dragon_Atlas"]
+    armor_atlas = bpy.data.images.get("Armor_Iron_Atlas")
     for mat in bpy.data.materials:
         if not mat.use_nodes or not mat.node_tree:
             continue
         nt = mat.node_tree
         for node in nt.nodes:
-            if node.type == "TEX_IMAGE" and node.image and node.image.name.startswith("Dragon_Atlas"):
-                node.image = atlas
+            if node.type == "TEX_IMAGE" and node.image:
+                if node.image.name.startswith("Dragon_Atlas"):
+                    node.image = atlas
+                elif armor_atlas and node.image.name.startswith("Armor_"):
+                    node.image = armor_atlas
                 node.interpolation = "Closest"
             elif node.type == "BSDF_PRINCIPLED" and mat.name != "Eye_Orange":
                 for sock_name in ("Roughness", "Normal", "Emission Color"):
@@ -105,15 +140,10 @@ def main():
                     node.inputs["Roughness"].default_value = 0.64
                     if "Emission Strength" in node.inputs:
                         node.inputs["Emission Strength"].default_value = 0.0
-
-    # 2. Disambiguate rigid mesh object names (*_Geo) from bone names for clean Three.js PropertyBinding
-    bone_names = set(arm_obj.data.bones.keys())
-    for obj in list(bpy.data.objects):
-        if obj.type == "MESH" and obj.name in bone_names:
-            obj.name = f"{obj.name}_Geo"
-
-    # 3. Attach toggleable vertex-colored riding saddle onto Body bone
-    add_saddle_to_body(arm_obj)
+                elif mat.name == "Armor_Metal":
+                    node.inputs["Roughness"].default_value = 0.34
+                elif mat.name == "Armor_Trim":
+                    node.inputs["Roughness"].default_value = 0.76
 
     for o in bpy.data.objects:
         if o.type == "MESH":
