@@ -62,12 +62,12 @@
 
   const locatorDotEls = new Map();
   let _lastHasPeers = false;
-  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, eqSig: '', skinId: '', idleAt: 0, metaAt: 0 };
+  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, bowStage: 0, eqSig: '', skinId: '', idleAt: 0, metaAt: 0 };
   function updateCoopAndLocator(dt, tNow) {
     // Adaptive 20Hz moving / 1Hz idle quantized delta broadcast for smooth multi-player sync!
     if (activeRoomId) {
       stateSendAccum += dt;
-      const _isMovingNet = (player.curSpeed || 0) > 0.05 || Math.abs(player.vy) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive;
+      const _isMovingNet = (player.curSpeed || 0) > 0.05 || Math.abs(player.vy) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
       const _sendInterval = _isMovingNet ? 0.05 : 0.20;
       if (stateSendAccum >= _sendInterval) {
         stateSendAccum = 0;
@@ -80,12 +80,14 @@
         const nowPerf = performance.now();
         const posChanged = Math.abs(qx - _lastSentNet.x) > 0.01 || Math.abs(qy - _lastSentNet.y) > 0.01 || Math.abs(qz - _lastSentNet.z) > 0.01
           || Math.abs(qYaw - _lastSentNet.yaw) > 0.005 || Math.abs(qPitch - _lastSentNet.pitch) > 0.005
-          || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive;
+          || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
+          || !!player.bowDrawing || (player.bowStage || 0) !== (_lastSentNet.bowStage || 0);
         const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || (nowPerf - _lastSentNet.metaAt) >= 2000);
         if (_isMovingNet || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
           _lastSentNet.idleAt = nowPerf;
           _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
           _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
+          _lastSentNet.bowStage = player.bowStage || 0;
           const pkt = {
             type: 'state',
             name: localPlayerName,

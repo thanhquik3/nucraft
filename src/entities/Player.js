@@ -893,6 +893,17 @@
     return rig;
   }
 
+  const _BOW_IDLE_POS = new THREE.Vector3(0.01, 0.01, 0.09);
+  const _BOW_AIM_POS  = new THREE.Vector3(0.02, 0.07, 0.03);
+  const _BOW_IDLE_Q   = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.22, 2.82, 'YXZ'));
+  const _BOW_AIM_Q    = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, Math.PI * 0.5 - 0.06, Math.PI * 0.75 - 0.14, 'YXZ'));
+  function _applyRigBowGripPose(grip, aimT) {
+    if (!grip) return;
+    const t = Math.max(0, Math.min(1, aimT || 0));
+    grip.position.lerpVectors(_BOW_IDLE_POS, _BOW_AIM_POS, t);
+    grip.quaternion.copy(_BOW_IDLE_Q).slerp(_BOW_AIM_Q, t);
+  }
+
   function setRigHeldItem(rig, blockId, meta = null) {
     if (!rig || !rig.handHold) return;
     const bid = blockId || 0;
@@ -901,6 +912,7 @@
     rig.heldItemId = bid;
     rig.heldItemKey = itemKey;
     while (rig.handHold.children.length) rig.handHold.remove(rig.handHold.children[0]);
+    rig.bowGrip = null;
     if (!bid || !BLOCK_DEF[bid]) return;
     const def = BLOCK_DEF[bid];
     const cachedRig = heldModelCache.get(itemKey);
@@ -925,14 +937,14 @@
       grip.add(clone);
       rig.handHold.add(grip);
     } else if (def.tool === 'bow') {
-      // Authentic Minecraft 3rd-person Bow Grip: hand holds center grip, curved stave forward (+Z), string facing player (-Z)!
+      // Authentic Minecraft 3rd-person Bow Grip: idle diagonal hold (Image 2) <-> upright vertical aiming (Image 1)
       const grip = new THREE.Group();
-      grip.rotation.order = 'YXZ';
-      grip.position.set(0.0, -0.01, 0.09);
-      grip.rotation.set(0.0, Math.PI * 0.5, Math.PI * 0.25 + 0.14);
-      clone.scale.setScalar(1.22);
-      clone.position.set(0.03, 0.03, 0.0);
+      clone.scale.setScalar(1.24);
+      clone.position.set(0.0, 0.0, 0.0);
       grip.add(clone);
+      rig.bowGrip = grip;
+      const initAimT = (meta && meta.bowStage > 0) ? Math.max(rig._bowAimT || 0, 1.0) : (rig._bowAimT || 0);
+      _applyRigBowGripPose(grip, initAimT);
       rig.handHold.add(grip);
     } else if (def.tool === 'pick' || def.tool === 'axe' || def.tool === 'shovel' || def.tool === 'hoe' || def.tool === 'rod' || def.tool === 'shears' || isForwardShaft) {
       // Authentic Minecraft 3rd-person Tool Grip: handle locked inside right fist, curved blade/head facing FORWARD (+Z)!
@@ -1407,27 +1419,30 @@
     // Active combat / bow / blocking overrides ONLY (anchor arm cleanly on R6 shoulder!)
     if (isBow && typeof setRigHeldItem === 'function') {
       const wantSt = (st.bowDrawing && (st.bowStage || 0) > 0) ? (st.bowStage | 0) : 0;
-      setRigHeldItem(rig, heldId, wantSt > 0 ? { bowStage: wantSt } : null);
+      const bowMeta = wantSt > 0
+        ? (st.heldEnch ? { bowStage: wantSt, ench: true } : { bowStage: wantSt })
+        : (st.heldEnch ? { ench: true } : null);
+      setRigHeldItem(rig, heldId, bowMeta);
     }
-    if (!swimming && !flying && swing <= 0.01 && isBow) {
-      const pitchOff = (st.pitch || 0) * 0.65;
+    const wantBowAim = !!(isBow && st.bowDrawing && !swimming && !flying);
+    const bowAimRate = rig._r6Init ? (1 - Math.exp(-18.0 * dtClamped)) : 1.0;
+    rig._bowAimT = (rig._bowAimT || 0) + ((wantBowAim ? 1 : 0) - (rig._bowAimT || 0)) * bowAimRate;
+    if (isBow && rig.bowGrip) _applyRigBowGripPose(rig.bowGrip, rig._bowAimT);
+    if (!swimming && !flying && isBow) {
       if (st.bowDrawing) {
         const bCh = Math.max(0.05, Math.min(1, st.bowCharge || 0.25));
-        setJointEuler(_r6TargetBuf.armR, -1.48 + pitchOff, 0.08, 0.10);
+        const pitchOff = Math.max(-1.05, Math.min(1.05, (st.pitch || 0) * 0.85));
+        // Authentic Minecraft 3rd-person bow aiming: right arm extended forward, left arm raised & angled inward pulling string
+        setJointEuler(_r6TargetBuf.armR, -1.52 - pitchOff, 0.0, 0.08);
         _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
         if (!blocking) {
-          setJointEuler(_r6TargetBuf.armL, -1.42 + pitchOff * 0.9, -0.35 - bCh * 0.34, -0.44 - bCh * 0.28);
+          setJointEuler(_r6TargetBuf.armL, -1.48 - pitchOff * 0.92, 0.0, -0.58 - bCh * 0.24);
           _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = -bCh * 0.08;
         }
-        mulJointEuler(_r6TargetBuf.torso, 0, 0.34, 0);
-      } else {
-        setJointEuler(_r6TargetBuf.armR, -1.24, 0, 0.14);
-        _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
-        if (!blocking) {
-          setJointEuler(_r6TargetBuf.armL, -1.16, 0, -0.38);
-          _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = 0;
-        }
-        mulJointEuler(_r6TargetBuf.torso, 0, 0.24, 0);
+        mulJointEuler(_r6TargetBuf.torso, 0, 0.06, 0);
+      } else if (swing <= 0.01) {
+        // Authentic Minecraft 3rd-person idle bow hold: natural relaxed arms, subtle right-hand hold tilt only
+        mulJointEuler(_r6TargetBuf.armR, -0.20, 0.0, 0.04);
       }
     }
     const bT = Math.max(0, Math.min(1, st.shieldRaiseT !== undefined ? st.shieldRaiseT : (blocking ? 1 : 0)));
@@ -3673,7 +3688,7 @@
     return true;
   }
 
-  function startBowDraw(screenX = null, screenY = null) {
+  function startBowDraw(screenX = null, screenY = null, silent = false) {
     if (player.dead || eatState.active) return false;
     const slot = inventory[player.selectedSlot];
     const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
@@ -3685,7 +3700,7 @@
       }
       return false;
     }
-    if (!player.bowDrawing) playSfx('equip');
+    if (!player.bowDrawing && !silent) playSfx('bow_draw');
     player.bowDrawing = true;
     player.bowCharge = Math.max(player.bowCharge || 0, 0.08);
     player.bowStage = 1;
@@ -3698,6 +3713,7 @@
   function cancelBowDraw() {
     if (!player.bowDrawing && !player.bowCharge && !player.bowStage) return;
     player.bowDrawing = false;
+    if (typeof stopBowDrawSfx === 'function') stopBowDrawSfx();
     player.bowCharge = 0;
     player.bowStage = 0;
     player._bowAimPos = null;
@@ -3721,7 +3737,7 @@
     const nextSt = player.bowCharge >= 0.86 ? 3 : (player.bowCharge >= 0.40 ? 2 : 1);
     if (nextSt !== player.bowStage) {
       player.bowStage = nextSt;
-      if (nextSt === 3) playSfx('pickup');
+      if (nextSt === 3) playSfx('bow_full');
     }
     if ((player._lastFpBowStage || 0) !== nextSt) {
       player._lastFpBowStage = nextSt;
@@ -3754,7 +3770,7 @@
   }
 
   function quickFireBow(screenX = null, screenY = null) {
-    if (!startBowDraw(screenX, screenY)) return false;
+    if (!startBowDraw(screenX, screenY, true)) return false;
     player.bowCharge = 0.50;
     return releaseBowDraw(screenX, screenY);
   }
@@ -5685,6 +5701,7 @@
         swingU,
         minePhase: swingU,
         heldId: (heldSel && heldSel.count > 0) ? heldSel.id : 0,
+        heldEnch: !!(heldSel && heldSel.ench),
         bowDrawing: !!player.bowDrawing,
         bowCharge: player.bowCharge || 0,
         bowStage: player.bowStage || 0,

@@ -708,6 +708,171 @@
     } catch (_) {}
   }
 
+  let _bowDrawHandle = null;
+  function stopBowDrawSfx() {
+    const h = _bowDrawHandle;
+    if (!h) return;
+    _bowDrawHandle = null;
+    try {
+      const ctx = audioCtx;
+      if (ctx) {
+        const t = ctx.currentTime;
+        h.gain.gain.cancelScheduledValues(t);
+        h.gain.gain.setTargetAtTime(0.0001, t, 0.015);
+      }
+      setTimeout(() => {
+        for (const n of h.nodes) { try { n.stop(); } catch (_) {} }
+      }, 60);
+    } catch (_) {}
+  }
+
+  function playBowDrawSfx() {
+    if (!audioCtx || audioCtx.state !== 'running' || sfxVolume <= 0.01 || !noiseBuf) return;
+    stopBowDrawSfx();
+    try {
+      const t = audioCtx.currentTime;
+      const dest = sfxGain || masterGain;
+      const drawG = audioCtx.createGain();
+      drawG.gain.setValueAtTime(1.0, t);
+      drawG.connect(dest);
+
+      // Layer 1: taut bowstring pull friction sweep
+      const nSrc = audioCtx.createBufferSource();
+      nSrc.buffer = noiseBuf; nSrc.loop = true;
+      const strBp = audioCtx.createBiquadFilter();
+      strBp.type = 'bandpass';
+      strBp.frequency.setValueAtTime(680, t);
+      strBp.frequency.exponentialRampToValueAtTime(1680, t + 0.74);
+      strBp.Q.value = 3.2;
+      const gStr = audioCtx.createGain();
+      gStr.gain.setValueAtTime(0.0005, t);
+      gStr.gain.linearRampToValueAtTime(0.15 * sfxVolume, t + 0.09);
+      gStr.gain.linearRampToValueAtTime(0.22 * sfxVolume, t + 0.62);
+      gStr.gain.exponentialRampToValueAtTime(0.0005, t + 0.79);
+      nSrc.connect(strBp); strBp.connect(gStr); gStr.connect(drawG);
+
+      // Layer 2: wooden bow stave bending/creak under tension
+      const wOsc = audioCtx.createOscillator();
+      wOsc.type = 'triangle';
+      wOsc.frequency.setValueAtTime(138, t);
+      wOsc.frequency.exponentialRampToValueAtTime(208, t + 0.74);
+      const lfo = audioCtx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(24, t);
+      lfo.frequency.linearRampToValueAtTime(38, t + 0.74);
+      const lfoG = audioCtx.createGain();
+      lfoG.gain.value = 18;
+      lfo.connect(lfoG); lfoG.connect(wOsc.frequency);
+      const wBp = audioCtx.createBiquadFilter();
+      wBp.type = 'bandpass';
+      wBp.frequency.setValueAtTime(340, t);
+      wBp.frequency.exponentialRampToValueAtTime(540, t + 0.74);
+      wBp.Q.value = 2.2;
+      const gWood = audioCtx.createGain();
+      gWood.gain.setValueAtTime(0.0005, t);
+      gWood.gain.linearRampToValueAtTime(0.09 * sfxVolume, t + 0.14);
+      gWood.gain.linearRampToValueAtTime(0.13 * sfxVolume, t + 0.60);
+      gWood.gain.exponentialRampToValueAtTime(0.0005, t + 0.78);
+      wOsc.connect(wBp); wBp.connect(gWood); gWood.connect(drawG);
+
+      // Layer 3: crisp arrow-nock tap at draw start
+      const tapOsc = audioCtx.createOscillator();
+      tapOsc.type = 'triangle';
+      tapOsc.frequency.setValueAtTime(980, t);
+      tapOsc.frequency.exponentialRampToValueAtTime(460, t + 0.028);
+      const gTap = audioCtx.createGain();
+      gTap.gain.setValueAtTime(0.0005, t);
+      gTap.gain.linearRampToValueAtTime(0.085 * sfxVolume, t + 0.004);
+      gTap.gain.exponentialRampToValueAtTime(0.0005, t + 0.032);
+      tapOsc.connect(gTap); gTap.connect(drawG);
+
+      const handle = { gain: drawG, nodes: [nSrc, wOsc, lfo, tapOsc] };
+      _bowDrawHandle = handle;
+      nSrc.onended = () => { if (_bowDrawHandle === handle) _bowDrawHandle = null; };
+      nSrc.start(t, Math.random() * 0.4);
+      wOsc.start(t); lfo.start(t); tapOsc.start(t);
+      nSrc.stop(t + 0.82); wOsc.stop(t + 0.82); lfo.stop(t + 0.82); tapOsc.stop(t + 0.04);
+    } catch (_) {}
+  }
+
+  function playBowFullSfx() {
+    if (!audioCtx || audioCtx.state !== 'running' || sfxVolume <= 0.01) return;
+    try {
+      const t = audioCtx.currentTime;
+      const dest = sfxGain || masterGain;
+      const wOsc = audioCtx.createOscillator(), wG = audioCtx.createGain();
+      wOsc.type = 'triangle';
+      wOsc.frequency.setValueAtTime(420, t);
+      wOsc.frequency.exponentialRampToValueAtTime(590, t + 0.065);
+      wG.gain.setValueAtTime(0.0005, t);
+      wG.gain.linearRampToValueAtTime(0.095 * sfxVolume, t + 0.008);
+      wG.gain.exponentialRampToValueAtTime(0.0005, t + 0.068);
+      wOsc.connect(wG); wG.connect(dest);
+      wOsc.start(t); wOsc.stop(t + 0.075);
+
+      const sOsc = audioCtx.createOscillator(), sG = audioCtx.createGain();
+      sOsc.type = 'sine';
+      sOsc.frequency.setValueAtTime(1820, t);
+      sOsc.frequency.exponentialRampToValueAtTime(1480, t + 0.055);
+      sG.gain.setValueAtTime(0.0005, t);
+      sG.gain.linearRampToValueAtTime(0.045 * sfxVolume, t + 0.005);
+      sG.gain.exponentialRampToValueAtTime(0.0005, t + 0.058);
+      sOsc.connect(sG); sG.connect(dest);
+      sOsc.start(t); sOsc.stop(t + 0.064);
+    } catch (_) {}
+  }
+
+  function playBowReleaseSfx() {
+    if (!audioCtx || audioCtx.state !== 'running' || sfxVolume <= 0.01) return;
+    const nowMs = performance.now();
+    if (nowMs - (sfxCooldowns.bow || 0) < 80) return;
+    sfxCooldowns.bow = nowMs;
+    stopBowDrawSfx();
+    try {
+      const t = audioCtx.currentTime;
+      const dest = sfxGain || masterGain;
+      const pMul = 0.94 + Math.random() * 0.12;
+
+      // Crisp bowstring twang
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(1850, t);
+      lp.frequency.exponentialRampToValueAtTime(310, t + 0.15);
+      lp.Q.value = 1.4;
+      const o1 = audioCtx.createOscillator();
+      o1.type = 'triangle';
+      o1.frequency.setValueAtTime(235 * pMul, t);
+      o1.frequency.exponentialRampToValueAtTime(88, t + 0.15);
+      const o2 = audioCtx.createOscillator();
+      o2.type = 'sawtooth';
+      o2.frequency.setValueAtTime(470 * pMul, t);
+      o2.frequency.exponentialRampToValueAtTime(150, t + 0.15);
+      const o2G = audioCtx.createGain(); o2G.gain.value = 0.35;
+      const twG = audioCtx.createGain();
+      twG.gain.setValueAtTime(0.001, t);
+      twG.gain.linearRampToValueAtTime(0.24 * sfxVolume, t + 0.005);
+      twG.gain.exponentialRampToValueAtTime(0.0005, t + 0.165);
+      o1.connect(lp); o2.connect(o2G); o2G.connect(lp); lp.connect(twG); twG.connect(dest);
+      o1.start(t); o2.start(t); o1.stop(t + 0.175); o2.stop(t + 0.175);
+
+      // Arrow air-whoosh
+      if (noiseBuf) {
+        const wSrc = audioCtx.createBufferSource(); wSrc.buffer = noiseBuf;
+        const wBp = audioCtx.createBiquadFilter(); wBp.type = 'bandpass';
+        wBp.frequency.setValueAtTime(1350, t);
+        wBp.frequency.exponentialRampToValueAtTime(2500, t + 0.035);
+        wBp.frequency.exponentialRampToValueAtTime(850, t + 0.14);
+        wBp.Q.value = 1.8;
+        const wG = audioCtx.createGain();
+        wG.gain.setValueAtTime(0.001, t);
+        wG.gain.linearRampToValueAtTime(0.20 * sfxVolume, t + 0.012);
+        wG.gain.exponentialRampToValueAtTime(0.0005, t + 0.145);
+        wSrc.connect(wBp); wBp.connect(wG); wG.connect(dest);
+        wSrc.start(t, Math.random() * 0.4, 0.16);
+      }
+    } catch (_) {}
+  }
+
   function playSfx(type) {
     if (!audioCtx || audioCtx.state !== 'running') return;
     if (type === 'levelup') { playLevelUpSfx(); return; }
@@ -750,7 +915,9 @@
     if (type === 'eat') { playLuantiClip('default_dig_crumbly', 0.36, 1.15, 1.35, 120, 'eat', 'sfx'); return; }
     if (type === 'splash') { playLuantiClip(['default_water_footstep.1', 'default_water_footstep.2'], 0.46, 0.85, 1.05, 180, 'spl', 'sfx'); return; }
     if (type === 'burn') { playLuantiClip(['default_cool_lava.1', 'fire_flint_and_steel'], 0.25, 0.90, 1.10, 350, 'brn', 'sfx'); return; }
-    if (type === 'bow') { playLuantiClip('mobs_swing', 0.38, 1.15, 1.32, 100, 'bow', 'sfx'); return; }
+    if (type === 'bow_draw') { playBowDrawSfx(); return; }
+    if (type === 'bow_full') { playBowFullSfx(); return; }
+    if (type === 'bow') { playBowReleaseSfx(); return; }
     if (type === 'warp') { playLuantiClip('mobs_spell', 0.34, 0.95, 1.12, 220, 'wrp', 'sfx'); return; }
     if (type === 'equip') { playLuantiClip('default_place_node_metal.1', 0.40, 1.02, 1.15, 100, 'eq', 'sfx'); return; }
     if (type === 'roar') { playLuantiClip('mobs_stonemonster', 0.30, 0.55, 0.72, 850, 'roar', 'mob'); return; }
