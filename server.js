@@ -174,6 +174,7 @@ function scheduleRoomsSave() {
         chests: new Map(Array.isArray(s.chests) ? s.chests : []),
         consumedChests: new Set(Array.isArray(s.consumedChests) ? s.consumedChests : []),
         drops: new Map(),
+        claimedDrops: new Set(),
         mobsByDim: {},
         playersData: new Map(Array.isArray(s.playersData) ? s.playersData : []),
         peers: new Map()
@@ -282,6 +283,7 @@ function handleMessage(peer, msg) {
       chests: new Map(),
       consumedChests: new Set(),
       drops: new Map(),
+      claimedDrops: new Set(),
       mobsByDim: {},
       playersData: new Map(),
       peers: new Map()
@@ -457,16 +459,35 @@ function handleMessage(peer, msg) {
     }
     broadcastRoom(room, { type: 'drop_batch', peerId: peer.id, drops: list }, peer.id);
     scheduleRoomsSave();
-  } else if (msg.type === 'drop_pickup_req' && peer.roomId) {
-    const room = rooms.get(peer.roomId);
-    if (!room || !msg.dropId) return;
+  } else if (msg.type === 'drop_pickup_req') {
+    if (!msg.dropId) return;
     const did = String(msg.dropId);
-    if (!room.drops.has(did)) return;
-    const d = room.drops.get(did);
-    room.drops.delete(did);
-    sendJson(peer, { type: 'drop_pickup_ack', dropId: did, drop: d });
-    broadcastRoom(room, { type: 'drop_remove', dropId: did }, peer.id);
-    scheduleRoomsSave();
+    const room = peer.roomId ? rooms.get(peer.roomId) : null;
+    if (!room) {
+      if (msg.drop && msg.drop.id) sendJson(peer, { type: 'drop_pickup_ack', dropId: did, drop: msg.drop });
+      else sendJson(peer, { type: 'drop_remove', dropId: did });
+      return;
+    }
+    if (!room.claimedDrops) room.claimedDrops = new Set();
+    if (room.drops.has(did)) {
+      const d = room.drops.get(did);
+      room.drops.delete(did);
+      room.claimedDrops.add(did);
+      if (room.claimedDrops.size > 1000) room.claimedDrops.delete(room.claimedDrops.values().next().value);
+      sendJson(peer, { type: 'drop_pickup_ack', dropId: did, drop: d });
+      broadcastRoom(room, { type: 'drop_remove', dropId: did }, peer.id);
+      scheduleRoomsSave();
+    } else if (room.claimedDrops.has(did)) {
+      sendJson(peer, { type: 'drop_remove', dropId: did });
+    } else if (msg.drop && msg.drop.id) {
+      room.claimedDrops.add(did);
+      if (room.claimedDrops.size > 1000) room.claimedDrops.delete(room.claimedDrops.values().next().value);
+      sendJson(peer, { type: 'drop_pickup_ack', dropId: did, drop: msg.drop });
+      broadcastRoom(room, { type: 'drop_remove', dropId: did }, peer.id);
+      scheduleRoomsSave();
+    } else {
+      sendJson(peer, { type: 'drop_remove', dropId: did });
+    }
   } else if (msg.type === 'drop_remove' && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;

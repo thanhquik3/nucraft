@@ -347,6 +347,7 @@
   let _cancelActiveJoin = null;
 
   let _wsRoomHostId = '';
+  let _wsJoinedRoomId = '';
   let _pendingWsMods = [];
   const _hostAuthoritativeDrops = new Map();
   const _roomDropsCache = new Map();
@@ -541,19 +542,32 @@
   }
   function requestNetworkDropPickup(dropOrId) {
     if (!activeRoomId || !dropOrId) return;
-    const did = String((typeof dropOrId === 'object' && dropOrId.dropId) ? dropOrId.dropId : dropOrId);
+    const isObj = (typeof dropOrId === 'object');
+    const did = String((isObj && dropOrId.dropId) ? dropOrId.dropId : dropOrId);
     if (!did) return;
-    if (typeof dropOrId === 'object') {
+    if (isObj) {
       const now = performance.now();
-      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 400) return;
+      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 350) return;
       dropOrId._pickupReqAt = now;
+      dropOrId._pickupReqCount = (dropOrId._pickupReqCount || 0) + 1;
     }
-    if (wsConn && wsConn.readyState === 1) {
-      try { wsConn.send(JSON.stringify({ type: 'drop_pickup_req', dropId: did })); } catch (_) {}
+    flushNetworkDropBatch();
+    const dropFallback = (isObj && !dropOrId._remote && dropOrId.id)
+      ? { dropId: did, id: dropOrId.id, count: dropOrId.count || 1, dur: dropOrId.dur || 0, maxDur: dropOrId.maxDur || 0, ench: !!dropOrId.ench, trim: dropOrId.trim ? { ...dropOrId.trim } : null }
+      : null;
+    if (wsConn && wsConn.readyState === 1 && wsSelfPeerId && _wsJoinedRoomId === activeRoomId) {
+      if (dropFallback && dropOrId._pickupReqCount >= 2 && remotePlayers.size === 0) {
+        _hostAuthoritativeDrops.delete(did);
+        _roomDropsCache.delete(did);
+        if (typeof _completeNetworkDropPickup === 'function') _completeNetworkDropPickup(did, dropFallback);
+        broadcastDropRemove(did);
+        return;
+      }
+      try { wsConn.send(JSON.stringify({ type: 'drop_pickup_req', dropId: did, drop: dropFallback })); } catch (_) {}
       return;
     }
     if (p2pIsHost) {
-      const d = _hostAuthoritativeDrops.get(did);
+      const d = _hostAuthoritativeDrops.get(did) || _roomDropsCache.get(did) || dropFallback;
       if (!d) return;
       _hostAuthoritativeDrops.delete(did);
       _roomDropsCache.delete(did);
@@ -561,7 +575,7 @@
       sendCoopMsg({ type: 'drop_remove', dropId: did });
       return;
     }
-    sendCoopMsg({ type: 'drop_pickup_req', dropId: did });
+    sendCoopMsg({ type: 'drop_pickup_req', dropId: did, drop: dropFallback });
   }
   function broadcastDropRemove(dropIds) {
     if (!activeRoomId || !dropIds) return;
@@ -722,9 +736,12 @@
         for (const d of m.drops) if (d && d.dropId) { _hostAuthoritativeDrops.set(String(d.dropId), d); _roomDropsCache.set(String(d.dropId), d); }
       } else if (m.type === 'drop_pickup_req' && m.dropId) {
         const did = String(m.dropId);
-        const d = _hostAuthoritativeDrops.get(did);
-        if (!d) return;
+        const d = _hostAuthoritativeDrops.get(did) || _roomDropsCache.get(did) || (m.drop && m.drop.id ? m.drop : null);
         _hostAuthoritativeDrops.delete(did); _roomDropsCache.delete(did);
+        if (!d) {
+          sendCoopMsg({ type: 'drop_remove', dropId: did });
+          return;
+        }
         const ackPkt = { type: 'drop_pickup_ack', _from: localPeerId, _to: fromId, dropId: did, drop: d };
         if (senderConn && senderConn.open) { try { senderConn.send(ackPkt); } catch (_) {} }
         else if (viaTransport === 'mqtt' && mqttRoomTopic) ncMqtt.publish(mqttRoomTopic, ackPkt);
@@ -830,6 +847,7 @@
     if (_cancelActiveJoin) { try { _cancelActiveJoin(); } catch (_) {} _cancelActiveJoin = null; }
     pendingJoinCb = null;
     _wsRoomHostId = '';
+    _wsJoinedRoomId = '';
     _pendingWsMods.length = 0;
     _hostAuthoritativeDrops.clear();
     _roomDropsCache.clear();
@@ -1023,6 +1041,7 @@
         let msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
         if (msg.type === 'room_joined') {
           wsSelfPeerId = msg.peerId;
+          _wsJoinedRoomId = msg.roomId || '';
           _wsRoomHostId = msg.hostId || (msg.isHost ? msg.peerId : '');
           const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, reusePrev: !!msg.reusePrev, chests: msg.chests, consumedChests: msg.consumedChests, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
           if (pendingJoinCb) {

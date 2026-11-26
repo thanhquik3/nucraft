@@ -5147,18 +5147,19 @@
     if (player.ridingDragon && !player.ridingDragon._dead) {
       if (fireRiddenDragonBreath()) { startHandSwing(0.25, 'attack'); return true; }
     }
-    if ((player.atkCd || 0) > 0.01) return false;
     const sel = inventory[player.selectedSlot], def = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
     const cdMax = getWeaponAttackCooldown(def);
+    const minSwingCdLeft = Math.max(0.08, cdMax - (def && def.tool ? 0.34 : 0.22));
+    if ((player.atkCd || 0) > minSwingCdLeft) return false;
+    const charge = cdMax > 0.01 ? Math.max(0.2, Math.min(1.0, 1.0 - (player.atkCd || 0) / cdMax)) : 1.0;
     player.atkCdMax = cdMax;
-    const charge = 1.0;
     player.atkCd = cdMax;
     const isSwordWpn = !!(def && def.tool === 'sword');
     if (isSwordWpn) {
-      player.swingT = 0;
-      player.swordCombo = ((player.swordCombo || 0) % 6) + 1;
-      player.comboStep = player.swordCombo;
-      player.swordAtkHit = player.swordCombo;
+      startHandSwing(0.40, 'attack');
+      player.swordCombo = ((player.swordCombo || 0) % 3) + 1;
+      player.comboStep = player.swordCombo - 1;
+      player.swordAtkHit = ((player.swordAtkHit || 0) % 6) + 1;
       player.swordAtkSeq = (player.swordAtkSeq || 0) + 1;
       const _swClip = (typeof ROBLOX_R6_ANIMS !== 'undefined') ? ROBLOX_R6_ANIMS['rig2_sword_' + player.swordAtkHit] : null;
       player.swordAtkDur = (_swClip && _swClip.dur) ? _swClip.dur : 0.5;
@@ -5167,17 +5168,17 @@
       player.comboResetT = 1.40;
     } else {
       player.swordAtkActive = false;
-      const _swingAct = (def && def.tool === 'axe') ? 'chop' : ((def && (def.tool === 'pick' || def.tool === 'shovel')) ? 'mine' : 'attack');
-      startHandSwing(0.26, _swingAct);
+      const _swingAct = (def && def.tool === 'axe') ? 'chop' : ((def && (def.tool === 'pick' || def.tool === 'shovel' || def.tool === 'hoe')) ? 'mine' : 'attack');
+      startHandSwing(0.36, _swingAct);
       player.comboStep = ((player.comboStep || 0) + 1) % 3;
-      player.comboResetT = 0.85;
+      player.comboResetT = 0.95;
     }
     const mobHit = raycastMob(4.6, screenX, screenY);
     if (isSwordWpn) {
       playSwordSlashSfx(player.swordAtkHit || 1, !!mobHit, !!(def && def.fireDmg), !!(def && def.rainbow));
-      spawnSwordSlashArc(player.swordAtkHit || 1, def, !!mobHit);
-    } else if (def && (def.tool === 'axe' || def.tool === 'pick' || def.tool === 'hoe' || def.id === B.TRIDENT)) {
-      spawnSwordSlashArc(((player.swingStep || 0) % 2) + 1, def, !!mobHit);
+      spawnSwordSlashArc(player.swordCombo || 1, def, !!mobHit, false);
+    } else if (def && (def.tool === 'axe' || def.tool === 'pick' || def.tool === 'shovel' || def.tool === 'hoe' || (B.TRIDENT && def.id === B.TRIDENT))) {
+      spawnSwordSlashArc(((player.swingStep || 0) % 2) + 1, def, !!mobHit, false);
     }
     if (!mobHit) return false;
     let baseDmg = (def && def.dmg) ? def.dmg : 1.5;

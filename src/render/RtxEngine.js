@@ -1529,6 +1529,9 @@
   const heldPivot = new THREE.Group();
   heldPivot.position.set(0.44, -0.34, -0.60);
   camera.add(heldPivot);
+  const vmWeaponMount = new THREE.Group();
+  vmWeaponMount.rotation.order = 'YXZ';
+  heldPivot.add(vmWeaponMount);
   const offhandPivot = new THREE.Group();
   offhandPivot.position.set(-0.46, -0.36, -0.62);
   camera.add(offhandPivot);
@@ -1537,7 +1540,7 @@
   let activeHeldObj = null;
   let activeOffhandObj = null;
 
-  function buildEmptyHandMesh() {
+  function _makeFirstPersonArmGroup(pxScale) {
     const g = new THREE.Group();
     const sk = (typeof getSkinDef === 'function' && typeof selectedSkinId === 'string') ? getSkinDef(selectedSkinId) : { slim: true };
     const isSlim = (typeof isSkinSlim === 'function') ? isSkinSlim(selectedSkinId) : !!sk.slim;
@@ -1545,13 +1548,25 @@
     const wPx = isSlim ? 3 : 4;
     const armMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.78, metalness: 0.02, alphaTest: 0.1 });
     const sleeveMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.78, metalness: 0.02, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    const armMesh = makeSkinBox(wPx, 12, 4, 40, 16, armMat, 0.048, 0);
-    const sleeveMesh = makeSkinBox(wPx, 12, 4, 40, 32, sleeveMat, 0.048, 0.003);
-    armMesh.position.set(0, -0.09, 0);
-    sleeveMesh.position.set(0, -0.09, 0);
+    const armMesh = makeSkinBox(wPx, 12, 4, 40, 16, armMat, pxScale, 0);
+    const sleeveMesh = makeSkinBox(wPx, 12, 4, 40, 32, sleeveMat, pxScale, 0.0025);
+    // +Y is shoulder/sleeve, -Y is fist/fingers; shifting +6px places fist right at local origin (0,0,0)
+    const halfY = 5.65 * pxScale;
+    armMesh.position.set(0, halfY, 0);
+    sleeveMesh.position.set(0, halfY, 0);
     g.add(armMesh, sleeveMesh);
-    g.position.set(0.06, -0.14, 0.02);
-    g.rotation.set(0.45, -0.45, 0.22);
+    g.rotation.order = 'YXZ';
+    return g;
+  }
+
+  function buildToolArmMesh() {
+    return _makeFirstPersonArmGroup(0.034);
+  }
+
+  function buildEmptyHandMesh() {
+    const g = _makeFirstPersonArmGroup(0.035);
+    g.position.set(0.05, -0.09, 0.05);
+    g.rotation.set(1.86, -0.36, 0.14);
     return g;
   }
 
@@ -2754,7 +2769,7 @@
       cols.push(r, g, bl, r, g, bl, r, g, bl, r, g, bl);
       idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3); vc += 4;
     };
-    const flipDiag = (def.tool === 'axe' || def.tool === 'bow');
+    const flipDiag = (def.tool === 'bow');
     const getPxIdx = (x, y) => (flipDiag ? ((15 - x) * 16 + (15 - y)) : (y * 16 + x)) * 4;
     const isOpaque = (x, y) => (x >= 0 && x < 16 && y >= 0 && y < 16 && imgData[getPxIdx(x, y) + 3] > 32);
     const isInteriorPx = (x, y) => bevel > 0 && isOpaque(x, y) && isOpaque(x - 1, y) && isOpaque(x + 1, y) && isOpaque(x, y - 1) && isOpaque(x, y + 1);
@@ -2930,6 +2945,17 @@
   let _fpToolArmWrap = null;
   let _fpToolArmSkin = '';
 
+  const _FP_TOOL_MOUNTS = {
+    sword:   { px: 0.00, py: 0.014, pz: -0.008, rx: 0.06, ry: -0.46, rz: 0.12, sc: 1.18 },
+    pick:    { px: 0.00, py: 0.012, pz: -0.008, rx: 0.08, ry: -1.14, rz: 0.10, sc: 1.14 },
+    axe:     { px: 0.00, py: 0.012, pz: -0.008, rx: 0.08, ry: -1.16, rz: 0.12, sc: 1.14 },
+    shovel:  { px: 0.00, py: 0.018, pz: -0.006, rx: 0.06, ry: -0.28, rz: 0.08, sc: 1.14 },
+    hoe:     { px: 0.00, py: 0.012, pz: -0.008, rx: 0.06, ry: -1.10, rz: 0.10, sc: 1.14 },
+    rod:     { px: 0.00, py: 0.010, pz: -0.008, rx: 0.06, ry: -1.05, rz: 0.12, sc: 1.08 },
+    shears:  { px: 0.00, py: 0.010, pz: -0.008, rx: 0.06, ry: -1.05, rz: 0.12, sc: 1.06 },
+    trident: { px: 0.00, py: 0.020, pz: -0.006, rx: 0.06, ry: -0.32, rz: 0.08, sc: 1.12 }
+  };
+
   function updateHeldViewModel(blockId, meta = null) {
     const _skinNow = String((typeof window !== 'undefined' && window.selectedSkinId) || 'steve');
     if (_skinNow !== _fpEmptySkin) {
@@ -2939,30 +2965,29 @@
     const _heldKey = _itemMetaCacheKey(blockId || 0, meta);
     const idChanged = (typeof player !== 'undefined' && player && (player._lastHeldId || 0) !== (blockId || 0));
     const keyChanged = (typeof player !== 'undefined' && player && player._lastHeldKey !== _heldKey);
+    const _defHeld = (blockId && BLOCK_DEF[blockId]) ? BLOCK_DEF[blockId] : null;
+    const _isTrident = !!(B.TRIDENT && blockId === B.TRIDENT);
+    const _toolType = _isTrident ? 'trident' : (_defHeld && _defHeld.tool ? _defHeld.tool : '');
+    const _showToolArm = !!(_toolType && _toolType !== 'bow' && _toolType !== 'flint_steel' && blockId !== B.SHIELD);
     if (keyChanged) {
       player._lastHeldId = blockId || 0;
       player._lastHeldKey = _heldKey;
       if (idChanged) {
-        player.equipPopT = 1.0; // Punchy! / Move Those Hands snappy draw-equip pop!
+        player.equipPopT = 1.0; // Smooth Afterswing pull-out flourish
         const swDef = (blockId && BLOCK_DEF[blockId]) ? BLOCK_DEF[blockId] : null;
         const cdMax = typeof getWeaponAttackCooldown === 'function' ? getWeaponAttackCooldown(swDef) : 0.45;
         player.atkCdMax = cdMax;
         player.atkCd = cdMax;
         if (!(swDef && swDef.tool === 'sword')) { player.swordCombo = 0; player.comboResetT = 0; }
+        if (_showToolArm) player._pendingEquipTrail = swDef;
       }
     }
-    const _defHeld = (blockId && BLOCK_DEF[blockId]) ? BLOCK_DEF[blockId] : null;
-    const _showToolArm = !!(_defHeld && (_defHeld.tool || blockId === B.TRIDENT));
     if (_showToolArm) {
       if (!_fpToolArmWrap || _fpToolArmSkin !== _skinNow) {
         if (_fpToolArmWrap) heldPivot.remove(_fpToolArmWrap);
-        _fpToolArmWrap = new THREE.Group();
-        const arm = buildEmptyHandMesh();
-        arm.position.set(0, 0, 0);
-        arm.rotation.set(0, 0, 0);
-        _fpToolArmWrap.add(arm);
-        _fpToolArmWrap.position.set(0.055, -0.155, 0.085);
-        _fpToolArmWrap.rotation.set(1.18, -0.18, 0.14);
+        _fpToolArmWrap = buildToolArmMesh();
+        _fpToolArmWrap.position.set(0.016, -0.022, 0.012);
+        _fpToolArmWrap.rotation.set(1.76, -0.34, 0.14);
         _fpToolArmSkin = _skinNow;
         heldPivot.add(_fpToolArmWrap);
       }
@@ -2976,7 +3001,10 @@
       }
       return;
     }
-    if (activeHeldObj) { heldPivot.remove(activeHeldObj); activeHeldObj = null; }
+    if (activeHeldObj) {
+      if (activeHeldObj.parent) activeHeldObj.parent.remove(activeHeldObj);
+      activeHeldObj = null;
+    }
     if (typeof playerAvatar !== 'undefined' && playerAvatar && typeof setRigHeldItem === 'function') {
       setRigHeldItem(playerAvatar, blockId || 0, meta);
     }
@@ -2984,9 +3012,12 @@
       setRigHeldItem(invPreviewRig, blockId || 0, meta);
     }
     if (!blockId || blockId === B.AIR || !_defHeld) {
+      vmWeaponMount.position.set(0, 0, 0);
+      vmWeaponMount.rotation.set(0, 0, 0);
+      vmWeaponMount.scale.setScalar(1);
       if (!heldModelCache.has(0)) heldModelCache.set(0, buildEmptyHandMesh());
       activeHeldObj = heldModelCache.get(0);
-      heldPivot.add(activeHeldObj);
+      vmWeaponMount.add(activeHeldObj);
       return;
     }
     const cached = heldModelCache.get(_heldKey);
@@ -2997,7 +3028,21 @@
     } else {
       activeHeldObj = cached;
     }
-    heldPivot.add(activeHeldObj);
+    const tm = _showToolArm ? _FP_TOOL_MOUNTS[_toolType] : null;
+    if (tm) {
+      // Align (-7,-7)->(+7,+7) diagonal sprite straight UP (+Y) with handle centered inside fist (0,0,0)
+      activeHeldObj.rotation.order = 'YXZ';
+      activeHeldObj.position.set(0, 0.172, 0);
+      activeHeldObj.rotation.set(0, 0, Math.PI * 0.25);
+      vmWeaponMount.position.set(tm.px, tm.py, tm.pz);
+      vmWeaponMount.rotation.set(tm.rx, tm.ry, tm.rz);
+      vmWeaponMount.scale.setScalar(tm.sc);
+    } else {
+      vmWeaponMount.position.set(0, 0, 0);
+      vmWeaponMount.rotation.set(0, 0, 0);
+      vmWeaponMount.scale.setScalar(1);
+    }
+    vmWeaponMount.add(activeHeldObj);
   }
 
   // Single-Draw-Call True World-Space Ambient Air Motes / Fireflies (never dragged along with player!)

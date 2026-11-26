@@ -19,8 +19,11 @@
     swingT: 0, swingDur: 0.25, swingAct: 'attack', _mineHitFired: false, mineSwingPhase: 0, selectedSlot: 0,
     swordCombo: 0, swordAtkHit: 0, swordAtkSeq: 0, swordAtkT: 0, swordAtkDur: 0, swordAtkActive: false
   };
-  function startHandSwing(dur = 0.26, act = 'attack') {
-    if (player.swingT > 0.001 && (act || 'attack') === player.swingAct) return;
+  function startHandSwing(dur = 0.36, act = 'attack') {
+    if (player.swingT > 0.001 && (act || 'attack') === player.swingAct) {
+      const curDur = Math.max(0.18, player.swingDur || dur);
+      if ((1.0 - player.swingT / curDur) < 0.36) return;
+    }
     player.swingT = dur;
     player.swingDur = dur;
     player.swingAct = act || 'attack';
@@ -932,13 +935,13 @@
       grip.add(clone);
       rig.handHold.add(grip);
     } else if (def.tool === 'pick' || def.tool === 'axe' || def.tool === 'shovel' || def.tool === 'hoe' || def.tool === 'rod' || def.tool === 'shears' || isForwardShaft) {
-      // Authentic Minecraft 3rd-person Tool Grip: handle locked inside right fist, head/cutting blade facing FORWARD (+Z)!
+      // Authentic Minecraft 3rd-person Tool Grip: handle locked inside right fist, curved blade/head facing FORWARD (+Z)!
       const grip = new THREE.Group();
       grip.rotation.order = 'YXZ';
-      grip.position.set(0.0, -0.02, 0.05);
-      grip.rotation.set(0.0, -Math.PI * 0.5, -Math.PI * 0.25 + 0.30);
+      grip.position.set(0.0, -0.02, 0.06);
+      grip.rotation.set(0.0, Math.PI * 0.5, Math.PI * 0.25 + 0.62);
       clone.scale.setScalar(1.22);
-      clone.position.set(0.21, 0.21, 0.0);
+      clone.position.set(0.17, 0.17, 0.0);
       grip.add(clone);
       rig.handHold.add(grip);
     } else if (bid === B.SHIELD) {
@@ -1520,17 +1523,15 @@
           slerpQ4(jt.q, [0, 0, 0, 1], swW, jt.q);
         });
       }
-      const arc = Math.sin(Math.pow(u, 0.62) * Math.PI) * rig.actionBlend;
+      const arc = (u < 0.34 ? smoothstep01(u / 0.34) : (u < 0.54 ? 1.0 - (u - 0.34) * 0.45 : Math.max(0, 1.0 - smoothstep01((u - 0.54) / 0.46)) * 0.91)) * rig.actionBlend;
+      const altSign = ((st.comboStep || 0) & 1) ? -1 : 1;
       if (!(bT > 0.35 && shHand === 'mainhand') && arc > 0.001) {
         if (actType === 'chop') {
-          // Afterswing+ heavy diagonal cleave (wider arc)
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.56, -arc * 0.42, -arc * 0.30);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.58, -arc * 0.44 * altSign, -arc * 0.34 * altSign);
         } else if (actType === 'attack') {
-          // Afterswing+ wide horizontal sweep
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.44, arc * 0.42, arc * 0.22);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.42, arc * 0.48 * altSign, arc * 0.26 * altSign);
         } else {
-          // Afterswing+ overhead strike (pick/mine)
-          mulJointEuler(_r6TargetBuf.armR, -arc * 1.65, -arc * 0.18, arc * 0.10);
+          mulJointEuler(_r6TargetBuf.armR, -arc * 1.68, -arc * 0.16, arc * 0.10);
         }
       }
     }
@@ -1633,6 +1634,17 @@
     if (typeof smithState !== 'undefined') { smithState.tpl = null; smithState.base = null; smithState.mat = null; }
     player.offhandDur = 336; player.offhandMaxDur = 336; player.shieldDisableT = 0; player.shieldRaiseT = 0; player.shieldImpactT = 0;
     recalcPlayerArmor();
+  }
+  function canFitItemInInventory(blockId, meta = null) {
+    const def = BLOCK_DEF[blockId];
+    const noStack = !!(def && (def.tool || def.armorSlot)) || !!(meta && (meta.ench || meta.trim || (meta.maxDur > 0 && typeof meta.dur === 'number' && meta.dur < meta.maxDur)));
+    if (!noStack) {
+      for (let i = 0; i < 36; i++) {
+        if (inventory[i].id === blockId && inventory[i].count > 0 && inventory[i].count < 99 && !inventory[i].ench && !inventory[i].trim) return true;
+      }
+    }
+    for (let i = 0; i < 36; i++) if (inventory[i].count === 0) return true;
+    return false;
   }
   function addItemToInventory(blockId, qty = 1, meta = null) {
     const def = BLOCK_DEF[blockId];
@@ -2170,14 +2182,17 @@
       const pDelay = it.pickupDelay !== undefined ? it.pickupDelay : 0.35;
       const dx = player.x - it.x, dy = (player.y + 0.85) - (it.y + 0.48), dz = player.z - it.z;
       const dist2 = dx * dx + dy * dy + dz * dz;
-      if (!player.dead && it.age >= pDelay && dist2 < 4.84) {
+      if (!player.dead && it.age >= pDelay && dist2 < 5.76 && canFitItemInInventory(it.id, it)) {
         const dist = Math.sqrt(dist2);
-        const midBlocked = isSolidAt(Math.floor((player.x + it.x) * 0.5), Math.floor(it.y + 0.25), Math.floor((player.z + it.z) * 0.5));
+        const midY = Math.floor((player.y + 0.85 + it.y + 0.35) * 0.5);
+        const midBlocked = dist >= 1.15 && isSolidAt(Math.floor((player.x + it.x) * 0.5), midY, Math.floor((player.z + it.z) * 0.5));
         if (!midBlocked) {
-          const pullSpd = (9.5 + (2.2 - Math.min(2.2, dist)) * 6.5) * dt / (dist + 0.01);
-          it.x += dx * pullSpd; it.y += dy * pullSpd; it.z += dz * pullSpd;
+          const pullFrac = Math.min(1.0, (10.5 + (2.2 - Math.min(2.2, dist)) * 7.0) * dt / Math.max(0.06, dist));
+          it.vx = 0; it.vy = 0; it.vz = 0; it.onGround = false;
+          it.x += dx * pullFrac; it.y += dy * pullFrac; it.z += dz * pullFrac;
           it.rx = it.x; it.ry = it.y; it.rz = it.z;
-          if (dist < 0.82) {
+          const postDist = Math.hypot(player.x - it.x, (player.y + 0.85) - (it.y + 0.48), player.z - it.z);
+          if (postDist < 0.85) {
             if (activeRoomId && typeof requestNetworkDropPickup === 'function') {
               requestNetworkDropPickup(it);
             } else {
@@ -2676,82 +2691,150 @@
   }
 
   const activeSwordSlashes = [];
-  const _SW_MAX_SLICES = 44;
-  const _SW_SPARKS_N = 24;
+  const _SW_MAX_SLICES = 64;
+  const _SW_SPARKS_N = 36;
   const _swHiltLocal = new THREE.Vector3(-0.075, -0.075, 0.0);
-  const _swTipLocal  = new THREE.Vector3(0.225, 0.225, 0.0);
+  const _swTipLocal  = new THREE.Vector3(0.245, 0.245, 0.0);
   const _swTmpHilt   = new THREE.Vector3(), _swTmpTip = new THREE.Vector3();
   const _swTmpDir0   = new THREE.Vector3(), _swTmpDir1 = new THREE.Vector3(), _swTmpDirM = new THREE.Vector3();
-  const _swFwd = new THREE.Vector3(), _swRight = new THREE.Vector3(), _swUp = new THREE.Vector3();
-  const _swEul = new THREE.Euler(0, 0, 0, 'YXZ');
+  const _swCamInv    = new THREE.Matrix4();
 
   function _getSwordTrailPalette(def) {
-    if (def && def.rainbow)  return { core: 0xffffff, edge: 0x38bdf8, prism: 1.0 };
-    if (def && def.fireDmg)  return { core: 0xfff3b0, edge: 0xff5500, prism: 0.0 };
-    const tier = def ? (def.tier || 0) : 0;
+    const sel = (typeof inventory !== 'undefined') ? inventory[player.selectedSlot] : null;
+    const isEnch = !!(sel && sel.ench);
     const nm = def && def.name ? def.name : '';
-    if (/Netherite|Rồng|Void|Obsidian/i.test(nm) || tier >= 5) return { core: 0xffffff, edge: 0x38bdf8, prism: 0.0 };
-    return { core: 0xffffff, edge: 0x22d3ee, prism: 0.0 };
+    if (def && def.rainbow) return { core: 0xffffff, edge: 0xf472b6, spark: 0xfef08a, prism: 1.0 };
+    if ((def && def.fireDmg) || /Vàng|Gold|Đồng|Copper|Lửa|Fire|Rồng/i.test(nm)) {
+      return { core: 0xfffbeb, edge: 0xf59e0b, spark: 0xfde047, prism: 0.0 };
+    }
+    if (isEnch || /Netherite|Sakura|Mộng|Dream|Thạch Anh|Amethyst/i.test(nm)) {
+      return { core: 0xfff0f8, edge: 0xff4fa8, spark: 0xfef08a, prism: 0.0 };
+    }
+    if (/Kim Cương|Diamond|Sculk|Warden|Resonant|Soulforged|Umbra|Aetherium|Ichor|Cộng Hưởng/i.test(nm) || (def && (def.tier || 0) >= 4)) {
+      return { core: 0xf0fdff, edge: 0x06e5ff, spark: 0xfef08a, prism: 0.0 };
+    }
+    return { core: 0xffffff, edge: 0x38bdf8, spark: 0xfef08a, prism: 0.0 };
   }
 
-  function _sampleSwordBladeWorld(outHilt, outTip) {
-    const is3p = (typeof thirdPerson !== 'undefined' && thirdPerson > 0);
-    let swordObj = null;
-    if (is3p) {
+  function _getBladeEndpoints(toolKind, outHilt, outTip) {
+    if (toolKind === 'sword') {
+      outHilt.set(-0.025, -0.025, 0.0); outTip.set(0.235, 0.235, 0.0);
+    } else if (toolKind === 'pick' || toolKind === 'axe' || toolKind === 'shovel' || toolKind === 'hoe') {
+      outHilt.set(0.015, 0.015, 0.0); outTip.set(0.230, 0.230, 0.0);
+    } else {
+      outHilt.set(-0.015, -0.015, 0.0); outTip.set(0.235, 0.235, 0.0);
+    }
+  }
+
+  function _createAfterswingRibbonTexture() {
+    if (_createAfterswingRibbonTexture._tex) return _createAfterswingRibbonTexture._tex;
+    const W = 128, H = 128;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const d = img.data;
+    // Generate crisp glowing leading blade core (y=0) fading smoothly into wispy layered flame/silk wisps (y=127)
+    for (let y = 0; y < H; y++) {
+      const v = y / (H - 1);
+      const decay = Math.pow(Math.max(0, 1.0 - v), 1.38);
+      for (let x = 0; x < W; x++) {
+        const u = x / (W - 1);
+        const hiltMask = Math.min(1.0, Math.max(0.18, (u - 0.02) / 0.24));
+        const tipGlow = 0.72 + 0.28 * Math.pow(u, 1.2);
+        const w1 = 0.5 + 0.5 * Math.sin(u * 26.0 + v * 5.2 + Math.cos(u * 11.0 - v * 3.0) * 1.3);
+        const w2 = 0.5 + 0.5 * Math.sin(u * 47.0 - v * 8.5 + Math.sin(v * 7.0) * 1.4);
+        const wisps = Math.pow(w1 * 0.62 + w2 * 0.38, 1.35);
+        const coreBand = Math.exp(-v * 9.5);
+        const intensity = Math.max(0, Math.min(1, hiltMask * tipGlow * (coreBand + (1.0 - coreBand) * decay * (0.38 + 0.72 * wisps))));
+        const pi = (y * W + x) * 4;
+        const val = Math.round(intensity * 255);
+        d[pi] = val; d[pi + 1] = val; d[pi + 2] = val; d[pi + 3] = val;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    _createAfterswingRibbonTexture._tex = tex;
+    return tex;
+  }
+
+  function _sampleSwordBladeSpace(outHilt, outTip, inCameraSpace, toolKind = 'sword') {
+    _getBladeEndpoints(toolKind, _swHiltLocal, _swTipLocal);
+    if (!inCameraSpace) {
       if (typeof playerAvatar !== 'undefined' && playerAvatar && playerAvatar.handHold && playerAvatar.g) {
         playerAvatar.g.updateMatrixWorld(true);
         const c0 = playerAvatar.handHold.children[0];
-        swordObj = (c0 && c0.children && c0.children[0]) ? c0.children[0] : c0;
+        const swordObj = (c0 && c0.children && c0.children[0]) ? c0.children[0] : c0;
+        if (swordObj && swordObj.matrixWorld) {
+          outHilt.copy(_swHiltLocal).applyMatrix4(swordObj.matrixWorld);
+          outTip.copy(_swTipLocal).applyMatrix4(swordObj.matrixWorld);
+          return true;
+        }
       }
-    } else if (typeof activeHeldObj !== 'undefined' && activeHeldObj && activeHeldObj.visible !== false && typeof camera !== 'undefined' && camera) {
-      camera.updateMatrixWorld(true);
-      swordObj = activeHeldObj;
+      outHilt.set(player.x, player.y + 1.1, player.z);
+      outTip.copy(outHilt).add(new THREE.Vector3(0, 0.45, -0.45));
+      return false;
     }
-    if (swordObj && swordObj.matrixWorld) {
-      outHilt.copy(_swHiltLocal).applyMatrix4(swordObj.matrixWorld);
-      outTip.copy(_swTipLocal).applyMatrix4(swordObj.matrixWorld);
+    if (typeof camera !== 'undefined' && camera && typeof activeHeldObj !== 'undefined' && activeHeldObj && activeHeldObj.visible !== false) {
+      camera.updateMatrixWorld(true);
+      if (typeof heldPivot !== 'undefined' && heldPivot) heldPivot.updateMatrixWorld(true);
+      _swCamInv.copy(camera.matrixWorld).invert();
+      outHilt.copy(_swHiltLocal).applyMatrix4(activeHeldObj.matrixWorld).applyMatrix4(_swCamInv);
+      outTip.copy(_swTipLocal).applyMatrix4(activeHeldObj.matrixWorld).applyMatrix4(_swCamInv);
       return true;
     }
-    // Fallback geometric 3D sword arc relative to player camera orientation
-    _swEul.set(player.pitch, player.yaw, 0, 'YXZ');
-    _swFwd.set(0, 0, -1).applyEuler(_swEul);
-    _swRight.set(1, 0, 0).applyEuler(_swEul);
-    _swUp.set(0, 1, 0).applyEuler(_swEul);
-    const eyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT) - 0.14;
-    outHilt.set(player.x, eyeY, player.z).addScaledVector(_swFwd, 0.42).addScaledVector(_swRight, 0.22);
-    outTip.copy(outHilt).addScaledVector(_swFwd, 0.56).addScaledVector(_swUp, 0.34);
+    outHilt.set(0.18, -0.18, -0.52);
+    outTip.set(0.18, 0.22, -0.62);
     return false;
   }
 
   function _createSlashSparkTexture() {
     if (_createSlashSparkTexture._tex) return _createSlashSparkTexture._tex;
-    const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const ctx = c.getContext('2d');
-    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 15);
-    grad.addColorStop(0.0, 'rgba(255,255,255,1.0)');
-    grad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
-    grad.addColorStop(1.0, 'rgba(255,255,255,0.0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 32, 32);
+    const halo = ctx.createRadialGradient(32, 32, 0, 32, 32, 24);
+    halo.addColorStop(0.0, 'rgba(255,255,255,0.92)');
+    halo.addColorStop(0.28, 'rgba(255,248,210,0.45)');
+    halo.addColorStop(1.0, 'rgba(255,255,255,0.0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(32, 2);
+    ctx.quadraticCurveTo(34, 30, 62, 32);
+    ctx.quadraticCurveTo(34, 34, 32, 62);
+    ctx.quadraticCurveTo(30, 34, 2, 32);
+    ctx.quadraticCurveTo(30, 30, 32, 2);
+    ctx.closePath();
+    ctx.fill();
     const tex = new THREE.CanvasTexture(c);
     _createSlashSparkTexture._tex = tex;
     return tex;
   }
 
   function _disposeSwordTrail(tr) {
-    scene.remove(tr.mesh);
-    scene.remove(tr.sparks);
+    if (tr.parentObj) {
+      tr.parentObj.remove(tr.mesh);
+      tr.parentObj.remove(tr.sparks);
+    }
     tr.geo.dispose();
     tr.mat.dispose();
     tr.sparkGeo.dispose();
     tr.sparkMat.dispose();
   }
 
-  function spawnSwordSlashArc(comboHit = 1, def = null, didHit = false) {
-    if (activeSwordSlashes.length >= 4) {
+  function spawnSwordSlashArc(comboHit = 1, def = null, didHit = false, isEquip = false) {
+    if (activeSwordSlashes.length >= 5) {
       _disposeSwordTrail(activeSwordSlashes.shift());
     }
     const pal = _getSwordTrailPalette(def);
+    const in1p = !(typeof thirdPerson !== 'undefined' && thirdPerson > 0);
+    const parentObj = (in1p && typeof camera !== 'undefined' && camera) ? camera : scene;
+    const toolKind = (def && def.tool) ? def.tool : 'sword';
     const maxV = _SW_MAX_SLICES * 2;
     const posArr = new Float32Array(maxV * 3);
     const uvArr = new Float32Array(maxV * 2);
@@ -2770,11 +2853,12 @@
 
     const mat = new THREE.ShaderMaterial({
       uniforms: {
-        uCoreCol: { value: new THREE.Color(pal.core) },
-        uEdgeCol: { value: new THREE.Color(pal.edge) },
-        uFade:    { value: 1.0 },
-        uTime:    { value: 0.0 },
-        uPrism:   { value: pal.prism }
+        uTrailTex: { value: _createAfterswingRibbonTexture() },
+        uCoreCol:  { value: new THREE.Color(pal.core) },
+        uEdgeCol:  { value: new THREE.Color(pal.edge) },
+        uFade:     { value: isEquip ? 0.78 : 1.0 },
+        uTime:     { value: 0.0 },
+        uPrism:    { value: pal.prism }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -2783,76 +2867,87 @@
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: `
+        uniform sampler2D uTrailTex;
         uniform vec3 uCoreCol, uEdgeCol;
         uniform float uFade, uTime, uPrism;
         varying vec2 vUv;
         void main() {
-          float arcTail = smoothstep(0.0, 0.34, vUv.x);
-          float arcHead = 1.0 - smoothstep(0.86, 1.0, vUv.x) * 0.25;
-          float bladeGrad = smoothstep(0.02, 0.26, vUv.y);
-          float sharpEdge = pow(clamp(vUv.y, 0.0, 1.0), 4.0) * 1.45;
-          float midRibbon = smoothstep(0.06, 0.72, vUv.y) * (0.42 + 0.58 * pow(vUv.x, 1.3));
-          float streak = 0.78 + 0.22 * sin(vUv.y * 26.0 - vUv.x * 14.0 + uTime * 22.0);
+          // vUv.x = hilt(0)..tip(1), vUv.y = newest slice(0)..fading tail(1)
+          float span = clamp(vUv.x, 0.0, 1.0);
+          float ageV = clamp(vUv.y, 0.0, 1.0);
+          float wispTex = texture2D(uTrailTex, vec2(span, ageV)).r;
+          float leadEdge = pow(1.0 - ageV, 7.5) * 0.80 * smoothstep(0.06, 0.45, span);
+          float sharpOuter = pow(span, 3.6) * (1.0 - ageV * 0.72) * 0.65;
           vec3 edgeC = uEdgeCol;
           if (uPrism > 0.5) {
-            float ph = vUv.x * 5.0 + vUv.y * 2.5 - uTime * 8.0;
+            float ph = span * 4.5 - ageV * 5.0 - uTime * 8.0;
             edgeC = 0.55 + 0.45 * cos(ph + vec3(0.0, 2.094, 4.188));
           }
-          vec3 col = mix(edgeC, uCoreCol, clamp(pow(vUv.y, 2.4) * 0.65 + pow(vUv.x, 3.0) * 0.45, 0.0, 1.0));
-          float alpha = arcTail * arcHead * bladeGrad * (sharpEdge + midRibbon * 0.65) * streak * uFade;
-          gl_FragColor = vec4(col * (1.15 + sharpEdge * 0.45), clamp(alpha, 0.0, 0.96));
+          float coreMix = clamp(leadEdge * 0.55 + pow(span, 5.2) * (1.0 - ageV * 0.6) * 0.65, 0.0, 0.85);
+          vec3 col = mix(edgeC, uCoreCol, coreMix);
+          float alpha = clamp((wispTex * 1.05 + leadEdge * 0.45 + sharpOuter * 0.40) * smoothstep(0.06, 0.34, span) * uFade, 0.0, 0.92);
+          gl_FragColor = vec4(col * (1.26 + coreMix * 0.40), alpha);
         }`,
       transparent: true,
       depthWrite: false,
+      depthTest: !in1p,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending
     });
 
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 7;
-    scene.add(mesh);
+    mesh.renderOrder = 10;
+    parentObj.add(mesh);
 
     const spPos = new Float32Array(_SW_SPARKS_N * 3);
     const spVel = new Float32Array(_SW_SPARKS_N * 3);
-    const spLife = new Float32Array(_SW_SPARKS_N);
+    const spCol = new Float32Array(_SW_SPARKS_N * 3);
+    const cEdge = new THREE.Color(pal.edge), cSpark = new THREE.Color(pal.spark || 0xfef08a), cWhite = new THREE.Color(0xffffff);
+    for (let si = 0; si < _SW_SPARKS_N; si++) {
+      const sc = (si % 3 === 0) ? cWhite : ((si % 3 === 1) ? cSpark : cEdge);
+      spCol[si * 3] = sc.r; spCol[si * 3 + 1] = sc.g; spCol[si * 3 + 2] = sc.b;
+    }
     const sparkGeo = new THREE.BufferGeometry();
     const spAttr = new THREE.BufferAttribute(spPos, 3); spAttr.setUsage(THREE.DynamicDrawUsage);
     sparkGeo.setAttribute('position', spAttr);
+    sparkGeo.setAttribute('color', new THREE.BufferAttribute(spCol, 3));
     sparkGeo.setDrawRange(0, 0);
     const sparkMat = new THREE.PointsMaterial({
       map: _createSlashSparkTexture(),
-      color: didHit ? pal.core : pal.edge,
-      size: didHit ? 0.14 : 0.10,
+      vertexColors: true,
+      size: in1p ? (didHit ? 0.068 : 0.056) : (didHit ? 0.22 : 0.18),
       transparent: true,
-      opacity: 0.92,
+      opacity: isEquip ? 0.85 : 0.98,
       depthWrite: false,
+      depthTest: !in1p,
       blending: THREE.AdditiveBlending,
       sizeAttenuation: true
     });
     const sparks = new THREE.Points(sparkGeo, sparkMat);
     sparks.frustumCulled = false;
-    sparks.renderOrder = 7;
-    scene.add(sparks);
+    sparks.renderOrder = 11;
+    parentObj.add(sparks);
 
-    _sampleSwordBladeWorld(_swTmpHilt, _swTmpTip);
-    posArr[0] = _swTmpHilt.x; posArr[1] = _swTmpHilt.y; posArr[2] = _swTmpHilt.z;
-    posArr[3] = _swTmpTip.x;  posArr[4] = _swTmpTip.y;  posArr[5] = _swTmpTip.z;
-    posAttr.needsUpdate = true;
+    _sampleSwordBladeSpace(_swTmpHilt, _swTmpTip, in1p, toolKind);
 
     activeSwordSlashes.push({
-      mesh, geo, mat, posArr, uvArr, posAttr, uvAttr,
-      sparks, sparkGeo, sparkMat, spPos, spVel, spLife, spAttr, sparkCount: 0,
-      slices: 1,
+      parentObj, mesh, geo, mat, posArr, uvArr, posAttr, uvAttr,
+      sparks, sparkGeo, sparkMat, spPos, spVel, spAttr, sparkCount: 0,
+      rawSlices: [{ hx: _swTmpHilt.x, hy: _swTmpHilt.y, hz: _swTmpHilt.z, tx: _swTmpTip.x, ty: _swTmpTip.y, tz: _swTmpTip.z, t: 0 }],
       lastHilt: _swTmpHilt.clone(),
       lastTip: _swTmpTip.clone(),
-      prevPx: player.x, prevPy: player.y, prevPz: player.z,
-      isFirstPerson: !(typeof thirdPerson !== 'undefined' && thirdPerson > 0),
-      age: 0, recordDur: 0.22, maxLife: 0.36, didHit: !!didHit, comboHit
+      isFirstPerson: in1p, toolKind, isEquip: !!isEquip,
+      age: 0, prevSampleAge: 0,
+      recordDur: isEquip ? 0.26 : 0.30,
+      sliceLife: isEquip ? 0.23 : 0.26,
+      maxLife: isEquip ? 0.44 : 0.50,
+      didHit: !!didHit, comboHit
     });
   }
 
   function updateSwordSlashes(dt) {
+    const curIs1p = !(typeof thirdPerson !== 'undefined' && thirdPerson > 0);
     for (let i = activeSwordSlashes.length - 1; i >= 0; i--) {
       const tr = activeSwordSlashes[i];
       tr.age += dt;
@@ -2862,90 +2957,96 @@
         activeSwordSlashes.pop();
         continue;
       }
-      const pdx = player.x - tr.prevPx, pdy = player.y - tr.prevPy, pdz = player.z - tr.prevPz;
-      tr.prevPx = player.x; tr.prevPy = player.y; tr.prevPz = player.z;
-      if (tr.isFirstPerson && (pdx !== 0 || pdy !== 0 || pdz !== 0)) {
-        const sdx = pdx * 0.78, sdy = pdy * 0.78, sdz = pdz * 0.78;
-        for (let k = 0; k < tr.slices * 2; k++) {
-          const b = k * 3;
-          tr.posArr[b] += sdx; tr.posArr[b + 1] += sdy; tr.posArr[b + 2] += sdz;
-        }
-        tr.lastHilt.x += sdx; tr.lastHilt.y += sdy; tr.lastHilt.z += sdz;
-        tr.lastTip.x  += sdx; tr.lastTip.y  += sdy; tr.lastTip.z  += sdz;
-        for (let s = 0; s < tr.sparkCount; s++) {
-          const sb = s * 3;
-          tr.spPos[sb] += sdx; tr.spPos[sb + 1] += sdy; tr.spPos[sb + 2] += sdz;
-        }
-      }
+      const visMatch = (tr.isFirstPerson === curIs1p);
+      tr.mesh.visible = visMatch;
+      tr.sparks.visible = visMatch;
 
-      if (tr.age <= tr.recordDur && tr.slices < _SW_MAX_SLICES) {
-        _sampleSwordBladeWorld(_swTmpHilt, _swTmpTip);
+      if (tr.age <= tr.recordDur && tr.rawSlices.length < _SW_MAX_SLICES) {
+        _sampleSwordBladeSpace(_swTmpHilt, _swTmpTip, tr.isFirstPerson, tr.toolKind);
         const moveDist = _swTmpTip.distanceTo(tr.lastTip);
-        if (moveDist > 0.015) {
-          const subSteps = Math.min(_SW_MAX_SLICES - tr.slices, Math.max(1, Math.min(4, Math.ceil(moveDist / 0.14))));
+        if (moveDist > 0.008) {
+          const subSteps = Math.min(_SW_MAX_SLICES - tr.rawSlices.length, Math.max(1, Math.min(5, Math.ceil(moveDist / 0.09))));
           _swTmpDir0.subVectors(tr.lastTip, tr.lastHilt);
-          const len0 = Math.max(0.18, _swTmpDir0.length());
+          const len0 = Math.max(0.14, _swTmpDir0.length());
           _swTmpDir0.divideScalar(len0);
           _swTmpDir1.subVectors(_swTmpTip, _swTmpHilt);
-          const len1 = Math.max(0.18, _swTmpDir1.length());
+          const len1 = Math.max(0.14, _swTmpDir1.length());
           _swTmpDir1.divideScalar(len1);
+          const t0 = tr.prevSampleAge;
           for (let st = 1; st <= subSteps; st++) {
             const u = st / subSteps;
-            const idxV = tr.slices * 2;
             const hx = tr.lastHilt.x + (_swTmpHilt.x - tr.lastHilt.x) * u;
             const hy = tr.lastHilt.y + (_swTmpHilt.y - tr.lastHilt.y) * u;
             const hz = tr.lastHilt.z + (_swTmpHilt.z - tr.lastHilt.z) * u;
             _swTmpDirM.copy(_swTmpDir0).lerp(_swTmpDir1, u).normalize();
             const lenM = len0 + (len1 - len0) * u;
-            const b = idxV * 3;
-            tr.posArr[b]     = hx; tr.posArr[b + 1] = hy; tr.posArr[b + 2] = hz;
-            tr.posArr[b + 3] = hx + _swTmpDirM.x * lenM;
-            tr.posArr[b + 4] = hy + _swTmpDirM.y * lenM;
-            tr.posArr[b + 5] = hz + _swTmpDirM.z * lenM;
-            tr.slices++;
+            tr.rawSlices.push({
+              hx, hy, hz,
+              tx: hx + _swTmpDirM.x * lenM,
+              ty: hy + _swTmpDirM.y * lenM,
+              tz: hz + _swTmpDirM.z * lenM,
+              t: t0 + (tr.age - t0) * u
+            });
           }
           if (tr.sparkCount < _SW_SPARKS_N) {
-            const addN = Math.min(_SW_SPARKS_N - tr.sparkCount, tr.didHit ? 4 : 3);
+            const addN = Math.min(_SW_SPARKS_N - tr.sparkCount, tr.didHit ? 5 : 3);
+            const vScale = tr.isFirstPerson ? 0.38 : 1.0;
             for (let k = 0; k < addN; k++) {
               const si = tr.sparkCount++;
               const sb = si * 3;
-              const f = 0.35 + Math.random() * 0.70;
-              tr.spPos[sb]     = _swTmpHilt.x + (_swTmpTip.x - _swTmpHilt.x) * f + (Math.random() - 0.5) * 0.06;
-              tr.spPos[sb + 1] = _swTmpHilt.y + (_swTmpTip.y - _swTmpHilt.y) * f + (Math.random() - 0.5) * 0.06;
-              tr.spPos[sb + 2] = _swTmpHilt.z + (_swTmpTip.z - _swTmpHilt.z) * f + (Math.random() - 0.5) * 0.06;
-              tr.spVel[sb]     = (_swTmpTip.x - tr.lastTip.x) * 3.5 + (Math.random() - 0.5) * 0.9;
-              tr.spVel[sb + 1] = (_swTmpTip.y - tr.lastTip.y) * 3.5 + 0.45 + Math.random() * 0.7;
-              tr.spVel[sb + 2] = (_swTmpTip.z - tr.lastTip.z) * 3.5 + (Math.random() - 0.5) * 0.9;
-              tr.spLife[si] = 1.0;
+              const f = 0.35 + Math.random() * 0.72;
+              const j = tr.isFirstPerson ? 0.045 : 0.10;
+              tr.spPos[sb]     = _swTmpHilt.x + (_swTmpTip.x - _swTmpHilt.x) * f + (Math.random() - 0.5) * j;
+              tr.spPos[sb + 1] = _swTmpHilt.y + (_swTmpTip.y - _swTmpHilt.y) * f + (Math.random() - 0.5) * j;
+              tr.spPos[sb + 2] = _swTmpHilt.z + (_swTmpTip.z - _swTmpHilt.z) * f + (Math.random() - 0.5) * j;
+              tr.spVel[sb]     = (_swTmpTip.x - tr.lastTip.x) * 2.1 + (Math.random() - 0.5) * 0.75 * vScale;
+              tr.spVel[sb + 1] = (_swTmpTip.y - tr.lastTip.y) * 2.1 + (0.32 + Math.random() * 0.55) * vScale;
+              tr.spVel[sb + 2] = (_swTmpTip.z - tr.lastTip.z) * 2.1 + (Math.random() - 0.5) * 0.75 * vScale;
             }
           }
           tr.lastHilt.copy(_swTmpHilt);
           tr.lastTip.copy(_swTmpTip);
         }
+        tr.prevSampleAge = tr.age;
       }
 
-      if (tr.slices >= 2) {
-        const denom = tr.slices - 1;
-        for (let s = 0; s < tr.slices; s++) {
-          const u = s / denom;
+      const n = tr.rawSlices.length;
+      if (n >= 2) {
+        const denom = n - 1;
+        for (let s = 0; s < n; s++) {
+          const sl = tr.rawSlices[s];
+          const ageRatio = Math.max(0, Math.min(1, (tr.age - sl.t) / tr.sliceLife));
+          const tailPinch = Math.pow(s / denom, 0.72);
+          const taper = Math.pow(1.0 - ageRatio, 1.55) * tailPinch; // Sleek pointed crescent tail + quadratic decay
+          const mx = sl.hx * 0.28 + sl.tx * 0.72, my = sl.hy * 0.28 + sl.ty * 0.72, mz = sl.hz * 0.28 + sl.tz * 0.72;
+          const b = s * 6;
+          tr.posArr[b]     = mx + (sl.hx - mx) * taper;
+          tr.posArr[b + 1] = my + (sl.hy - my) * taper;
+          tr.posArr[b + 2] = mz + (sl.hz - mz) * taper;
+          tr.posArr[b + 3] = mx + (sl.tx - mx) * taper;
+          tr.posArr[b + 4] = my + (sl.ty - my) * taper;
+          tr.posArr[b + 5] = mz + (sl.tz - mz) * taper;
+          // UV: x = hilt(0)->tip(1), y = newest slice(0)->trailing fade(1) for flame/silk ribbon scrolling
+          const uvY = Math.min(1.0, Math.max(ageRatio, 1.0 - tailPinch * 0.95));
           const ub = s * 4;
-          tr.uvArr[ub]     = u; tr.uvArr[ub + 1] = 0.0;
-          tr.uvArr[ub + 2] = u; tr.uvArr[ub + 3] = 1.0;
+          tr.uvArr[ub] = 0.0; tr.uvArr[ub + 1] = uvY;
+          tr.uvArr[ub + 2] = 1.0; tr.uvArr[ub + 3] = uvY;
         }
         tr.posAttr.needsUpdate = true;
         tr.uvAttr.needsUpdate = true;
         tr.geo.setDrawRange(0, denom * 6);
       }
-      const fadeT = tr.age <= tr.recordDur * 0.65 ? 1.0 : Math.max(0.0, 1.0 - (tr.age - tr.recordDur * 0.65) / (tr.maxLife - tr.recordDur * 0.65));
-      tr.mat.uniforms.uFade.value = fadeT * fadeT;
+      const globalFade = tr.age <= tr.recordDur * 0.60 ? 1.0 : Math.max(0.0, 1.0 - (tr.age - tr.recordDur * 0.60) / (tr.maxLife - tr.recordDur * 0.60));
+      tr.mat.uniforms.uFade.value = (tr.isEquip ? 0.78 : 1.0) * globalFade * globalFade;
       tr.mat.uniforms.uTime.value = tr.age;
-      tr.sparkMat.opacity = fadeT * fadeT * 0.92;
+      tr.sparkMat.opacity = (tr.isEquip ? 0.85 : 0.98) * globalFade * globalFade;
       if (tr.sparkCount > 0) {
+        const turb = tr.isFirstPerson ? 0.14 : 0.42;
         for (let s = 0; s < tr.sparkCount; s++) {
           const sb = s * 3;
-          tr.spPos[sb]     += tr.spVel[sb] * dt;
-          tr.spPos[sb + 1] += tr.spVel[sb + 1] * dt;
-          tr.spPos[sb + 2] += tr.spVel[sb + 2] * dt;
+          tr.spPos[sb]     += (tr.spVel[sb] + Math.sin(tr.age * 9.5 + s * 1.7) * turb) * dt;
+          tr.spPos[sb + 1] += (tr.spVel[sb + 1] + Math.abs(Math.sin(tr.age * 5.0 + s * 1.1)) * turb * 1.2) * dt;
+          tr.spPos[sb + 2] += (tr.spVel[sb + 2] + Math.cos(tr.age * 8.2 + s * 2.1) * turb) * dt;
           tr.spVel[sb] *= 0.92; tr.spVel[sb + 1] *= 0.92; tr.spVel[sb + 2] *= 0.92;
         }
         tr.spAttr.needsUpdate = true;
@@ -4455,7 +4556,10 @@
     mining.heldDur = (mining.heldDur || 0) + dt;
     const _mineAct = (selDef && selDef.tool === 'axe') ? 'chop' : 'mine';
     if (player.swingT <= 0.001 && (!mining._didInitialSwing || mining.heldDur >= 0.36)) {
-      startHandSwing(0.28, _mineAct);
+      startHandSwing(0.32, _mineAct);
+      if (selDef && (selDef.tool === 'pick' || selDef.tool === 'axe' || selDef.tool === 'shovel' || selDef.tool === 'hoe')) {
+        spawnSwordSlashArc(((player.swingStep || 0) % 2) + 1, selDef, true, false);
+      }
       mining._didInitialSwing = true;
     }
     const _mDur = Math.max(0.18, player.swingDur || 0.28);
@@ -5490,7 +5594,7 @@
         if (player._fpSwCur) player._fpSwCur.fill(0);
       }
     }
-    player.equipPopT = Math.max(0, (player.equipPopT || 0) - dt * 4.6);
+    player.equipPopT = Math.max(0, (player.equipPopT || 0) - dt * 3.2);
     player.jumpPopT = Math.max(0, (player.jumpPopT || 0) - dt * 6.5);
     player.landSquash = Math.max(0, (player.landSquash || 0) - dt * 4.2);
     player.hurtAnimT = Math.max(0, (player.hurtAnimT || 0) - dt);
@@ -5648,120 +5752,57 @@
     const sneakDip = (player.sneakEyeOff || 0) * 0.18;
     const landDip = -(player.landSquash || 0) * 0.115;
     const airDip = !player.onGround && !player.inWater ? Math.max(-0.085, Math.min(0.075, -player.vy * 0.0085)) : 0;
-    // Elastic Equip Pop when switching hotbar items!
+    // Smooth Afterswing Equip Flourish when switching hotbar items
     const eqPop = player.equipPopT || 0;
-    const eqY = -eqPop * eqPop * 0.34 + Math.sin(eqPop * Math.PI) * 0.035;
-    const eqRx = -eqPop * 0.55;
+    const eqEase = eqPop * eqPop;
+    const eqY = -eqEase * 0.32 + Math.sin(eqPop * Math.PI) * 0.032;
+    const eqRx = -eqPop * 0.56;
+    const eqRy = -eqPop * 0.42;
+    const eqRz = -eqPop * 0.32;
 
-    // Afterswing+ 1P Hand+Tool Attack & Mining Swing Curves — Authentic @cizphrax Afterswing+ Multi-Directional Arcs
-    // Sword: wide horizontal R→L sweep + cross-slash afterswing + forward thrust follow-through
-    // Pick: fan-shaped diagonal downward strike + rebound   Axe: heavy alternating diagonal cleave
-    // Shovel: upward scoop + forward flick   Hoe: sharp forward/downward chop at 45°
-    // Trident: wide overhead diagonal slash + horizontal sweep   Fist: clean forward jab
+    // Authentic Afterswing [Ja+] 1P Keyframed Multi-Directional Swing & Follow-Through Curves
+    function _sampleAfterswingKeys(u, keys) {
+      let a = keys[0], b = keys[keys.length - 1];
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (u >= keys[i][0] && u <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
+      }
+      const span = b[0] - a[0];
+      const f = span > 1e-4 ? smoothstep01((u - a[0]) / span) : 0;
+      return [
+        a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f,
+        a[4] + (b[4] - a[4]) * f, a[5] + (b[5] - a[5]) * f, a[6] + (b[6] - a[6]) * f
+      ];
+    }
+    const _AS_SWORD_KEYS = [
+      [[0,0,0,0,0,0,0],[0.09,0.06,0.03,0.04,0.16,-0.34,-0.24],[0.26,-0.72,-0.15,-0.26,-1.18,1.28,1.12],[0.50,-0.56,-0.16,-0.19,-1.04,1.06,0.88],[1,0,0,0,0,0,0]],
+      [[0,0,0,0,0,0,0],[0.09,-0.46,-0.14,-0.18,-0.86,0.92,0.68],[0.28,0.18,0.08,-0.22,-0.62,-0.88,-0.78],[0.52,0.12,-0.04,-0.16,-0.48,-0.68,-0.56],[1,0,0,0,0,0,0]],
+      [[0,0,0,0,0,0,0],[0.09,0.04,0.18,0.06,0.36,-0.20,-0.22],[0.28,-0.34,-0.22,-0.26,-1.24,0.46,0.48],[0.50,-0.24,-0.16,-0.18,-0.96,0.34,0.34],[1,0,0,0,0,0,0]]
+    ];
     let swX = 0, swY = 0, swZ = 0, swRx = 0, swRy = 0, swRz = 0;
-    if (heldToolKind === 'sword' && (player.swordAtkActive || swing > 0.005)) {
-      if (player.swordAtkActive && sampleR6Clip('rig2_sword_' + Math.max(1, Math.min(6, player.swordAtkHit || 1)), Math.min(player.swordAtkT, player.swordAtkDur || 0.5), _r6FpBuf)) {
-        const tp = _r6FpBuf.torso.p, tq = _r6FpBuf.torso.q;
-        const ap = _r6FpBuf.armR.p, aq = _r6FpBuf.armR.q;
-        _fpQ1.set(tq[0], tq[1], tq[2], tq[3]);
-        _fpQ2.set(aq[0], aq[1], aq[2], aq[3]);
-        _fpV1.set(-0.105, -0.50, 0.07).applyQuaternion(_fpQ2);
-        _fpV1.x += -0.25 + ap[0]; _fpV1.y += 0.1875 + ap[1]; _fpV1.z += ap[2];
-        _fpV1.applyQuaternion(_fpQ1);
-        _fpV1.x += tp[0] + 0.355; _fpV1.y += tp[1] + 0.3125; _fpV1.z += tp[2] - 0.07;
-        const dCamX = -_fpV1.x, dCamY = _fpV1.y, dCamZ = -_fpV1.z;
-        _fpV2.set(0, 0.35, 0.94).normalize().applyQuaternion(_fpQ2).applyQuaternion(_fpQ1);
-        const bX = -_fpV2.x, bY = _fpV2.y, bZ = -_fpV2.z;
-        let tx = Math.max(-0.46, Math.min(0.28, dCamX * 0.36));
-        let ty = Math.max(-0.24, Math.min(0.24, (dCamY - 0.20) * 0.24));
-        let tz = Math.max(-0.36, Math.min(0.06, dCamZ * 0.20 - 0.15));
-        let trx = -0.92 + bY * 0.58 - (bZ > 0 ? bZ * 0.22 : 0);
-        let try_ = -bX * 0.92;
-        let trz = -bX * 0.62 + (dCamY - 0.30) * 0.12;
-        if (!player._fpSwCur) { player._fpSwCur = [0,0,0,0,0,0]; player._fpSwPrev = [0,0,0,0,0,0]; player._fpSwSeq = 0; player._fpSwXfadeT = 0; }
-        if (player.swordAtkSeq !== player._fpSwSeq) {
-          for (let m = 0; m < 6; m++) player._fpSwPrev[m] = player._fpSwCur[m];
-          player._fpSwSeq = player.swordAtkSeq;
-          player._fpSwXfadeT = 0;
-        }
-        player._fpSwXfadeT += dt;
-        if (player._fpSwXfadeT < 0.065) {
-          const xu = smoothstep01(player._fpSwXfadeT / 0.065);
-          tx   = player._fpSwPrev[0] + (tx   - player._fpSwPrev[0]) * xu;
-          ty   = player._fpSwPrev[1] + (ty   - player._fpSwPrev[1]) * xu;
-          tz   = player._fpSwPrev[2] + (tz   - player._fpSwPrev[2]) * xu;
-          trx  = player._fpSwPrev[3] + (trx  - player._fpSwPrev[3]) * xu;
-          try_ = player._fpSwPrev[4] + (try_ - player._fpSwPrev[4]) * xu;
-          trz  = player._fpSwPrev[5] + (trz  - player._fpSwPrev[5]) * xu;
-        }
-        const dur = player.swordAtkDur || 0.5, hold = 0.06, fadeOut = 0.18;
-        let envW = 1.0;
-        if (player.swordAtkT > dur + hold) envW = Math.max(0, 1.0 - smoothstep01((player.swordAtkT - (dur + hold)) / fadeOut));
-        swX = tx * envW; swY = ty * envW; swZ = tz * envW;
-        swRx = trx * envW; swRy = try_ * envW; swRz = trz * envW;
-        player._fpSwCur[0] = swX; player._fpSwCur[1] = swY; player._fpSwCur[2] = swZ;
-        player._fpSwCur[3] = swRx; player._fpSwCur[4] = swRy; player._fpSwCur[5] = swRz;
-      } else if (swing > 0.005) {
-        // Afterswing+ Sword: wide horizontal R→L sweep + cross-slash afterswing (alternating directions)
-        const pPow = Math.pow(swing, 0.58);
-        const pArc = Math.sin(swingU * Math.PI);
-        const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
-        const phase3 = (player.swingStep || 0) % 3;
-        if (phase3 === 0) {
-          // Wide horizontal right-to-left sweep (blade flat, sweeping across center)
-          swX = -pPow * 0.42 * dirS; swY = pArc * 0.06 - pPow * 0.02; swZ = -pPow * 0.18;
-          swRx = -pPow * 0.28; swRy = pPow * 1.12 * dirS; swRz = pPow * 0.72 * dirS;
-        } else if (phase3 === 1) {
-          // Cross-slash: whip back opposite direction with forward lunge
-          swX = pPow * 0.28 * dirS; swY = -pPow * 0.14 + pArc * 0.10; swZ = -pPow * 0.32;
-          swRx = -pPow * 0.56; swRy = -pPow * 0.95 * dirS; swRz = -pPow * 0.48 * dirS;
-        } else {
-          // Forward thrust / low follow-through (lunge toward crosshair)
-          swX = -pPow * 0.16; swY = -pPow * 0.08 + pArc * 0.04; swZ = -pPow * 0.48;
-          swRx = -pPow * 1.22; swRy = pPow * 0.14; swRz = pPow * 0.10;
-        }
-      }
-    } else if (swing > 0.005) {
-      const pPow = Math.pow(swing, 0.58);
-      const pArc = Math.sin(swingU * Math.PI);
-      const dirS = ((player.swingStep || 0) & 1) ? -1 : 1;
-      if (heldDef && heldDef.id === B.TRIDENT) {
-        // Afterswing+ Trident: wide overhead diagonal slash + horizontal sweep (alternating)
-        const phase2 = (player.swingStep || 0) & 1;
-        if (phase2 === 0) {
-          // Wide overhead diagonal slash from top-right down across center-left
-          swX = pPow * 0.32; swY = pArc * 0.22 - pPow * 0.18; swZ = -pPow * 0.28;
-          swRx = -pPow * 1.65 - pArc * 0.28; swRy = -pPow * 0.52; swRz = -pPow * 0.38;
-        } else {
-          // Horizontal sweep: spear flat pointing left, trailing ribbon
-          swX = -pPow * 0.38; swY = pArc * 0.06 - pPow * 0.04; swZ = -pPow * 0.22;
-          swRx = -pPow * 0.32; swRy = pPow * 1.08; swRz = pPow * 0.65;
-        }
+    if (swingActive && swing > 0.002) {
+      let kv = null;
+      if (heldToolKind === 'sword') {
+        kv = _AS_SWORD_KEYS[(player.comboStep || 0) % 3];
+      } else if (B.TRIDENT && heldDef && heldDef.id === B.TRIDENT) {
+        kv = ((player.swingStep || 0) & 1)
+          ? [[0,0,0,0,0,0,0],[0.10,0.06,0.14,0.05,0.28,-0.22,-0.22],[0.30,-0.36,-0.20,-0.32,-1.56,0.50,0.50],[0.52,-0.24,-0.14,-0.20,-1.18,0.38,0.36],[1,0,0,0,0,0,0]]
+          : _AS_SWORD_KEYS[0];
       } else if (heldToolKind === 'pick') {
-        // Afterswing+ Pickaxe: fan-shaped diagonal downward strike with vertical trail
-        swX = -pPow * 0.14 - pArc * 0.08; swY = pArc * 0.18 - pPow * 0.28; swZ = -pPow * 0.32;
-        swRx = -pPow * 1.72 - pArc * 0.32; swRy = pPow * 0.22 * dirS; swRz = pPow * 0.14 * dirS;
+        kv = [[0,0,0,0,0,0,0],[0.10,0.02,0.16,0.06,0.36,0.10,-0.14],[0.30,-0.26,-0.22,-0.34,-1.54,0.32,0.22],[0.54,-0.18,-0.12,-0.22,-1.12,0.22,0.14],[1,0,0,0,0,0,0]];
       } else if (heldToolKind === 'axe') {
-        // Afterswing+ Axe: heavy alternating diagonal cleave with follow-through
-        swX = -pPow * (0.32 + 0.10 * dirS); swY = pArc * 0.16 - pPow * 0.24; swZ = -pPow * 0.30;
-        swRx = -pPow * 1.48 - pArc * 0.28; swRy = pPow * 0.78 * (dirS > 0 ? 1 : 0.50); swRz = pPow * 0.56 * (dirS > 0 ? 1 : 0.42);
+        kv = ((player.swingStep || 0) & 1)
+          ? [[0,0,0,0,0,0,0],[0.09,0.05,0.12,0.04,0.28,-0.28,-0.24],[0.28,-0.46,-0.20,-0.30,-1.44,0.88,0.72],[0.52,-0.32,-0.14,-0.22,-1.10,0.68,0.54],[1,0,0,0,0,0,0]]
+          : [[0,0,0,0,0,0,0],[0.09,-0.38,-0.14,-0.18,-0.92,0.78,0.58],[0.28,0.14,-0.08,-0.24,-1.04,-0.68,-0.60],[0.52,0.08,-0.08,-0.16,-0.78,-0.50,-0.42],[1,0,0,0,0,0,0]];
       } else if (heldToolKind === 'shovel') {
-        // Afterswing+ Shovel: upward scoop then forward flick
-        swX = -pPow * 0.18; swY = -pPow * 0.08 + pArc * 0.22; swZ = -pPow * 0.34;
-        swRx = -pPow * 1.08 + pArc * 0.38; swRy = pPow * 0.28; swRz = pPow * 0.16;
+        kv = [[0,0,0,0,0,0,0],[0.10,-0.02,-0.06,0.06,0.20,-0.10,0.06],[0.32,-0.26,0.08,-0.36,-1.22,0.28,0.22],[0.54,-0.18,0.02,-0.24,-0.88,0.20,0.14],[1,0,0,0,0,0,0]];
       } else if (heldToolKind === 'hoe') {
-        // Afterswing+ Hoe: sharp forward/downward 45° chop toward crosshair
-        swX = -pPow * 0.20; swY = -pPow * 0.18 + pArc * 0.08; swZ = -pPow * 0.38;
-        swRx = -pPow * 1.56; swRy = pPow * 0.18; swRz = pPow * 0.12;
+        kv = [[0,0,0,0,0,0,0],[0.10,0.02,0.12,0.04,0.26,-0.16,-0.14],[0.30,-0.32,-0.18,-0.34,-1.48,0.44,0.36],[0.52,-0.22,-0.12,-0.24,-1.10,0.32,0.24],[1,0,0,0,0,0,0]];
       } else if (!heldDef) {
-        // Afterswing+ Fist: clean forward jab (steady camera)
-        swX = -pPow * 0.22; swY = pArc * 0.06 - pPow * 0.03; swZ = -pPow * 0.44;
-        swRx = -pPow * 0.98; swRy = pPow * 0.34; swRz = pPow * 0.38;
+        kv = [[0,0,0,0,0,0,0],[0.26,-0.26,0.04,-0.36,-0.78,0.42,0.26],[0.48,-0.18,0.02,-0.24,-0.54,0.30,0.18],[1,0,0,0,0,0,0]];
       } else {
-        // Afterswing+ Block / Item Tap
-        swX = -pPow * 0.22; swY = -pPow * 0.08 + pArc * 0.06; swZ = -pPow * 0.24;
-        swRx = -pPow * 1.18 - pArc * 0.22; swRy = pPow * 0.44; swRz = pPow * 0.22;
+        kv = [[0,0,0,0,0,0,0],[0.30,-0.22,-0.08,-0.24,-1.12,0.42,0.20],[0.50,-0.15,-0.05,-0.16,-0.78,0.28,0.14],[1,0,0,0,0,0,0]];
       }
+      [swX, swY, swZ, swRx, swRy, swRz] = _sampleAfterswingKeys(swingU, kv);
     }
 
     // Afterswing+ Sprint Carry (angles tool dynamically across view & pumps with stride!)
@@ -5803,31 +5844,21 @@
         (0.05 - lagX * 0.6) * (1 - bT) + (-0.06) * bT
       );
     } else {
-      // Afterswing+ Per-Tool Idle Rest Poses (each tool type has distinct resting angle matching @cizphrax reference)
-      // Sword: tilted outward/rightward near-horizontal   Pick: tilted backward toward right edge
-      // Shovel: straight vertical upright   Hoe: upright with slight forward-left tilt
-      // Trident: straight vertical upright   Empty/block: standard
+      // Afterswing [Ja+] Upright Heroic Idle Rest Poses (matching @lalynmc screenshots)
+      const isMeleeGrip = (heldToolKind === 'sword' || heldToolKind === 'pick' || heldToolKind === 'axe' || heldToolKind === 'shovel' || heldToolKind === 'hoe' || (B.TRIDENT && heldDef && heldDef.id === B.TRIDENT));
       let idleOffX = 0, idleOffY = 0, idleOffZ = 0, idleRx = 0, idleRy = 0, idleRz = 0;
       if (heldToolKind === 'sword') {
-        // Sword rests low, tilted outward/rightward (near-horizontal/shallow angle)
-        idleOffX = 0.04; idleOffY = -0.06; idleOffZ = 0.02;
-        idleRx = 0.08; idleRy = -0.32; idleRz = -0.18;
-      } else if (heldToolKind === 'pick') {
-        // Pickaxe rests tilted backward toward right edge (head pointing outward-right)
-        idleOffX = 0.03; idleOffY = -0.02; idleOffZ = 0.01;
-        idleRx = -0.06; idleRy = -0.22; idleRz = -0.14;
-      } else if (heldToolKind === 'axe') {
-        // Axe similar to pick but slightly more upright
-        idleOffX = 0.02; idleOffY = -0.03; idleOffZ = 0.01;
-        idleRx = -0.04; idleRy = -0.18; idleRz = -0.12;
-      } else if (heldToolKind === 'shovel') {
-        // Shovel held straight vertical upright on the right side
-        idleOffX = 0.02; idleOffY = 0.03; idleOffZ = 0.0;
-        idleRx = 0.06; idleRy = -0.08; idleRz = 0.04;
+        idleOffX = -0.05; idleOffY = 0.04; idleOffZ = 0.06;
+        idleRx = 0.04; idleRy = 0.08; idleRz = -0.04;
+      } else if (heldToolKind === 'pick' || heldToolKind === 'axe') {
+        idleOffX = -0.04; idleOffY = 0.05; idleOffZ = 0.06;
+        idleRx = 0.02; idleRy = 0.04; idleRz = -0.03;
+      } else if (heldToolKind === 'shovel' || (B.TRIDENT && heldDef && heldDef.id === B.TRIDENT)) {
+        idleOffX = -0.04; idleOffY = 0.06; idleOffZ = 0.06;
+        idleRx = 0.02; idleRy = 0.04; idleRz = -0.02;
       } else if (heldToolKind === 'hoe') {
-        // Hoe upright with slight forward-left tilt (head facing toward center crosshair)
-        idleOffX = -0.01; idleOffY = 0.02; idleOffZ = -0.02;
-        idleRx = 0.04; idleRy = 0.06; idleRz = 0.08;
+        idleOffX = -0.04; idleOffY = 0.05; idleOffZ = 0.06;
+        idleRx = 0.02; idleRy = 0.05; idleRz = 0.02;
       } else if (heldToolKind === 'bow') {
         if (player.bowDrawing) {
           const bowC = Math.max(0.05, Math.min(1, player.bowCharge || 0.1));
@@ -5835,21 +5866,24 @@
           idleOffX = -0.16 * bowC + tremor; idleOffY = 0.08 * bowC + tremor * 0.7; idleOffZ = 0.05 * bowC;
           idleRx = 0.08 * bowC; idleRy = 0.36 * bowC; idleRz = -0.22 * bowC;
         }
-      } else if (heldDef && heldDef.id === B.TRIDENT) {
-        // Trident/spear held straight vertical upright
-        idleOffX = 0.01; idleOffY = 0.04; idleOffZ = 0.0;
-        idleRx = 0.08; idleRy = -0.06; idleRz = 0.02;
+      } else if (!heldDef) {
+        idleOffX = -0.03; idleOffY = -0.02; idleOffZ = 0.02;
       }
       heldPivot.position.set(
-        0.46 * _vmX + idleBreathX + swayX + swimSwayX + lagX + spX + swX + eatX + idleOffX,
-        -0.37 + fig8Y + idleBreathY + swimSwayY + sneakDip + airDip + landDip + cdDip + eqY + lagY + spY + swY + eatY + idleOffY,
-        -0.63 + _vmZAdd + spZ + swZ + eatZ + swimStrokeZ + idleOffZ
+        (isMeleeGrip ? 0.42 : 0.46) * _vmX + idleBreathX + swayX + swimSwayX + lagX + spX + swX + eatX + idleOffX,
+        (isMeleeGrip ? -0.35 : -0.37) + fig8Y + idleBreathY + swimSwayY + sneakDip + airDip + landDip + cdDip + eqY + lagY + spY + swY + eatY + idleOffY,
+        -0.61 + _vmZAdd + spZ + swZ + eatZ + swimStrokeZ + idleOffZ
       );
       heldPivot.rotation.set(
         swRx + spRx + eqRx + lagY * 1.7 + (airDip * 1.1) + eatRx + swimStrokeRx + idleRx,
-        swRy + spRy + swayX * 2.1 - lagX * 2.2 + eatRy + idleRy,
-        swRz + spRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz + idleRz
+        swRy + spRy + eqRy + swayX * 2.1 - lagX * 2.2 + eatRy + idleRy,
+        swRz + spRz + eqRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz + idleRz
       );
+      if (player._pendingEquipTrail && thirdPerson === 0) {
+        heldPivot.updateMatrixWorld(true);
+        spawnSwordSlashArc(1, player._pendingEquipTrail, false, true);
+        player._pendingEquipTrail = null;
+      }
     }
     if (offhandPivot) {
       if (thirdPerson > 0 || hudHidden) offhandPivot.visible = false;
