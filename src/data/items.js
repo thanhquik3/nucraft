@@ -3905,15 +3905,21 @@
       if (x === 6 && y === 9) return '#93c5fd';
       return null;
     });
-    // 479: Totem of Undying
+    // 479: Totem of Undying (golden idol with white+emerald eyes, villager nose, stepped wings & pedestal)
     tilePixels(479, (x, y) => {
-      const head = x >= 5 && x <= 10 && y >= 2 && y <= 6;
-      const wing = y >= 7 && y <= 9 && x >= 2 && x <= 13;
-      const body = x >= 5 && x <= 10 && y >= 7 && y <= 13;
-      if (!head && !wing && !body) return null;
-      if (y === 4 && (x === 6 || x === 9)) return '#10b981';
-      if (y === 8 && (x === 7 || x === 8)) return '#22c55e';
-      return (x + y) % 4 === 0 ? '#fef08a' : ((x === 5 || x === 10 || y === 13) ? '#ca8a04' : '#facc15');
+      const head = x >= 5 && x <= 10 && y >= 1 && y <= 7;
+      const wingUp = y >= 5 && y <= 6 && x >= 1 && x <= 14;
+      const wingLo = y >= 7 && y <= 9 && x >= 2 && x <= 13;
+      const body = x >= 5 && x <= 10 && y >= 8 && y <= 11;
+      const base = x >= 6 && x <= 9 && y >= 12 && y <= 14;
+      if (!head && !wingUp && !wingLo && !body && !base) return null;
+      if (y === 3 && (x === 5 || x === 9)) return '#ffffff';
+      if (y === 3 && (x === 6 || x === 10)) return '#00d252';
+      if (y === 4 && (x === 5 || x === 9)) return '#00c44b';
+      if (y === 4 && (x === 6 || x === 10)) return '#008a36';
+      if ((x === 7 || x === 8) && y >= 4 && y <= 8) return x === 7 ? '#ffeb84' : '#e39d2e';
+      if (base && x >= 7 && x <= 8 && y === 13) return '#df972b';
+      return (x + y) % 4 === 0 ? '#fff098' : ((y === 2 || x === 10 || y === 14) ? '#df972b' : '#f8c64b');
     });
     // 480: Swift Sneak Enchanted Book
     tilePixels(480, (x, y, r) => {

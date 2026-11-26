@@ -540,16 +540,35 @@
 
   // Animated Emissive Material (Pulsing Lava, Lanterns, Glowing Cave Mushrooms & 4-Frame Voxel Fire!)
   const emissiveMat = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: atlasTex }, uTime: envUniforms.uTime, uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uReflClipY: envUniforms.uReflClipY },
+    uniforms: { uMap: { value: atlasTex }, uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength, uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uReflClipY: envUniforms.uReflClipY },
     side: THREE.DoubleSide,
     vertexShader: `
+      uniform float uTime, uWindStrength;
       attribute float aEmissiveType;
       varying vec2 vUv; varying float vDist, vEType, vFireSeed; varying vec3 vWPos;
       void main() {
-        vUv = uv; vEType = aEmissiveType;
+        vUv = uv;
+        float et = aEmissiveType;
+        vec3 posL = position;
         float hasModel = abs(modelMatrix[3].x) + abs(modelMatrix[3].y) + abs(modelMatrix[3].z);
         vFireSeed = (hasModel > 0.001) ? floor(abs(modelMatrix[3].x) + abs(modelMatrix[3].z)) * 1.73 : (floor(position.x) * 1.37 + floor(position.z) * 2.19);
-        vec4 wp = modelMatrix * vec4(position, 1.0);
+        if (et > 9.5) {
+          et -= 10.0;
+          vec3 cell = floor(posL);
+          vec3 pivot = cell + vec3(0.5, 0.72, 0.5);
+          vec3 rel = posL - pivot;
+          float seed = cell.x * 1.37 + cell.y * 0.83 + cell.z * 2.19;
+          float windAmp = 0.068 + 0.055 * clamp(uWindStrength, 0.2, 2.0);
+          float angZ = (sin(uTime * 1.90 + seed) * 0.76 + sin(uTime * 3.15 + seed * 1.7) * 0.24) * windAmp;
+          float angX = (cos(uTime * 1.52 + seed * 1.3) * 0.72 + cos(uTime * 2.65 + seed * 2.1) * 0.28) * windAmp * 0.75;
+          float cz = cos(angZ), sz = sin(angZ);
+          vec3 r1 = vec3(rel.x * cz - rel.y * sz, rel.x * sz + rel.y * cz, rel.z);
+          float cx = cos(angX), sx = sin(angX);
+          vec3 r2 = vec3(r1.x, r1.y * cx - r1.z * sx, r1.y * sx + r1.z * cx);
+          posL = pivot + r2;
+        }
+        vEType = et;
+        vec4 wp = modelMatrix * vec4(posL, 1.0);
         vWPos = wp.xyz;
         vec4 mv = viewMatrix * wp;
         vDist = length(mv.xyz);
@@ -2393,9 +2412,11 @@
     if (_aDef && _aDef.bed) {
       return buildHeldBedMesh(THREE, blockId);
     }
-    if (blockId === B.LANTERN) {
-      // Sculpted 3D Iron-and-Amber Hanging Lantern (matches hotbar icon 1:1 in 1st-person, offhand & 3rd-person!)
-      if (!build3DSculptedSpecialItem._lanternCoreTex) {
+    if (blockId === B.LANTERN || blockId === B.SOUL_LANTERN) {
+      // Sculpted 3D Hanging Lantern / Soul Lantern with rigid top ring & swinging lantern body pivot
+      const isSoul = (blockId === B.SOUL_LANTERN);
+      const texKey = isSoul ? '_soulLanternCoreTex' : '_lanternCoreTex';
+      if (!build3DSculptedSpecialItem[texKey]) {
         const lcv = document.createElement('canvas'); lcv.width = 16; lcv.height = 16;
         const lc = lcv.getContext('2d');
         for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) {
@@ -2403,40 +2424,131 @@
           const midFrame = (px === 2 || px === 13 || py === 2 || py === 13);
           const core = (px >= 6 && px <= 9 && py >= 6 && py <= 10);
           const inner = (px >= 4 && px <= 11 && py >= 4 && py <= 12);
-          lc.fillStyle = edge ? '#232933' : (midFrame ? '#b45309' : (core ? '#fef9c3' : (inner ? '#fbbf24' : '#d97706')));
+          lc.fillStyle = isSoul
+            ? (edge ? '#1e242d' : (midFrame ? '#0369a1' : (core ? '#ecfeff' : (inner ? '#22d3ee' : '#0284c7'))))
+            : (edge ? '#232933' : (midFrame ? '#b45309' : (core ? '#fef9c3' : (inner ? '#fbbf24' : '#d97706'))));
           lc.fillRect(px, py, 1, 1);
         }
         const ltex = new THREE.CanvasTexture(lcv);
         ltex.magFilter = THREE.NearestFilter; ltex.minFilter = THREE.NearestFilter; ltex.generateMipmaps = false;
-        build3DSculptedSpecialItem._lanternCoreTex = ltex;
+        build3DSculptedSpecialItem[texKey] = ltex;
       }
       const g = new THREE.Group();
-      const body = new THREE.Group();
-      const mkBox = (w, h, d, col, x, y, z, emit = 0, tex = null) => {
+      const mkBox = (parent, w, h, d, col, x, y, z, emit = 0, tex = null) => {
         const mat = new THREE.MeshStandardMaterial({
-          map: tex, color: tex ? 0xffffff : col, roughness: emit ? 0.40 : 0.45, metalness: emit ? 0.0 : 0.52,
-          emissive: emit ? new THREE.Color(emit) : new THREE.Color(0), emissiveIntensity: emit ? 0.46 : 0
+          map: tex, color: tex ? 0xffffff : col, roughness: emit ? 0.38 : 0.45, metalness: emit ? 0.0 : 0.52,
+          emissive: emit ? new THREE.Color(emit) : new THREE.Color(0), emissiveIntensity: emit ? (isSoul ? 0.52 : 0.46) : 0
         });
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-        m.position.set(x, y, z); body.add(m); return m;
+        m.position.set(x, y, z); parent.add(m); return m;
       };
-      // Bottom wrought-iron plate
-      mkBox(0.175, 0.032, 0.175, 0x262d38, 0, -0.105, 0);
-      // Warm glowing candle glass cube with pixel-art flame core
-      mkBox(0.138, 0.168, 0.138, 0xfbbf24, 0, -0.005, 0, 0xffa822, build3DSculptedSpecialItem._lanternCoreTex);
-      // 4 crisp corner iron pillars
-      for (const sx of [-0.072, 0.072]) for (const sz of [-0.072, 0.072]) mkBox(0.022, 0.176, 0.022, 0x1e242d, sx, -0.005, sz);
-      // Stepped wrought-iron hood + chimney cap
-      mkBox(0.178, 0.032, 0.178, 0x2d3542, 0,  0.092, 0);
-      mkBox(0.122, 0.038, 0.122, 0x3b4657, 0,  0.126, 0);
-      // 3D Top Hanging Iron Ring / Chain Loop
-      mkBox(0.018, 0.044, 0.018, 0x64748b, -0.026, 0.166, 0);
-      mkBox(0.018, 0.044, 0.018, 0x64748b,  0.026, 0.166, 0);
-      mkBox(0.070, 0.018, 0.018, 0x94a3b8,  0.0,   0.188, 0);
-      mkBox(0.026, 0.026, 0.026, 0x64748b,  0.0,   0.205, 0);
-      g.add(body);
+      // Rigid top hanging ring attached directly to hand grip (does not swing)
+      mkBox(g, 0.018, 0.044, 0.018, 0x64748b, -0.026, 0.175, 0);
+      mkBox(g, 0.018, 0.044, 0.018, 0x64748b,  0.026, 0.175, 0);
+      mkBox(g, 0.070, 0.018, 0.018, 0x94a3b8,  0.0,   0.197, 0);
+      mkBox(g, 0.026, 0.026, 0.026, 0x64748b,  0.0,   0.214, 0);
+
+      // Pendulum pivot under the top chain ring (located via getObjectByName so .clone() stays safe)
+      const swingPivot = new THREE.Group();
+      swingPivot.name = 'lanternSwingPivot';
+      swingPivot.position.set(0, 0.155, 0);
+      g.add(swingPivot);
+
+      mkBox(swingPivot, 0.022, 0.022, 0.022, 0x64748b, 0, -0.008, 0);
+      mkBox(swingPivot, 0.122, 0.038, 0.122, 0x3b4657, 0, -0.029, 0);
+      mkBox(swingPivot, 0.178, 0.032, 0.178, 0x2d3542, 0, -0.063, 0);
+      mkBox(swingPivot, 0.138, 0.168, 0.138, isSoul ? 0x22d3ee : 0xfbbf24, 0, -0.160, 0, isSoul ? 0x06b6d4 : 0xffa822, build3DSculptedSpecialItem[texKey]);
+      for (const sx of [-0.072, 0.072]) for (const sz of [-0.072, 0.072]) mkBox(swingPivot, 0.022, 0.176, 0.022, 0x1e242d, sx, -0.160, sz);
+      mkBox(swingPivot, 0.175, 0.032, 0.175, 0x262d38, 0, -0.260, 0);
+
       g.position.set(0.02, -0.01, -0.04);
       g.rotation.set(0.08, -0.45, 0.03);
+      g.userData.iconReady = true;
+      return g;
+    }
+    if (blockId === B.TOTEM_UNDYING) {
+      // Sculpted 3D Golden Totem of Undying matching reference Image 1 (protruding nose, emerald eyes, angled stepped wings, rim highlight)
+      if (!build3DSculptedSpecialItem._totemPartMats) {
+        const pal = {
+          L: '#fff098', H: '#ffe678', G: '#f8c64b', M: '#ebb03c', A: '#df972b', D: '#d1861f',
+          W: '#ffffff', E: '#00d252', G2: '#00c44b', K: '#008a36'
+        };
+        const mkPixMat = (rows, emit = 0xd97706, emitI = 0.07) => {
+          const h = rows.length, w = rows[0].length;
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const c = cv.getContext('2d');
+          for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+            c.fillStyle = pal[rows[py][px]] || pal.G;
+            c.fillRect(px, py, 1, 1);
+          }
+          const t = new THREE.CanvasTexture(cv);
+          t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+          return new THREE.MeshStandardMaterial({
+            map: t, roughness: 0.36, metalness: 0.24,
+            emissive: new THREE.Color(emit), emissiveIntensity: emitI
+          });
+        };
+        const goldSideMat = mkPixMat(['HG','GA']);
+        const headCleanMat = (() => {
+          const cv = document.createElement('canvas'); cv.width = 6; cv.height = 7;
+          const c = cv.getContext('2d');
+          const grid = [
+            [pal.A, pal.G, pal.L, pal.L, pal.G, pal.A],
+            [pal.G, pal.D, pal.A, pal.A, pal.D, pal.G],
+            [pal.W, pal.E, pal.H, pal.G, pal.W, pal.E],
+            [pal.G2,pal.K, pal.H, pal.G, pal.G2,pal.K],
+            [pal.M, pal.A, pal.G, pal.G, pal.A, pal.M],
+            [pal.G, pal.M, pal.A, pal.A, pal.M, pal.G],
+            [pal.L, pal.H, pal.H, pal.G, pal.M, pal.A]
+          ];
+          for (let py = 0; py < 7; py++) for (let px = 0; px < 6; px++) { c.fillStyle = grid[py][px]; c.fillRect(px, py, 1, 1); }
+          const t = new THREE.CanvasTexture(cv);
+          t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+          return new THREE.MeshStandardMaterial({ map: t, roughness: 0.36, metalness: 0.24, emissive: new THREE.Color(0xd97706), emissiveIntensity: 0.07 });
+        })();
+        const noseMat  = mkPixMat(['HG','HG','MA','GA','MA']);
+        const chestMat = mkPixMat(['LLGGMA','LGGMMA','GGMAAD']);
+        const baseMat  = mkPixMat(['GGGG','GAAM','GDDM','LLLL']);
+        const wingUpL  = mkPixMat(['HGLL','AGGL']);
+        const wingUpR  = mkPixMat(['LLGH','LGGA']);
+        const wingLoMat= mkPixMat(['AA','LL','GG']);
+        build3DSculptedSpecialItem._totemPartMats = {
+          goldSideMat, headCleanMat, noseMat, chestMat, baseMat, wingUpL, wingUpR, wingLoMat
+        };
+      }
+      const pm = build3DSculptedSpecialItem._totemPartMats;
+      const g = new THREE.Group();
+      const u = 0.0235;
+      const mkPart = (parent, w, h, d, x, y, z, frontMat, sideMat = pm.goldSideMat) => {
+        const mats = [sideMat, sideMat, sideMat, sideMat, frontMat, sideMat];
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w * u, h * u, d * u), mats);
+        m.position.set(x * u, y * u, z * u);
+        parent.add(m);
+        return m;
+      };
+      // Head, 3D protruding nose, torso chest, and pedestal base
+      mkPart(g, 6.0, 7.0, 4.0, 0, 3.0, 0, pm.headCleanMat);
+      mkPart(g, 2.0, 4.6, 1.6, 0, 1.35, 2.5, pm.noseMat, pm.noseMat);
+      mkPart(g, 6.0, 3.2, 3.2, 0, -2.0, -0.1, pm.chestMat);
+      mkPart(g, 4.0, 3.0, 2.6, 0, -5.0, -0.15, pm.baseMat);
+      // Left angled stepped wing
+      const wingL = new THREE.Group();
+      wingL.position.set(-2.9 * u, 0.7 * u, -0.15 * u);
+      wingL.rotation.z = -0.12;
+      mkPart(wingL, 4.0, 2.1, 1.6, -2.0, 0.9, 0, pm.wingUpL);
+      mkPart(wingL, 2.6, 2.9, 1.5, -1.3, -1.55, 0, pm.wingLoMat);
+      g.add(wingL);
+      // Right angled stepped wing
+      const wingR = new THREE.Group();
+      wingR.position.set(2.9 * u, 0.7 * u, -0.15 * u);
+      wingR.rotation.z = 0.12;
+      mkPart(wingR, 4.0, 2.1, 1.6, 2.0, 0.9, 0, pm.wingUpR);
+      mkPart(wingR, 2.6, 2.9, 1.5, 1.3, -1.55, 0, pm.wingLoMat);
+      g.add(wingR);
+
+      g.rotation.order = 'YXZ';
+      g.position.set(0.0, 0.02, -0.04);
+      g.rotation.set(0.10, -0.42, 0.06);
       g.userData.iconReady = true;
       return g;
     }
@@ -3080,7 +3192,8 @@
       const m = (offId === B.SHIELD) ? build3DShieldMesh(false) : buildUnified3DItemMesh(offId);
       if (offId === B.SHIELD) { m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.userData.iconReady = true; }
       else if (offId === B.TORCH_BLOCK) { m.position.set(0.04, 0.02, -0.05); m.rotation.set(0.14, 0.35, -0.10); }
-      else if (offId === B.LANTERN) { m.position.set(0.03, -0.01, -0.04); m.rotation.set(0.08, 0.45, -0.03); }
+      else if (offId === B.LANTERN || offId === B.SOUL_LANTERN) { m.position.set(0.03, -0.01, -0.04); m.rotation.set(0.08, 0.45, -0.03); }
+      else if (offId === B.TOTEM_UNDYING) { m.rotation.order = 'YXZ'; m.position.set(0.02, 0.01, -0.04); m.rotation.set(0.10, 0.42, -0.06); }
       if (!m.userData || m.userData.iconReady !== false) offhandModelCache.set(offId, m);
       activeOffhandObj = m;
     } else {

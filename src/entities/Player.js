@@ -388,6 +388,8 @@
     if (rig.armor.shield) rig.armor.shield.visible = (eq.offhand === B.SHIELD);
     if (rig.armor.offTorch) rig.armor.offTorch.visible = (eq.offhand === B.TORCH_BLOCK);
     if (rig.armor.offLantern) rig.armor.offLantern.visible = (eq.offhand === B.LANTERN);
+    if (rig.armor.offSoulLantern) rig.armor.offSoulLantern.visible = (eq.offhand === B.SOUL_LANTERN);
+    if (rig.armor.offTotem) rig.armor.offTotem.visible = (eq.offhand === B.TOTEM_UNDYING);
   }
 
   function recalcPlayerArmor() {
@@ -865,11 +867,26 @@
     offTorch.add(otStick, otFlame);
     offTorch.visible = false;
 
-    const offLantern = makeP(0.125, -0.50, 0.18, armL);
+    const offLantern = makeP(0.125, -0.49, 0.16, armL);
     const olMesh = buildUnified3DItemMesh(B.LANTERN);
-    olMesh.position.set(0, -0.10, 0); olMesh.rotation.set(0.08, 0.35, 0); olMesh.scale.setScalar(1.18);
+    olMesh.position.set(0, -0.18, 0); olMesh.rotation.set(0, 0.18, 0); olMesh.scale.setScalar(1.18);
     offLantern.add(olMesh);
     offLantern.visible = false;
+    const offLanternPivot = olMesh.getObjectByName('lanternSwingPivot');
+
+    const offSoulLantern = makeP(0.125, -0.49, 0.16, armL);
+    const oslMesh = buildUnified3DItemMesh(B.SOUL_LANTERN);
+    oslMesh.position.set(0, -0.18, 0); oslMesh.rotation.set(0, 0.18, 0); oslMesh.scale.setScalar(1.18);
+    offSoulLantern.add(oslMesh);
+    offSoulLantern.visible = false;
+    const offSoulLanternPivot = oslMesh.getObjectByName('lanternSwingPivot');
+
+    const offTotem = makeP(0.125, -0.47, 0.16, armL);
+    const otMesh = buildUnified3DItemMesh(B.TOTEM_UNDYING);
+    otMesh.rotation.order = 'YXZ';
+    otMesh.position.set(0, 0.04, 0.04); otMesh.rotation.set(0.18, 0.22, -0.04); otMesh.scale.setScalar(1.02);
+    offTotem.add(otMesh);
+    offTotem.visible = false;
 
     const rig = {
       g, hips, torso, torsoOuter, head, headOuter, headAcc, armL, armR, handHold, legL, legR,
@@ -884,7 +901,7 @@
         legL: [0.25, -0.375, 0],
         legR: [-0.25, -0.375, 0]
       },
-      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyStateObjs, elyPhxFlag: false, elyStatePrev: -1, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern },
+      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyStateObjs, elyPhxFlag: false, elyStatePrev: -1, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern, offSoulLantern, offTotem, offLanternPivot, offSoulLanternPivot },
       animPhase: Math.random() * 6,
       moveBlend: 0, sprintBlend: 0, airBlend: 0, jumpFlip: 1
     };
@@ -893,10 +910,19 @@
     return rig;
   }
 
-  const _BOW_IDLE_POS = new THREE.Vector3(0.01, 0.01, 0.09);
-  const _BOW_AIM_POS  = new THREE.Vector3(0.02, 0.07, 0.03);
-  const _BOW_IDLE_Q   = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.22, 2.82, 'YXZ'));
-  const _BOW_AIM_Q    = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, Math.PI * 0.5 - 0.06, Math.PI * 0.75 - 0.14, 'YXZ'));
+  function _stepLanternPendulum(st, tgtX, tgtZ, dt) {
+    const cdt = Math.min(0.04, Math.max(0.001, dt || 0.016));
+    st.vx = (st.vx + (tgtX - st.rx) * 42.0 * cdt) * Math.exp(-5.2 * cdt);
+    st.vz = (st.vz + (tgtZ - st.rz) * 42.0 * cdt) * Math.exp(-5.2 * cdt);
+    st.rx = Math.max(-0.52, Math.min(0.52, st.rx + st.vx * cdt));
+    st.rz = Math.max(-0.52, Math.min(0.52, st.rz + st.vz * cdt));
+    return st;
+  }
+
+  const _BOW_IDLE_POS = new THREE.Vector3(0.10, -0.04, 0.10);
+  const _BOW_AIM_POS  = new THREE.Vector3(0.04, 0.06, 0.03);
+  const _BOW_IDLE_Q   = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.08, 0.12, 2.60, 'YXZ'));
+  const _BOW_AIM_Q    = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.28, Math.PI * 0.5 - 0.04, Math.PI * 0.75 - 0.08, 'YXZ'));
   function _applyRigBowGripPose(grip, aimT) {
     if (!grip) return;
     const t = Math.max(0, Math.min(1, aimT || 0));
@@ -913,6 +939,7 @@
     rig.heldItemKey = itemKey;
     while (rig.handHold.children.length) rig.handHold.remove(rig.handHold.children[0]);
     rig.bowGrip = null;
+    rig.heldLanternPivot = null;
     if (!bid || !BLOCK_DEF[bid]) return;
     const def = BLOCK_DEF[bid];
     const cachedRig = heldModelCache.get(itemKey);
@@ -937,9 +964,9 @@
       grip.add(clone);
       rig.handHold.add(grip);
     } else if (def.tool === 'bow') {
-      // Authentic Minecraft 3rd-person Bow Grip: idle diagonal hold (Image 2) <-> upright vertical aiming (Image 1)
+      // Authentic Minecraft 3rd-person Bow Grip: idle diagonal hold across body (Image 2) <-> upright vertical aiming (Image 3)
       const grip = new THREE.Group();
-      clone.scale.setScalar(1.24);
+      clone.scale.setScalar(1.28);
       clone.position.set(0.0, 0.0, 0.0);
       grip.add(clone);
       rig.bowGrip = grip;
@@ -973,16 +1000,23 @@
       clone.position.set(0.0, bid === B.BLAZE_ROD ? 0.08 : 0.10, 0.10);
       clone.rotation.set(bid === B.BLAZE_ROD ? 0.30 : 0.18, -Math.PI * 0.45, 0.0);
       rig.handHold.add(clone);
-    } else if (bid === B.LANTERN) {
+    } else if (bid === B.LANTERN || bid === B.SOUL_LANTERN) {
       const grip = new THREE.Group();
       grip.rotation.order = 'YXZ';
-      grip.position.set(0.0, 0.02, 0.14);
-      grip.rotation.set(0.0, -Math.PI * 0.25, 0.0);
-      clone.scale.setScalar(1.22);
-      clone.position.set(0.0, -0.18, 0.0);
+      grip.position.set(0.0, 0.02, 0.12);
+      grip.rotation.set(0.0, -0.18, 0.0);
+      clone.scale.setScalar(1.20);
+      clone.position.set(0.0, -0.19, 0.0);
       clone.rotation.set(0.0, 0.0, 0.0);
       grip.add(clone);
       rig.handHold.add(grip);
+      rig.heldLanternPivot = clone.getObjectByName('lanternSwingPivot');
+    } else if (bid === B.TOTEM_UNDYING) {
+      clone.rotation.order = 'YXZ';
+      clone.scale.setScalar(1.02);
+      clone.position.set(0.0, 0.05, 0.14);
+      clone.rotation.set(0.18, -0.22, 0.04);
+      rig.handHold.add(clone);
     } else if (def.bed) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(0.92);
@@ -1432,17 +1466,17 @@
       if (st.bowDrawing) {
         const bCh = Math.max(0.05, Math.min(1, st.bowCharge || 0.25));
         const pitchOff = Math.max(-1.05, Math.min(1.05, (st.pitch || 0) * 0.85));
-        // Authentic Minecraft 3rd-person bow aiming: right arm extended forward, left arm raised & angled inward pulling string
-        setJointEuler(_r6TargetBuf.armR, -1.52 - pitchOff, 0.0, 0.08);
+        // Both arms extended forward & slightly angled inward symmetrically while aiming/drawing bow
+        setJointEuler(_r6TargetBuf.armR, -1.52 - pitchOff, 0.0, 0.34 + bCh * 0.06);
         _r6TargetBuf.armR.p[0] = 0; _r6TargetBuf.armR.p[1] = 0; _r6TargetBuf.armR.p[2] = 0;
         if (!blocking) {
-          setJointEuler(_r6TargetBuf.armL, -1.48 - pitchOff * 0.92, 0.0, -0.58 - bCh * 0.24);
+          setJointEuler(_r6TargetBuf.armL, -1.48 - pitchOff * 0.92, 0.0, -0.58 - bCh * 0.22);
           _r6TargetBuf.armL.p[0] = 0; _r6TargetBuf.armL.p[1] = 0; _r6TargetBuf.armL.p[2] = -bCh * 0.08;
         }
         mulJointEuler(_r6TargetBuf.torso, 0, 0.06, 0);
       } else if (swing <= 0.01) {
-        // Authentic Minecraft 3rd-person idle bow hold: natural relaxed arms, subtle right-hand hold tilt only
-        mulJointEuler(_r6TargetBuf.armR, -0.20, 0.0, 0.04);
+        // Natural relaxed right-arm idle pose matching blue-hoodie bow idle reference
+        mulJointEuler(_r6TargetBuf.armR, -0.12, 0.0, 0.02);
       }
     }
     const bT = Math.max(0, Math.min(1, st.shieldRaiseT !== undefined ? st.shieldRaiseT : (blocking ? 1 : 0)));
@@ -1610,6 +1644,25 @@
       obj.position.lerp(_r6V1, damp);
       _r6Q1.set(jt.q[0], jt.q[1], jt.q[2], jt.q[3]);
       obj.quaternion.slerp(_r6Q1, damp);
+    }
+    if (rig.heldLanternPivot) {
+      if (!rig._r3MainLSw) rig._r3MainLSw = { rx: 0, rz: 0, vx: 0, vz: 0 };
+      _r6Eul.setFromQuaternion(rig.armR.quaternion, 'XYZ');
+      const tgtX = -_r6Eul.x * 0.72 + Math.min(0.32, speed * 0.052) + Math.sin(tNow * 2.15) * 0.06 + Math.sin(rig.animPhase) * mB * 0.14;
+      const tgtZ = -_r6Eul.z * 0.65 + Math.cos(tNow * 1.72) * 0.05 + strafe * 0.14;
+      const s = _stepLanternPendulum(rig._r3MainLSw, tgtX, tgtZ, dtClamped);
+      rig.heldLanternPivot.rotation.set(s.rx, 0, s.rz);
+    }
+    const offPiv = (rig.armor.offLantern && rig.armor.offLantern.visible)
+      ? rig.armor.offLanternPivot
+      : ((rig.armor.offSoulLantern && rig.armor.offSoulLantern.visible) ? rig.armor.offSoulLanternPivot : null);
+    if (offPiv) {
+      if (!rig._r3OffLSw) rig._r3OffLSw = { rx: 0, rz: 0, vx: 0, vz: 0 };
+      _r6Eul.setFromQuaternion(rig.armL.quaternion, 'XYZ');
+      const tgtX = -_r6Eul.x * 0.72 + Math.min(0.32, speed * 0.052) + Math.sin(tNow * 2.15 + 1.1) * 0.06 - Math.sin(rig.animPhase) * mB * 0.14;
+      const tgtZ = -_r6Eul.z * 0.65 + Math.cos(tNow * 1.72 + 0.9) * 0.05 + strafe * 0.14;
+      const s = _stepLanternPendulum(rig._r3OffLSw, tgtX, tgtZ, dtClamped);
+      offPiv.rotation.set(s.rx, 0, s.rz);
     }
   }
 
@@ -5881,6 +5934,16 @@
         swRy + spRy + eqRy + swayX * 2.1 - lagX * 2.2 + eatRy + idleRy,
         swRz + spRz + eqRz + swayX * 1.4 - lagX * 0.9 + swimStrokeRz + idleRz
       );
+      if (heldSel && (heldSel.id === B.LANTERN || heldSel.id === B.SOUL_LANTERN) && typeof activeHeldObj !== 'undefined' && activeHeldObj) {
+        const lPiv = activeHeldObj.getObjectByName('lanternSwingPivot');
+        if (lPiv) {
+          if (!player._fpMainLanternSw) player._fpMainLanternSw = { rx: 0, rz: 0, vx: 0, vz: 0 };
+          const tgtX = Math.sin(elapsed * 2.25) * 0.055 + moveOn * (0.10 + fpSp * 0.14) + lagY * 2.6 + airDip * 2.2 - (player.landSquash || 0) * 0.45 - swRx * 0.32;
+          const tgtZ = Math.cos(elapsed * 1.80) * 0.045 + moveOn * Math.sin(player.walkBob * 0.5) * (0.14 + fpSp * 0.14) - lagX * 3.8 + swRz * 0.32;
+          const s = _stepLanternPendulum(player._fpMainLanternSw, tgtX, tgtZ, dt);
+          lPiv.rotation.set(s.rx, 0, s.rz);
+        }
+      }
     }
     if (offhandPivot) {
       if (thirdPerson > 0 || hudHidden) offhandPivot.visible = false;
@@ -5913,6 +5976,16 @@
           -swayX * 1.4 - lagX * 1.3,
           -swayX * 0.9 - lagX * 0.6
         );
+        if ((player.equip.offhand === B.LANTERN || player.equip.offhand === B.SOUL_LANTERN) && typeof activeOffhandObj !== 'undefined' && activeOffhandObj) {
+          const oPiv = activeOffhandObj.getObjectByName('lanternSwingPivot');
+          if (oPiv) {
+            if (!player._fpOffLanternSw) player._fpOffLanternSw = { rx: 0, rz: 0, vx: 0, vz: 0 };
+            const tgtX = Math.sin(elapsed * 2.25 + 1.0) * 0.055 + moveOn * (0.10 + fpSp * 0.14) + lagY * 2.6 + airDip * 2.2 - (player.landSquash || 0) * 0.45;
+            const tgtZ = Math.cos(elapsed * 1.80 + 0.8) * 0.045 - moveOn * Math.sin(player.walkBob * 0.5) * (0.14 + fpSp * 0.14) - lagX * 3.8;
+            const s = _stepLanternPendulum(player._fpOffLanternSw, tgtX, tgtZ, dt);
+            oPiv.rotation.set(s.rx, 0, s.rz);
+          }
+        }
       }
       }
     }

@@ -1822,6 +1822,7 @@
     const ceilSolid = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz)] === 1;
     const isSoul = (id === B.SOUL_LANTERN);
     const yBase = ceilSolid ? 0.14 : 0.0;
+    const hangOff = ceilSolid ? 10.0 : 0.0;
     const addLBox = (y0, y1, hw, tileIdx, eKind) => {
       const tu0 = TILE_U0[tileIdx], tu1 = TILE_U1[tileIdx], tv0 = TILE_V0[tileIdx], tv1 = TILE_V1[tileIdx];
       const cxL = wx + 0.5, czL = wz + 0.5, by0 = wy + y0, by1 = wy + y1;
@@ -1840,10 +1841,10 @@
         eIndices.push(st.eCount, st.eCount+1, st.eCount+2, st.eCount, st.eCount+2, st.eCount+3); st.eCount += 4;
       }
     };
-    addLBox(yBase, yBase + 0.06, 0.21, 22, 2.0);
-    addLBox(yBase + 0.06, yBase + 0.44, 0.18, isSoul ? 470 : 32, isSoul ? 1.0 : 0.0);
-    addLBox(yBase + 0.44, yBase + 0.51, 0.21, 22, 2.0);
-    addLBox(yBase + 0.51, yBase + 0.58, 0.12, 22, 2.0);
+    addLBox(yBase, yBase + 0.06, 0.21, 22, 2.0 + hangOff);
+    addLBox(yBase + 0.06, yBase + 0.44, 0.18, isSoul ? 470 : 32, (isSoul ? 1.0 : 0.0) + hangOff);
+    addLBox(yBase + 0.44, yBase + 0.51, 0.21, 22, 2.0 + hangOff);
+    addLBox(yBase + 0.51, yBase + 0.58, 0.12, 22, 2.0 + hangOff);
     if (ceilSolid) addLBox(yBase + 0.58, 1.00, 0.045, 22, 2.0);
   }
 

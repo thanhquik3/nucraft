@@ -1109,7 +1109,7 @@
       renderHotbar();
       showToast('✋ Đã cất vật phẩm tay trái vào túi!');
     } else {
-      showToast('💡 Hãy cầm Đuốc, Đèn Lồng hoặc Khiên rồi bấm để chuyển sang tay trái!');
+      showToast('💡 Hãy cầm Đuốc, Đèn Lồng, Totem hoặc Khiên rồi bấm để chuyển sang tay trái!');
     }
   }
 
@@ -2264,6 +2264,50 @@
         drawBlockPreview[cacheKey] = lcv;
       }
       c2d.drawImage(drawBlockPreview[cacheKey], 0, 0, 32, 32, 0, 0, W, H);
+      return;
+    }
+
+    // 0d) Sculpted Golden Totem of Undying Icon matching 1st-Person, Offhand & 3rd-Person 3D Model 1:1!
+    if (blockId === B.TOTEM_UNDYING) {
+      if (!drawBlockPreview._totemIcon) {
+        const tcv = document.createElement('canvas'); tcv.width = 32; tcv.height = 32;
+        const tc = tcv.getContext('2d');
+        tc.imageSmoothingEnabled = false;
+        const px = (x, y, w, h, col) => { tc.fillStyle = col; tc.fillRect(x, y, w, h); };
+        // Bright pale-gold outer rim matching Image 1
+        px(9, 2, 14, 15, '#ffef9c');
+        px(1, 9, 9, 5, '#ffef9c'); px(3, 14, 7, 6, '#ffef9c');
+        px(22, 9, 9, 5, '#ffef9c'); px(22, 14, 7, 6, '#ffef9c');
+        px(9, 17, 14, 6, '#ffef9c');
+        px(11, 23, 10, 7, '#ffef9c');
+        // Head block (x=10..21, y=3..15)
+        px(10, 3, 12, 13, '#f8c64b');
+        px(10, 3, 2, 2, '#df9b2e'); px(20, 3, 2, 2, '#df9b2e'); // ear corners
+        px(14, 3, 4, 2, '#fff098'); // top crown highlight
+        px(11, 5, 10, 2, '#d58a22'); // illager brow
+        px(10, 12, 3, 3, '#ebb03c'); px(19, 12, 3, 3, '#ebb03c'); // cheek shading
+        px(11, 14, 3, 2, '#fff098'); px(18, 13, 3, 2, '#df972b');
+        // Left & Right 2x2 eyes (white top-left + emerald green!)
+        px(10, 7, 2, 2, '#ffffff'); px(12, 7, 2, 2, '#00d252');
+        px(10, 9, 2, 2, '#00c44b'); px(12, 9, 2, 2, '#008a36');
+        px(18, 7, 2, 2, '#ffffff'); px(20, 7, 2, 2, '#00d252');
+        px(18, 9, 2, 2, '#00c44b'); px(20, 9, 2, 2, '#008a36');
+        // Left stepped tilted wing (x=2..9)
+        px(2, 10, 8, 3, '#f8c64b'); px(4, 10, 4, 1, '#ffe980'); px(3, 11, 2, 1, '#dc9128');
+        px(4, 13, 6, 6, '#f8c64b'); px(4, 13, 6, 1, '#e09a2d'); px(4, 15, 6, 1, '#fff098'); px(4, 17, 6, 2, '#ebb03c');
+        // Right stepped tilted wing (x=22..29)
+        px(22, 10, 8, 3, '#f8c64b'); px(24, 10, 4, 1, '#ffe980'); px(27, 11, 2, 1, '#dc9128');
+        px(22, 13, 6, 6, '#f8c64b'); px(22, 13, 6, 1, '#e09a2d'); px(22, 15, 6, 1, '#fff098'); px(22, 17, 6, 2, '#ebb03c');
+        // Torso chest (x=10..21, y=16..22) + protruding villager nose (x=14..17, y=9..18)
+        px(10, 16, 12, 6, '#f8c64b');
+        px(10, 16, 4, 3, '#fff098'); px(18, 17, 4, 4, '#e19b2e'); px(11, 20, 10, 2, '#d68c22');
+        px(14, 9, 2, 9, '#ffeb84'); px(16, 9, 2, 9, '#f0b63e'); px(15, 17, 3, 2, '#df972b');
+        // Narrower pedestal base (x=12..19, y=23..28)
+        px(12, 23, 8, 6, '#f8c64b');
+        px(13, 24, 6, 4, '#df972b'); px(14, 24, 4, 2, '#d38820');
+        drawBlockPreview._totemIcon = tcv;
+      }
+      c2d.drawImage(drawBlockPreview._totemIcon, 0, 0, 32, 32, 0, 0, W, H);
       return;
     }
 

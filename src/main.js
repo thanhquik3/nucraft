@@ -617,10 +617,11 @@
     const activeGlowId = ((heldDef && heldDef.emissive) || heldId === B.FIRE_SWORD) ? heldId : ((offDef && offDef.emissive) ? offId : 0);
     torchLight.position.set(player.x, player.y + 1.35, player.z);
     if (activeGlowId) {
-      const hCol = (activeGlowId === B.SEA_LANTERN || activeGlowId === B.GLOW_CRYSTAL || activeGlowId === B.ELEVATOR_BLOCK) ? 0x67e8f9
+      const hCol = (activeGlowId === B.SOUL_LANTERN || activeGlowId === B.SOUL_FIRE) ? 0x22d3ee
+        : ((activeGlowId === B.SEA_LANTERN || activeGlowId === B.GLOW_CRYSTAL || activeGlowId === B.ELEVATOR_BLOCK) ? 0x67e8f9
         : (activeGlowId === B.MUSHROOM_GLOW ? 0x2dd4bf
         : (activeGlowId === B.END_CRYSTAL_BLOCK ? 0xe879f9
-        : (activeGlowId === B.FIRE_SWORD || activeGlowId === B.CAMPFIRE || activeGlowId === B.LAVA ? 0xff7b2e : 0xffb347)));
+        : (activeGlowId === B.FIRE_SWORD || activeGlowId === B.CAMPFIRE || activeGlowId === B.LAVA ? 0xff7b2e : 0xffb347))));
       torchLight.color.setHex(hCol);
       torchLight.intensity = (player.eyesInWater ? 0.72 : 0.62) + Math.sin(elapsed * 10) * 0.04;
     } else if (!player.eyesInWater && (player.y < -6 || depthOffset > 0)) {
