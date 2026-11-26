@@ -258,30 +258,34 @@
       stageW = vw; stageH = vh;
     }
     renderer.setSize(stageW, stageH, false);
-    if (!_useDirectRender()) {
+    const direct = _useDirectRender();
+    renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    if (!direct) {
       const needWide = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
       const fgMode = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1) ? (sodiumOpts.frameGen | 0) : 1;
       const needFg = (fgMode > 1);
       ensurePostRTs(needWide, needFg);
       const pr = renderer.getPixelRatio();
       const rtW = Math.max(128, Math.round(stageW * pr)), rtH = Math.max(128, Math.round(stageH * pr));
-      const fgScale = (fgMode >= 4) ? 0.66 : (fgMode >= 2 ? 0.76 : 1.0);
+      const fgScale = (fgMode >= 4) ? 0.60 : (fgMode >= 2 ? 0.72 : 1.0);
       const scW = Math.max(128, Math.round(rtW * fgScale)), scH = Math.max(128, Math.round(rtH * fgScale));
       sceneRT.setSize(scW, scH);
       if (needFg && typeof fgRtA !== 'undefined' && fgRtA && fgRtB) {
-        fgRtA.setSize(rtW, rtH); fgRtB.setSize(rtW, rtH);
+        fgRtA.setSize(scW, scH); fgRtB.setSize(scW, scH);
       }
       if (typeof fgBlendMat !== 'undefined' && fgBlendMat.uniforms && fgBlendMat.uniforms.uTexel) {
-        fgBlendMat.uniforms.uTexel.value.set(1 / rtW, 1 / rtH);
+        fgBlendMat.uniforms.uTexel.value.set(1 / scW, 1 / scH);
       }
       envUniforms.uTexelSize.value.set(1 / scW, 1 / scH);
-      const bDiv = (_isMobilePerf && !needWide) ? 6 : 4;
-      const bW = Math.max(48, Math.round(scW / bDiv)), bH = Math.max(48, Math.round(scH / bDiv));
-      bloomRT1.setSize(bW, bH); bloomRT2.setSize(bW, bH);
-      godRayRT1.setSize(bW, bH); godRayRT2.setSize(bW, bH);
-      if (needWide && bloomWide1) {
-        const wW = Math.max(40, scW >> 3), wH = Math.max(40, scH >> 3);
-        bloomWide1.setSize(wW, wH); bloomWide2.setSize(wW, wH);
+      if (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing)) {
+        const bDiv = (_isMobilePerf && !needWide) ? 6 : 4;
+        const bW = Math.max(48, Math.round(scW / bDiv)), bH = Math.max(48, Math.round(scH / bDiv));
+        bloomRT1.setSize(bW, bH); bloomRT2.setSize(bW, bH);
+        godRayRT1.setSize(bW, bH); godRayRT2.setSize(bW, bH);
+        if (needWide && bloomWide1) {
+          const wW = Math.max(40, scW >> 3), wH = Math.max(40, scH >> 3);
+          bloomWide1.setSize(wW, wH); bloomWide2.setSize(wW, wH);
+        }
       }
     }
     camera.aspect = stageW / stageH; camera.updateProjectionMatrix();

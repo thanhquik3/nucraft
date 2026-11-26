@@ -5611,7 +5611,7 @@
         for (let i = 0; i < fluidQueue.length; i++) fluidQueuedSet.add(modKey(fluidQueue[i].x, fluidQueue[i].y, fluidQueue[i].z));
 
         const _shiftChunkMeshesY = (ch, dy) => {
-          const ms = [ch.mesh, ch.leavesMesh, ch.emissiveMesh, ch.waterMesh, ch.lavaMesh, ch.plantMesh, ch.portalMesh, ch.towerMesh];
+          const ms = [ch.mesh, ch.leavesMesh, ch.leavesCrossMesh, ch.emissiveMesh, ch.waterMesh, ch.lavaMesh, ch.plantMesh, ch.portalMesh, ch.towerMesh];
           for (let i = 0; i < ms.length; i++) {
             const m = ms[i];
             if (m) { m.position.y += dy; m.updateMatrix(); m.updateMatrixWorld(true); }

@@ -1547,14 +1547,29 @@
     ];
     const drawFancyLeaf = (idx, pal, mask = BOTANICAL_LEAF_MASK) => {
       const tx = (idx % ATLAS_COLS) * TILE_PX, ty = Math.floor(idx / ATLAS_COLS) * TILE_PX;
-      const tierTone = { H: 10, M: 1, S: -8, D: -18 };
+      const parseHex = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+      const mRgb = parseHex(pal.M);
+      const mixM = (hex, k, lift) => {
+        const c = parseHex(hex);
+        return [
+          Math.max(0, Math.min(255, Math.round(c[0] + (mRgb[0] - c[0]) * k + lift))),
+          Math.max(0, Math.min(255, Math.round(c[1] + (mRgb[1] - c[1]) * k + lift))),
+          Math.max(0, Math.min(255, Math.round(c[2] + (mRgb[2] - c[2]) * k + lift)))
+        ];
+      };
+      const softPal = {
+        H: mixM(pal.H || pal.M, 0.28, 3),
+        M: mRgb,
+        S: mixM(pal.S || pal.M, 0.34, 2),
+        D: mixM(pal.D || pal.M, 0.50, 4)
+      };
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const ch = mask[y][x];
         if (ch === '.') continue;
         const h = ((x * 374761393 + y * 668265263 + idx * 1442695041) ^ (x * 1274126177)) >>> 0;
-        const rimDark = (x === 0 || x === 15 || y === 15) ? -7 : (y === 0 ? 5 : 0);
-        const jitter = ((h % 1000) / 1000 - 0.5) * 10 + (tierTone[ch] || 0) + rimDark;
-        ctx.fillStyle = shade(pal[ch] || pal.M, jitter);
+        const jitter = ((h % 1000) / 1000 - 0.5) * 5;
+        const rgb = softPal[ch] || mRgb;
+        ctx.fillStyle = `rgb(${Math.max(0, Math.min(255, Math.round(rgb[0] + jitter)))},${Math.max(0, Math.min(255, Math.round(rgb[1] + jitter)))},${Math.max(0, Math.min(255, Math.round(rgb[2] + jitter)))})`;
         ctx.fillRect(tx + x, ty + y, 1, 1);
       }
     };
@@ -1600,7 +1615,7 @@
       // Authentic Minecraft Cherry Bark: deep purplish-mahogany bark with soft rose-brown horizontal lenticels
       const isLenticel = ((y === 2 && x >= 3 && x <= 7) || (y === 6 && x >= 10 && x <= 14) || (y === 10 && x >= 2 && x <= 6) || (y === 14 && x >= 8 && x <= 12));
       if (isLenticel) return shade(y === 6 || y === 14 ? '#a16278' : '#7d475b', (r - 0.5) * 6);
-      return barkColor(x, y, r, { c: '#482433', a: '#351824', b: '#29111b', d: '#1e0b13' });
+      return barkColor(x, y, r, { c: '#5e3546', a: '#4b2837', b: '#3c1f2c', d: '#2e1621' });
     });
     drawFancyLeaf(15, { H: '#ffd4ec', M: '#ff96ca', S: '#f262a6', D: '#d14388' }, SAKURA_LEAF_MASK);
     tilePixels(16, (x, y, r) => {

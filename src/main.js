@@ -69,7 +69,7 @@
     if (preset.reflW > 0 && preset.reflH > 0 && (reflRT.width !== preset.reflW || reflRT.height !== preset.reflH)) {
       reflRT.setSize(preset.reflW, preset.reflH);
     }
-    renderer.shadowMap.type = (effUltra && !_initMobile) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.type = (effUltra && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
     _lastShCx = 999999; _lastShCz = 999999; _lastShQual = '';
     _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
@@ -80,7 +80,7 @@
       if (leavesMatLow.map !== sTex) { leavesMatLow.map = sTex; leavesMatLow.needsUpdate = true; }
     }
     terrainMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
-    leavesMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.042 : 0.030) : 0.0);
+    leavesMat.bumpScale = 0.0;
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.96 : 0.74;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(val)));
@@ -92,6 +92,12 @@
     resizeViewport();
   }
 
+  function getPresetSharpness(preset) {
+    const sharpOn = (typeof sodiumOpts === 'undefined' || sodiumOpts.sharpness !== false);
+    if (!sharpOn) return 0.0;
+    return preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : 0.19));
+  }
+
   function applyShaderPreset(preset, persist = false) {
     shaderPreset = preset;
     document.querySelectorAll('#presetSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
@@ -100,8 +106,7 @@
     if (envUniforms.uChillMode) envUniforms.uChillMode.value = (preset === 'chill_sunset') ? 1.0 : 0.0;
     if (envUniforms.uDlssMode) envUniforms.uDlssMode.value = (preset === 'dlss_ultra') ? 1.0 : 0.0;
     if (envUniforms.uEclipseMode) envUniforms.uEclipseMode.value = (preset === 'eclipse') ? 1.0 : 0.0;
-    const sharpOn = (typeof sodiumOpts === 'undefined' || sodiumOpts.sharpness !== false);
-    if (envUniforms.uSharpness) envUniforms.uSharpness.value = !sharpOn ? 0.0 : (preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : 0.19)));
+    if (envUniforms.uSharpness) envUniforms.uSharpness.value = getPresetSharpness(preset);
     if (preset === 'bsl') {
       envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.02; envUniforms.uWarmth.value = 0.07; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.46;
     } else if (preset === 'bliss') {
@@ -1209,11 +1214,13 @@
       const effShRange = preset.shadowChunkRange > 0 ? preset.shadowChunkRange : (_rtShOn ? 32 : 0);
       const maxChDist = effShRange > 0 ? Math.max(1, Math.ceil(effShRange / CHUNK_W)) : -1;
       const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtShOn);
+      const leafShDist = Math.min(maxChDist, 2);
       for (const ch of chunks.values()) {
-        const near = maxChDist >= 0 && Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz)) <= maxChDist;
+        const dCh = Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz));
+        const near = maxChDist >= 0 && dCh <= maxChDist;
         if (ch.mesh && ch.mesh.castShadow !== near) ch.mesh.castShadow = near;
         if (ch.leavesMesh) {
-          const leafSh = allowLeafSh && near;
+          const leafSh = allowLeafSh && leafShDist >= 0 && dCh <= leafShDist;
           if (ch.leavesMesh.castShadow !== leafSh) ch.leavesMesh.castShadow = leafSh;
         }
       }
@@ -1233,17 +1240,18 @@
     _reflAcc += (rawDt || 0.016);
     const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
     const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.25 : 1.0;
-    const reflInterval = inLobby ? 0.032 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult;
+    const fgModeR = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
+    const reflInterval = (inLobby ? 0.032 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult) * (fgModeR > 1 ? 1.45 : 1.0);
     const fastTurn = !_reflDoneOnce ||
       Math.abs(camera.rotation.y - _lastReflYaw) > 0.045 ||
       Math.abs(camera.rotation.x - _lastReflPitch) > 0.045;
-    const gentleTurn = Math.abs(camera.rotation.y - _lastReflYaw) > 0.004 ||
-      Math.abs(camera.rotation.x - _lastReflPitch) > 0.004;
+    const gentleTurn = Math.abs(camera.rotation.y - _lastReflYaw) > 0.015 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.015;
     const camStatic = _reflDoneOnce && !fastTurn && !gentleTurn &&
       Math.abs(camera.position.x - _lastReflX) < 0.04 &&
       Math.abs(camera.position.y - _lastReflY) < 0.04 &&
       Math.abs(camera.position.z - _lastReflZ) < 0.04;
-    const targetReflDt = camStatic ? Math.max(reflInterval, 0.11) : (gentleTurn ? Math.min(reflInterval, 0.026) : reflInterval);
+    const targetReflDt = camStatic ? Math.max(reflInterval, 0.16) : (gentleTurn ? Math.max(reflInterval, 0.048) : reflInterval);
     if (_reflDoneOnce && !fastTurn && (_reflAcc < targetReflDt || (window._chunkBuiltThisFrame && _reflAcc < reflInterval * 2.0))) return;
     _reflAcc = 0;
     _reflDoneOnce = true;
@@ -1295,6 +1303,7 @@
       if (ch.waterMesh && ch.waterMesh.visible) { ch.waterMesh.visible = false; _reflHiddenChunks.push(ch.waterMesh); }
       if (ch.plantMesh && ch.plantMesh.visible) { ch.plantMesh.visible = false; _reflHiddenChunks.push(ch.plantMesh); }
       if (ch.lavaMesh && ch.lavaMesh.visible) { ch.lavaMesh.visible = false; _reflHiddenChunks.push(ch.lavaMesh); }
+      if (ch.leavesCrossMesh && ch.leavesCrossMesh.visible) { ch.leavesCrossMesh.visible = false; _reflHiddenChunks.push(ch.leavesCrossMesh); }
       const dcx = ch.cx - pcx, dcz = ch.cz - pcz;
       if (dcx * dcx + dcz * dcz > reflMaxChunkDistSq) {
         if (ch.mesh && ch.mesh.visible) { ch.mesh.visible = false; _reflHiddenChunks.push(ch.mesh); }
@@ -1353,24 +1362,23 @@
     if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = wasPortalMoteVis;
   }
 
-  let _fgPrimed = false, _fgSubIdx = 0, _fgNatYaw = 0, _fgNatPitch = 0, _fgNatX = 0, _fgNatY = 0, _fgNatZ = 0, _fgNatFov = 72;
+  let _fgPrimed = false, _fgSubIdx = 0, _fgNativeReady = 0, _fgMobDtAcc = 0, _fgNatYaw = 0, _fgNatPitch = 0, _fgNatX = 0, _fgNatY = 0, _fgNatZ = 0, _fgNatFov = 72;
   let _fgStatNative = 0, _fgStatSynth = 0;
-  window._fgReset = () => { _fgPrimed = false; _fgSubIdx = 0; };
+  window._fgReset = () => { _fgPrimed = false; _fgSubIdx = 0; _fgNativeReady = 0; window._fgForceNative = true; };
   function _wrapAng(a) {
     while (a > Math.PI) a -= Math.PI * 2;
     while (a < -Math.PI) a += Math.PI * 2;
     return a;
   }
   function _shouldRunAiSynthFrame(fgMode, worldSimActive) {
-    if (fgMode <= 1 || !worldSimActive || _useDirectRender() || !_fgPrimed || !fgRtA || !fgRtB || typeof fgBlendMat === 'undefined') return false;
-    const maxSynth = (fgMode >= 4) ? 2 : 1;
+    if (fgMode <= 1 || !worldSimActive || _useDirectRender() || !_fgPrimed || window._fgForceNative || !fgRtA || !fgRtB || typeof fgBlendMat === 'undefined') return false;
+    const maxSynth = (fgMode >= 4) ? 3 : 1;
     if (_fgSubIdx >= maxSynth) return false;
     const dYaw = Math.abs(_wrapAng(camera.rotation.y - _fgNatYaw));
     const dPitch = Math.abs(camera.rotation.x - _fgNatPitch);
-    if (dYaw + dPitch > 0.14) return false;
-    if (Math.hypot(camera.position.x - _fgNatX, camera.position.y - _fgNatY, camera.position.z - _fgNatZ) > 0.65) return false;
-    if (Math.abs((camera.fov || 72) - _fgNatFov) > 1.2) return false;
-    if ((typeof player !== 'undefined' && player && ((player.swingT || 0) > 0.01 || player.bowDrawing)) || window._chunkBuiltThisFrame) return false;
+    if (dYaw + dPitch > 0.36) return false;
+    if (Math.hypot(camera.position.x - _fgNatX, camera.position.y - _fgNatY, camera.position.z - _fgNatZ) > 1.8) return false;
+    if (Math.abs((camera.fov || 72) - _fgNatFov) > 2.0) return false;
     return true;
   }
   function renderMainScene(rawDt = 0.016, isAiSynth = false) {
@@ -1387,9 +1395,9 @@
           - (camera.position.z - _fgNatZ) * Math.cos(camera.rotation.y) * cp;
         const vFovRad = (camera.fov || 72) * Math.PI / 180;
         const hFovRad = 2 * Math.atan(Math.tan(vFovRad * 0.5) * (camera.aspect || 1.777));
-        const uOff = Math.max(-0.08, Math.min(0.08, -dYaw / Math.max(0.35, hFovRad)));
-        const vOff = Math.max(-0.08, Math.min(0.08, dPitch / Math.max(0.35, vFovRad)));
-        const zoomOff = Math.max(-0.025, Math.min(0.025, -dFwd * 0.028));
+        const uOff = Math.max(-0.12, Math.min(0.12, -dYaw / Math.max(0.35, hFovRad)));
+        const vOff = Math.max(-0.12, Math.min(0.12, dPitch / Math.max(0.35, vFovRad)));
+        const zoomOff = Math.max(-0.035, Math.min(0.035, -dFwd * 0.028));
         const curTex = (fgPing ? fgRtA : fgRtB).texture;
         const prvTex = (fgPing ? fgRtB : fgRtA).texture;
         postQuad.material = fgBlendMat;
@@ -1398,14 +1406,15 @@
         fgBlendMat.uniforms.uReprojUV.value.set(uOff, vOff);
         fgBlendMat.uniforms.uZoom.value = zoomOff;
         fgBlendMat.uniforms.uIsSynth.value = 1.0;
-        fgBlendMat.uniforms.uFlowAmt.value = fgMode >= 4 ? 0.85 : 0.65;
-        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.52 : 0.44;
+        fgBlendMat.uniforms.uFlowAmt.value = (_fgNativeReady >= 2) ? (fgMode >= 4 ? 0.65 : 0.55) : 0.0;
+        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.42 : 0.36;
         renderer.setRenderTarget(null);
         renderer.render(postScene, postCam);
         _fgSubIdx++; _fgStatSynth++;
-        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.66 : 0.76 };
+        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.60 : 0.72, fps: window._nucraftFps || 60, cpuMs: +(window._nucraftCpuMs || 0).toFixed(2) };
         return;
       }
+      window._fgForceNative = false;
       renderer.setRenderTarget(sceneRT);
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
@@ -1413,7 +1422,8 @@
 
       _postFxAcc += (rawDt || 0.016);
       const _fxP = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { fxIntervalMs: 45 };
-      const fxInterval = ((_fxP.fxIntervalMs || 45) / 1000) * (_fpsSlow ? 1.35 : 1.0);
+      const fgFxScale = fgMode >= 4 ? 1.8 : (fgMode >= 2 ? 1.45 : 1.0);
+      const fxInterval = ((_fxP.fxIntervalMs || 45) / 1000) * (_fpsSlow ? 1.35 : 1.0) * fgFxScale;
       const camFxTurned = (Math.abs(camera.rotation.y - (renderMainScene._ly || 0)) > 0.075 || Math.abs(camera.rotation.x - (renderMainScene._lp || 0)) > 0.075);
       const runPostFx = _postFxDirty || camFxTurned || (_postFxAcc >= fxInterval);
       if (runPostFx) {
@@ -1423,8 +1433,9 @@
         renderMainScene._lp = camera.rotation.x;
       }
 
-      // Pass 1: Occlusion-Aware Volumetric Crepuscular God-Rays — skip all 3 GPU passes when shaft is off or between high-Hz intervals!
-      const runRays = (envUniforms.uShaftStrength.value > 0.005);
+      // Pass 1: Occlusion-Aware Volumetric Crepuscular God-Rays — skip all 3 GPU passes when shaft is off, Low quality, or between intervals!
+      const enablePostBloom = (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing));
+      const runRays = enablePostBloom && (envUniforms.uShaftStrength.value > 0.005);
       envUniforms.uHasGodRays.value = runRays ? 1.0 : 0.0;
       if (runRays && runPostFx) {
         postQuad.material = godRayMat;
@@ -1445,7 +1456,7 @@
       }
 
       // Pass 2: Tight Atmospheric Bloom (1/4 Res — updated cleanly every fxInterval to keep 240Hz lock!)
-      if (runPostFx) {
+      if (enablePostBloom && runPostFx) {
         postQuad.material = brightMat;
         brightMat.uniforms.tDiffuse.value = sceneRT.texture;
         renderer.setRenderTarget(bloomRT1);
@@ -1494,17 +1505,17 @@
         fgBlendMat.uniforms.uZoom.value = 0.0;
         fgBlendMat.uniforms.uIsSynth.value = 0.0;
         fgBlendMat.uniforms.uFlowAmt.value = 0.0;
-        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.52 : 0.44;
+        fgBlendMat.uniforms.uAiSharp.value = fgMode >= 4 ? 0.42 : 0.36;
         renderer.setRenderTarget(null);
         renderer.render(postScene, postCam);
-        fgPing ^= 1; _fgPrimed = true; _fgSubIdx = 0; _fgStatNative++;
+        fgPing ^= 1; _fgPrimed = true; _fgSubIdx = 0; _fgNativeReady++; _fgStatNative++;
         _fgNatYaw = camera.rotation.y; _fgNatPitch = camera.rotation.x;
         _fgNatX = camera.position.x; _fgNatY = camera.position.y; _fgNatZ = camera.position.z;
         _fgNatFov = camera.fov || 72;
-        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.66 : 0.76 };
+        window._fgStats = { mode: fgMode, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: fgMode >= 4 ? 0.60 : 0.72, fps: window._nucraftFps || 60, cpuMs: +(window._nucraftCpuMs || 0).toFixed(2) };
       } else {
-        _fgPrimed = false; _fgSubIdx = 0;
-        window._fgStats = { mode: 1, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: 1.0 };
+        _fgPrimed = false; _fgSubIdx = 0; _fgNativeReady = 0;
+        window._fgStats = { mode: 1, nativeFrames: _fgStatNative, synthFrames: _fgStatSynth, internalScale: 1.0, fps: window._nucraftFps || 60, cpuMs: +(window._nucraftCpuMs || 0).toFixed(2) };
         renderer.setRenderTarget(null);
         renderer.render(postScene, postCam);
       }
@@ -1590,17 +1601,19 @@
     }
 
     lastFrame = now;
+    const fgModeNow = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
+    const _runAiSynth = !worldPaused && _shouldRunAiSynthFrame(fgModeNow, worldSimActive);
     if (!worldPaused) {
       elapsed += dt;
       if (typeof sodiumOpts === 'undefined' || sodiumOpts.animations !== false) envUniforms.uTime.value = elapsed;
       if (envUniforms.uPlayerPos) envUniforms.uPlayerPos.value.set(player.x, player.y, player.z);
-      if (currentDimension === 'sift') tickDreamRainbow(elapsed);
-      if ((frameCounter & 7) === 0 && typeof updateAmbientSoundscape === 'function') updateAmbientSoundscape();
+      if (currentDimension === 'sift' && !_runAiSynth) tickDreamRainbow(elapsed);
+      if (!_runAiSynth && (frameCounter & 7) === 0 && typeof updateAmbientSoundscape === 'function') updateAmbientSoundscape();
     }
 
-    if (worldSimActive) tickFurnaces(rawDt);
+    if (worldSimActive && !_runAiSynth) tickFurnaces(rawDt);
 
-    if (!worldPaused) {
+    if (!worldPaused && !_runAiSynth) {
       if (!isWorldLoading) updateChunkStreaming(rawDt);
       if (worldSimActive) {
         if (!_camFrustumReady) _refreshCamFrustum();
@@ -1616,13 +1629,21 @@
     const _runPreviewThisFrame = (_previewAcc >= 0.016);
     if (_runPreviewThisFrame) _previewAcc = 0;
     if (worldSimActive) {
-      updatePlayer(dt);
-      _refreshCamFrustum();
-      updateMining(dt); tickFluids(dt); tickIncubatingEggs(dt); updateDragonUiControls(dt); updateMobs(dt, elapsed);
-      updateProjectilesAndTnt(dt); updateDroppedItems(dt); updateXpOrbs(dt); updateParticles(dt);
-      if (typeof updatePortalMotes === 'function') updatePortalMotes(dt, elapsed);
-      updateCoopAndLocator(dt, elapsed);
-      if (typeof window.runModTickHooks === 'function') window.runModTickHooks(dt);
+      if (_runAiSynth) {
+        updatePlayer(dt);
+        _refreshCamFrustum();
+        _fgMobDtAcc += dt;
+      } else {
+        const mobDt = Math.min(0.08, dt + _fgMobDtAcc);
+        _fgMobDtAcc = 0;
+        updatePlayer(dt);
+        _refreshCamFrustum();
+        updateMining(mobDt); tickFluids(mobDt); tickIncubatingEggs(mobDt); updateDragonUiControls(mobDt); updateMobs(mobDt, elapsed);
+        updateProjectilesAndTnt(mobDt); updateDroppedItems(mobDt); updateXpOrbs(mobDt); updateParticles(mobDt);
+        if (typeof updatePortalMotes === 'function') updatePortalMotes(mobDt, elapsed);
+        updateCoopAndLocator(mobDt, elapsed);
+        if (typeof window.runModTickHooks === 'function') window.runModTickHooks(mobDt);
+      }
     } else if (isWorldLoading) {
       // Dynamic rotating 3D panorama of the destination world behind Bedrock loading screen!
       if (weatherLines.visible) weatherLines.visible = false;
@@ -1670,7 +1691,7 @@
       }
     }
 
-    if (worldSimActive) {
+    if (worldSimActive && !_runAiSynth) {
       if (typeof window._minimapAcc !== 'number') window._minimapAcc = 0;
       window._minimapAcc += rawDt;
       if (window._minimapAcc >= (_isMobilePerf ? 0.16 : 0.12)) {
@@ -1679,7 +1700,7 @@
       }
     }
     if (worldSimActive) hudTimer += dt;
-    if (worldSimActive && hudTimer >= 0.18) {
+    if (worldSimActive && !_runAiSynth && hudTimer >= 0.18) {
       hudTimer = 0;
       const py = Math.floor(player.y);
       const trueY = py - depthOffset;
@@ -1730,8 +1751,6 @@
     }
 
     if (!worldPaused) {
-      const fgModeNow = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
-      const _runAiSynth = _shouldRunAiSynthFrame(fgModeNow, worldSimActive);
       if (_runAiSynth) {
         renderMainScene(rawDt, true);
       } else {
@@ -1746,11 +1765,12 @@
               }
             }
           }
-          const camMoved = Math.abs(player.x - _lastShX) > 0.15 || Math.abs(player.z - _lastShZ) > 0.15 || Math.abs(dayTime - _lastShTime) > 0.0012;
+          const camMoved = Math.abs(player.x - _lastShX) > 0.28 || Math.abs(player.z - _lastShZ) > 0.28 || Math.abs(dayTime - _lastShTime) > 0.0022;
           const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 38;
+          const fgShScale = fgModeNow >= 4 ? 1.75 : (fgModeNow >= 2 ? 1.40 : 1.0);
           const shInterval = _hasActiveFlyingBoss
             ? 0.0
-            : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.16 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0));
+            : (((inLobby || isWorldLoading) ? 0.04 : (!camMoved ? 0.18 : (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.2))) * (_autoPerfTier >= 1 ? 1.35 : 1.0) * fgShScale);
           if (_shadowAcc >= shInterval && (_hasActiveFlyingBoss || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.2)) {
             _shadowAcc = 0;
             renderer.shadowMap.needsUpdate = true;

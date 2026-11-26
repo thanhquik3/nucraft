@@ -1154,7 +1154,7 @@
   }
 
 
-  const _CHUNK_MESH_KEYS = ['mesh', 'leavesMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh'];
+  const _CHUNK_MESH_KEYS = ['mesh', 'leavesMesh', 'leavesCrossMesh', 'emissiveMesh', 'portalMesh', 'waterMesh', 'lavaMesh', 'plantMesh'];
   function disposeChunkMeshes(ch, keepInteractive = false) {
     if (!keepInteractive) clearChunkInteractiveVisuals(chunkKey(ch.cx, ch.cz));
     for (let i = 0; i < _CHUNK_MESH_KEYS.length; i++) {
@@ -1196,6 +1196,17 @@
     const p = new Float32Array(nCap * 3), n = new Float32Array(nCap * 3), u = new Float32Array(nCap * 2), c = new Float32Array(nCap * 3), b = new Float32Array(nCap * 3), ix = new Uint32Array((nCap * 3) >> 1);
     p.set(_lPos); n.set(_lNorm); u.set(_lUvs); c.set(_lCols); b.set(_lBL); ix.set(_lIdx);
     _lPos = p; _lNorm = n; _lUvs = u; _lCols = c; _lBL = b; _lIdx = ix; _lCap = nCap;
+  }
+
+  let _lxCap = 8192;
+  let _lxPos = new Float32Array(_lxCap * 3), _lxNorm = new Float32Array(_lxCap * 3), _lxUvs = new Float32Array(_lxCap * 2), _lxCols = new Float32Array(_lxCap * 3), _lxBL = new Float32Array(_lxCap * 3);
+  let _lxIdx = new Uint32Array((_lxCap * 3) >> 1);
+  function _growLeafCrossScratch(vNeed) {
+    let nCap = _lxCap;
+    while (nCap < vNeed) nCap <<= 1;
+    const p = new Float32Array(nCap * 3), n = new Float32Array(nCap * 3), u = new Float32Array(nCap * 2), c = new Float32Array(nCap * 3), b = new Float32Array(nCap * 3), ix = new Uint32Array((nCap * 3) >> 1);
+    p.set(_lxPos); n.set(_lxNorm); u.set(_lxUvs); c.set(_lxCols); b.set(_lxBL); ix.set(_lxIdx);
+    _lxPos = p; _lxNorm = n; _lxUvs = u; _lxCols = c; _lxBL = b; _lxIdx = ix; _lxCap = nCap;
   }
 
   function _makeIdxAttr(srcU32, iLen, vCount) {
@@ -1260,7 +1271,7 @@
   }
   const _wBuf = _makeFluidBuf(4096), _lvBuf = _makeFluidBuf(4096);
   const _pPos = [], _pNorm = [], _pUvs = [], _pSway = [], _pSkyShade = [], _pBLights = [], _pIndices = [];
-  const _meshSt = { vCount: 0, iCount: 0, lCount: 0, liCount: 0, eCount: 0, ptCount: 0, wCount: 0, wiCount: 0, lvCount: 0, lviCount: 0, pCount: 0 };
+  const _meshSt = { vCount: 0, iCount: 0, lCount: 0, liCount: 0, lxCount: 0, lxiCount: 0, eCount: 0, ptCount: 0, wCount: 0, wiCount: 0, lvCount: 0, lviCount: 0, pCount: 0 };
 
   // Sodium: O(1) tight analytical bounding sphere assignment (eliminates Three.js 40k-vertex scan on first draw!)
   function _assignChunkBounds(geo, wx0, wz0, maxLy) {
@@ -2171,9 +2182,12 @@
           (IS_OPAQUE[n4] === 1 || n4 === id) && (IS_OPAQUE[n5] === 1 || n5 === id)) return;
     }
     const tint = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
-      ? (0.94 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.015)
-      : (0.84 + ((wx * 11 + wy * 13 + wz * 17) & 7) * 0.036));
-    let anyExposed = false, tuftR = 0, tuftG = 0, tuftB = 0, tuftLr = 0, tuftLg = 0, tuftLb = 0;
+      ? (0.96 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.008)
+      : (0.93 + ((wx * 11 + wy * 13 + wz * 17) & 7) * 0.014));
+    const baseR = isSakura ? 1.08 : (isBlue ? 0.95 : (isNeutral || isGlass ? 1.0 : 0.94));
+    const baseG = isSakura ? 0.99 : (isBlue || isNeutral || isGlass ? 1.0 : 1.04);
+    const baseB = isSakura ? 1.06 : (isBlue ? 1.08 : (isNeutral || isGlass ? 1.0 : 0.94));
+    let anyExposed = false, tuftLr = 0, tuftLg = 0, tuftLb = 0;
     for (let f = 0; f < 6; f++) {
       const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
       const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
@@ -2183,8 +2197,8 @@
       if (st.lCount + 4 > _lCap) _growLeafScratch(st.lCount + 4);
       const isInner = (nb === id);
       const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
-        ? ((f === 0 ? 1.08 : (f === 1 ? 0.84 : 0.98)) * (isInner ? 0.90 : 1.0))
-        : ((f === 0 ? 1.08 : (f === 1 ? 0.74 : 0.94)) * (isInner ? 0.82 : 1.0)));
+        ? ((f === 0 ? 1.03 : (f === 1 ? 0.92 : 0.98)) * (isInner ? 0.95 : 1.0))
+        : ((f === 0 ? 1.03 : (f === 1 ? 0.89 : 0.97)) * (isInner ? 0.94 : 1.0)));
       let lr = 0, lg = 0, lb = 0;
       if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
       if (IS_SOLID[nb] === 0 && (lr + lg + lb) > (tuftLr + tuftLg + tuftLb)) { tuftLr = lr; tuftLg = lg; tuftLb = lb; }
@@ -2204,19 +2218,12 @@
           const s1 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux, nly + uy, nlz + uz)];
           const s2 = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + vx, nly + vy, nlz + vz)];
           const cn = IS_SOLID[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux + vx, nly + uy + vy, nlz + uz + vz)];
-          ao = (s1 && s2) ? ((isSakura || isBlue || isNeutral) ? 0.80 : 0.68) : ((isSakura || isBlue || isNeutral) ? Math.max(0.82, AO_LUT[s1 + s2 + cn]) : Math.max(0.70, AO_LUT[s1 + s2 + cn]));
+          ao = (s1 && s2) ? 0.86 : Math.max(0.86, 0.86 + (AO_LUT[s1 + s2 + cn] - 0.5) * 0.28);
         }
-        const crTint = Math.min(1.12, tint * shadeMul * ao);
-        if (isSakura) {
-          _lCols[vp] = Math.min(1.16, crTint * 1.08); _lCols[vp+1] = crTint * 0.99; _lCols[vp+2] = Math.min(1.14, crTint * 1.06);
-        } else if (isBlue) {
-          _lCols[vp] = crTint * 0.95; _lCols[vp+1] = crTint * 1.00; _lCols[vp+2] = Math.min(1.14, crTint * 1.08);
-        } else if (isNeutral) {
-          _lCols[vp] = crTint; _lCols[vp+1] = crTint; _lCols[vp+2] = crTint;
-        } else {
-          _lCols[vp] = crTint * 0.94; _lCols[vp+1] = Math.min(1.12, crTint * (isGlass ? 1.0 : 1.04)); _lCols[vp+2] = crTint * (isGlass ? 1.0 : 0.94);
-        }
-        if (c === 0) { tuftR = _lCols[vp]; tuftG = _lCols[vp+1]; tuftB = _lCols[vp+2]; }
+        const crTint = Math.min(1.10, tint * shadeMul * ao);
+        _lCols[vp] = Math.min(1.14, crTint * baseR);
+        _lCols[vp+1] = Math.min(1.12, crTint * baseG);
+        _lCols[vp+2] = Math.min(1.14, crTint * baseB);
         _lBL[vp] = lr; _lBL[vp+1] = lg; _lBL[vp+2] = lb;
         vp += 3;
       }
@@ -2225,34 +2232,35 @@
       _lIdx[ip]=lc; _lIdx[ip+1]=lc+1; _lIdx[ip+2]=lc+2; _lIdx[ip+3]=lc; _lIdx[ip+4]=lc+2; _lIdx[ip+5]=lc+3;
       st.lCount = lc + 4; st.liCount = ip + 6;
     }
-    // Motschen's Better Leaves: fluffy crossed outer-silhouette leaf cards on exposed non-glass canopy blocks across ALL shaders
-    if (!isGlass && anyExposed) {
-      if (st.lCount + 8 > _lCap) _growLeafScratch(st.lCount + 8);
+    // Motschen's Better Leaves: shadow-free fluffy crossed outer-silhouette leaf cards on exposed non-glass canopies
+    if (!isGlass && anyExposed && computeAO) {
+      if (st.lxCount + 8 > _lxCap) _growLeafCrossScratch(st.lxCount + 8);
       const hJ = hash3i(wx, wy, wz, 731);
       const ang = (hJ - 0.5) * 0.55;
       const ca = Math.cos(ang), sa = Math.sin(ang);
-      const ext = 0.66, yLo = -0.14, yHi = 1.16;
+      const ext = 0.62, yLo = -0.10, yHi = 1.12;
       const jx = (hash3i(wx + 3, wy, wz, 911) - 0.5) * 0.08;
       const jz = (hash3i(wx, wy, wz + 5, 919) - 0.5) * 0.08;
       const cxB = wx + 0.5 + jx, czB = wz + 0.5 + jz;
-      const r0 = Math.min(1.14, tuftR * 1.03), g0 = Math.min(1.14, tuftG * 1.03), b0 = Math.min(1.14, tuftB * 1.03);
+      const xTint = tint * 0.99;
+      const r0 = Math.min(1.12, xTint * baseR), g0 = Math.min(1.12, xTint * baseG), b0 = Math.min(1.12, xTint * baseB);
       for (let q = 0; q < 2; q++) {
         const dx1 = (q === 0 ? (ca - sa) : (ca + sa)) * ext * 0.72;
         const dz1 = (q === 0 ? (sa + ca) : (sa - ca)) * ext * 0.72;
         const xA = cxB - dx1, zA = czB - dz1, xB = cxB + dx1, zB = czB + dz1;
-        let vp = st.lCount * 3, up = st.lCount * 2;
+        let vp = st.lxCount * 3, up = st.lxCount * 2;
         const corners = [[xA, wy + yLo, zA], [xB, wy + yLo, zB], [xB, wy + yHi, zB], [xA, wy + yHi, zA]];
         for (let c = 0; c < 4; c++) {
-          _lPos[vp] = corners[c][0]; _lPos[vp+1] = corners[c][1]; _lPos[vp+2] = corners[c][2];
-          _lNorm[vp] = 0; _lNorm[vp+1] = 0.92; _lNorm[vp+2] = 0.38;
-          _lCols[vp] = r0; _lCols[vp+1] = g0; _lCols[vp+2] = b0;
-          _lBL[vp] = tuftLr; _lBL[vp+1] = tuftLg; _lBL[vp+2] = tuftLb;
+          _lxPos[vp] = corners[c][0]; _lxPos[vp+1] = corners[c][1]; _lxPos[vp+2] = corners[c][2];
+          _lxNorm[vp] = 0; _lxNorm[vp+1] = 1.0; _lxNorm[vp+2] = 0;
+          _lxCols[vp] = r0; _lxCols[vp+1] = g0; _lxCols[vp+2] = b0;
+          _lxBL[vp] = tuftLr; _lxBL[vp+1] = tuftLg; _lxBL[vp+2] = tuftLb;
           vp += 3;
         }
-        _lUvs[up]=u0; _lUvs[up+1]=v1; _lUvs[up+2]=u1; _lUvs[up+3]=v1; _lUvs[up+4]=u1; _lUvs[up+5]=v0; _lUvs[up+6]=u0; _lUvs[up+7]=v0;
-        const ip = st.liCount, lc = st.lCount;
-        _lIdx[ip]=lc; _lIdx[ip+1]=lc+1; _lIdx[ip+2]=lc+2; _lIdx[ip+3]=lc; _lIdx[ip+4]=lc+2; _lIdx[ip+5]=lc+3;
-        st.lCount = lc + 4; st.liCount = ip + 6;
+        _lxUvs[up]=u0; _lxUvs[up+1]=v1; _lxUvs[up+2]=u1; _lxUvs[up+3]=v1; _lxUvs[up+4]=u1; _lxUvs[up+5]=v0; _lxUvs[up+6]=u0; _lxUvs[up+7]=v0;
+        const ip = st.lxiCount, lc = st.lxCount;
+        _lxIdx[ip]=lc; _lxIdx[ip+1]=lc+1; _lxIdx[ip+2]=lc+2; _lxIdx[ip+3]=lc; _lxIdx[ip+4]=lc+2; _lxIdx[ip+5]=lc+3;
+        st.lxCount = lc + 4; st.lxiCount = ip + 6;
       }
     }
   }
@@ -2372,7 +2380,7 @@
     ptPos.length = 0; ptUvs.length = 0; ptKind.length = 0; ptIndices.length = 0;
     pPos.length = 0; pNorm.length = 0; pUvs.length = 0; pSway.length = 0; pSkyShade.length = 0; pBLights.length = 0; pIndices.length = 0;
     const st = _meshSt;
-    st.vCount = 0; st.iCount = 0; st.lCount = 0; st.liCount = 0; st.eCount = 0; st.ptCount = 0; st.wCount = 0; st.wiCount = 0; st.lvCount = 0; st.lviCount = 0; st.pCount = 0;
+    st.vCount = 0; st.iCount = 0; st.lCount = 0; st.liCount = 0; st.lxCount = 0; st.lxiCount = 0; st.eCount = 0; st.ptCount = 0; st.wCount = 0; st.wiCount = 0; st.lvCount = 0; st.lviCount = 0; st.pCount = 0;
     const cullBottomBedrock = (sodiumOpts.moreCulling && currentDimension !== 'end');
     const _cXP = chunks.get(chunkKey(cx + 1, cz)), _cXM = chunks.get(chunkKey(cx - 1, cz));
     const _cZP = chunks.get(chunkKey(cx, cz + 1)), _cZM = chunks.get(chunkKey(cx, cz - 1));
@@ -2648,9 +2656,24 @@
       _assignChunkBounds(lGeo, wx0, wz0, maxLy);
       ch.leavesMesh = new THREE.Mesh(lGeo, _effLow ? leavesMatLow : leavesMat);
       if (_effUltra) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
-      ch.leavesMesh.castShadow = (_effUltra && nearShadow); ch.leavesMesh.receiveShadow = !_effLow; ch.leavesMesh.frustumCulled = true;
+      const nearLeafSh = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= Math.min(_shChunkRad, 2));
+      ch.leavesMesh.castShadow = (_effUltra && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
       ch.leavesMesh.matrixAutoUpdate = false; ch.leavesMesh.updateMatrix();
       scene.add(ch.leavesMesh);
+    }
+    if (st.lxCount > 0 && !_effLow) {
+      const lxGeo = new THREE.BufferGeometry();
+      lxGeo.setAttribute('position', new THREE.BufferAttribute(_lxPos.slice(0, st.lxCount * 3), 3));
+      lxGeo.setAttribute('normal', new THREE.BufferAttribute(_lxNorm.slice(0, st.lxCount * 3), 3));
+      lxGeo.setAttribute('uv', new THREE.BufferAttribute(_lxUvs.slice(0, st.lxCount * 2), 2));
+      lxGeo.setAttribute('color', new THREE.BufferAttribute(_lxCols.slice(0, st.lxCount * 3), 3));
+      lxGeo.setAttribute('aBlockLight', new THREE.BufferAttribute(_lxBL.slice(0, st.lxCount * 3), 3));
+      lxGeo.setIndex(_makeIdxAttr(_lxIdx, st.lxiCount, st.lxCount));
+      _assignChunkBounds(lxGeo, wx0, wz0, maxLy);
+      ch.leavesCrossMesh = new THREE.Mesh(lxGeo, leavesMat);
+      ch.leavesCrossMesh.castShadow = false; ch.leavesCrossMesh.receiveShadow = false; ch.leavesCrossMesh.frustumCulled = true;
+      ch.leavesCrossMesh.matrixAutoUpdate = false; ch.leavesCrossMesh.updateMatrix();
+      scene.add(ch.leavesCrossMesh);
     }
     if (st.eCount > 0) {
       const eGeo = new THREE.BufferGeometry();

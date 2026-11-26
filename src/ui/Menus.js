@@ -73,9 +73,10 @@
 
   function applyBumpToggle(enabled) {
     bumpEnabled = enabled;
-    const isLow = (shaderQuality === 'low');
-    terrainMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? 0.042 : 0.0);
-    leavesMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? 0.026 : 0.0);
+    const rtOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+    const isLow = (shaderQuality === 'low' && !rtOn);
+    terrainMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
+    leavesMat.bumpScale = 0.0;
     const btn = document.getElementById('btnTexFilter');
     if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? '✨ Bump PBR: Bật' : '🧱 Pixel Phẳng'; }
   }
@@ -872,7 +873,12 @@
         for (let i = 0; i < mobs.length; i++) if (mobs[i] && mobs[i].group) mobs[i].group.visible = true;
       }
       if (key === 'sharpness' && envUniforms.uSharpness) {
-        envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
+        envUniforms.uSharpness.value = (typeof getPresetSharpness === 'function') ? getPresetSharpness(shaderPreset) : (sodiumOpts.sharpness ? 0.19 : 0.0);
+      }
+      if (key === 'smoothShadows') {
+        const effUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || !!sodiumOpts.rayTracing);
+        renderer.shadowMap.type = (effUltra && !_initMobile && sodiumOpts.smoothShadows) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+        renderer.shadowMap.needsUpdate = true;
       }
       if (key === 'waterRefl' && envUniforms.uUsePlanarRefl) {
         envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;
@@ -880,10 +886,17 @@
       if (key === 'waterQuality' && envUniforms.uWaterQuality) {
         envUniforms.uWaterQuality.value = sodiumOpts.waterQuality ? 1.0 : 0.0;
       }
-      if (key === 'autoPerf' && !sodiumOpts.autoPerf && _autoPerfLow) {
+      if (key === 'autoPerf' && !sodiumOpts.autoPerf) {
         _autoPerfLow = false;
+        _autoPerfTier = 0;
         _autoPerfStreak = 0;
+        _autoPerfUpStreak = 0;
         if (envUniforms.uWaterQuality) envUniforms.uWaterQuality.value = sodiumOpts.waterQuality !== false ? 1.0 : 0.0;
+        if (_autoPerfPrScale !== 1.0) {
+          _autoPerfPrScale = 1.0;
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(shaderQuality)));
+          resizeViewport();
+        }
       }
       if (key === 'weatherFx' && !sodiumOpts.weatherFx && typeof weatherLines !== 'undefined') {
         weatherLines.visible = false;

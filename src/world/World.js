@@ -1264,7 +1264,7 @@
       if (cMid && cMid !== END_CITY_HERO) maxLy = stampEndCityInChunk(data, wx0, wz0, cMid, maxLy);
     }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
-    const chE = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chE = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chE);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chE;
@@ -1686,7 +1686,7 @@
       }
     }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
-    const chN = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chN = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chN);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chN;
@@ -1774,7 +1774,7 @@
       if (topC > maxLy) maxLy = topC;
     }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
-    const chW = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chW = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chW);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chW;
@@ -1957,7 +1957,7 @@
       }
     }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
-    const chS = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chS = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chS);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chS;
@@ -2274,7 +2274,7 @@
 
   function _genDeepUndergroundChunk(cx, cz, wx0, wz0, data) {
     const _pureOcean = !!_fillDeepUndergroundSlice(cx, cz, wx0, wz0, data, 0, WORLD_H - 1);
-    const chD = { cx, cz, data, maxLy: WORLD_H - 1, isOceanChunk: _pureOcean, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chD = { cx, cz, data, maxLy: WORLD_H - 1, isOceanChunk: _pureOcean, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chD);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chD;
@@ -2484,7 +2484,7 @@
       setLocalSafe(data, 5, streetY + 1, 10, B.CHEST, true);
       maxLy = Math.min(WORLD_H - 1, (streetY + 14) - MIN_Y);
     }
-    const chCity = { cx, cz, data, maxLy, skyscraperSpec, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chCity = { cx, cz, data, maxLy, skyscraperSpec, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chCity);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chCity;
@@ -2959,7 +2959,7 @@
       }
     }
     maxLy = applyChunkMods(cx, cz, data, Math.min(WORLD_H - 1, maxLy));
-    const chGr = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const chGr = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chGr);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return chGr;
@@ -2995,7 +2995,7 @@
         const wTopLy = WATER_LEVEL - MIN_Y;
         data.fill(B.WATER, 0, (wTopLy + 1) << 8);
         maxLy = applyChunkMods(cx, cz, data, wTopLy);
-        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
         registerChunk(chunkKey(cx, cz), ch);
         markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
         return ch;
@@ -3638,7 +3638,7 @@
 
     maxLy = applyChunkMods(cx, cz, data, maxLy);
 
-    const ch = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    const ch = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), ch);
     // Mark already-meshed neighbors as low-priority borderDirty (avoids 4x redundant stutter rebuilds while sprinting!)
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
@@ -3842,6 +3842,7 @@
       }
     }
     wakeAdjacentFluids(wx, wy, wz);
+    window._fgForceNative = true;
   }
 
   // Real Minecraft + Luanti Cellular Automata Fluid Engine (Water max 7, Lava max 3 Overworld / 7 Nether + Infinite Springs + Poured-Bucket Pickup!)

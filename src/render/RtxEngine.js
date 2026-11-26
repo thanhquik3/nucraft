@@ -43,7 +43,7 @@
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = (shaderQuality !== 'low');
-  const _useDirectRender = () => (shaderQuality === 'low' && !(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing));
+  const _useDirectRender = () => (shaderQuality === 'low' && !(typeof sodiumOpts !== 'undefined' && (sodiumOpts.rayTracing || (sodiumOpts.frameGen | 0) > 1)));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.96 : 0.74;
   renderer.setClearColor(0x9bc4e8, 1);
@@ -66,8 +66,8 @@
   sunLight.shadow.camera.right = shadowRad;
   sunLight.shadow.camera.top = shadowRad;
   sunLight.shadow.camera.bottom = -shadowRad;
-  sunLight.shadow.bias = -0.0008;
-  sunLight.shadow.normalBias = 0.035;
+  sunLight.shadow.bias = -0.0007;
+  sunLight.shadow.normalBias = 0.032;
   scene.add(sunLight);
   scene.add(sunLight.target);
 
@@ -724,10 +724,10 @@
 
   // Razor-Sharp Fancy Leaves Material w/ Velvety Canopy Shade, True Sakura Pink & Warm Golden Backlit SSS
   const leavesMat = new THREE.MeshStandardMaterial({
-    map: atlasTex, bumpMap: bumpTex, bumpScale: 0.028,
+    map: atlasTex,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v39';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v40';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -755,7 +755,8 @@
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
-        normal = normalize( vNormal );
+        vec3 upViewL = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+        normal = normalize(mix(normalize(vNormal), upViewL, 0.65));
         geometryNormal = normal;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         // Lush Complementary foliage richness (vivid emerald-lime oak/birch canopy + luminous sakura blossom pink!)
@@ -781,26 +782,27 @@
           }
         }
         float sssFwd = pow(max(dot(vDirL, sDirL), 0.0), 3.0);
-        float sssBroad = max(dot(vDirL, sDirL) * 0.5 + 0.5, 0.0) * 0.24;
-        float topSun = smoothstep(-0.30, 0.85, dot(nDirL, sDirL));
-        outgoingLight *= mix(0.58, mix(mix(0.80, 0.92, uEclipseMode), mix(0.90, 1.02, uEclipseMode), topSun), sUp);
-        outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.18 + vec3(0.32), 0.34, 1.0), rtFadeL * 0.84);
-        vec3 leafShTint = mix(isUltraL ? vec3(0.90, 0.95, 1.06) : vec3(0.92, 0.96, 1.04), vec3(0.84, 0.88, 1.06), max(uChillMode, uEclipseMode * 0.65));
-        outgoingLight = mix(outgoingLight, outgoingLight * leafShTint, (1.0 - topSun) * (isUltraL ? 0.16 : 0.11) * sUp);
-        float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.25 + 0.75 * rtShLumL, rtFadeL);
+        float sssBroad = max(dot(vDirL, sDirL) * 0.5 + 0.5, 0.0) * 0.22;
+        float canopyWrap = clamp(dot(nDirL, sDirL) * 0.5 + 0.5, 0.0, 1.0);
+        outgoingLight *= mix(0.62, mix(mix(0.88, 0.94, uEclipseMode), mix(0.96, 1.02, uEclipseMode), canopyWrap), sUp);
+        outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.12 + vec3(0.38), 0.42, 1.0), rtFadeL * 0.80);
+        vec3 leafShTint = mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55));
+        outgoingLight = mix(outgoingLight, outgoingLight * leafShTint, (1.0 - canopyWrap) * 0.10 * sUp);
+        float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.30 + 0.70 * rtShLumL, rtFadeL);
         float leafLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float leafLightGain = mix(1.58, 0.58, smoothstep(0.10, 0.65, leafLuma) * sUpG);
-        float chillLeafSss = mix(isUltraL ? 0.32 : 0.20, isUltraL ? 0.48 : 0.34, uChillMode) + uDlssMode * 0.18 + uEclipseMode * 0.24 + rtFadeL * 0.46;
+        float chillLeafSss = mix(isUltraL ? 0.24 : 0.16, isUltraL ? 0.36 : 0.26, uChillMode) + uDlssMode * 0.14 + uEclipseMode * 0.18 + rtFadeL * 0.38;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * leafLightGain;
-        vec3 leafSunBal = mix(uSunColor, vec3(0.98, 0.99, 0.96), mix(0.58, 0.78, max(uEclipseMode, rtFadeL * 0.90)));
-        outgoingLight += diffuseColor.rgb * ((0.048 + 0.055 * rtFadeL) * sUpG) + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.08, 0.22, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.05 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
+        vec3 leafSunBal = mix(uSunColor, vec3(0.98, 0.99, 0.96), mix(0.62, 0.78, max(uEclipseMode, rtFadeL * 0.90)));
+        vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * (0.11 + 0.03 * uEclipseMode);
+        outgoingLight += diffuseColor.rgb * (canopyAmb + vec3(0.045 * rtFadeL)) * sUpG + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.06, 0.16, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.04 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
-        float hiMetricL = mix(outLumL, outPeakL, 0.50);
-        float hiCapL = mix(0.60, 0.94, uRayTracing);
+        float hiMetricL = mix(outLumL, outPeakL, 0.45);
+        float hiCapL = mix(0.62, 0.94, uRayTracing);
         if (hiMetricL > hiCapL) {
           float overL = hiMetricL - hiCapL;
-          float compLumL = hiCapL + overL / (1.0 + overL * mix(3.10, 1.35, uRayTracing));
+          float compLumL = hiCapL + overL / (1.0 + overL * mix(3.00, 1.35, uRayTracing));
           outgoingLight *= (compLumL / max(hiMetricL, 0.0001));
         }
         #include <opaque_fragment>`)
@@ -1959,17 +1961,19 @@
 
         // Local variance-clipped optical-flow motion prediction for animated water/grass/mobs on AI synth frames
         if (uIsSynth > 0.5 && uFlowAmt > 0.01) {
+          vec2 eDist = min(uv, 1.0 - uv);
+          float edgeMask = smoothstep(0.0, 0.04, min(eDist.x, eDist.y));
           vec3 pC = texture2D(tPrev, uv).rgb;
           float dI = luma(c) - luma(pC);
           float gx = (luma(nE) - luma(nW)) * 0.5;
           float gy = (luma(nN) - luma(nS)) * 0.5;
           float g2 = gx * gx + gy * gy + 0.004;
-          vec2 flow = clamp(vec2(gx, gy) * (-dI / g2), vec2(-1.4), vec2(1.4)) * uTexel * uFlowAmt;
+          vec2 flow = clamp(vec2(gx, gy) * (-dI / g2), vec2(-1.4), vec2(1.4)) * uTexel * (uFlowAmt * edgeMask);
           vec3 pred = texture2D(tCur, clamp(uv + flow, uTexel, vec2(1.0) - uTexel)).rgb;
-          c = mix(c, clamp(pred, mn, mx), 0.42);
+          c = mix(c, clamp(pred, mn, mx), 0.42 * edgeMask);
         }
 
-        // AMD FSR RCAS Edge-Directed AI Super-Resolution Sharpening (anti-ringing) + Micro-Clarity
+        // AMD FSR RCAS Edge-Directed AI Super-Resolution Sharpening (anti-ringing, color-neutral)
         if (uAiSharp > 0.01) {
           float lC = luma(c), lN = luma(nN), lS = luma(nS), lE = luma(nE), lW = luma(nW);
           float minL = min(lC, min(min(lN, lS), min(lE, lW)));
@@ -1977,9 +1981,6 @@
           float lobe = clamp(-min(minL, 1.0 - maxL) / max(maxL, 0.001), -0.18, 0.0) * uAiSharp;
           vec3 rcas = (c + (nN + nS + nE + nW) * lobe) / (1.0 + 4.0 * lobe);
           c = clamp(rcas, mn * 0.96, mx * 1.04);
-          float lc2 = luma(c);
-          vec3 satC = mix(vec3(lc2), c, 1.05);
-          c = clamp(mix(c, satC, 0.65), 0.0, 1.0);
         }
         gl_FragColor = vec4(c, 1.0);
       }`
@@ -2151,7 +2152,8 @@
         float bloomCalm = mix(0.68, 1.0, uEclipseMode);
         float bloomMix1 = mix(isUltraC ? 0.055 : 0.040, isUltraC ? 0.078 : 0.062, bloomBoost) * mix(1.0, 1.38, uRayTracing) * bloomCalm;
         float bloomMix2 = mix(isUltraC ? 0.028 : 0.016, isUltraC ? 0.044 : 0.030, bloomBoost) * mix(1.0, 1.45, uRayTracing) * bloomCalm;
-        col += texture2D(tBloom, uv).rgb * bloomMix1 + texture2D(tBloomWide, uv).rgb * bloomMix2;
+        float hasBloom = step(0.5, max(uQuality, uRayTracing));
+        col += (texture2D(tBloom, uv).rgb * bloomMix1 + texture2D(tBloomWide, uv).rgb * bloomMix2) * hasBloom;
         if (uUnderwater > 0.5) {
           float abyssT = clamp(log(1.0 + uWaterDepth * 0.045) / 3.481, 0.0, 1.0);
           float topGlow = smoothstep(0.35, 1.0, vUv.y) * exp(-uWaterDepth * 0.045);
