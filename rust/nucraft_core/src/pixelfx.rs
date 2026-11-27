@@ -601,8 +601,8 @@ pub extern "C" fn step_pixelfx_plumes(
             let phase = *ptr.add(base + 6) as f64;
             let life = *ptr.add(base + 7) - dt;
 
-            let wx = sin_approx(el64 * 1.65 + phase) * amp64;
-            let wz = cos_approx(el64 * 1.42 + phase * 1.3) * amp64;
+            let wx = sin_approx(el64 * 0.78 + phase) * amp64;
+            let wz = cos_approx(el64 * 0.64 + phase * 1.3) * amp64;
             vy *= damp;
             x += (vx + wx) * dt64;
             y += vy * dt64;

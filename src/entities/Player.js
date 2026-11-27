@@ -1289,7 +1289,7 @@
       clone.position.set(0.0, 0.06, 0.10);
       clone.rotation.set(0.22, -Math.PI * 0.45, 0.06);
       rig.handHold.add(clone);
-    } else if (def.bucket || def.chest || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.CAMPFIRE || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
+    } else if (def.bucket || def.chest || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(def.bucket ? 1.02 : 0.96);
       clone.position.set(0.0, 0.03, 0.13);
@@ -1301,7 +1301,7 @@
       clone.position.set(0.0, 0.03, 0.12);
       clone.rotation.set(0.22, -0.44, 0.06);
       rig.handHold.add(clone);
-    } else if (def.voxelItem || !def.solid) {
+    } else if (def.voxelItem || !def.solid || bid === B.CAMPFIRE) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(0.96);
       clone.position.set(0.0, 0.04, 0.16);
@@ -2199,7 +2199,7 @@
     if (!base || (base.userData && base.userData.iconReady === false)) {
       const def = BLOCK_DEF[blockId] || BLOCK_DEF[B.DIRT];
       const m = buildUnified3DItemMesh(blockId);
-      const sc = blockId === B.SHIELD ? 0.76 : ((def.voxelItem || !def.solid) ? 0.84 : (m.isGroup ? 0.90 : 0.92));
+      const sc = blockId === B.SHIELD ? 0.76 : ((def.voxelItem || !def.solid || blockId === B.CAMPFIRE) ? 0.84 : (m.isGroup ? 0.90 : 0.92));
       m.scale.setScalar(sc);
       m.position.set(0, 0, 0);
       m.rotation.set(0, 0, 0);
@@ -3058,13 +3058,13 @@
       spawn2DPixelPlume(kind, wx, wy, wz, {
         count: opts.count || 1,
         scale: opts.scale ?? (isFlame ? 0.86 : 0.94),
-        grow: opts.grow ?? (isFlame ? 0.16 : 0.54),
-        vy: opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : (kind === 'sulfur_steam' ? 1.08 : 0.90)),
+        grow: opts.grow ?? (isFlame ? 0.16 : 0.78),
+        vy: opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : (kind === 'sulfur_steam' ? 0.72 : 0.60)),
         vx: opts.vx,
         vz: opts.vz,
-        randV: opts.randV ?? (isFlame ? 0.18 : 0.22),
+        randV: opts.randV ?? (isFlame ? 0.18 : 0.10),
         spread: opts.spread ?? (isFlame ? 0.34 : 0.30),
-        life: opts.life ?? (isFlame ? 0.44 : (kind === 'sulfur_steam' ? 2.2 : 1.15))
+        life: opts.life ?? (isFlame ? 0.44 : (kind === 'sulfur_steam' ? 14.0 : 5.2))
       });
       return;
     }
@@ -3595,7 +3595,7 @@
   scene.add(_blkPartInstMesh);
 
   // Unified 1-Draw-Call 2D PixelFX Billboard Plume & Flame Engine (Rust/WASM rasterizer + plume curl physics)
-  const MAX_PLUME_2D = _isWeakDevice ? 140 : 280;
+  const MAX_PLUME_2D = _isWeakDevice ? 220 : 480;
   const plume2DList = [], plume2DPool = [];
   const _PLUME_COLS = 12, _PLUME_ROWS = 5, _PLUME_CELL = 24;
   const _PLUME_2D_KINDS = {
@@ -3752,11 +3752,11 @@
     const isFlame = meta.emissive > 0.5;
     const cnt = Math.min(opts.count || 1, _isWeakDevice ? 3 : 6);
     const spr = opts.spread ?? (isFlame ? 0.34 : 0.24);
-    const rv = opts.randV ?? (isFlame ? 0.18 : 0.16);
-    const baseVy = opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : 0.96);
+    const rv = opts.randV ?? (isFlame ? 0.18 : 0.08);
+    const baseVy = opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : 0.64);
     const baseSc = opts.scale ?? (isFlame ? 0.86 : 1.02);
-    const growK = opts.grow ?? (isFlame ? 0.16 : 0.52);
-    const lifeBase = opts.life ?? (isFlame ? 0.44 : 1.65);
+    const growK = opts.grow ?? (isFlame ? 0.16 : 0.82);
+    const lifeBase = opts.life ?? (isFlame ? 0.44 : 7.5);
     for (let i = 0; i < cnt; i++) {
       let s;
       if (plume2DList.length >= MAX_PLUME_2D) s = plume2DList.shift();
@@ -3787,7 +3787,7 @@
     const tNow = (typeof envUniforms !== 'undefined' && envUniforms.uTime) ? envUniforms.uTime.value : 0;
     const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
     const _useWasmPlume = !!(_wCore && _wCore.exports && _wCore.exports.step_pixelfx_plumes && _wCore.particleBuf && n <= 512);
-    const swayAmp = 0.22, dragY = 0.08;
+    const swayAmp = 0.14, dragY = 0.012;
     if (_useWasmPlume) {
       const pb = _wCore.particleBuf;
       for (let i = 0; i < n; i++) {
@@ -3819,8 +3819,8 @@
           plume2DList.pop();
           continue;
         }
-        const wx = Math.sin(tNow * 1.65 + s.phase) * swayAmp;
-        const wz = Math.cos(tNow * 1.42 + s.phase * 1.3) * swayAmp;
+        const wx = Math.sin(tNow * 0.78 + s.phase) * swayAmp;
+        const wz = Math.cos(tNow * 0.64 + s.phase * 1.3) * swayAmp;
         s.vy *= damp;
         s.x += (s.vx + wx) * dt;
         s.y += s.vy * dt;
@@ -3835,7 +3835,7 @@
       const col = s.loop ? (((prog * 1.8 * s.frames) | 0) % s.frames) : Math.min(s.frames - 1, (prog * s.frames) | 0);
       const alpha = s.emissive > 0.5
         ? (prog < 0.10 ? 0.88 + 0.12 * (prog / 0.10) : (prog > 0.86 ? Math.max(0.06, (1.0 - prog) / 0.14) : 1.0))
-        : (prog < 0.08 ? 0.80 + 0.18 * (prog / 0.08) : (prog > 0.84 ? Math.max(0.05, (1.0 - prog) / 0.16) : 0.98));
+        : (prog < 0.08 ? 0.78 + 0.20 * (prog / 0.08) : (prog > 0.78 ? Math.max(0.04, (1.0 - prog) / 0.22) : 0.96));
       const sc = Math.max(0.04, s.scale * (1.0 + prog * s.grow));
       _partDummy.position.set(s.x, s.y, s.z);
       _partDummy.rotation.set(0, 0, 0);
@@ -3925,7 +3925,7 @@
       spawnPixelFx('portal_vortex', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, n)), scale: 0.85, life: 0.50, riseV: 0.45, randV: 0.5, spread: 0.48 });
       return;
     } else if (kind === 'smoke') {
-      spawn2DPixelPlume('smoke_puff', wx, wy + 0.12, wz, { count: Math.max(1, Math.min(4, Math.ceil(n / 2))), scale: 0.94, grow: 0.55, vy: 0.95, randV: 0.24, spread: 0.36, life: 1.05 });
+      spawn2DPixelPlume('smoke_puff', wx, wy + 0.12, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 2))), scale: 0.94, grow: 0.76, vy: 0.62, randV: 0.10, spread: 0.32, life: 4.8 });
       return;
     } else if (kind === 'spark' || kind === 'electric') {
       spawnPixelFx('lightning_arc', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 5))), scale: 1.15, life: 0.34, randV: 1.2, spread: 0.65 });

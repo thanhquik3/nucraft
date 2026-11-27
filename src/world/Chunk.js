@@ -1052,7 +1052,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=175').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=176').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();

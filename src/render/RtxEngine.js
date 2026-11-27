@@ -3891,7 +3891,7 @@
     }
     const isTool = !!def.tool;
     const isChunky = !isTool && !def.cross && (
-      def.food || def.bucket || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION ||
+      def.food || def.bucket || blockId === B.CAMPFIRE || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION ||
       blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DISC_FRAGMENT_5 ||
       blockId === B.MUSIC_DISC_5 || blockId === B.MUSIC_DISC_OTHERSIDE || blockId === B.SNOWBALL ||
       blockId === B.COAL || blockId === B.CHARCOAL ||
@@ -3957,7 +3957,7 @@
       geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.setIndex(idx);
     }
     const isRainbowItem = !!(def && def.rainbow);
-    const isWarmGlow = (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.END_DRAGON_SCALE || blockId === B.END_DRAGON_BONE || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_BOW || blockId === B.ENCHANTED_BOOK || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
+    const isWarmGlow = (blockId === B.CAMPFIRE || blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.END_DRAGON_SCALE || blockId === B.END_DRAGON_BONE || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_BOW || blockId === B.ENCHANTED_BOOK || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
     const isEnch = !!(meta && meta.ench);
     const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.ENCHANTED_BOOK || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_PICK || blockId === B.END_DRAGON_AXE || blockId === B.END_DRAGON_SHOVEL || blockId === B.END_DRAGON_HOE || blockId === B.END_DRAGON_BOW);
     const mat = new THREE.MeshStandardMaterial({
@@ -4088,7 +4088,7 @@
     const safeId = BLOCK_DEF[blockId] ? blockId : B.DIRT;
     const def = BLOCK_DEF[safeId];
     return build3DSculptedSpecialItem(safeId, meta)
-      || ((def.voxelItem || !def.solid) ? build3DVoxelItemMesh(safeId, meta) : build3DTexturedBlockMesh(safeId));
+      || ((def.voxelItem || !def.solid || safeId === B.CAMPFIRE) ? build3DVoxelItemMesh(safeId, meta) : build3DTexturedBlockMesh(safeId));
   }
 
   function updateOffhandViewModel(offId) {

@@ -559,7 +559,7 @@
     slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.dist = dist; slot.d2 = d2; slot.score = score;
   }
 
-  let _sulfurSteamAcc = 0;
+  let _sulfurSteamAcc = 0, _smokePlumeTick = 0;
   function updateWeatherAndLights(dt) {
     const inOverworld = (currentDimension === 'overworld');
     const biome = getPlayerBiome();
@@ -675,6 +675,8 @@
       const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.28 : 0.19;
       if (_sulfurSteamAcc >= _steamStep) {
         _sulfurSteamAcc = 0;
+        _smokePlumeTick = (_smokePlumeTick + 1) % 3;
+        const emitSmokeNow = (_smokePlumeTick === 0);
         const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
         const vRad = Math.min(3, Math.max(1, renderDistance || 3));
         const maxDistSq = (_isWeakDevice || shaderQuality === 'low') ? 1600.0 : 3600.0;
@@ -697,25 +699,28 @@
                     count: 1, scale: 1.08, grow: 0.18, vy: 1.22, randV: 0.16, spread: 0.44, life: 0.48
                   });
                 }
-                if (!isSoul && Math.random() < 0.32) {
+                if (emitSmokeNow && !isSoul && Math.random() < 0.55) {
                   spawn2DPixelPlume('smoke_puff', vn.x + 0.5, vn.y + 0.95, vn.z + 0.5, {
-                    count: 1, scale: 0.96, grow: 0.55, vy: 1.14, randV: 0.10, spread: 0.30, life: 1.85
+                    count: 1, scale: 0.96, grow: 0.78, vy: 0.60, randV: 0.06, spread: 0.26, life: 6.8
                   });
                 }
               } else {
                 const isCf = (vn.kind === 'campfire');
-                spawn2DPixelPlume(isCf ? 'campfire_smoke' : 'sulfur_steam', vn.x + 0.5, vn.y + (isCf ? 0.88 : 1.12), vn.z + 0.5, {
-                  count: 1, scale: isCf ? 1.40 : 1.56, spread: isCf ? 0.18 : 0.22, randV: 0.05,
-                  grow: isCf ? 0.65 : 0.72, vy: isCf ? 1.24 : 1.38, life: isCf ? 3.4 : 3.6
-                });
+                if (emitSmokeNow) {
+                  spawn2DPixelPlume(isCf ? 'campfire_smoke' : 'sulfur_steam', vn.x + 0.5, vn.y + (isCf ? 0.88 : 1.12), vn.z + 0.5, {
+                    count: 1, scale: isCf ? 1.32 : 1.48, spread: isCf ? 0.16 : 0.20, randV: 0.03,
+                    grow: isCf ? 0.92 : 1.05, vy: isCf ? 0.66 : 0.76, life: isCf ? 15.5 : 17.0
+                  });
+                  if (!isCf && Math.random() < 0.34) {
+                    spawn2DPixelPlume('sulfur_steam', vn.x + 0.5, vn.y + 1.28, vn.z + 0.5, {
+                      count: 1, scale: 0.98, spread: 0.38, randV: 0.05,
+                      grow: 0.85, vy: 0.70, life: 14.0
+                    });
+                  }
+                }
                 if (isCf && d2 <= 900.0) {
                   spawn2DPixelPlume('fire_flame', vn.x + 0.5, vn.y + 0.56, vn.z + 0.5, {
                     count: 1, scale: 1.02, grow: 0.14, vy: 1.12, randV: 0.10, spread: 0.26, life: 0.48
-                  });
-                } else if (!isCf && Math.random() < 0.48) {
-                  spawn2DPixelPlume('sulfur_steam', vn.x + 0.5, vn.y + 1.28, vn.z + 0.5, {
-                    count: 1, scale: 0.95, spread: 0.42, randV: 0.07,
-                    grow: 0.55, vy: 1.46, life: 3.0
                   });
                 }
               }
