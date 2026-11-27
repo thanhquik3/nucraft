@@ -81,7 +81,7 @@ pub(crate) fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn wasm_abi_version() -> u32 {
-    5
+    6
 }
 
 #[no_mangle]

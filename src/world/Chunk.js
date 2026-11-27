@@ -768,13 +768,14 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
-  // Zero-GC Rust WebAssembly acceleration core (ABI v5: terrain/cave/mesher/LOD + fused emitter/topmap scan, RT pack, 3D item extrude, solid atlas, CRC32)
+  // Zero-GC Rust WebAssembly acceleration core (ABI v6: terrain/cave/mesher/LOD + fused emitter/topmap scan, RT pack, 3D item extrude, solid atlas, CRC32, chunk queue sort, MP interp, mipmap)
   const _nucraftWasmState = {
     ready: false, abi: 0,
     caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0, atlasCalls: 0,
     meshCalls: 0, workerMeshHits: 0, terrainCalls: 0, workerTerrainHits: 0,
     codecCalls: 0, lodBuilds: 0, lodTriangles: 0, lodVisible: false,
-    scanCalls: 0, rtPackCalls: 0, itemExtrudeCalls: 0, crcCalls: 0
+    scanCalls: 0, rtPackCalls: 0, itemExtrudeCalls: 0, crcCalls: 0,
+    chunkSortCalls: 0, netInterpCalls: 0
   };
   if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
   let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
@@ -790,6 +791,7 @@
   let _nwScanEmitOut = null, _nwScanSpecOut = null, _nwScanTopH = null, _nwScanMapU32 = null, _nwScanMeta = null;
   let _nwRtVolOut = null;
   let _nwItemRgbaIn = null, _nwItemPosOut = null, _nwItemNormOut = null, _nwItemColOut = null, _nwItemIdxOut = null, _nwItemMetaOut = null;
+  let _nwChunkQCoords = null, _nwChunkQOrder = null, _nwNetEntBuf = null;
   let _cachedWasmLuts = null, _mainLutsSynced = false;
 
   function _buildTerrainBlockIds() {
@@ -987,6 +989,9 @@
     if (_nwExports.item_col_out_ptr) _nwItemColOut = new Float32Array(buf, _nwExports.item_col_out_ptr(), 6144 * 3);
     if (_nwExports.item_idx_out_ptr) _nwItemIdxOut = new Uint32Array(buf, _nwExports.item_idx_out_ptr(), 9216);
     if (_nwExports.item_meta_out_ptr) _nwItemMetaOut = new Uint32Array(buf, _nwExports.item_meta_out_ptr(), 2);
+    if (_nwExports.chunk_q_coords_ptr) _nwChunkQCoords = new Int32Array(buf, _nwExports.chunk_q_coords_ptr(), 2048 * 2);
+    if (_nwExports.chunk_q_order_ptr) _nwChunkQOrder = new Uint32Array(buf, _nwExports.chunk_q_order_ptr(), 2048);
+    if (_nwExports.net_ent_buf_ptr) _nwNetEntBuf = new Float32Array(buf, _nwExports.net_ent_buf_ptr(), 128 * 12);
   }
   function _syncMainWasmLuts(force = false) {
     const luts = _getWasmLuts(force);
@@ -1045,6 +1050,9 @@
         scanTopH: _nwScanTopH,
         scanMapU32: _nwScanMapU32,
         scanMeta: _nwScanMeta,
+        chunkQCoords: _nwChunkQCoords,
+        chunkQOrder: _nwChunkQOrder,
+        netEntBuf: _nwNetEntBuf,
         state: _nucraftWasmState
       };
     };
@@ -1052,7 +1060,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=176').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=183').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
@@ -2441,14 +2449,27 @@
     } else if (isFlat) {
       quads = [[[0.04,flatY,0.96],[0.96,flatY,0.96],[0.96,flatY,0.04],[0.04,flatY,0.04]]];
     } else if (isWheatCrop) {
-      const hW = id === B.WHEAT_3 ? 1.04 : (id === B.WHEAT_2 ? 0.94 : (id === B.WHEAT_1 ? 0.80 : 0.65));
-      const pad = 0.25, far = 0.75;
+      const prW1 = hash2i(wx, wz, 577), prW2 = hash2i(wx + 23, wz - 17, 613);
+      const isShaderWheat = (shaderQuality !== 'low');
+      const baseHW = id === B.WHEAT_3 ? (isShaderWheat ? 1.18 : 1.04) : (id === B.WHEAT_2 ? (isShaderWheat ? 1.02 : 0.94) : (id === B.WHEAT_1 ? 0.82 : 0.65));
+      const hW = baseHW + (isShaderWheat ? (prW1 - 0.42) * 0.22 : 0.0);
+      const jxW = isShaderWheat ? (prW1 - 0.5) * 0.08 : 0.0;
+      const jzW = isShaderWheat ? (prW2 - 0.5) * 0.08 : 0.0;
+      const pad = 0.23, far = 0.77;
       quads = [
-        [[0.02, 0.0, pad], [0.98, 0.0, pad], [0.98, hW, pad], [0.02, hW, pad]],
-        [[0.02, 0.0, far], [0.98, 0.0, far], [0.98, hW, far], [0.02, hW, far]],
-        [[pad, 0.0, 0.02], [pad, 0.0, 0.98], [pad, hW, 0.98], [pad, hW, 0.02]],
-        [[far, 0.0, 0.02], [far, 0.0, 0.98], [far, hW, 0.98], [far, hW, 0.02]]
+        [[0.02 + jxW, 0.0, pad + jzW], [0.98 + jxW, 0.0, pad + jzW], [0.98 + jxW, hW, pad + jzW], [0.02 + jxW, hW, pad + jzW]],
+        [[0.02 - jxW, 0.0, far - jzW], [0.98 - jxW, 0.0, far - jzW], [0.98 - jxW, hW * 0.96, far - jzW], [0.02 - jxW, hW * 0.96, far - jzW]],
+        [[pad + jxW, 0.0, 0.02 + jzW], [pad + jxW, 0.0, 0.98 + jzW], [pad + jxW, hW * 0.98, 0.98 + jzW], [pad + jxW, hW * 0.98, 0.02 + jzW]],
+        [[far - jxW, 0.0, 0.02 - jzW], [far - jxW, 0.0, 0.98 - jzW], [far - jxW, hW * 1.04, 0.98 - jzW], [far - jxW, hW * 1.04, 0.02 - jzW]]
       ];
+      // Shader lush wheat: 2 additional diagonal golden-ear planes for full undulating field density (matching 3 wheat refs!)
+      if (isShaderWheat && (id === B.WHEAT_2 || id === B.WHEAT_3)) {
+        const hDiag = hW * 1.08;
+        quads.push(
+          [[0.06 + jxW, 0.0, 0.06 + jzW], [0.94 + jxW, 0.0, 0.94 + jzW], [0.94 + jxW, hDiag, 0.94 + jzW], [0.06 + jxW, hDiag, 0.06 + jzW]],
+          [[0.06 - jxW, 0.0, 0.94 + jzW], [0.94 - jxW, 0.0, 0.06 + jzW], [0.94 - jxW, hDiag * 0.97, 0.06 + jzW], [0.06 - jxW, hDiag * 0.97, 0.94 + jzW]]
+        );
+      }
     } else if (id === B.FIRE || id === B.SOUL_FIRE) {
       quads = [
         [[0.08, 0, 0.08], [0.92, 0, 0.92], [0.92, 1.02, 0.92], [0.08, 1.02, 0.08]],
@@ -2463,27 +2484,21 @@
     } else {
       const pr1 = hash2i(wx, wz, 541), pr2 = hash2i(wx + 37, wz - 19, 829);
       const isLushGrass = (id === B.TALL_GRASS || id === B.SHORT_GRASS || id === B.BUSH_GRASS || id === B.WILD_TALL_GRASS || id === B.AUTUMN_GRASS || id === B.SIFT_FLOWER);
-      const isBushyTuft = isLushGrass || (id === B.SEAGRASS && !isStacked);
-      const jScale = isStacked ? 0.14 : (isLushGrass ? 0.16 : 0.16);
+      const jScale = isStacked ? 0.14 : (isLushGrass ? 0.14 : 0.16);
       const jx = (pr1 - 0.5) * jScale, jz = (pr2 - 0.5) * jScale;
       const hTop = (isStacked || isHanging || id === B.SUGAR_CANE || id === B.COBWEB) ? 1.0
-        : (id === B.WILD_TALL_GRASS ? (1.36 + pr1 * 0.24)
-        : (id === B.BUSH_GRASS ? (0.98 + pr1 * 0.14)
-        : (id === B.SHORT_GRASS ? (0.56 + pr1 * 0.14)
-        : (id === B.TALL_GRASS ? (0.82 + pr1 * 0.20) : 0.90))));
-      if (isBushyTuft && !isStacked && (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing))) {
-        const r = (id === B.BUSH_GRASS || id === B.WILD_TALL_GRASS) ? 0.48 : 0.44;
-        const rTop = r * 1.18;
-        const cxp = 0.5 + jx, czp = 0.5 + jz, s60 = 0.8660254, c60 = 0.5;
+        : (id === B.WILD_TALL_GRASS ? (1.18 + pr1 * 0.18)
+        : (id === B.BUSH_GRASS ? (0.94 + pr1 * 0.12)
+        : (id === B.SHORT_GRASS ? (0.68 + pr1 * 0.12)
+        : (id === B.TALL_GRASS ? (0.88 + pr1 * 0.14) : 0.90))));
+      if (isLushGrass && !isStacked) {
+        // Canonical Minecraft 2-plane 45-degree X-cross grass model (matches all 6 grass refs + 33-50% fewer plant triangles!)
+        const cxp = 0.5 + jx, czp = 0.5 + jz;
+        const r = 0.44;
         quads = [
-          [[cxp - r, 0, czp], [cxp + r, 0, czp], [cxp + rTop, hTop, czp], [cxp - rTop, hTop, czp]],
-          [[cxp - r * c60, 0, czp - r * s60], [cxp + r * c60, 0, czp + r * s60], [cxp + rTop * c60, hTop, czp + rTop * s60], [cxp - rTop * c60, hTop, czp - rTop * s60]],
-          [[cxp - r * c60, 0, czp + r * s60], [cxp + r * c60, 0, czp - r * s60], [cxp + rTop * c60, hTop, czp - rTop * s60], [cxp - rTop * c60, hTop, czp + rTop * s60]]
+          [[cxp - r, 0, czp - r], [cxp + r, 0, czp + r], [cxp + r, hTop, czp + r], [cxp - r, hTop, czp - r]],
+          [[cxp - r, 0, czp + r], [cxp + r, 0, czp - r], [cxp + r, hTop, czp - r], [cxp - r, hTop, czp + r]]
         ];
-        if (id === B.BUSH_GRASS || id === B.WILD_TALL_GRASS) {
-          const ri = 0.34, s45 = 0.7071068;
-          quads.push([[cxp - ri * s45, 0, czp - ri * s45], [cxp + ri * s45, 0, czp + ri * s45], [cxp + ri * 1.15 * s45, hTop * 0.92, czp + ri * 1.15 * s45], [cxp - ri * 1.15 * s45, hTop * 0.92, czp - ri * 1.15 * s45]]);
-        }
       } else {
         const cxp = 0.5 + (isHanging ? 0 : jx), czp = 0.5 + (isHanging ? 0 : jz);
         const r = (id === B.COBWEB || isHanging) ? 0.48 : 0.40;

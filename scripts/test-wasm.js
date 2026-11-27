@@ -489,7 +489,7 @@ async function main() {
 
   const { instance } = await WebAssembly.instantiate(bytes, {});
   const w = instance.exports;
-  assert.strictEqual(w.wasm_abi_version(), 5);
+  assert.strictEqual(w.wasm_abi_version(), 6);
 
   const mem = () => w.memory.buffer;
   const coarseView = new Float32Array(mem(), w.coarse_grid_ptr(), 1625);
@@ -929,8 +929,37 @@ async function main() {
   assert(Math.abs(partView[0] - 1.0) > 1e-4 || Math.abs(partView[2] - 3.0) > 1e-4, 'Expected horizontal wind-curl drift');
   assert(Math.abs(partView[7] - 1.9) < 1e-5 && Math.abs(partView[15] - 1.4) < 1e-5);
 
+  // 11) ABI v6: 32x32 chunk priority queue sorter, multiplayer entity smoother & zero-bleed atlas mip baker
+  assert(w.wasm_abi_version() >= 6, 'Expected ABI v6+');
+  const cqCoords = new Int32Array(w.memory.buffer, w.chunk_q_coords_ptr(), 2048 * 2);
+  const cqOrder = new Uint32Array(w.memory.buffer, w.chunk_q_order_ptr(), 2048);
+  cqCoords.set([10, 10, 0, -1, 0, 5, 1, 0], 0); // idx 1=(0,-1) ahead, idx 3=(1,0) adjacent, idx 2=(0,5) behind, idx 0=(10,10) far
+  const sortedN = w.sort_chunk_stream_queue(4, 0, 0, 0.0, -1.0, 0, -1) >>> 0;
+  assert.strictEqual(sortedN, 4);
+  // Descending order -> tail (index 3) is highest priority (0, -1), head (index 0) is farthest (10, 10)
+  assert.strictEqual(cqOrder[0], 0, 'Farthest chunk should be first in descending queue');
+  assert.strictEqual(cqOrder[3], 1, 'Closest forward chunk should be popped first from tail');
+
+  const netEnt = new Float32Array(w.memory.buffer, w.net_ent_buf_ptr(), 128 * 12);
+  netEnt.set([0, 10, 0, 0.0, 0.0, 2.0, 10.0, 0.0, 1.0, 0.2, 4.0, 0.0], 0);
+  netEnt.set([0, 10, 0, 0.0, 0.0, 50.0, 10.0, 0.0, 0.5, 0.0, 0.0, 0.0], 12);
+  const netOut = w.interp_net_entities(2, 0.05, 14.0) >>> 0;
+  assert.strictEqual(netOut, 2);
+  assert(netEnt[0] > 0.8 && netEnt[0] < 2.2, `Expected smooth MP interpolation, got ${netEnt[0]}`);
+  assert(Math.abs(netEnt[12] - 50.0) < 1e-4, 'Expected instant snap past max_snap_dist');
+
+  atlasRgbaView.fill(0, 0, 4 * 4 * 4);
+  // Top-left 2x2: one opaque green pixel (40,200,50,255) + three transparent pixels -> color preserved without black fringe!
+  atlasRgbaView.set([40, 200, 50, 255], 0);
+  const mipBytes = w.build_atlas_mip_rgba(4, 4, 2) >>> 0;
+  assert.strictEqual(mipBytes, 2 * 2 * 4);
+  assert.strictEqual(atlasBumpView[0], 40);
+  assert.strictEqual(atlasBumpView[1], 200);
+  assert.strictEqual(atlasBumpView[2], 50);
+  assert(atlasBumpView[3] >= 63 && atlasBumpView[3] <= 65);
+
   console.log(
-    `[NUCRAFT wasm test] PASS | ABI v5 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
+    `[NUCRAFT wasm test] PASS | ABI v${w.wasm_abi_version()} | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
     `40-chunk solid: JS=${jsMeshMs.toFixed(1)}ms, WASM=${wasmMeshMs.toFixed(1)}ms, Greedy=${wasmGreedyMs.toFixed(1)}ms (-${greedySavePct.toFixed(1)}% / flat -${flatSavePct.toFixed(1)}% verts) | ` +
     `32-chunk OW gen=${wasmGenMs.toFixed(1)}ms | ` +
     `NCW1 50k=${encBytes}B (${(jsonBytes / encBytes).toFixed(1)}x) | ` +

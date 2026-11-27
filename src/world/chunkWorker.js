@@ -58,7 +58,7 @@ function _syncWorkerViews() {
       _wasmInitDone = true;
       return;
     }
-    const wasmUrl = new URL('../../assets/nucraft_core.wasm?v=176', self.location.href).href;
+    const wasmUrl = new URL('../../assets/nucraft_core.wasm?v=183', self.location.href).href;
     fetch(wasmUrl)
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null))

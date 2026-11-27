@@ -27,6 +27,8 @@
   let weatherMode = 'auto', rainIntensity = 0, autoWeatherTimer = 45, autoWeatherTarget = 0, lightningFlash = 0, thunderTimer = 8;
   let thirdPerson = 0, hudHidden = false, minimapVisible = true, cameraShake = 0;
   let shaderPreset = _savedGfx.shaderPreset, volumetricClouds = _savedGfx.volumetricClouds, bumpEnabled = _savedGfx.bumpEnabled;
+  let aaMode = _savedGfx.aaMode || (_initMobile ? 'fxaa' : 'msaa');
+  const _aaModeVal = (m) => (m === 'ultra' ? 3.0 : (m === 'msaa' ? 2.0 : (m === 'fxaa' ? 1.0 : 0.0)));
   let currentDimension = 'overworld', depthOffset = 0; // 'overworld' -> dig -1000 -> 'nether' -> dig -1000 -> 'end' | 'sift'
 
   const _getSharpMaxPR = (q) => {
@@ -49,7 +51,7 @@
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = (shaderQuality !== 'low');
-  const _useDirectRender = () => ((shaderQuality === 'low' || !!window._cartoonAddonActive || (shaderQuality === 'high' && (!window.sodiumOpts || window.sodiumOpts.sodium !== false))) && !(window.sodiumOpts && (window.sodiumOpts.rayTracing || (window.sodiumOpts.frameGen | 0) > 1)));
+  const _useDirectRender = () => ((shaderQuality === 'low' || (!!window._cartoonAddonActive && aaMode !== 'ultra') || (shaderQuality === 'high' && aaMode !== 'ultra' && (!window.sodiumOpts || window.sodiumOpts.sodium !== false))) && !(window.sodiumOpts && (window.sodiumOpts.rayTracing || (window.sodiumOpts.frameGen | 0) > 1)));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.99 : 0.95;
   renderer.setClearColor(0x9bc4e8, 1);
@@ -163,7 +165,8 @@
     uWindVec: { value: new THREE.Vector2(0, 0) },
     uWindGust: { value: 0.5 },
     uCartoonMode: { value: 0.0 },
-    uSulfurWater: { value: 0.0 }
+    uSulfurWater: { value: 0.0 },
+    uAaMode: { value: _aaModeVal(aaMode) }
   };
 
   // Real-time GPU 3D Voxel Acceleration Volume (64x32x64 packed into 512x256 RGBA DataTexture, WebGL1+2 compatible)
@@ -531,7 +534,8 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v171';
+  terrainMat.extensions = { derivatives: true };
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v183';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -543,14 +547,14 @@
       uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
       uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
-      uCartoonMode: envUniforms.uCartoonMode
+      uCartoonMode: envUniforms.uCartoonMode, uAaMode: envUniforms.uAaMode
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNorm = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode;
+        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode, uAaMode;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
         bool isGreedyUv(vec2 uv) {
@@ -617,7 +621,9 @@
             float Hll = bumpScale * texture2D( bumpMap, bUv ).x;
             float dBx = bumpScale * texture2D( bumpMap, clamp( bUv + dSTdx, _to, _bMax ) ).x - Hll;
             float dBy = bumpScale * texture2D( bumpMap, clamp( bUv + dSTdy, _to, _bMax ) ).x - Hll;
-            return vec2( dBx, dBy );
+            float _fpB = max( length( dFdx( _gUv ) ), length( dFdy( _gUv ) ) );
+            float _bDamp = mix( 1.0, 1.0 - smoothstep( 0.055, 0.16, _fpB ), step( 0.5, uAaMode ) );
+            return vec2( dBx, dBy ) * _bDamp;
           }
           float Hll = bumpScale * texture2D( bumpMap, bUv ).x;
           float dBx = bumpScale * texture2D( bumpMap, bUv + dSTdx ).x - Hll;
@@ -638,11 +644,54 @@
       #endif`)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec2 _mUv = vUv;
+        vec4 texelColor;
         if ( isGreedyUv( vUv ) ) {
           vec2 _to, _ts;
-          _mUv = resolveAtlasUv( vUv, greedyWorldUv(), _to, _ts );
+          vec2 _gUv = greedyWorldUv();
+          _mUv = resolveAtlasUv( vUv, _gUv, _to, _ts );
+          vec2 _dxG = dFdx( _gUv );
+          vec2 _dyG = dFdy( _gUv );
+          float _fp = max( length( _dxG ), length( _dyG ) );
+          if ( uAaMode > 0.5 && _fp > 0.052 ) {
+            // Zero-seam distance-adaptive 4-tap RGSS inside tile: razor-sharp up close (1 tap), zero shimmer far away!
+            float _aaW = smoothstep( 0.052, 0.145, _fp ) * ( uAaMode > 1.5 ? 1.0 : 0.82 );
+            vec2 _oA = clamp( _dxG * 0.375 + _dyG * 0.125, vec2( -0.42 ), vec2( 0.42 ) );
+            vec2 _oB = clamp( -_dxG * 0.125 + _dyG * 0.375, vec2( -0.42 ), vec2( 0.42 ) );
+            vec4 _s0 = texture2D( map, _to + fract( _gUv + _oA ) * _ts );
+            vec4 _s1 = texture2D( map, _to + fract( _gUv - _oA ) * _ts );
+            vec4 _s2 = texture2D( map, _to + fract( _gUv + _oB ) * _ts );
+            vec4 _s3 = texture2D( map, _to + fract( _gUv - _oB ) * _ts );
+            vec4 _baseC = texture2D( map, _mUv );
+            texelColor = mix( _baseC, ( _s0 + _s1 + _s2 + _s3 ) * 0.25, _aaW );
+          } else {
+            texelColor = texture2D( map, _mUv );
+          }
+        } else {
+          vec2 _dxU = dFdx( _mUv );
+          vec2 _dyU = dFdy( _mUv );
+          float _fpU = max( length( _dxU * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyU * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
+          if ( uAaMode > 0.5 && _fpU > 0.055 ) {
+            float _colU = floor( _mUv.x * ${ATLAS_COLS}.0 );
+            float _rowU = floor( _mUv.y * ${ATLAS_ROWS}.0 );
+            float _uSt = 1.0 / ${ATLAS_COLS}.0;
+            float _vSt = 1.0 / ${ATLAS_ROWS}.0;
+            vec2 _tMin = vec2( _colU * _uSt + 0.002, _rowU * _vSt + 0.002 );
+            vec2 _tMax = vec2( ( _colU + 1.0 ) * _uSt - 0.002, ( _rowU + 1.0 ) * _vSt - 0.002 );
+            float _aaU = smoothstep( 0.055, 0.15, _fpU ) * ( uAaMode > 1.5 ? 1.0 : 0.80 );
+            vec2 _o1 = _dxU * 0.35 + _dyU * 0.12;
+            vec2 _o2 = -_dxU * 0.12 + _dyU * 0.35;
+            vec4 _c0 = texture2D( map, _mUv );
+            vec4 _cAvg = (
+              texture2D( map, clamp( _mUv + _o1, _tMin, _tMax ) ) +
+              texture2D( map, clamp( _mUv - _o1, _tMin, _tMax ) ) +
+              texture2D( map, clamp( _mUv + _o2, _tMin, _tMax ) ) +
+              texture2D( map, clamp( _mUv - _o2, _tMin, _tMax ) )
+            ) * 0.25;
+            texelColor = mix( _c0, _cAvg, _aaU );
+          } else {
+            texelColor = texture2D( map, _mUv );
+          }
         }
-        vec4 texelColor = texture2D( map, _mUv );
         texelColor = mapTexelToLinear( texelColor );
         diffuseColor *= texelColor;
       #endif`)
@@ -843,7 +892,8 @@
     map: atlasTex,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v43';
+  leavesMat.extensions = { derivatives: true };
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v183';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -853,7 +903,7 @@
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
       uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
-      uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode
+      uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode, uAaMode: envUniforms.uAaMode
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode;\nuniform vec2 uWindVec;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNormL;')
@@ -865,7 +915,34 @@
         transformed.z += (uWindVec.y * 0.85 + leafPhase * 0.028) * wMul;`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormL = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode, uAaMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+        vec4 texelColor = texture2D( map, vUv );
+        if ( uAaMode > 0.5 ) {
+          vec2 _dxL = dFdx( vUv );
+          vec2 _dyL = dFdy( vUv );
+          float _fpL = max( length( _dxL * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyL * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
+          if ( _fpL > 0.060 && texelColor.a > 0.45 ) {
+            float _cL = floor( vUv.x * ${ATLAS_COLS}.0 );
+            float _rL = floor( vUv.y * ${ATLAS_ROWS}.0 );
+            float _uS = 1.0 / ${ATLAS_COLS}.0;
+            float _vS = 1.0 / ${ATLAS_ROWS}.0;
+            vec2 _lMin = vec2( _cL * _uS + 0.002, _rL * _vS + 0.002 );
+            vec2 _lMax = vec2( ( _cL + 1.0 ) * _uS - 0.002, ( _rL + 1.0 ) * _vS - 0.002 );
+            vec2 _oL1 = _dxL * 0.32 + _dyL * 0.12;
+            vec2 _oL2 = -_dxL * 0.12 + _dyL * 0.32;
+            vec4 _t1 = texture2D( map, clamp( vUv + _oL1, _lMin, _lMax ) );
+            vec4 _t2 = texture2D( map, clamp( vUv - _oL1, _lMin, _lMax ) );
+            vec4 _t3 = texture2D( map, clamp( vUv + _oL2, _lMin, _lMax ) );
+            vec4 _t4 = texture2D( map, clamp( vUv - _oL2, _lMin, _lMax ) );
+            float _wSum = 1.0 + step( 0.45, _t1.a ) + step( 0.45, _t2.a ) + step( 0.45, _t3.a ) + step( 0.45, _t4.a );
+            vec3 _rgbAvg = ( texelColor.rgb + _t1.rgb * step( 0.45, _t1.a ) + _t2.rgb * step( 0.45, _t2.a ) + _t3.rgb * step( 0.45, _t3.a ) + _t4.rgb * step( 0.45, _t4.a ) ) / _wSum;
+            texelColor.rgb = mix( texelColor.rgb, _rgbAvg, smoothstep( 0.060, 0.16, _fpL ) * ( uAaMode > 1.5 ? 0.92 : 0.72 ) );
+          }
+        }
+        texelColor = mapTexelToLinear( texelColor );
+        diffuseColor *= texelColor;
+      #endif`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         float faceDirL = gl_FrontFacing ? 1.0 : -1.0;
         vec3 vNormL = normalize(vNormal) * faceDirL;
@@ -1003,7 +1080,8 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v40';
+  plantMat.extensions = { derivatives: true };
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v183';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -1013,7 +1091,7 @@
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
       uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
-      uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode
+      uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode, uAaMode: envUniforms.uAaMode
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime, uWindStrength, uEclipseMode, uWindGust;\nuniform vec2 uWindVec;\nuniform vec3 uPlayerPos;\nattribute float aPlantSway;\nattribute float aSkyShade;\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying float vPlantTip;\nvarying float vSkyShade;')
@@ -1032,7 +1110,30 @@
         transformed.y -= dot(pMoveXZ, pMoveXZ) * 0.45;`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPlantTip = clamp(aPlantSway, 0.0, 1.0);\nvSkyShade = aSkyShade;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode, uAaMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+        vec4 texelColor = texture2D( map, vUv );
+        if ( uAaMode > 0.5 ) {
+          vec2 _dxP = dFdx( vUv );
+          vec2 _dyP = dFdy( vUv );
+          float _fpP = max( length( _dxP * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyP * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
+          if ( _fpP > 0.065 && texelColor.a > 0.42 ) {
+            float _cP = floor( vUv.x * ${ATLAS_COLS}.0 );
+            float _rP = floor( vUv.y * ${ATLAS_ROWS}.0 );
+            float _uSp = 1.0 / ${ATLAS_COLS}.0;
+            float _vSp = 1.0 / ${ATLAS_ROWS}.0;
+            vec2 _pMin = vec2( _cP * _uSp + 0.002, _rP * _vSp + 0.002 );
+            vec2 _pMax = vec2( ( _cP + 1.0 ) * _uSp - 0.002, ( _rP + 1.0 ) * _vSp - 0.002 );
+            vec4 _q1 = texture2D( map, clamp( vUv + _dxP * 0.32, _pMin, _pMax ) );
+            vec4 _q2 = texture2D( map, clamp( vUv - _dxP * 0.32, _pMin, _pMax ) );
+            float _wP = 1.0 + step( 0.42, _q1.a ) + step( 0.42, _q2.a );
+            vec3 _avgP = ( texelColor.rgb + _q1.rgb * step( 0.42, _q1.a ) + _q2.rgb * step( 0.42, _q2.a ) ) / _wP;
+            texelColor.rgb = mix( texelColor.rgb, _avgP, smoothstep( 0.065, 0.17, _fpP ) * 0.85 );
+          }
+        }
+        texelColor = mapTexelToLinear( texelColor );
+        diffuseColor *= texelColor;
+      #endif`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // Prevent DoubleSide backfaces from flipping upward (0,1,0) normals downward into black!
         normal = normalize( vNormal );
@@ -2165,10 +2266,18 @@
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const postQuadGeo = new THREE.PlaneBufferGeometry(2, 2);
   let sceneRT = null, bloomRT1 = null, bloomRT2 = null, bloomWide1 = null, bloomWide2 = null, godRayRT1 = null, godRayRT2 = null, fgRtA = null, fgRtB = null, fgPing = 0;
+  let _sceneRtSamples = -1;
   function ensurePostRTs(needWide = false, needFg = false) {
+    const wantSamples = (!_initMobile && (aaMode === 'msaa' || aaMode === 'ultra') && renderer.capabilities && renderer.capabilities.isWebGL2) ? 4 : 0;
+    if (sceneRT && _sceneRtSamples !== wantSamples) {
+      const oldW = sceneRT.width || 1280, oldH = sceneRT.height || 720;
+      sceneRT.dispose();
+      sceneRT = new THREE.WebGLRenderTarget(oldW, oldH, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false, samples: wantSamples });
+      _sceneRtSamples = wantSamples;
+    }
     if (!sceneRT) {
-      const msaaSamples = (!_initMobile && renderer.capabilities && renderer.capabilities.isWebGL2) ? 4 : 0;
-      sceneRT = new THREE.WebGLRenderTarget(1280, 720, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false, samples: msaaSamples });
+      _sceneRtSamples = wantSamples;
+      sceneRT = new THREE.WebGLRenderTarget(1280, 720, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false, samples: wantSamples });
       const fxOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false };
       bloomRT1 = new THREE.WebGLRenderTarget(320, 180, fxOpts);
       bloomRT2 = new THREE.WebGLRenderTarget(320, 180, fxOpts);
@@ -2333,13 +2442,13 @@
       uMoonBoost: envUniforms.uMoonBoost, uDimension: envUniforms.uDimension,
       uHasGodRays: envUniforms.uHasGodRays, uQuality: envUniforms.uQuality,
       uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode,
-      uLightScreen: envUniforms.uLightScreenPos, uSunVis: envUniforms.uSunVis, uRayTracing: envUniforms.uRayTracing, uCartoonMode: envUniforms.uCartoonMode
+      uLightScreen: envUniforms.uLightScreenPos, uSunVis: envUniforms.uSunVis, uRayTracing: envUniforms.uRayTracing, uCartoonMode: envUniforms.uCartoonMode, uAaMode: envUniforms.uAaMode
     },
     depthTest: false, depthWrite: false,
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
     fragmentShader: `
       uniform sampler2D tScene, tBloom, tBloomWide, tGodRays;
-      uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uSunVis, uRayTracing, uCartoonMode;
+      uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uSunVis, uRayTracing, uCartoonMode, uAaMode;
       uniform vec2 uTexelSize, uLightScreen;
       varying vec2 vUv;
       // Authentic Merlin1809 Eclipse-Shader AgX Minimal Tonemap & Vignette (color_transforms.glsl / final.fsh)
@@ -2413,40 +2522,63 @@
             float wW = exp(-dot(abs(dW - col), vec3(1.0)) * 18.0) * 0.65;
             col = (col + dN * wN + dS * wS + dE * wE + dW * wW) / (1.0 + wN + wS + wE + wW);
           }
-          if (uSharpness > 0.01) {
+          if (uAaMode > 0.5 || uSharpness > 0.01) {
             vec3 nN = texture2D(tScene, uv + vec2(0.0, uTexelSize.y)).rgb;
             vec3 nS = texture2D(tScene, uv - vec2(0.0, uTexelSize.y)).rgb;
             vec3 nE = texture2D(tScene, uv + vec2(uTexelSize.x, 0.0)).rgb;
             vec3 nW = texture2D(tScene, uv - vec2(uTexelSize.x, 0.0)).rgb;
-            // Edge-aware FXAA-lite: anti-alias jagged high-contrast silhouettes without blurring textures
-            float lC = dot(col, vec3(0.299, 0.587, 0.114));
-            float lN = dot(nN, vec3(0.299, 0.587, 0.114));
-            float lS = dot(nS, vec3(0.299, 0.587, 0.114));
-            float lE = dot(nE, vec3(0.299, 0.587, 0.114));
-            float lW = dot(nW, vec3(0.299, 0.587, 0.114));
-            float lRange = max(max(lC, max(lN, lS)), max(lE, lW)) - min(min(lC, min(lN, lS)), min(lE, lW));
-            float aaMask = smoothstep(0.06, 0.24, lRange);
-            if (aaMask > 0.02) {
-              float dirH = abs((lN + lS) * 0.5 - lC), dirV = abs((lE + lW) * 0.5 - lC);
-              vec2 edgeStep = (dirH >= dirV) ? vec2(uTexelSize.x * 0.65, 0.0) : vec2(0.0, uTexelSize.y * 0.65);
-              vec3 edgeMix = (texture2D(tScene, clamp(uv + edgeStep, 0.001, 0.999)).rgb + texture2D(tScene, clamp(uv - edgeStep, 0.001, 0.999)).rgb) * 0.5;
-              col = mix(col, edgeMix, aaMask * 0.45);
+            float aaMask = 0.0;
+            // Universal Edge-Directed FXAA 3.11 across ALL shaders (eliminates jagged horizons & silhouettes with zero blur)
+            if (uAaMode > 0.5) {
+              float lC = dot(col, vec3(0.299, 0.587, 0.114));
+              float lN = dot(nN, vec3(0.299, 0.587, 0.114));
+              float lS = dot(nS, vec3(0.299, 0.587, 0.114));
+              float lE = dot(nE, vec3(0.299, 0.587, 0.114));
+              float lW = dot(nW, vec3(0.299, 0.587, 0.114));
+              float lMin = min(lC, min(min(lN, lS), min(lE, lW)));
+              float lMax = max(lC, max(max(lN, lS), max(lE, lW)));
+              float lRange = lMax - lMin;
+              float edgeThr = mix(0.052, 0.032, step(2.5, uAaMode));
+              aaMask = smoothstep(edgeThr, edgeThr + 0.16, lRange);
+              if (aaMask > 0.02) {
+                float dirH = abs((lN + lS) * 0.5 - lC);
+                float dirV = abs((lE + lW) * 0.5 - lC);
+                if (uAaMode > 2.5) {
+                  float lNE = dot(texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+                  float lNW = dot(texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+                  float lSE = dot(texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+                  float lSW = dot(texture2D(tScene, uv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+                  dirH = abs(-2.0 * lW + lNW + lSW) + abs(-2.0 * lC + lN + lS) * 2.0 + abs(-2.0 * lE + lNE + lSE);
+                  dirV = abs(-2.0 * lN + lNW + lNE) + abs(-2.0 * lC + lW + lE) * 2.0 + abs(-2.0 * lS + lSW + lSE);
+                }
+                bool isHoriz = (dirH >= dirV);
+                vec2 stepAlong = isHoriz ? vec2(uTexelSize.x * 0.72, 0.0) : vec2(0.0, uTexelSize.y * 0.72);
+                vec2 stepPerp  = isHoriz ? vec2(0.0, uTexelSize.y * 0.42) : vec2(uTexelSize.x * 0.42, 0.0);
+                float pSign = isHoriz ? (abs(lN - lC) >= abs(lS - lC) ? 1.0 : -1.0) : (abs(lE - lC) >= abs(lW - lC) ? 1.0 : -1.0);
+                vec3 tapA = texture2D(tScene, clamp(uv + stepAlong + stepPerp * pSign * 0.45, 0.001, 0.999)).rgb;
+                vec3 tapB = texture2D(tScene, clamp(uv - stepAlong + stepPerp * pSign * 0.45, 0.001, 0.999)).rgb;
+                vec3 edgeMix = (tapA + tapB) * 0.5;
+                float aaStr = mix(0.48, 0.68, step(2.5, uAaMode));
+                col = mix(col, edgeMix, aaMask * aaStr);
+              }
             }
-            float rtShScale = mix(1.0, 0.72, uRayTracing) * (1.0 - aaMask * 0.55);
-            if (uDlssMode > 0.5 || uEclipseMode > 0.5) {
-              vec3 nNE = texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb;
-              vec3 nNW = texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb;
-              vec3 nSE = texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb;
-              vec3 nSW = texture2D(tScene, uv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb;
-              vec3 avg8 = (nN + nS + nE + nW + (nNE + nNW + nSE + nSW) * 0.65) / 6.6;
-              vec3 mnC = min(col, min(min(nN, nS), min(nE, nW)));
-              vec3 mxC = max(col, max(max(nN, nS), max(nE, nW)));
-              float shDlss = uSharpness * (isUltraC ? 1.25 : 1.08) * rtShScale;
-              col = clamp(col + clamp((col - avg8) * shDlss, -0.095, 0.095), mnC * 0.94, mxC * 1.06);
-            } else {
-              vec3 nb4 = (nN + nS + nE + nW) * 0.25;
-              float shGain = uSharpness * (isUltraC ? 1.15 : 1.0) * rtShScale;
-              col = clamp(col + clamp((col - nb4) * shGain, -0.075, 0.075), 0.0, 1.5);
+            if (uSharpness > 0.01) {
+              float rtShScale = mix(1.0, 0.72, uRayTracing) * (1.0 - aaMask * 0.68);
+              if (uDlssMode > 0.5 || uEclipseMode > 0.5) {
+                vec3 nNE = texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb;
+                vec3 nNW = texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb;
+                vec3 nSE = texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb;
+                vec3 nSW = texture2D(tScene, uv + vec2(-uTexelSize.x, -uTexelSize.y)).rgb;
+                vec3 avg8 = (nN + nS + nE + nW + (nNE + nNW + nSE + nSW) * 0.65) / 6.6;
+                vec3 mnC = min(col, min(min(nN, nS), min(nE, nW)));
+                vec3 mxC = max(col, max(max(nN, nS), max(nE, nW)));
+                float shDlss = uSharpness * (isUltraC ? 1.25 : 1.08) * rtShScale;
+                col = clamp(col + clamp((col - avg8) * shDlss, -0.095, 0.095), mnC * 0.94, mxC * 1.06);
+              } else {
+                vec3 nb4 = (nN + nS + nE + nW) * 0.25;
+                float shGain = uSharpness * (isUltraC ? 1.15 : 1.0) * rtShScale;
+                col = clamp(col + clamp((col - nb4) * shGain, -0.075, 0.075), 0.0, 1.5);
+              }
             }
           }
         }

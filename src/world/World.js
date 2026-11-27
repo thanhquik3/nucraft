@@ -5471,10 +5471,10 @@
     const acx = Math.floor(player.x + dirX * 14) >> 4;
     const acz = Math.floor(player.z + dirZ * 14) >> 4;
 
-    // Incremental deferred unloading (max 2 chunks/frame during movement, faster catch-up after large teleports)
+    // Incremental deferred unloading (gentle cap at 32x32 to prevent GC frame drops when lowering render distance)
     if (_chunkUnloadQueue.length > 0) {
       let disposed = 0;
-      const maxUnload = _chunkUnloadQueue.length > 64 ? 32 : 2;
+      const maxUnload = _chunkUnloadQueue.length > 64 ? (renderDistance > 8 ? 10 : 32) : (renderDistance > 8 ? 4 : 2);
       while (_chunkUnloadQueue.length > 0 && disposed < maxUnload) {
         const uk = _chunkUnloadQueue.pop();
         _chunkUnloadSet.delete(uk);
@@ -5512,19 +5512,42 @@
     }
     if ((movedChunk || turnedEnough) && emergeQueue.length > 1) {
       _lastChunkSortYaw = player.yaw || 0;
-      // Descending sort so highest priority (lowest score) is popped in O(1) from the tail
-      emergeQueue.sort((a, b) =>
-        _chunkFrustumScore(b[0], b[1], pcx, pcz, fwdX, fwdZ, acx, acz) -
-        _chunkFrustumScore(a[0], a[1], pcx, pcz, fwdX, fwdZ, acx, acz)
-      );
+      // Rust WASM zero-GC shell sort for large 32x32 chunk queues (fallback to JS sort if WASM not ready)
+      const _qLen = emergeQueue.length;
+      const _wCore = (_qLen > 12 && _qLen <= 2048 && typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+      if (_wCore && _wCore.exports && _wCore.exports.sort_chunk_stream_queue && _wCore.chunkQCoords && _wCore.chunkQOrder) {
+        const coords = _wCore.chunkQCoords;
+        for (let qi = 0; qi < _qLen; qi++) {
+          coords[qi * 2] = emergeQueue[qi][0] | 0;
+          coords[qi * 2 + 1] = emergeQueue[qi][1] | 0;
+        }
+        const sortedN = _wCore.exports.sort_chunk_stream_queue(_qLen | 0, pcx | 0, pcz | 0, fwdX, fwdZ, acx | 0, acz | 0) >>> 0;
+        if (sortedN === _qLen) {
+          const order = _wCore.chunkQOrder;
+          const copy = emergeQueue.slice();
+          for (let qi = 0; qi < _qLen; qi++) emergeQueue[qi] = copy[order[qi]];
+          if (_wCore.state) _wCore.state.chunkSortCalls = (_wCore.state.chunkSortCalls || 0) + 1;
+        } else {
+          emergeQueue.sort((a, b) =>
+            _chunkFrustumScore(b[0], b[1], pcx, pcz, fwdX, fwdZ, acx, acz) -
+            _chunkFrustumScore(a[0], a[1], pcx, pcz, fwdX, fwdZ, acx, acz)
+          );
+        }
+      } else {
+        // Descending sort so highest priority (lowest score) is popped in O(1) from the tail
+        emergeQueue.sort((a, b) =>
+          _chunkFrustumScore(b[0], b[1], pcx, pcz, fwdX, fwdZ, acx, acz) -
+          _chunkFrustumScore(a[0], a[1], pcx, pcz, fwdX, fwdZ, acx, acz)
+        );
+      }
     }
     if (!isWorldLoading && chunkWorkerPool.active) {
-      if (chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 2 : 4, _isMobilePerf ? 1.2 : 1.6) > 0) {
+      if (chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 2 : (renderDistance > 8 ? 6 : 4), _isMobilePerf ? 1.2 : (renderDistance > 8 ? 1.8 : 1.6)) > 0) {
         window._chunkBuiltThisFrame = true;
       }
     }
     if (chunkWorkerPool.active && currentDimension === 'overworld' && emergeQueue.length > 0) {
-      const lookAhead = _isMobilePerf ? 6 : 10;
+      const lookAhead = _isMobilePerf ? 6 : (renderDistance > 8 ? 16 : 10);
       for (let pi = emergeQueue.length - 1, lim = Math.max(0, emergeQueue.length - lookAhead); pi >= lim; pi--) {
         const ecx = emergeQueue[pi][0], ecz = emergeQueue[pi][1];
         if ((depthOffset || 0) === 0 && !isAbandonedCity(ecx * 16 + 8, ecz * 16 + 8) && !isGrandRuins(ecx * 16 + 8, ecz * 16 + 8)) {

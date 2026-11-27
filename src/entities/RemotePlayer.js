@@ -134,7 +134,7 @@
         const posChanged = Math.abs(qx - _lastSentNet.x) > 0.01 || Math.abs(qy - _lastSentNet.y) > 0.01 || Math.abs(qz - _lastSentNet.z) > 0.01
           || rotChanged || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
           || !!player.bowDrawing || (player.bowStage || 0) !== (_lastSentNet.bowStage || 0);
-        const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || (nowPerf - _lastSentNet.metaAt) >= 4500);
+        const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || localPlayerName !== _lastSentNet.name || (nowPerf - _lastSentNet.metaAt) >= 4500);
         if (_isMovingNet || edgeChanged || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
           _lastStateSendMs = nowPerf;
           _wasMovingNet = _isMovingNet;
@@ -144,6 +144,7 @@
           _lastSentNet._burning = _burnNow;
           _lastSentNet._burnSoul = _burnSoulNow;
           _lastSentNet.idleAt = nowPerf;
+          _lastSentNet.name = localPlayerName;
           _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
           _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
           _lastSentNet.bowStage = player.bowStage || 0;
@@ -208,6 +209,9 @@
 
     const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
     const barInnerW = locatorBarEl.clientWidth || 360;
+    const _wCoreNet = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    const _useWasmNet = !!(_wCoreNet && _wCoreNet.exports && _wCoreNet.exports.interp_net_entities && _wCoreNet.netEntBuf);
+    const _wasmNetRps = [];
 
     for (const [pid, rp] of remotePlayers.entries()) {
       const lastActiveAt = rp._lastPktAt || rp._createdAt;
@@ -240,20 +244,50 @@
         rp.y += ((Math.max(WATER_LEVEL, gy) + 1.0) - rp.y) * Math.min(1, dt * 8);
         rp.onGround = !rp.deepWater;
       } else {
+        let tgtX = rp.tx, tgtY = (typeof rp.trueY === 'number') ? (rp.trueY + localOff) : rp.ty, tgtZ = rp.tz;
+        let tgtYaw = rp.yaw || 0, tgtPitch = rp.pitch || 0, vxN = 0, vzN = 0;
         if (rp._netBuf && rp._netBuf.snaps.length > 0) {
           const maxTp = (rp.gliding || rp.flying) ? 26.0 : 12.0;
           const s = sampleNetInterp(rp._netBuf, nowPerf, dt, localOff, maxTp, _rpSampleOut);
-          rp.x = s.x; rp.y = s.y; rp.z = s.z;
-          rp.yaw = s.yaw; rp.pitch = s.pitch;
+          tgtX = s.x; tgtY = s.y; tgtZ = s.z;
+          tgtYaw = s.yaw; tgtPitch = s.pitch;
+          vxN = s.vx; vzN = s.vz;
           rp.vy = s.vy;
           const visSpd = Math.hypot(s.vx, s.vz);
           const animSpd = Math.max(s.spd * 0.4, visSpd);
           rp.speed = animSpd < 0.08 ? 0 : animSpd;
+        }
+        if (_useWasmNet && _wasmNetRps.length < 128) {
+          if (!rp._wasmSmoothed) {
+            rp.x = tgtX; rp.y = tgtY; rp.z = tgtZ;
+            rp.yaw = tgtYaw; rp.pitch = tgtPitch;
+            rp._wasmSmoothed = true;
+          }
+          const idx = _wasmNetRps.length;
+          const o = idx * 12;
+          const nb = _wCoreNet.netEntBuf;
+          nb[o] = rp.x; nb[o + 1] = rp.y; nb[o + 2] = rp.z; nb[o + 3] = rp.yaw || 0; nb[o + 4] = rp.pitch || 0;
+          nb[o + 5] = tgtX; nb[o + 6] = tgtY; nb[o + 7] = tgtZ; nb[o + 8] = tgtYaw; nb[o + 9] = tgtPitch;
+          nb[o + 10] = vxN; nb[o + 11] = vzN;
+          _wasmNetRps.push(rp);
         } else {
-          const baseY = (typeof rp.trueY === 'number') ? (rp.trueY + localOff) : rp.ty;
-          rp.x = rp.tx; rp.y = baseY; rp.z = rp.tz;
+          rp.x = tgtX; rp.y = tgtY; rp.z = tgtZ;
+          rp.yaw = tgtYaw; rp.pitch = tgtPitch;
         }
       }
+    }
+    if (_useWasmNet && _wasmNetRps.length > 0) {
+      const nW = _wCoreNet.exports.interp_net_entities(_wasmNetRps.length | 0, Math.min(0.05, Math.max(0.001, dt || 0.016)), 18.0) >>> 0;
+      const nb = _wCoreNet.netEntBuf;
+      for (let wi = 0; wi < nW; wi++) {
+        const rpW = _wasmNetRps[wi], o = wi * 12;
+        rpW.x = nb[o]; rpW.y = nb[o + 1]; rpW.z = nb[o + 2];
+        rpW.yaw = nb[o + 3]; rpW.pitch = nb[o + 4];
+      }
+      if (_wCoreNet.state) _wCoreNet.state.netInterpCalls = (_wCoreNet.state.netInterpCalls || 0) + 1;
+    }
+
+    for (const [pid, rp] of remotePlayers.entries()) {
       const sameDim = !!rp.isBuddy || ((rp.dim || 'overworld') === currentDimension);
       rp.rig.g.visible = sameDim;
       if (sameDim) {

@@ -1896,21 +1896,29 @@
     try { return (localStorage.getItem(UID_STORAGE_KEY) || '').trim(); } catch (_) { return ''; }
   }
   function setLockedPlayerUidOnce(rawUid) {
-    const existing = getLockedPlayerUid();
-    if (existing) return { ok: false, reason: 'Tên UID đã được khóa vĩnh viễn và không thể thay đổi!' };
     const clean = String(rawUid || '').trim();
     if (clean.length < 3 || clean.length > 18) {
       return { ok: false, reason: 'Tên UID phải dài từ 3 đến 18 ký tự!' };
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
-      return { ok: false, reason: 'Tên UID chỉ gồm chữ không dấu, số và dấu gạch dưới (_).' };
+    if (!/^[a-zA-Z0-9_-]+$/.test(clean)) {
+      return { ok: false, reason: 'Tên UID chỉ gồm chữ không dấu, số, gạch dưới (_) và gạch ngang (-).' };
     }
+    const prev = getLockedPlayerUid();
     try { localStorage.setItem(UID_STORAGE_KEY, clean); } catch (_) {}
     localPlayerName = clean;
     syncPlayerUidUI();
-    initFriendNetworkPeer();
-    return { ok: true, uid: clean };
+    syncAccountBadgeUI();
+    if (clean !== prev) {
+      initFriendNetworkPeer();
+      if (typeof sendCoopMsg === 'function' && activeRoomId) {
+        try { sendCoopMsg({ type: 'hello', name: clean, uid: clean }); } catch (_) {}
+      }
+      if (typeof scheduleAccountCloudSync === 'function') scheduleAccountCloudSync();
+    }
+    return { ok: true, uid: clean, changed: clean !== prev };
   }
+  const setPlayerUid = setLockedPlayerUidOnce;
+  if (typeof window !== 'undefined') window.setPlayerUid = setPlayerUid;
   function isShareWithFriendsEnabled() { return !!shareWithFriendsEnabled; }
 
   function loadFriendsList() {
@@ -1951,9 +1959,9 @@
     const pName = document.getElementById('pausePlayerName');
     if (pName) pName.textContent = dispName;
     const inpP = document.getElementById('inpPlayerName');
-    if (inpP && uid) { inpP.value = uid; inpP.disabled = true; }
+    if (inpP && dispName) { inpP.value = dispName; inpP.disabled = false; }
     const inpC = document.getElementById('inpCoopName');
-    if (inpC && uid) { inpC.value = uid; inpC.disabled = true; }
+    if (inpC && dispName) { inpC.value = dispName; inpC.disabled = false; }
 
     const friends = loadFriendsList();
     const reqs = loadIncomingFriendReqs();
@@ -1985,16 +1993,24 @@
     const uid = getLockedPlayerUid();
     const inp = document.getElementById('inpProfileUid');
     const st = document.getElementById('profileUidStatus');
+    const hint = document.getElementById('profileUidHint');
     const btnSave = document.getElementById('btnSaveProfileUid');
-    if (uid) {
-      if (st) st.textContent = `UID vĩnh viễn của bạn đã được khóa: ${uid}`;
-      if (inp) { inp.value = uid; inp.disabled = true; }
-      if (btnSave) { btnSave.disabled = true; btnSave.textContent = 'Đã khóa UID'; btnSave.style.opacity = '0.55'; }
-    } else {
-      if (st) st.textContent = 'Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):';
-      if (inp) { inp.value = ''; inp.disabled = false; }
-      if (btnSave) { btnSave.disabled = false; btnSave.textContent = 'Lưu UID cố định'; btnSave.style.opacity = '1'; }
+    let savedMeta = null;
+    try { savedMeta = JSON.parse(localStorage.getItem(ACC_ACTIVE_KEY) || 'null'); } catch (_) {}
+    const loginUser = _activeAccSession?.username || savedMeta?.username || '';
+    if (st) {
+      st.textContent = loginUser
+        ? `Tên UID hiển thị trong game (đổi thoải mái — độc lập với tài khoản đăng nhập @${loginUser}):`
+        : 'Tên UID hiển thị trong game (có thể thay đổi bất cứ lúc nào):';
     }
+    if (hint) {
+      hint.style.color = '';
+      hint.textContent = loginUser
+        ? `Tên đăng nhập tài khoản của bạn (@${loginUser}) được giữ cố định để đăng nhập, còn tên UID này dùng để hiển thị trong game & kết bạn.`
+        : 'Tên UID hiển thị trên đầu nhân vật, ngoài sảnh, trong phòng Co-op và để bạn bè tìm kiếm (khác với tên đăng nhập tài khoản).';
+    }
+    if (inp) { inp.value = uid || localPlayerName || ''; inp.disabled = false; }
+    if (btnSave) { btnSave.disabled = false; btnSave.textContent = 'Lưu tên UID'; btnSave.style.opacity = '1'; }
     syncAccountBadgeUI();
     if (typeof syncAllPlayerAvatarFaces === 'function') syncAllPlayerAvatarFaces();
     switchProfileModalTab(initialTab === 'auth' ? 'auth' : 'uid');
@@ -2151,9 +2167,12 @@
     const addons = (typeof window.exportModsForAccountSync === 'function') ? window.exportModsForAccountSync() : [];
     let gfx = null;
     try { gfx = (typeof CFG !== 'undefined' && CFG.loadGfxPrefs) ? CFG.loadGfxPrefs() : null; } catch (_) {}
+    const curDisplayUid = getLockedPlayerUid() || (typeof localPlayerName !== 'undefined' && localPlayerName) || username;
     const snap = {
       v: 1,
-      uid: username,
+      loginUser: username,
+      uid: curDisplayUid,
+      displayUid: curDisplayUid,
       skinId: (typeof selectedSkinId !== 'undefined') ? selectedSkinId : 'steve',
       customSkins: Array.isArray(customSkins) ? customSkins.slice(0, 6) : [],
       worlds: trimWorlds(worlds, compactForCloud, 2200),
@@ -2172,9 +2191,11 @@
     return snap;
   }
   async function applyAccountSnapshot(snap) {
-    if (!snap || !snap.uid) return;
-    try { localStorage.setItem(UID_STORAGE_KEY, snap.uid); } catch (_) {}
-    if (typeof localPlayerName !== 'undefined') localPlayerName = snap.uid;
+    if (!snap) return;
+    const restoredUid = snap.displayUid || snap.uid || snap.loginUser || '';
+    if (!restoredUid) return;
+    try { localStorage.setItem(UID_STORAGE_KEY, restoredUid); } catch (_) {}
+    if (typeof localPlayerName !== 'undefined') localPlayerName = restoredUid;
     try { localStorage.setItem(FRIENDS_STORAGE_KEY, JSON.stringify(Array.isArray(snap.friends) ? snap.friends : [])); } catch (_) {}
     try { localStorage.setItem(FRIEND_REQS_KEY, JSON.stringify(Array.isArray(snap.friendReqs) ? snap.friendReqs : [])); } catch (_) {}
     try { localStorage.setItem(OUTGOING_REQS_KEY, JSON.stringify(Array.isArray(snap.outgoingReqs) ? snap.outgoingReqs : [])); } catch (_) {}
@@ -2223,8 +2244,8 @@
     try { savedMeta = JSON.parse(localStorage.getItem(ACC_ACTIVE_KEY) || 'null'); } catch (_) {}
     const uName = _activeAccSession?.username || savedMeta?.username || '';
     const hasSession = !!(_activeAccSession && _activeAccSession.aesKey);
-    const dispUid = uName || getLockedPlayerUid() || (typeof localPlayerName !== 'undefined' && localPlayerName) || 'Người chơi';
-    if (sideName) sideName.textContent = uName ? `@${uName}` : dispUid;
+    const dispUid = getLockedPlayerUid() || (typeof localPlayerName !== 'undefined' && localPlayerName) || uName || 'Người chơi';
+    if (sideName) sideName.textContent = dispUid;
     if (pill) {
       pill.textContent = hasSession ? '🟢 Đã đồng bộ đám mây' : (uName ? '🟡 Đã lưu phiên' : '⚪ Chưa đồng bộ');
       pill.style.color = hasSession ? '#4ade80' : '#fde047';
@@ -2235,13 +2256,13 @@
       statEl.textContent = `${wCnt} map · ${fCnt} bạn`;
     }
     if (badge) {
-      badge.textContent = uName ? (hasSession ? `🟢 Đã đăng nhập: @${uName}` : `🟡 Đã lưu phiên: @${uName} (nhập MK để đồng bộ)`) : 'Chưa đăng nhập tài khoản đồng bộ';
+      badge.textContent = uName ? (hasSession ? `🟢 Tài khoản đăng nhập: @${uName}` : `🟡 Đã lưu phiên: @${uName} (nhập MK để đồng bộ)`) : 'Chưa đăng nhập tài khoản đồng bộ';
       badge.style.color = hasSession ? '#4ade80' : '#facc15';
     }
     if (sub) {
       const ts = _activeAccSession?.lastSyncAt || savedMeta?.lastSyncAt;
       sub.textContent = uName
-        ? (ts ? `Đồng bộ gần nhất: ${new Date(ts).toLocaleTimeString()} • Skin, Map, Add-on & Bạn bè` : 'Đã sẵn sàng đồng bộ Skin, Map, Add-on & Bạn bè')
+        ? (ts ? `UID trong game: ${dispUid} • Đồng bộ gần nhất: ${new Date(ts).toLocaleTimeString()}` : `UID trong game: ${dispUid} • Sẵn sàng đồng bộ Skin, Map, Add-on & Bạn bè`)
         : 'Đăng nhập để mang Skin, Map, Add-on & Bạn bè sang máy/trình duyệt khác';
     }
     if (btnGo) btnGo.textContent = uName ? '🔐 Đổi tài khoản' : '🔐 Đăng nhập / Tạo acc';
@@ -2258,8 +2279,10 @@
     if (existing) {
       throw new Error('Tên tài khoản này đã có người đăng ký! Hãy đăng nhập hoặc chọn tên khác.');
     }
-    try { localStorage.setItem(UID_STORAGE_KEY, cInfo.username); } catch (_) {}
-    if (typeof localPlayerName !== 'undefined') localPlayerName = cInfo.username;
+    if (!getLockedPlayerUid()) {
+      try { localStorage.setItem(UID_STORAGE_KEY, cInfo.username); } catch (_) {}
+      if (typeof localPlayerName !== 'undefined') localPlayerName = cInfo.username;
+    }
     const snap = collectAccountSnapshot(cInfo.username, true);
     const env = await _encryptAccountEnvelope(cInfo, snap);
     await _pushCloudAccountEnvelope(cInfo.accountId, env, 'register');
@@ -2278,8 +2301,9 @@
     }
     const snap = await _decryptAccountEnvelope(cInfo, env);
     _saveLocalVaultEnvelope(cInfo.accountId, env);
-    _activeAccSession = { ...cInfo, lastSyncAt: snap.savedAt || env.updatedAt || Date.now() };
-    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: snap.uid || cInfo.username, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
+    const loginAccName = snap.loginUser || cInfo.username;
+    _activeAccSession = { ...cInfo, username: loginAccName, lastSyncAt: snap.savedAt || env.updatedAt || Date.now() };
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: loginAccName, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
     await applyAccountSnapshot(snap);
     syncAccountBadgeUI();
     return snap;
@@ -2331,8 +2355,9 @@
     const cInfo = await _deriveAccountCrypto(u, password);
     const snap = await _decryptAccountEnvelope(cInfo, env);
     _saveLocalVaultEnvelope(cInfo.accountId, env);
-    _activeAccSession = { ...cInfo, lastSyncAt: snap.savedAt || Date.now() };
-    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: snap.uid || cInfo.username, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
+    const loginAccName = snap.loginUser || cInfo.username;
+    _activeAccSession = { ...cInfo, username: loginAccName, lastSyncAt: snap.savedAt || Date.now() };
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: loginAccName, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
     await applyAccountSnapshot(snap);
     await _pushCloudAccountEnvelope(cInfo.accountId, env, 'sync');
     syncAccountBadgeUI();

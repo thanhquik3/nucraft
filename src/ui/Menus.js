@@ -712,6 +712,12 @@
       showToast(`Đồ họa: ${btn.textContent}`);
     });
   });
+  document.querySelectorAll('#aaSeg .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (typeof applyAaMode === 'function') applyAaMode(btn.dataset.aa, true);
+      showToast(`Khử răng cưa: ${btn.textContent}`);
+    });
+  });
   document.querySelectorAll('#frameGenSeg .seg-btn').forEach(btn => {
     const fg = parseInt(btn.dataset.fg, 10) || 1;
     btn.classList.toggle('active', ((sodiumOpts.frameGen | 0) || 1) === fg);
@@ -1324,9 +1330,15 @@
     '✓ Đồng ý': '✓ Accept',
     'Từ chối': 'Decline',
     'Hồ sơ người chơi (UID)': 'Player Profile (UID)',
-    'Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):': 'Set your UID name (one-time setup, cannot be changed after saving):',
+    'Tên UID hiển thị trong game (có thể thay đổi bất cứ lúc nào):': 'In-game UID display name (can be changed anytime):',
     'Đóng': 'Close',
-    'Lưu UID cố định': 'Save Permanent UID',
+    'Lưu tên UID': 'Save UID Name',
+    'Cực Đại (32×32)': 'Extreme (32×32)',
+    'Khử răng cưa (Mọi Shader)': 'Anti-Aliasing (All Shaders)',
+    'Tắt': 'Off',
+    'Nhẹ (FXAA)': 'Light (FXAA)',
+    'Chuẩn (MSAA)': 'Standard (MSAA)',
+    'Siêu Mịn (Ultra)': 'Ultra Smooth',
     'Mặc định': 'Default',
     '✓ Lưu & Xong': '✓ Save & Done',
     'Kích thước:': 'Scale:',
@@ -2633,6 +2645,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     } else if (act === 'graphics') {
       document.querySelector('#renderDistSeg .seg-btn[data-val="4"]')?.click();
       document.querySelector('#qualitySeg .seg-btn[data-val="ultra"]')?.click();
+      document.querySelector(`#aaSeg .seg-btn[data-aa="${_initMobile ? 'fxaa' : 'msaa'}"]`)?.click();
       document.querySelector('#frameGenSeg .seg-btn[data-fg="1"]')?.click();
       document.querySelector('#presetSeg .seg-btn[data-preset="eclipse"]')?.click();
       if (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing) document.getElementById('btnRayTracing')?.click();
@@ -3428,7 +3441,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
       showToast('⚠️ ' + res.reason);
       return;
     }
-    showToast(`✅ Đã lưu UID cố định: ${res.uid} (Không thể đổi sau này)`);
+    showToast(`✅ Đã cập nhật tên UID trong game: ${res.uid}`);
     closeProfileModal();
   });
 

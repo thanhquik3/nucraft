@@ -113,6 +113,7 @@
       shaderQuality: defaultQuality,
       renderDistance: 4,
       shaderPreset: 'eclipse',
+      aaMode: (hw && hw.isMobile) ? 'fxaa' : 'msaa',
       bumpEnabled: !(hw && hw.isMobile),
       volumetricClouds: true
     };
@@ -120,11 +121,14 @@
       const raw = JSON.parse(localStorage.getItem(GFX_PREFS_KEY) || 'null');
       if (raw && typeof raw === 'object') {
         if (raw.shaderQuality !== undefined) base.shaderQuality = normalizeQuality(raw.shaderQuality, defaultQuality);
-        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 1 && raw.renderDistance <= 8) {
+        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 1 && raw.renderDistance <= 16) {
           base.renderDistance = raw.renderDistance | 0;
         }
         if (raw.shaderPreset === 'eclipse' || raw.shaderPreset === 'ncr2' || raw.shaderPreset === 'bsl' || raw.shaderPreset === 'bliss' || raw.shaderPreset === 'moonlit' || raw.shaderPreset === 'chill_sunset' || raw.shaderPreset === 'verdant_fresh' || raw.shaderPreset === 'dlss_ultra') {
           base.shaderPreset = raw.shaderPreset;
+        }
+        if (raw.aaMode === 'off' || raw.aaMode === 'fxaa' || raw.aaMode === 'msaa' || raw.aaMode === 'ultra') {
+          base.aaMode = raw.aaMode;
         }
         if (!raw.eclipseMaxMigrated) {
           base.shaderPreset = 'eclipse';

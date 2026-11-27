@@ -1499,7 +1499,24 @@
     };
     const STD_ARROW_SPRITE = ['................','............HHH.','...........DHHMD','...........DHMMD','..........DWD.D.','.........DWD....','........DWD.....','.......DWD......','......DWD.......','.....DWD........','....DWD.........','..FFD...........','.FFFD...........','.FFF............','..F.............','................'];
     const ARMOR_SPRITE = ['................','...DDD....DDD...','..DHHMD..DHHMD..','.DHHHHMDDHHHHMD.','.DHMMMMMMMMMMHD.','.DDDMMMMMMMMDDD.','...DMMMMHHMMMD..','...DMMMMHHMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DMMDDDDMMMD..','...DMMMMMMMMMD..','...DMMMMMMMMMD..','...DDDDDDDDDDD..','................','................'];
-    const TALL_GRASS_SPRITE = ['....g......g....','..g.g..g...g..g.','..g.G.gG..gG..g.','.gG.G.gG..gG.gG.','.gG.GG.G.gGG.gG.','.GG.GG.GG.GG.GG.','gGG.GGgGG.GGgGG.','GGg.GGGGGGgGGGG.','GGGGGGGGGGGGGGGg','GGGGGGGGGGGGGGGG','.GGGGGGGGGGGGGG.','.gGGGGdGGGGdGGG.','..GGGdGGGdGGGG..','..dGGddGGdGGGg..','..ddd.dddd.ddd..','...dd..ddd..dd..'];
+    const TALL_GRASS_SPRITE = [
+      '................',
+      '...........g....',
+      '....g.....g.....',
+      '..g..g...g.g....',
+      '...g.G..g..G..g.',
+      '....GG..G.G..g..',
+      '.g..G.g.G.G.g...',
+      '.g..G.g.G.G.g.g.',
+      '.G.GG.G.g.G.G.g.',
+      '..GG.GG.G.G.GG..',
+      '.gGG.GG.GG.GGG..',
+      '..GGG.GGGG.GG.g.',
+      '..GGdGGGGG.GGG..',
+      '.gGGdGGdGGdGG...',
+      '..dGGddGddGGd...',
+      '..dddd.dddd.d...'
+    ];
     const POPPY_SPRITE = ['................','......RRRR......','....RRHHHHHR....','....RHHRRRHR....','....RRRRRRRR....','.....RRRRRR.....','......RRRR......','.......GG.......','.....gGGGG......','....gGGGGGg.....','......gGGg......','....g..GG..g....','....Gg.GG.gG....','.....GGGGGG.....','......dGGd......','......dddd......'];
     const DANDELION_SPRITE = ['................','................','.....YYYYYY.....','....YYHHHHYY....','....YYYYYYYY....','.....YYYYYY.....','......YYYY......','.......GG.......','.....g.GG.g.....','.....GGGGGG.....','......gGGg......','...g...GG...g...','...Gg..GG..gG...','....gGGGGGGg....','.....ddGGdd.....','......dddd......'];
     const PETALS_SPRITE = ['................','................','................','................','................','................','................','................','................','................','..PP........WW..','.PWWP..pp..WPPW.','..PP..pWWp..WW..','.......pp..PP...','..WW......PWWP..','...........PP...'];
@@ -1777,7 +1794,7 @@
       const d = Math.hypot(x - 8, y - 9.5); if (d > 5.0) return null;
       return d > 4.2 ? '#b45309' : (x <= 7 && y <= 8 ? '#fef9c3' : shade('#facc15', (r - 0.5) * 22));
     });
-    drawSpriteMap(51, TALL_GRASS_SPRITE, { g: '#7ef238', G: '#49c922', d: '#288212' });
+    drawSpriteMap(51, TALL_GRASS_SPRITE, { g: '#70cf3a', G: '#499e24', d: '#2c6c15' });
     drawSpriteMap(52, POPPY_SPRITE, { R: '#ef2323', H: '#fca5a5', G: '#3cb820', g: '#68e338', d: '#227012' });
     drawSpriteMap(53, DANDELION_SPRITE, { Y: '#facc15', H: '#fef9c3', G: '#3cb820', g: '#68e338', d: '#227012' });
     drawSpriteMap(54, PETALS_SPRITE, { P: '#f472b6', p: '#ec4899', W: '#fff1f7' });
@@ -2341,24 +2358,28 @@
       '.d.d............','................','................','................'
     ];
     drawSpriteMap(204, WHEAT_ITEM_SPRITE, { y: '#e5d84e', Y: '#b8a828', b: '#7a6820', G: '#4a6b1d', d: '#2c4211' });
-    // Tiles 205-208: 4 Wheat Crop Growth Stages (EXACT media_1795130887896 -> media_1795130906211!)
+    // Tiles 205-208: 4 Lush Slender-Stalk Golden Wheat Crop Growth Stages (matching dense shader wheat refs!)
     for (let st = 0; st < 4; st++) {
       tilePixels(205 + st, (x, y, r) => {
-        const stalkXs = st === 3 ? [1, 3, 5, 7, 9, 11, 13, 15] : [2, 5, 8, 11, 13];
-        const minY = st === 0 ? 12 : (st === 1 ? 8 : (st === 2 ? 4 : 0));
+        const stalkXs = st === 3 ? [1, 4, 7, 10, 13, 15] : [2, 6, 10, 14];
+        const minY = st === 0 ? 11 : (st === 1 ? 7 : (st === 2 ? 3 : 0));
         if (y < minY) return null;
         for (let si = 0; si < stalkXs.length; si++) {
           const sx = stalkXs[si];
-          const localTop = minY + ((si * 2) % 3);
+          const localTop = minY + ((si * 3) % 4);
           if (y < localTop) continue;
-          const hasGrain = st >= 2 && Math.abs(x - sx) === 1 && y < localTop + (st === 3 ? 8 : 5) && (((x + y + si) & 1) || (st === 3 && y < localTop + 5));
-          if (x === sx || hasGrain) {
-            if (st === 0) return shade('#22c55e', (r - 0.5) * 20);
-            if (st === 1) return shade(y < localTop + 3 ? '#65a30d' : '#3f7d1c', (r - 0.5) * 18);
-            if (st === 2) return shade(y < localTop + 4 ? '#d4c33b' : '#659624', (r - 0.5) * 16);
-            if (y < localTop + 3) return shade(r > 0.48 ? '#fef08a' : '#fde047', (r - 0.5) * 12);
-            if (y < localTop + 8) return shade(r > 0.42 ? '#facc15' : '#eab308', (r - 0.5) * 14);
-            return shade(y < 13 ? '#d97706' : '#a16207', (r - 0.5) * 14);
+          const relY = y - localTop;
+          const isHead = st >= 2 && relY >= 0 && relY <= (st === 3 ? 8 : 5);
+          const grainSide = isHead && Math.abs(x - sx) === 1 && (((relY + si) & 1) === 0);
+          if (x === sx || grainSide) {
+            if (st === 0) return shade(relY < 2 ? '#4ade80' : '#22a346', (r - 0.5) * 16);
+            if (st === 1) return shade(relY < 3 ? '#84cc16' : '#4a8c20', (r - 0.5) * 16);
+            if (st === 2) return shade(relY < 4 ? '#dfc444' : '#739926', (r - 0.5) * 14);
+            // Mature lush golden wheat: beaded sunlit wheat ears at top -> warm amber mid -> golden-olive stalk base
+            if (grainSide) return shade(relY < 4 ? (r > 0.45 ? '#fae486' : '#ecc042') : (r > 0.5 ? '#df9f2b' : '#c6831e'), (r - 0.5) * 12);
+            if (relY < 3) return shade(r > 0.45 ? '#fce892' : '#f1c94c', (r - 0.5) * 10);
+            if (relY < 8) return shade(r > 0.45 ? '#e4ad34' : '#c98d24', (r - 0.5) * 12);
+            return shade(y < 13 ? '#a6761f' : '#7a591b', (r - 0.5) * 12);
           }
         }
         return null;
@@ -3783,35 +3804,22 @@
       if (x === 1 || x === 14 || y === 1 || y === 14 || y === 4 || y === 6) return shade('#734f20', (r - 0.5) * 8);
       return chestWoodGrain(x, y, r);
     });
-    // v100 Tiles 444..446: Lush Short Grass, Dense Bush Grass & Wild Tall Jungle Grass (matching Images 2 & 3!)
+    // Canonical Minecraft 16x16 Slender-Blade Grass Sprites (Tiles 444..446 matching 6 attached grass refs!)
     const SHORT_GRASS_SPRITE = [
       '................','................','................','................',
-      '................','................','......h.........','..h...g....h....',
-      '..g..hg.h..g....','.hg..gg.g..gh...','.gg.hgg.gh.gg.h.','.gG.ggg.gg.gg.g.',
-      '.GG.gGg.gg.gG.G.','.GGdGGGdGGdGGdG.','.ddGdddGddGddGd.','dddddddddddddddd'
+      '................','......h.........','..h...g....h....','...g..g...g.....',
+      '...g.hg.h.g..h..','..gG.gG.g.Gg.g..','..GG.GG.g.GG.g..','.gGG.GG.GG.GG...',
+      '..GGdGG.GG.GGg..','.gGGdGGdGGdGG...','..dGGddGddGGd...','..dddd.dddd.d...'
     ];
-    drawSpriteMap(444, SHORT_GRASS_SPRITE, { h: '#7ee846', g: '#4bc427', G: '#2a8516', d: '#16520c' });
-    tilePixels(445, (x, y, r) => {
-      if (y < 2) return null;
-      const distX = Math.abs(x - 7.5);
-      const env = 1.0 - (15 - y) * 0.045;
-      if (distX > 7.6 * env && r < 0.72) return null;
-      if (y <= 5 && ((x + y * 3) % 3 === 0)) return null;
-      if (y <= 4) return shade('#7ae843', (r - 0.5) * 14);
-      if (y <= 8) return shade(r > 0.55 ? '#55c92b' : '#359c1a', (r - 0.5) * 16);
-      if (y <= 12) return shade(r > 0.5 ? '#2c8a17' : '#1e6b10', (r - 0.5) * 14);
-      return shade('#14470b', (r - 0.5) * 10);
-    });
-    tilePixels(446, (x, y, r) => {
-      const bladePhase = ((x * 5 + (x >> 1) * 3) % 7);
-      const minY = bladePhase < 2 ? 0 : (bladePhase < 5 ? 2 : 5);
-      if (y < minY) return null;
-      const gap = (x % 3 === 1 && y < 7) || (x === 0 && y < 10) || (x === 15 && y < 10);
-      if (gap && r < 0.75) return null;
-      if (y <= 4) return shade('#82f04a', (r - 0.5) * 14);
-      if (y <= 9) return shade(r > 0.5 ? '#56cc2c' : '#37a31d', (r - 0.5) * 16);
-      return shade(y <= 13 ? '#257a14' : '#14470b', (r - 0.5) * 12);
-    });
+    const WILD_GRASS_SPRITE = [
+      '.....h..........','..h..g.....h....','...g.g..h..g..h.','...g.G..g..g.g..',
+      '.h..gG..g.GG.g..','.g..GG.hg.GG.g..','.g.GG.G.G.G.Gg..','..GG.GG.G.G.GGh.',
+      '.gGG.GG.GG.GGg..','.GGG.GG.GG.GGg..','..GGdGGGGG.GGG..','.gGGdGGGGGdGGg..',
+      '..GGdGGdGGdGG...','..dGGddGddGGd...','..dddGdGddGdd...','..dddd.dddd.d...'
+    ];
+    drawSpriteMap(444, SHORT_GRASS_SPRITE, { h: '#74d13c', g: '#58b42d', G: '#3f8f1f', d: '#286413' });
+    drawSpriteMap(445, TALL_GRASS_SPRITE,  { g: '#70cf3a', G: '#499e24', d: '#2c6c15' });
+    drawSpriteMap(446, WILD_GRASS_SPRITE,  { h: '#78d640', g: '#59b52e', G: '#3f8f1f', d: '#286413' });
     // v101 Tile 447: Minecraft-style Redstone Ore (Natural Stone + Crimson/Scarlet Glowing Crystals)
     tilePixels(447, (x, y, r) => {
       const gem = ((x >= 2 && x <= 4 && y >= 2 && y <= 4) || (x >= 10 && x <= 13 && y >= 3 && y <= 5)

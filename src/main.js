@@ -105,6 +105,17 @@
     return preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : (preset === 'cartoon_barebones' ? 0.16 : 0.19)));
   }
 
+  function applyAaMode(mode, persist = false) {
+    const valid = (mode === 'off' || mode === 'fxaa' || mode === 'msaa' || mode === 'ultra') ? mode : (_initMobile ? 'fxaa' : 'msaa');
+    aaMode = valid;
+    if (envUniforms.uAaMode) envUniforms.uAaMode.value = _aaModeVal(valid);
+    document.querySelectorAll('#aaSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.aa === valid));
+    if (persist && CFG.saveGfxPrefs) CFG.saveGfxPrefs({ aaMode: valid });
+    _postFxDirty = true;
+    resizeViewport();
+  }
+  window.applyAaMode = applyAaMode;
+
   function applyShaderPreset(preset, persist = false) {
     if (window._cartoonAddonActive) preset = 'cartoon_barebones';
     shaderPreset = preset;
@@ -2172,6 +2183,7 @@
     }
   }
   applyQualitySetting(shaderQuality, false); applyBumpToggle(bumpEnabled);
+  applyAaMode(aaMode, false);
   applyShaderPreset(shaderPreset, false);
   { const _initSeed = generateUniqueRandomSeed(); const _is = document.getElementById('inpWorldSeed'); if (_is) _is.value = String(_initSeed); currentWorldMeta.seed = _initSeed; resetWorld(_initSeed); }
   if (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing && typeof updateRayTracingVoxelVolume === 'function') {

@@ -224,11 +224,11 @@
             </div>
             <div class="prof-card">
               <div class="prof-card-title" id="profileUidStatus">
-                Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):
+                Tên UID hiển thị trong game (có thể thay đổi bất cứ lúc nào):
               </div>
               <input id="inpProfileUid" class="mc-input" type="text" maxlength="18" placeholder="VD: Banhbeomegame" />
               <div id="profileUidHint" class="prof-hint">
-                Tên UID hiển thị trên đầu nhân vật ngoài sảnh và dùng để bạn bè tìm kiếm, kết bạn và vào thế giới của bạn.
+                Tên UID hiển thị trên đầu nhân vật, ngoài sảnh, trong phòng Co-op và dùng để bạn bè tìm kiếm (độc lập với tên đăng nhập tài khoản).
               </div>
             </div>
           </div>
@@ -240,7 +240,7 @@
             </div>
             <div class="prof-card">
               <div class="prof-field">
-                <label for="inpAuthUser" class="prof-lbl">Tên tài khoản (UID 3–18 ký tự: chữ, số, _)</label>
+                <label for="inpAuthUser" class="prof-lbl">Tên đăng nhập tài khoản (3–18 ký tự: chữ, số, _ • tách riêng với tên UID)</label>
                 <input id="inpAuthUser" class="mc-input" type="text" maxlength="18" autocomplete="username" placeholder="VD: SteveVN_2026" />
               </div>
               <div class="prof-field">
@@ -272,7 +272,7 @@
       </div>
       <div class="ore-dialog-foot prof-foot">
         <button class="mc-btn" id="btnCancelProfile">Đóng</button>
-        <button class="mc-btn mc-btn-green" id="btnSaveProfileUid">Lưu UID cố định</button>
+        <button class="mc-btn mc-btn-green" id="btnSaveProfileUid">Lưu tên UID</button>
       </div>
     </div>
   </div>
@@ -1363,7 +1363,7 @@
           <div class="gm-pane" id="gmPaneGraphics">
             <div class="gm-section">
               <div class="gm-section-title">HIỂN THỊ &amp; CHẤT LƯỢNG</div>
-              <div class="mcd-row mcd-row-col" data-title="TẦM NHÌN RENDER" data-desc="Điều chỉnh bán kính tải chunk xung quanh bạn. Chọn Siêu Nhẹ (3×3) hoặc Gần (6×6) cho máy yếu để giữ FPS cao ổn định." data-def="Chuẩn (8×8)">
+              <div class="mcd-row mcd-row-col" data-title="TẦM NHÌN RENDER" data-desc="Điều chỉnh bán kính tải chunk xung quanh bạn (tối đa Cực Đại 32×32 chunks được tăng tốc bằng Rust WASM). Chọn Siêu Nhẹ (3×3) hoặc Gần (6×6) cho máy yếu để giữ FPS cao ổn định." data-def="Chuẩn (8×8)">
                 <div class="mcd-row-lbl">Tầm nhìn khối (Chunks)</div>
                 <div class="seg-group" id="renderDistSeg">
                   <button class="seg-btn" data-val="1" type="button">Siêu Nhẹ (3×3)</button>
@@ -1371,6 +1371,7 @@
                   <button class="seg-btn active" data-val="4" type="button">Chuẩn (8×8)</button>
                   <button class="seg-btn" data-val="6" type="button">Xa (12×12)</button>
                   <button class="seg-btn" data-val="8" type="button">Siêu Xa (16×16)</button>
+                  <button class="seg-btn" data-val="16" type="button">Cực Đại (32×32)</button>
                 </div>
               </div>
               <div class="mcd-row mcd-row-col" data-title="CHẤT LƯỢNG ĐỒ HỌA" data-desc="Mức đồ họa cao tăng chất lượng bóng đổ, ánh sáng tán xạ trên lá cây và độ sắc nét tổng thể." data-def="RTX Ultra">
@@ -1380,6 +1381,15 @@
                   <button class="seg-btn" data-val="high" type="button">RTX Chuẩn</button>
                   <button class="seg-btn active" data-val="ultra" type="button">RTX Ultra</button>
                   <button class="seg-btn" data-val="extreme" type="button">Siêu Thực</button>
+                </div>
+              </div>
+              <div class="mcd-row mcd-row-col" data-title="KHỬ RĂNG CƯA (ANTI-ALIASING)" data-desc="Loại bỏ răng cưa và nhấp nháy khối ở tầm xa trên TẤT CẢ các bộ shader (RGSS thích ứng khoảng cách + MSAA 4× + FXAA 3.11) trong khi giữ nét khối cận cảnh sắc lẹm và không gây lag." data-def="Chuẩn (MSAA)">
+                <div class="mcd-row-lbl">Khử răng cưa (Mọi Shader)</div>
+                <div class="seg-group" id="aaSeg">
+                  <button class="seg-btn" data-aa="off" type="button">Tắt</button>
+                  <button class="seg-btn" data-aa="fxaa" type="button">Nhẹ (FXAA)</button>
+                  <button class="seg-btn active" data-aa="msaa" type="button">Chuẩn (MSAA)</button>
+                  <button class="seg-btn" data-aa="ultra" type="button">Siêu Mịn (Ultra)</button>
                 </div>
               </div>
               <div class="mcd-row mcd-row-col" data-title="FRAME ẢO AI (TĂNG FPS + LÀM NÉT)" data-desc="Sử dụng tái chiếu chuyển động AI &amp; nâng cấp độ nét RCAS để dựng khung hình trung gian siêu nhẹ, giúp tăng FPS thực tế và làm hình ảnh sắc nét, trong trẻo hơn." data-def="Tắt (x1)">
