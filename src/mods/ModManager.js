@@ -257,9 +257,98 @@
       }
     }
     if (typeof _oreThumb3DCache !== 'undefined') _oreThumb3DCache.clear();
+    if (typeof terrainMat !== 'undefined' && terrainMat) {
+      const toonOn = typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode && envUniforms.uCartoonMode.value > 0.5;
+      terrainMat.bumpScale = toonOn ? 0.014 : 0.058;
+    }
     if (typeof _rcGridBuiltSig !== 'undefined') _rcGridBuiltSig = '';
     if (typeof markAllLoadedChunksDirty === 'function' && typeof chunks !== 'undefined' && chunks.size) markAllLoadedChunksDirty(true);
     if (typeof renderHotbar === 'function') renderHotbar();
+  }
+
+  // Built-in Bare Bones Cartoon Resource Pack: flat graphic 2-tone block clusters + bright trailer colors
+  function applyCartoonBareBonesPack() {
+    if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 1.0;
+    if (typeof atlasCtx === 'undefined' || typeof atlasCanvas === 'undefined') return 0;
+    const cols = typeof ATLAS_COLS !== 'undefined' ? ATLAS_COLS : 8;
+    const px = typeof TILE_PX !== 'undefined' ? TILE_PX : 16;
+    const terrainTiles = new Set();
+    if (typeof BLOCK_DEF !== 'undefined') {
+      for (let id = 1; id < BLOCK_DEF.length; id++) {
+        const d = BLOCK_DEF[id];
+        if (!d || d.itemOnly || d.tool || !Array.isArray(d.tiles)) continue;
+        for (const t of d.tiles) if (typeof t === 'number' && t >= 0) terrainTiles.add(t);
+        if (typeof d.frontTile === 'number' && d.frontTile >= 0) terrainTiles.add(d.frontTile);
+      }
+    }
+    let painted = 0;
+    const fillRectTile = (tIdx, col) => {
+      const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
+      atlasCtx.fillStyle = col;
+      atlasCtx.fillRect(tx, ty, px, px);
+    };
+    const pxTile = (tIdx, x, y, w, h, col) => {
+      const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
+      atlasCtx.fillStyle = col;
+      atlasCtx.fillRect(tx + x, ty + y, w, h);
+    };
+    const img = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height);
+    const d = img.data, W = atlasCanvas.width;
+    for (const tIdx of terrainTiles) {
+      const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
+      if (tx + px > W || ty + px > atlasCanvas.height) continue;
+      for (let by = 0; by < px; by += 4) {
+        for (let bx = 0; bx < px; bx += 4) {
+          let r = 0, g = 0, b = 0, cnt = 0;
+          for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+            const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+            if (d[idx + 3] > 60) { r += d[idx]; g += d[idx + 1]; b += d[idx + 2]; cnt++; }
+          }
+          if (cnt < 3) continue;
+          r /= cnt; g /= cnt; b /= cnt;
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const sat = 1.24;
+          const nr = Math.min(255, Math.max(0, Math.round(lum + (r - lum) * sat)));
+          const ng = Math.min(255, Math.max(0, Math.round(lum + (g - lum) * sat)));
+          const nb = Math.min(255, Math.max(0, Math.round(lum + (b - lum) * sat)));
+          for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+            const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+            if (d[idx + 3] > 60) { d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; }
+          }
+        }
+      }
+      painted++;
+    }
+    atlasCtx.putImageData(img, 0, 0);
+
+    fillRectTile(0, '#5ac434');
+    pxTile(0, 2, 2, 4, 4, '#6ad642'); pxTile(0, 10, 8, 4, 4, '#6ad642'); pxTile(0, 4, 11, 3, 2, '#4eb02b');
+    fillRectTile(1, '#9c6844');
+    pxTile(1, 0, 0, 16, 4, '#5ac434');
+    pxTile(1, 0, 4, 4, 2, '#5ac434'); pxTile(1, 8, 4, 4, 2, '#5ac434'); pxTile(1, 14, 4, 2, 1, '#5ac434');
+    pxTile(1, 2, 9, 4, 3, '#8c5a38'); pxTile(1, 10, 11, 4, 3, '#8c5a38');
+    fillRectTile(2, '#9c6844');
+    pxTile(2, 2, 2, 5, 4, '#8c5a38'); pxTile(2, 9, 9, 5, 4, '#8c5a38'); pxTile(2, 11, 3, 3, 3, '#ab7650');
+    fillRectTile(3, '#949ca8');
+    pxTile(3, 1, 2, 6, 4, '#858d99'); pxTile(3, 8, 8, 6, 5, '#858d99'); pxTile(3, 9, 2, 4, 3, '#a4adb9');
+    fillRectTile(8, '#c89656');
+    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#a87840');
+    pxTile(8, 2, 1, 6, 2, '#d4a364'); pxTile(8, 9, 9, 5, 2, '#d4a364');
+    const paintFlatLeaves = (tIdx, c1, c2) => {
+      const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
+      const tImg = atlasCtx.getImageData(tx, ty, px, px), td = tImg.data;
+      for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
+        const idx = (y * px + x) * 4;
+        if (td[idx + 3] < 40) continue;
+        const pick = (((x >> 2) + (y >> 2)) & 1) ? c2 : c1;
+        td[idx] = pick[0]; td[idx + 1] = pick[1]; td[idx + 2] = pick[2];
+      }
+      atlasCtx.putImageData(tImg, tx, ty);
+    };
+    paintFlatLeaves(6,  [84, 198, 48],  [104, 218, 64]);
+    paintFlatLeaves(13, [54, 152, 46],  [70, 174, 60]);
+    paintFlatLeaves(15, [252, 165, 206],[255, 196, 224]);
+    return painted;
   }
 
   function drawPngTileOnAtlas(tileIdx, img) {
@@ -389,6 +478,7 @@
   async function applyAllEnabledMods() {
     ensureBaseSnapshots();
     if (_baseAtlasBackup && typeof atlasCtx !== 'undefined') atlasCtx.putImageData(_baseAtlasBackup, 0, 0);
+    if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 0.0;
     if (_baseBlockDefsBackup && typeof BLOCK_DEF !== 'undefined') {
       for (const [id, st] of _baseBlockDefsBackup.entries()) if (BLOCK_DEF[id]) Object.assign(BLOCK_DEF[id], st);
     }
@@ -411,7 +501,9 @@
       if (!pack.enabled) continue;
       const stats = { tex: 0, recipe: 0, mob: 0, sound: 0, script: 0, warn: [] };
       try {
-        if (pack.format === 'nucraft-js') {
+        if (pack.format === 'builtin-cartoon') {
+          stats.tex += applyCartoonBareBonesPack();
+        } else if (pack.format === 'nucraft-js') {
           const code = typeof pack.data === 'string' ? pack.data : new TextDecoder().decode(pack.data);
           new Function('API', code)(window.NUCRAFT_MOD_API);
           stats.script = 1;
@@ -478,6 +570,11 @@
     const _t = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
     const cntEl = document.getElementById('lobbyModCount');
     if (cntEl) cntEl.textContent = String(_installedMods.filter(m => m.enabled).length);
+    const cartoonBtn = document.getElementById('btnInstallCartoonAddon');
+    if (cartoonBtn) {
+      const activeC = _installedMods.some(m => m.id === 'builtin_cartoon_barebones' && m.enabled);
+      cartoonBtn.textContent = activeC ? _t('🎨 Tắt Add-on Đồ Họa Hoạt Hình', '🎨 Disable Cartoon Add-on') : _t('🎨 Bật Add-on Đồ Họa Hoạt Hình', '🎨 Enable Cartoon Add-on');
+    }
     const listEl = document.getElementById('modListContainer');
     if (!listEl) return;
     if (!_installedMods.length) {
@@ -621,6 +718,7 @@
     const pickBtn = document.getElementById('btnPickModFile');
     const inp = document.getElementById('inpModFile');
     const sampleBtn = document.getElementById('btnInstallSampleMod');
+    const cartoonBtn = document.getElementById('btnInstallCartoonAddon');
     const drop = document.getElementById('modDropZone');
     const handleFiles = async (fileList) => {
       for (const f of Array.from(fileList || [])) {
@@ -636,15 +734,62 @@
     pickBtn?.addEventListener('click', () => inp?.click());
     inp?.addEventListener('change', (e) => { handleFiles(e.target.files); inp.value = ''; });
     sampleBtn?.addEventListener('click', () => installSampleMcpackAddon().catch(err => console.error(err)));
+    const toggleCartoonBareBonesAddon = async (forceEnable = null) => {
+      let pack = _installedMods.find(m => m.id === 'builtin_cartoon_barebones');
+      if (!pack) {
+        pack = {
+          id: 'builtin_cartoon_barebones',
+          name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
+          format: 'builtin-cartoon',
+          description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+          size: 4096,
+          enabled: true,
+          installedAt: Date.now()
+        };
+        _installedMods.unshift(pack);
+      } else {
+        pack.enabled = (forceEnable !== null) ? !!forceEnable : !pack.enabled;
+      }
+      await dbPutMod(pack);
+      await applyAllEnabledMods();
+      if (cartoonBtn) {
+        const _t = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
+        cartoonBtn.textContent = pack.enabled ? _t('🎨 Tắt Add-on Đồ Họa Hoạt Hình', '🎨 Disable Cartoon Add-on') : _t('🎨 Bật Add-on Đồ Họa Hoạt Hình', '🎨 Enable Cartoon Add-on');
+      }
+      if (typeof showToast === 'function') {
+        showToast(pack.enabled ? '🎨 Đã BẬT Add-on Đồ Họa Hoạt Hình (Bare Bones)!' : '🧩 Đã TẮT Add-on Đồ Họa Hoạt Hình — khôi phục đồ họa gốc!');
+      }
+      return pack.enabled;
+    };
+    cartoonBtn?.addEventListener('click', () => toggleCartoonBareBonesAddon(null).catch(err => console.error(err)));
     if (drop) {
       drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
       drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
       drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('dragover'); handleFiles(e.dataTransfer?.files); });
     }
     _installedMods = await dbGetAllMods();
+    if (!_installedMods.some(m => m.id === 'builtin_cartoon_barebones')) {
+      const defCartoon = {
+        id: 'builtin_cartoon_barebones',
+        name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
+        format: 'builtin-cartoon',
+        description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+        size: 4096,
+        enabled: false,
+        installedAt: Date.now() - 1000
+      };
+      _installedMods.push(defCartoon);
+      await dbPutMod(defCartoon);
+    }
     _installedMods.sort((a, b) => (b.installedAt || 0) - (a.installedAt || 0));
+    if (cartoonBtn) {
+      const activeC = _installedMods.some(m => m.id === 'builtin_cartoon_barebones' && m.enabled);
+      const _t = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
+      cartoonBtn.textContent = activeC ? _t('🎨 Tắt Add-on Đồ Họa Hoạt Hình', '🎨 Disable Cartoon Add-on') : _t('🎨 Bật Add-on Đồ Họa Hoạt Hình', '🎨 Enable Cartoon Add-on');
+    }
     if (_installedMods.some(m => m.enabled)) await applyAllEnabledMods();
     else renderModManagerList();
+    window.toggleCartoonBareBonesAddon = toggleCartoonBareBonesAddon;
   }
   window.initModManager = initModManager;
   window.renderModManagerList = renderModManagerList;

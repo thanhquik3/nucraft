@@ -69,7 +69,8 @@
     DEEP_DARK:           { id: 5, key: 'deep_dark',           name: '👁️ Vực Sâu Cổ Đại',          fogHex: 0x060b12 },
     MAGMA_CAVERN:        { id: 6, key: 'magma_cavern',        name: '🔥 Hang Dung Nham',          fogHex: 0x260c0a },
     SUBTERRANEAN_JUNGLE: { id: 7, key: 'subterranean_jungle', name: '🌴 Rừng Nguyên Sinh Ngầm',   fogHex: 0x092414 },
-    ANCIENT_MINES:       { id: 8, key: 'ancient_mines',       name: '⛏️ Hầm Mỏ Đá Cổ Đại',       fogHex: 0x191614 }
+    ANCIENT_MINES:       { id: 8, key: 'ancient_mines',       name: '⛏️ Hầm Mỏ Đá Cổ Đại',       fogHex: 0x191614 },
+    SULFUR_CAVE:         { id: 9, key: 'sulfur_cave',         name: '🧪 Hang Lưu Huỳnh',         fogHex: 0x382b08 }
   };
 
   function isDeepDarkEligibleSurface(wx, wz) {
@@ -232,6 +233,7 @@
         if (Math.abs(wx - acList[i].x) <= 72 && Math.abs(wz - acList[i].z) <= 72) return UNDERGROUND_BIOMES.DEEP_DARK;
       }
     }
+    if (currentDimension === 'overworld' && trueY <= -4 && trueY >= -96 && getBiomeAt(wx, wz) === BIOMES.SULFUR_SPRINGS) return UNDERGROUND_BIOMES.SULFUR_CAVE;
     const sx = (wx + seedMix.ox * 0.25) * 0.0115;
     const sy = (trueY + seedMix.oy * 0.25) * 0.0185;
     const sz = (wz + seedMix.oz * 0.25) * 0.0115;
@@ -241,6 +243,7 @@
     if (trueY <= -760 && temp > 0.32) return UNDERGROUND_BIOMES.MAGMA_CAVERN;
     if (trueY <= -600 && temp > 0.54) return UNDERGROUND_BIOMES.MAGMA_CAVERN;
     if (temp > 0.69 && trueY <= -40) return UNDERGROUND_BIOMES.MAGMA_CAVERN;
+    if (temp > 0.58 && weird > 0.52 && trueY > -140) return UNDERGROUND_BIOMES.SULFUR_CAVE;
     if (temp < 0.28 && humid < 0.56) return UNDERGROUND_BIOMES.ICE_CAVERN;
     if (trueY <= -30 && temp < 0.45 && humid > 0.55 && isDeepDarkEligibleSurface(wx, wz)) return UNDERGROUND_BIOMES.DEEP_DARK;
     if (humid > 0.67 && weird > 0.52) return UNDERGROUND_BIOMES.SUBTERRANEAN_JUNGLE;
@@ -478,6 +481,7 @@
       return plainBand > 0.46 ? BIOMES.SNOWY_PLAINS : BIOMES.SNOW;
     }
     if (heat > 0.73 && elev > 0.62) return BIOMES.VOLCANIC_BASALT;
+    if (heat > 0.56 && heat <= 0.74 && humid >= 0.38 && humid <= 0.68 && elev >= 0.28 && elev <= 0.66 && spookyBand > 0.40) return BIOMES.SULFUR_SPRINGS;
     if (heat > 0.70 && elev < 0.36 && humid < 0.37) return BIOMES.BADLANDS_CRATER;
     if (heat > 0.68 && elev > 0.50) return BIOMES.BADLANDS_SPIRES;
     if (heat > 0.65 && humid >= 0.38 && elev > 0.42) return BIOMES.MESA;
@@ -561,6 +565,14 @@
     else if (biome === BIOMES.PALE_GARDEN) h = 2 + cont * 14 + detail * 2.2;
     else if (biome === BIOMES.NIGHTMARE_WOODS) h = 3 + cont * 18 + Math.abs(detail - 0.5) * 6.0;
     else if (biome === BIOMES.VOLCANIC_BASALT) h = 1 + cont * 19 + detail * 3.0;
+    else if (biome === BIOMES.SULFUR_SPRINGS) {
+      const bField = fbm2D(wx * 0.038, wz * 0.038, 2, 0.5, 2.0, worldSeed + 7801);
+      const ridge = valueNoise2D(wx * 0.016, wz * 0.016, worldSeed + 7803);
+      if (bField < 0.39) h = WATER_LEVEL - 2.2;
+      else if (bField < 0.47) h = WATER_LEVEL + 1.0;
+      else if (bField < 0.55) h = WATER_LEVEL + 2.0 + Math.floor(ridge * 2.0);
+      else h = 2.0 + Math.floor((bField - 0.55) * 26.0) + ridge * 5.0;
+    }
     else if (biome === BIOMES.BAMBOO_JUNGLE) h = -1 + cont * 15 + detail * 2.2;
     else if (biome === BIOMES.REDWOOD_ANCIENT) h = 1 + cont * 18 + detail * 2.4;
     else if (biome === BIOMES.WEEPING_GROVE) h = -1.5 + cont * 10 + detail * 1.6;
@@ -756,10 +768,11 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
-  // Zero-GC Rust WebAssembly acceleration core for cave density & slice emitter lighting
-  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0 };
+  // Zero-GC Rust WebAssembly acceleration core (ABI v2: cave density, emitter light, wind/shadow snap, particles, culling)
+  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0 };
   if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
   let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
+  let _nwFrameOut = null, _nwPartBuf = null, _nwSphIn = null, _nwSphOut = null;
   function _syncWasmViews() {
     if (!_nwExports) return;
     const buf = _nwExports.memory.buffer;
@@ -768,6 +781,24 @@
     _nwCoarseView = new Float32Array(buf, _nwExports.coarse_grid_ptr(), 1625);
     _nwEmitView = new Float32Array(buf, _nwExports.emitters_buf_ptr(), 3584);
     _nwLightOut = new Float32Array(buf, _nwExports.light_out_ptr(), 3);
+    if (_nwExports.frame_out_ptr) _nwFrameOut = new Float32Array(buf, _nwExports.frame_out_ptr(), 16);
+    if (_nwExports.particle_buf_ptr) _nwPartBuf = new Float32Array(buf, _nwExports.particle_buf_ptr(), 512 * 8);
+    if (_nwExports.sphere_in_ptr) _nwSphIn = new Float32Array(buf, _nwExports.sphere_in_ptr(), 256 * 4);
+    if (_nwExports.sphere_out_ptr) _nwSphOut = new Uint8Array(buf, _nwExports.sphere_out_ptr(), 256);
+  }
+  if (typeof window !== 'undefined') {
+    window._getNucraftWasmCore = () => {
+      if (!_nwExports) return null;
+      _syncWasmViews();
+      return {
+        exports: _nwExports,
+        frameOut: _nwFrameOut,
+        particleBuf: _nwPartBuf,
+        sphereIn: _nwSphIn,
+        sphereOut: _nwSphOut,
+        state: _nucraftWasmState
+      };
+    };
   }
   (function _initNucraftWasm() {
     try {
@@ -2734,9 +2765,9 @@
       lGeo.setIndex(_makeIdxAttr(_lIdx, st.liCount, st.lCount));
       _assignChunkBounds(lGeo, wx0, wz0, maxLy);
       ch.leavesMesh = new THREE.Mesh(lGeo, _effLow ? leavesMatLow : leavesMat);
-      if (_effUltra) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
+      if (!_effLow) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
       const nearLeafSh = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= Math.min(_shChunkRad, 2));
-      ch.leavesMesh.castShadow = (_effUltra && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
+      ch.leavesMesh.castShadow = (!_effLow && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
       ch.leavesMesh.matrixAutoUpdate = false; ch.leavesMesh.updateMatrix();
       scene.add(ch.leavesMesh);
     }

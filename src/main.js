@@ -62,7 +62,7 @@
     renderer.shadowMap.enabled = effShadowOn;
     sunLight.castShadow = effShadowOn;
     const dedGpu = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
-    let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 3072 : 2048) : ((isUltra && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 1536) : 1024));
+    let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 3072 : 2048) : ((effShadowOn && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 2048) : 1024));
     if (rtOn && !_initMobile) wantShSize = Math.max(wantShSize, 2048);
     if (sunLight.shadow.mapSize.width !== wantShSize) {
       sunLight.shadow.mapSize.set(wantShSize, wantShSize);
@@ -71,7 +71,7 @@
     if (preset.reflW > 0 && preset.reflH > 0 && (reflRT.width !== preset.reflW || reflRT.height !== preset.reflH)) {
       reflRT.setSize(preset.reflW, preset.reflH);
     }
-    renderer.shadowMap.type = (effUltra && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.type = (effShadowOn && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
     _lastShCx = 999999; _lastShCz = 999999; _lastShQual = '';
     _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
@@ -146,6 +146,7 @@
   const _colSkyFillSoft = new THREE.Color(0xdce9fa), _colCityMistWarm = new THREE.Color(0xd8c3a5);
   const _colPaleFog = new THREE.Color(0xb8c0cc), _colNightmareFog = new THREE.Color(0x1b0b18), _colDarkForestFog = new THREE.Color(0x283526), _colAshFog = new THREE.Color(0x524236);
   const _colAuroraTop = new THREE.Color(0x0b3b3c), _colAuroraHor = new THREE.Color(0x34d399);
+  const _colCartoonTop = new THREE.Color(0x2896ff), _colCartoonHor = new THREE.Color(0xbce7ff);
   const _sunProj = new THREE.Vector3();
 
   let _pbX = 1e9, _pbZ = 1e9, _pbDim = '', _pbSeed = -1, _pbVal = null;
@@ -622,6 +623,32 @@
       }
     }
 
+    // BUILD v156: Billowing white geothermal steam plumes in Sulfur Hot Springs & Sulfur Caves
+    if (isPlaying && !isWorldLoading && shaderQuality !== 'low' && (frameCounter % 5) === 0) {
+      const pBio = getPlayerBiome();
+      const uBio = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z));
+      if (pBio === BIOMES.SULFUR_SPRINGS || uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
+        for (let k = 0; k < 2; k++) {
+          const sx = Math.floor(player.x + (Math.random() - 0.5) * 18);
+          const sz = Math.floor(player.z + (Math.random() - 0.5) * 18);
+          const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 6));
+          const minScan = Math.max(MIN_Y + 1, Math.floor(player.y - 6));
+          for (let by = startY; by >= minScan; by--) {
+            const bid = getBlockWorld(sx, by, sz);
+            if (bid === B.AIR) continue;
+            if (bid === B.SULFUR_VENT || (bid === B.WATER && pBio === BIOMES.SULFUR_SPRINGS && Math.random() < 0.38)) {
+              const isVent = (bid === B.SULFUR_VENT);
+              spawnPixelFx('sulfur_steam', sx + 0.5, by + (isVent ? 1.15 : 0.96), sz + 0.5, {
+                count: 1, scale: isVent ? 1.05 : 0.65, spread: 0.14, randV: 0.18, grow: 0.65,
+                vy: isVent ? 1.55 : 0.72, life: isVent ? 1.65 : 1.05
+              });
+            }
+            break;
+          }
+        }
+      }
+    }
+
     // Localized Cozy 7-Light Pool (1 Held Emissive Light + 6 World Lantern/Torch/Crystal/Lava Lights!)
     const sel = inventory[player.selectedSlot];
     const heldId = (sel && sel.count > 0) ? sel.id : 0;
@@ -971,6 +998,11 @@
       _tmpTop.lerp(_colDarkForestFog, 0.38);
       _tmpHor.lerp(_colDarkForestFog, 0.45);
     }
+    if (envUniforms.uSulfurWater) envUniforms.uSulfurWater.value = (typeof BIOMES.SULFUR_SPRINGS !== 'undefined' && curBiome === BIOMES.SULFUR_SPRINGS) ? 1.0 : 0.0;
+    if ((envUniforms.uCartoonMode?.value || 0) > 0.5 && dayWeight > 0.05 && rainIntensity < 0.3) {
+      _tmpTop.lerp(_colCartoonTop, 0.55 * dayWeight * (1 - rainIntensity));
+      _tmpHor.lerp(_colCartoonHor, 0.52 * dayWeight * (1 - rainIntensity));
+    }
     if (lightningFlash > 0) { _tmpTop.lerp(colWhite, lightningFlash * 0.65); _tmpHor.lerp(colWhite, lightningFlash * 0.55); }
     envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
 
@@ -1088,7 +1120,19 @@
     const isNightShadow = (sunY < -0.04);
     const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
     const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
-    const snapX = Math.round(player.x / shTexel) * shTexel, snapY = Math.round(player.y / shTexel) * shTexel, snapZ = Math.round(player.z / shTexel) * shTexel;
+    let snapX = Math.round(player.x / shTexel) * shTexel, snapY = Math.round(player.y / shTexel) * shTexel, snapZ = Math.round(player.z / shTexel) * shTexel;
+    const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
+    if (_wCore && _wCore.exports && _wCore.exports.step_env_wind_state && _wCore.frameOut) {
+      _wCore.exports.step_env_wind_state(envUniforms.uTime.value, rainIntensity || 0, player.x, player.y, player.z, lDir.x, Math.max(0.22, lDir.y), lDir.z, shadowRad, sunLight.shadow.mapSize.width || 2048);
+      envUniforms.uWindVec.value.set(_wCore.frameOut[0], _wCore.frameOut[1]);
+      envUniforms.uWindGust.value = _wCore.frameOut[2];
+      snapX = _wCore.frameOut[3]; snapY = _wCore.frameOut[4]; snapZ = _wCore.frameOut[5];
+      _wCore.state.frameCalls++;
+    } else {
+      const wt = envUniforms.uTime.value, wAmp = 0.065 * (1 + (rainIntensity || 0) * 1.45);
+      envUniforms.uWindVec.value.set(wAmp * Math.sin(wt * 1.35), wAmp * Math.cos(wt * 1.12));
+      envUniforms.uWindGust.value = 0.5 + 0.5 * Math.sin(wt * 0.65);
+    }
     sunLight.target.position.set(snapX, snapY, snapZ);
     sunLight.position.set(snapX + lDir.x * 46, snapY + Math.max(10, lDir.y * 46), snapZ + lDir.z * 46);
     if (player.eyesInWater) {
@@ -1233,15 +1277,22 @@
       const shTexel = (shadowRad * 2) / (sunLight.shadow.mapSize.width || 1024);
       const isNightShadow = (currentDimension === 'overworld' && envUniforms.uSunDir.value.y < -0.04);
       const lDir = isNightShadow ? _sunProj.copy(envUniforms.uSunDir.value).negate() : _sunProj.copy(envUniforms.uSunDir.value);
-      _shRight.crossVectors(_shWorldUp, lDir);
-      if (_shRight.lengthSq() < 1e-4) _shRight.set(1, 0, 0); else _shRight.normalize();
-      _shUp.crossVectors(lDir, _shRight).normalize();
-      const uCoord = Math.round((px * _shRight.x + py * _shRight.y + pz * _shRight.z) / shTexel) * shTexel;
-      const vCoord = Math.round((px * _shUp.x + py * _shUp.y + pz * _shUp.z) / shTexel) * shTexel;
-      const dCoord = px * lDir.x + py * lDir.y + pz * lDir.z;
-      const snapX = _shRight.x * uCoord + _shUp.x * vCoord + lDir.x * dCoord;
-      const snapY = _shRight.y * uCoord + _shUp.y * vCoord + lDir.y * dCoord;
-      const snapZ = _shRight.z * uCoord + _shUp.z * vCoord + lDir.z * dCoord;
+      const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
+      let snapX, snapY, snapZ;
+      if (_wCore && _wCore.exports && _wCore.exports.step_env_wind_state && _wCore.frameOut) {
+        _wCore.exports.step_env_wind_state(envUniforms.uTime.value, rainIntensity || 0, px, py, pz, lDir.x, Math.max(0.22, lDir.y), lDir.z, shadowRad, sunLight.shadow.mapSize.width || 2048);
+        snapX = _wCore.frameOut[3]; snapY = _wCore.frameOut[4]; snapZ = _wCore.frameOut[5];
+      } else {
+        _shRight.crossVectors(_shWorldUp, lDir);
+        if (_shRight.lengthSq() < 1e-4) _shRight.set(1, 0, 0); else _shRight.normalize();
+        _shUp.crossVectors(lDir, _shRight).normalize();
+        const uCoord = Math.round((px * _shRight.x + py * _shRight.y + pz * _shRight.z) / shTexel) * shTexel;
+        const vCoord = Math.round((px * _shUp.x + py * _shUp.y + pz * _shUp.z) / shTexel) * shTexel;
+        const dCoord = px * lDir.x + py * lDir.y + pz * lDir.z;
+        snapX = _shRight.x * uCoord + _shUp.x * vCoord + lDir.x * dCoord;
+        snapY = _shRight.y * uCoord + _shUp.y * vCoord + lDir.y * dCoord;
+        snapZ = _shRight.z * uCoord + _shUp.z * vCoord + lDir.z * dCoord;
+      }
       const reach = (currentDimension === 'nether') ? 34 : 46;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + lDir.x * reach, snapY + Math.max(10, lDir.y * reach), snapZ + lDir.z * reach);
@@ -1255,7 +1306,7 @@
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
       const effShRange = preset.shadowChunkRange > 0 ? preset.shadowChunkRange : (_rtShOn ? 32 : 0);
       const maxChDist = effShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(effShRange / CHUNK_W))) : -1;
-      const allowLeafSh = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || _rtShOn);
+      const allowLeafSh = (shaderQuality !== 'low' || _rtShOn);
       const leafShDist = Math.min(maxChDist, 2);
       for (const ch of chunks.values()) {
         const dCh = Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz));
@@ -1264,6 +1315,8 @@
         if (ch.leavesMesh) {
           const leafSh = allowLeafSh && leafShDist >= 0 && dCh <= leafShDist;
           if (ch.leavesMesh.castShadow !== leafSh) ch.leavesMesh.castShadow = leafSh;
+          if (ch.leavesMesh.receiveShadow) ch.leavesMesh.receiveShadow = false;
+          if (allowLeafSh && ch.leavesMesh.customDepthMaterial !== leavesDepthMat) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
         }
       }
     }
@@ -1280,24 +1333,23 @@
       return;
     }
     _reflAcc += (rawDt || 0.016);
-    const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
-    const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.25 : 1.0;
+    const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 0 };
     const fgModeR = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
-    const _sodRefl = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
-    const reflMinMs = _sodRefl ? 0.092 : 0.024;
-    const reflInterval = Math.max(reflMinMs, (inLobby ? 0.045 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult) * (fgModeR > 1 ? 1.45 : 1.0));
     const fastTurn = !_reflDoneOnce ||
-      Math.abs(camera.rotation.y - _lastReflYaw) > 0.045 ||
-      Math.abs(camera.rotation.x - _lastReflPitch) > 0.045;
-    const gentleTurn = Math.abs(camera.rotation.y - _lastReflYaw) > 0.015 ||
-      Math.abs(camera.rotation.x - _lastReflPitch) > 0.015;
-    const camStatic = _reflDoneOnce && !fastTurn && !gentleTurn &&
-      Math.abs(camera.position.x - _lastReflX) < 0.04 &&
-      Math.abs(camera.position.y - _lastReflY) < 0.04 &&
-      Math.abs(camera.position.z - _lastReflZ) < 0.04;
-    const targetReflDt = camStatic ? Math.max(reflInterval, 0.16) : (gentleTurn ? Math.max(reflInterval, 0.048) : reflInterval);
-    if (_reflDoneOnce && !fastTurn && (_reflAcc < targetReflDt || (window._chunkBuiltThisFrame && _reflAcc < reflInterval * 2.0))) return;
+      Math.abs(camera.rotation.y - _lastReflYaw) > 0.008 ||
+      Math.abs(camera.rotation.x - _lastReflPitch) > 0.008;
+    const camMoved = Math.abs(camera.position.x - _lastReflX) > 0.004 ||
+      Math.abs(camera.position.y - _lastReflY) > 0.004 ||
+      Math.abs(camera.position.z - _lastReflZ) > 0.004;
+    const camStatic = _reflDoneOnce && !fastTurn && !camMoved;
+    // Update planar reflections every frame while moving or rotating on PC (>=90 FPS smooth); conserve GPU only when completely still
+    const mobileFloor = (_initMobile || _autoPerfLow) ? 0.018 : 0.0;
+    const cfgMinMs = Math.max(mobileFloor, (_rPreset.reflIntervalMs || 0) / 1000);
+    const targetReflDt = camStatic ? 0.14 : (cfgMinMs * (fgModeR > 1 ? 1.25 : 1.0));
+    if (_reflDoneOnce && !fastTurn && !camMoved && _reflAcc < targetReflDt) return;
+    if (_reflDoneOnce && (fastTurn || camMoved) && _reflAcc < cfgMinMs) return;
     _reflAcc = 0;
+    window._reflUpdatesCount = (window._reflUpdatesCount || 0) + 1;
     _reflDoneOnce = true;
     _lastReflX = camera.position.x; _lastReflY = camera.position.y; _lastReflZ = camera.position.z;
     _lastReflYaw = camera.rotation.y; _lastReflPitch = camera.rotation.x;
@@ -1843,10 +1895,10 @@
           const terrainCamMoved = Math.abs(player.x - _lastShX) > 0.14 || Math.abs(player.y - _lastShY) > 0.14 || Math.abs(player.z - _lastShZ) > 0.14 || Math.abs(dayTime - _lastShTime) > 0.0018;
           const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 44;
           const _sodiumSh = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
-          const shInterval = hasDynamicShadow
-            ? (_sodiumSh ? (_initMobile ? 0.14 : 0.09) : (sodiumOpts.smoothShadows !== false ? 0.0 : 0.033))
-            : ((inLobby || isWorldLoading) ? 0.08 : (terrainCamMoved ? Math.max(_sodiumSh ? 0.08 : 0.03, _shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.0) : (_sodiumSh ? 0.35 : 0.25)));
-          if (_shadowAcc >= shInterval && (hasDynamicShadow || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.0)) {
+          const shInterval = (hasDynamicShadow || terrainCamMoved)
+            ? (_initMobile ? 0.016 : (sodiumOpts.smoothShadows !== false ? 0.0 : 0.016))
+            : ((inLobby || isWorldLoading) ? 0.04 : 0.25);
+          if (_shadowAcc >= shInterval) {
             _shadowAcc = 0;
             renderer.shadowMap.needsUpdate = true;
             window._shadowUpdatesCount = (window._shadowUpdatesCount || 0) + 1;
@@ -1865,6 +1917,19 @@
     window._nucraftCpuMs = window._nucraftCpuMs ? (window._nucraftCpuMs * 0.85 + _frameWorkMs * 0.15) : _frameWorkMs;
     const _cpuMs = Math.max(0.25, window._nucraftCpuMs || _frameWorkMs || 1);
     const _potFps = Math.min(999, Math.round(1000 / _cpuMs));
+    window.__NUCRAFT_SHADOW_STATS__ = {
+      shadowUpdates: window._shadowUpdatesCount || 0,
+      reflUpdates: window._reflUpdatesCount || 0,
+      cpuMs: +_cpuMs.toFixed(2),
+      potFps: _potFps,
+      smoothShadows: sodiumOpts.smoothShadows !== false,
+      shadowSize: sunLight.shadow.mapSize.width || 0,
+      shadowType: renderer.shadowMap.type,
+      wasmReady: !!window.__NUCRAFT_WASM__?.ready,
+      wasmAbi: window.__NUCRAFT_WASM__?.abi || 0,
+      wasmFrameCalls: window.__NUCRAFT_WASM__?.frameCalls || 0,
+      wasmPartCalls: window.__NUCRAFT_WASM__?.partCalls || 0
+    };
     const _sOpt = (typeof sodiumOpts !== 'undefined') ? sodiumOpts : {};
     window.__NUCRAFT_ADDONS__ = {
       sodium:         { enabled: _sOpt.sodium !== false,        activeHits: (window._visibleChunksCount || 0) + (window._directRenderHits || 0) },

@@ -2809,6 +2809,38 @@
         if (f >= 1 && f <= 4) disc(9.5, 7.0 - f * 0.4, Math.max(1.2, r * 0.65), f < 3 ? '#e2e8f0' : '#64748b', f >= 3);
         if (f === 5) disc(4 + ((hash(9) * 7) | 0), 5, 1.5, '#475569', true);
       });
+    } else if (kind === 'fish_bubble') {
+      // Crisp Minecraft-style small approaching fish wake bubble ring & blue-white dot trail on water
+      sheet = bakePixelSheet(6, 12, false, ({ f, px, ring, disc }) => {
+        const cx = 5.5, cy = 5.5;
+        if (f <= 1) {
+          disc(cx, cy, 1.6, '#0284c7');
+          disc(cx - 0.5, cy - 0.5, 0.9, '#ffffff');
+        } else {
+          ring(cx, cy, 1.5 + (f - 1) * 0.85, f < 4 ? '#bae6fd' : '#38bdf8');
+          if (f <= 3) px(cx - 1, cy - 1, '#ffffff');
+          if (f >= 3) px(cx + 1, cy + 1, '#0284c7');
+        }
+      });
+    } else if (kind === 'fish_ripple') {
+      // Tight white-cyan splash droplets & water surface ring when bobber plunges underwater on bite
+      sheet = bakePixelSheet(6, 16, false, ({ f, px, ring }) => {
+        const cx = 7.5, cy = 9.5;
+        ring(cx, cy, 1.8 + f * 1.15, f < 3 ? '#ffffff' : '#7dd3fc');
+        const lift = f < 3 ? (1.5 + f * 1.4) : Math.max(0.4, 4.3 - (f - 2) * 1.3);
+        for (const sx of [-2, -1, 0, 1, 2]) {
+          px(cx + sx * (0.9 + f * 0.35), cy - lift - (sx === 0 ? 1 : 0), f < 2 ? '#ffffff' : '#bae6fd');
+        }
+      });
+    } else if (kind === 'sulfur_steam') {
+      // Dense billowing geothermal steam geyser plume for Sulfur Hot Springs
+      sheet = bakePixelSheet(6, 16, false, ({ f, disc, px, hash }) => {
+        const cols = ['#ffffff', '#f8fafc', '#f1f5f9', '#fef9c3', '#e2e8f0', '#cbd5e1'];
+        const r = Math.min(5.2, 2.0 + f * 0.65);
+        disc(7.5 + (f - 2.5) * 0.35, 9.0 - f * 0.85, r, cols[f], f >= 4);
+        if (f < 4) disc(6.5, 8.2 - f * 0.7, Math.max(1.2, r * 0.55), '#ffffff');
+        for (let s = 0; s < 3; s++) px(5 + ((hash(s * 7 + f) * 6) | 0), 4 + ((hash(s * 13 + f) * 6) | 0), '#f8fafc');
+      });
     } else if (kind === 'evoker_spell') {
       // Curly lavender-violet pixel magic swirls matching Evoker casting reference (Image 3)
       sheet = bakePixelSheet(6, 20, false, ({ f, px }) => {
@@ -3502,27 +3534,62 @@
   function updateParticles(dt) {
     updatePixelFx(dt);
     updateSwordSlashes(dt);
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i]; p.life -= dt;
-      if (p.life <= 0) { particlePool.push(p); particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
-      if (p.grav) p.vy -= p.grav * dt;
-      const nx = p.x + p.vx * dt;
-      const ny = p.y + p.vy * dt;
-      const nz = p.z + p.vz * dt;
-      if (!p.rise && p.vy < -1.0 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
-        p.vy = -p.vy * 0.34; p.vx *= 0.60; p.vz *= 0.60;
-      } else {
-        p.x = nx; p.y = ny; p.z = nz;
+    const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
+    const _useWasmPart = !!(_wCore && _wCore.exports && _wCore.exports.step_particles_batch && _wCore.particleBuf && particles.length > 0 && particles.length <= 512);
+    if (_useWasmPart) {
+      const pb = _wCore.particleBuf;
+      const n = particles.length;
+      for (let i = 0; i < n; i++) {
+        const p = particles[i], b = i * 8;
+        pb[b] = p.x; pb[b + 1] = p.y; pb[b + 2] = p.z;
+        pb[b + 3] = p.vx; pb[b + 4] = p.vy; pb[b + 5] = p.vz;
+        pb[b + 6] = p.grav || 0; pb[b + 7] = p.life;
       }
-      p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
-      const t = Math.max(0.01, p.life / (p.maxLife || 0.5));
-      const sc = p.kind === 'smoke' ? (p.baseScale * (0.95 + (1 - t) * 0.75) * Math.min(1, t * 2.4)) : (p.baseScale * t * 1.15);
-      _partDummy.position.set(p.x, p.y, p.z);
-      _partDummy.rotation.set(p.rx, p.ry, 0);
-      _partDummy.scale.setScalar(Math.max(0.01, sc));
-      _partDummy.updateMatrix();
-      _partInstMesh.setMatrixAt(i, _partDummy.matrix);
-      _partInstMesh.setColorAt(i, p.color);
+      _wCore.exports.step_particles_batch(n, dt);
+      _wCore.state.partCalls++;
+      for (let i = n - 1; i >= 0; i--) {
+        const p = particles[i], b = i * 8;
+        p.life = pb[b + 7];
+        if (p.life <= 0) { particlePool.push(p); particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
+        const nx = pb[b], ny = pb[b + 1], nz = pb[b + 2], nvy = pb[b + 4];
+        if (!p.rise && nvy < -1.0 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
+          p.vy = -nvy * 0.34; p.vx *= 0.60; p.vz *= 0.60;
+        } else {
+          p.x = nx; p.y = ny; p.z = nz; p.vy = nvy;
+        }
+        p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
+        const t = Math.max(0.01, p.life / (p.maxLife || 0.5));
+        const sc = p.kind === 'smoke' ? (p.baseScale * (0.95 + (1 - t) * 0.75) * Math.min(1, t * 2.4)) : (p.baseScale * t * 1.15);
+        _partDummy.position.set(p.x, p.y, p.z);
+        _partDummy.rotation.set(p.rx, p.ry, 0);
+        _partDummy.scale.setScalar(Math.max(0.01, sc));
+        _partDummy.updateMatrix();
+        _partInstMesh.setMatrixAt(i, _partDummy.matrix);
+        _partInstMesh.setColorAt(i, p.color);
+      }
+    } else {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]; p.life -= dt;
+        if (p.life <= 0) { particlePool.push(p); particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
+        if (p.grav) p.vy -= p.grav * dt;
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        const nz = p.z + p.vz * dt;
+        if (!p.rise && p.vy < -1.0 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
+          p.vy = -p.vy * 0.34; p.vx *= 0.60; p.vz *= 0.60;
+        } else {
+          p.x = nx; p.y = ny; p.z = nz;
+        }
+        p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
+        const t = Math.max(0.01, p.life / (p.maxLife || 0.5));
+        const sc = p.kind === 'smoke' ? (p.baseScale * (0.95 + (1 - t) * 0.75) * Math.min(1, t * 2.4)) : (p.baseScale * t * 1.15);
+        _partDummy.position.set(p.x, p.y, p.z);
+        _partDummy.rotation.set(p.rx, p.ry, 0);
+        _partDummy.scale.setScalar(Math.max(0.01, sc));
+        _partDummy.updateMatrix();
+        _partInstMesh.setMatrixAt(i, _partDummy.matrix);
+        _partInstMesh.setColorAt(i, p.color);
+      }
     }
     _partInstMesh.count = particles.length;
     if (particles.length > 0) {
@@ -6768,7 +6835,7 @@
     }
     const _stepBobberSpring = (targetDip, stiffness, damping) => {
       fishingState.dipVel += ((targetDip - fishingState.dipY) * stiffness - fishingState.dipVel * damping) * dt;
-      fishingState.dipY = Math.max(-0.36, Math.min(0.14, fishingState.dipY + fishingState.dipVel * dt));
+      fishingState.dipY = Math.max(-0.44, Math.min(0.12, fishingState.dipY + fishingState.dipVel * dt));
       fishingState.y = fishingState.waterY + fishingState.dipY;
     };
     if (fishingState.mode === 'cast') {
@@ -6822,36 +6889,39 @@
         fishingState.mode = 'approach';
       }
     } else if (fishingState.mode === 'approach') {
-      _stepBobberSpring(Math.sin(elapsed * 3.8) * 0.028, 28, 6.5);
+      _stepBobberSpring(Math.sin(elapsed * 3.8) * 0.025, 28, 6.5);
       fishingState.approachT -= dt;
       fishingState.approachTick += dt;
       const frac = Math.max(0, fishingState.approachT / fishingState.approachDur);
-      if (fishingState.approachTick >= 0.065) {
+      if (fishingState.approachTick >= 0.07) {
         fishingState.approachTick = 0;
         const r = frac * fishingState.approachDist;
         const wiggle = Math.sin((1.0 - frac) * 14.0) * 0.14 * frac;
         const fx = fishingState.x + Math.cos(fishingState.approachAng) * r - Math.sin(fishingState.approachAng) * wiggle;
         const fz = fishingState.z + Math.sin(fishingState.approachAng) * r + Math.cos(fishingState.approachAng) * wiggle;
-        spawnParticles(fx, fishingState.waterY + 0.05, fz, (frameCounter & 1) ? 0xe0f2fe : 0x7dd3fc, 2, true);
+        if (getBlockWorld(Math.floor(fx), Math.floor(fishingState.waterY - 0.45), Math.floor(fz)) === B.WATER) {
+          spawnPixelFx('fish_bubble', fx + (Math.random() - 0.5) * 0.08, fishingState.waterY + 0.03, fz + (Math.random() - 0.5) * 0.08, { count: 1, scale: 0.24, spread: 0.04, randV: 0.06, grow: 0.35, vy: 0.05, life: 0.42 });
+        }
       }
       if (fishingState.approachT <= 0) {
         fishingState.mode = 'bite';
         fishingState.biteT = 2.6;
         fishingState.biteTick = 0;
-        fishingState.dipVel = -2.75;
-        spawnParticles(fishingState.x, fishingState.waterY + 0.07, fishingState.z, 0xe0f2fe, 14, true);
+        fishingState.dipVel = -3.6;
+        spawnPixelFx('fish_ripple', fishingState.x, fishingState.waterY + 0.04, fishingState.z, { count: 1, scale: 0.52, spread: 0.04, randV: 0.08, grow: 0.45, vy: 0.12, life: 0.42 });
+        spawnParticles(fishingState.x, fishingState.waterY + 0.05, fishingState.z, 0xe0f2fe, 10, true);
         playSfx('fish_bite');
         showToast('🐟 Cá đang cắn câu! Click Chuột Trái hoặc chạm màn hình để kéo cần!');
       }
     } else if (fishingState.mode === 'bite') {
       fishingState.biteT -= dt;
       fishingState.biteTick += dt;
-      _stepBobberSpring(-0.25 + Math.sin(elapsed * 13.5) * 0.042, 38, 8.2);
-      fishingState.bobberGrp.rotation.set(Math.sin(elapsed * 15) * 0.16, 0, Math.cos(elapsed * 13) * 0.14);
-      if (fishingState.biteTick >= 0.16) {
+      _stepBobberSpring(-0.34 + Math.sin(elapsed * 14.5) * 0.045, 42, 8.6);
+      fishingState.bobberGrp.rotation.set(Math.sin(elapsed * 15) * 0.18, 0, Math.cos(elapsed * 13) * 0.16);
+      if (fishingState.biteTick >= 0.14) {
         fishingState.biteTick = 0;
         const ang = elapsed * 9.0;
-        spawnParticles(fishingState.x + Math.cos(ang) * 0.18, fishingState.waterY + 0.04, fishingState.z + Math.sin(ang) * 0.18, 0xbae6fd, 2, false);
+        spawnPixelFx('fish_bubble', fishingState.x + Math.cos(ang) * 0.16, fishingState.waterY + 0.03, fishingState.z + Math.sin(ang) * 0.16, { count: 1, scale: 0.20, spread: 0.04, randV: 0.06, grow: 0.30, vy: 0.05, life: 0.35 });
       }
       if (fishingState.biteT <= 0) {
         fishingState.mode = 'float';

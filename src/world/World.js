@@ -2228,8 +2228,13 @@
               else if (uBio === UNDERGROUND_BIOMES.DRIPSTONE_CAVE) id = rockH > 0.55 ? B.STONE : (rockH > 0.30 ? B.SMOOTH_STONE : B.TERRACOTTA);
               else if (uBio === UNDERGROUND_BIOMES.DEEP_DARK) id = rockH > 0.80 ? B.OBSIDIAN : (rockH > 0.64 ? B.BASALT : B.DEEPSLATE);
               else if (uBio === UNDERGROUND_BIOMES.GLOWSHROOM_GROTTO) id = rockH > 0.65 ? B.MUD : B.DEEPSLATE;
+              else if (uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
+                const sb = ((trueY + Math.floor(rockH * 4)) % 6 + 6) % 6;
+                id = sb === 0 ? B.SULFUR_BLOCK : (sb === 1 ? B.THERMAL_CRUST : (sb === 2 ? B.TRAVERTINE_STONE : B.CINNABAR_STONE));
+              }
               else id = rockH > 0.55 ? B.STONE : B.DEEPSLATE;
               if (trueY <= -760 && oreH > 0.84) id = B.NETHERRACK;
+              else if (uBio === UNDERGROUND_BIOMES.SULFUR_CAVE && oreH > 0.976) id = oreH > 0.988 ? B.SULFUR_CRYSTAL : B.SULFUR_ORE;
               else if (oreH > 0.9982) id = B.DIAMOND_ORE;
               else if (oreH > 0.9970) id = (uBio === UNDERGROUND_BIOMES.MAGMA_CAVERN || uBio === UNDERGROUND_BIOMES.DEEP_DARK) ? B.RUBY_ORE : B.DEEPSLATE;
               else if (oreH > 0.9950) id = uBio === UNDERGROUND_BIOMES.CRYSTAL_CAVERN ? B.LAPIS_ORE : (uBio === UNDERGROUND_BIOMES.LUSH_CAVE ? B.EMERALD_ORE : B.GOLD_ORE);
@@ -3229,13 +3234,25 @@
               else if ((biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS || biome === BIOMES.MEGA_SNOW_PEAKS) && wy >= 14) id = ((wy & 3) === 0 ? B.PACKED_ICE : B.STONE);
               else if (biome === BIOMES.HIGHLAND_PLATEAU && wy < h - 1) id = B.STONE;
               else if (biome === BIOMES.NIGHTMARE_WOODS) id = B.DEEPSLATE;
+              else if (biome === BIOMES.SULFUR_SPRINGS) id = ((wy & 3) === 0 ? B.CINNABAR_STONE : B.TRAVERTINE_STONE);
               else id = B.DIRT;
             } else if (wy === h) {
               if (h <= WATER_LEVEL) {
-                if (biome === BIOMES.MANGROVE_SWAMP || biome === BIOMES.SWAMP) id = B.MUD;
+                if (biome === BIOMES.SULFUR_SPRINGS) id = hash2i(wx, wz, worldSeed + 7823) > 0.45 ? B.TRAVERTINE_STONE : B.SULFUR_BLOCK;
+                else if (biome === BIOMES.MANGROVE_SWAMP || biome === BIOMES.SWAMP) id = B.MUD;
                 else if (h <= -26 || biome === BIOMES.ABYSS_TRENCH) id = hash2i(wx, wz, worldSeed + 547) > 0.45 ? B.DEEPSLATE : B.BASALT;
                 else if (h <= -14) id = hash2i(wx, wz, worldSeed + 549) > 0.55 ? B.STONE : B.SAND;
                 else id = B.SAND;
+              }
+              else if (biome === BIOMES.SULFUR_SPRINGS) {
+                const rimN = valueNoise2D(wx * 0.14, wz * 0.14, worldSeed + 7829);
+                if (h === WATER_LEVEL + 1) id = rimN > 0.36 ? B.TRAVERTINE_STONE : B.SULFUR_BLOCK;
+                else if (h <= WATER_LEVEL + 4) id = rimN > 0.62 ? B.THERMAL_CRUST : (rimN > 0.25 ? B.SULFUR_BLOCK : B.TRAVERTINE_STONE);
+                else {
+                  const band = (wy + Math.floor(rimN * 3)) % 5;
+                  id = band === 0 ? B.SULFUR_BLOCK : (band === 1 ? B.THERMAL_CRUST : (band === 4 ? B.TRAVERTINE_STONE : B.CINNABAR_STONE));
+                  if (hash2i(wx, wz, worldSeed + 7831) > 0.96) id = B.SULFUR_ORE;
+                }
               }
               else if (biome === BIOMES.DESERT || biome === BIOMES.BEACH_PALM) id = B.SAND;
               else if (biome === BIOMES.MUSHROOM_ISLAND) id = B.MYCELIUM;
@@ -3316,6 +3333,19 @@
               } else if (uBioCol === UNDERGROUND_BIOMES.GLOWSHROOM_GROTTO) {
                 data[below] = B.MYCELIUM;
                 if (lh > 0.86) data[i] = B.MUSHROOM_GLOW;
+              } else if (uBioCol === UNDERGROUND_BIOMES.SULFUR_CAVE) {
+                data[below] = lh > 0.66 ? B.THERMAL_CRUST : (lh > 0.34 ? B.SULFUR_BLOCK : B.TRAVERTINE_STONE);
+                if (lh > 0.980) data[i] = B.SULFUR_VENT;
+                else if (lh > 0.942) {
+                  const sh = 1 + ((hash2i(wx, wz, worldSeed + 7841) * 3) | 0);
+                  for (let d = 0; d < sh && (ly + d) < (h - MIN_Y - 4); d++) {
+                    const idxC = ((ly + d) << 8) | (lz << 4) | lx;
+                    if (data[idxC] !== B.AIR) break;
+                    data[idxC] = B.SULFUR_CRYSTAL;
+                  }
+                } else if (lh < 0.14 && data[below] !== B.AIR) {
+                  data[below] = B.WATER;
+                }
               } else if (uBioCol === UNDERGROUND_BIOMES.ICE_CAVERN) {
                 if (lh > 0.55) data[below] = B.PACKED_ICE;
                 if (lh > 0.95) data[i] = B.SEA_LANTERN;
@@ -3351,6 +3381,13 @@
                   const idxI = ((ly - d) << 8) | (lz << 4) | lx;
                   if (data[idxI] !== B.AIR) break;
                   data[idxI] = B.ICE;
+                }
+              } else if (uBioCol === UNDERGROUND_BIOMES.SULFUR_CAVE && vh > 0.89) {
+                const sLen = 1 + Math.floor(hash2i(wx, wz, seedMix.s1 + 7853) * 3);
+                for (let d = 0; d < sLen && (ly - d) > 5; d++) {
+                  const idxS = ((ly - d) << 8) | (lz << 4) | lx;
+                  if (data[idxS] !== B.AIR) break;
+                  data[idxS] = B.SULFUR_CRYSTAL;
                 }
               }
             }
@@ -3588,6 +3625,19 @@
           }
           else if (biome === BIOMES.LUSH_STEPPE && surfTopId === B.GRASS && rTree > 0.992) {
             placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.OAK_LEAVES); placed = true;
+          }
+          else if (biome === BIOMES.SULFUR_SPRINGS) {
+            if (h >= 7 && rTree > 0.986) {
+              placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'pine'); placed = true;
+            } else if (h >= WATER_LEVEL + 1 && rTree > 0.962) {
+              if (h <= WATER_LEVEL + 3 && rTree > 0.985) {
+                setLocalSafe(data, lx, h + 1, lz, B.SULFUR_VENT, true);
+              } else {
+                const spH = 1 + ((hash2i(wx, wz, worldSeed + 7867) * 3) | 0);
+                for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, h + sy, lz, B.SULFUR_CRYSTAL, false);
+              }
+              placed = true;
+            }
           }
           else if (biome === BIOMES.GIANT_JUNGLE && rTree > 0.934 && rTree <= 0.944) {
             placeLeafBushCluster(data, lx, h + 1, lz, wx, wz, B.JUNGLE_LEAVES); placed = true;

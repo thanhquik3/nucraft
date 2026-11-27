@@ -571,10 +571,32 @@
     sovereignBoots:    _nextTile++
   };
 
+  B.SULFUR_BLOCK      = _dynBlockId++;
+  B.SULFUR_ORE        = _dynBlockId++;
+  B.CINNABAR_STONE    = _dynBlockId++;
+  B.TRAVERTINE_STONE  = _dynBlockId++;
+  B.THERMAL_CRUST     = _dynBlockId++;
+  B.SULFUR_CRYSTAL    = _dynBlockId++;
+  B.SULFUR_VENT       = _dynBlockId++;
+  B.SULFUR_SLIMEBALL  = _dynBlockId++;
+  B.SULFUR_POWDER     = _dynBlockId++;
+
+  const V156_TILES = {
+    sulfurBlock:       _nextTile++,
+    sulfurOre:         _nextTile++,
+    cinnabarStone:     _nextTile++,
+    travertineStone:   _nextTile++,
+    thermalCrust:      _nextTile++,
+    sulfurCrystal:     _nextTile++,
+    sulfurVent:        _nextTile++,
+    sulfurSlimeball:   _nextTile++,
+    sulfurPowder:      _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

@@ -5,14 +5,41 @@ const CAVE_GRID_Y: usize = 65;
 const CAVE_GRID_Z: usize = 5;
 const COARSE_LEN: usize = CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z; // 1625
 const MAX_EMITTERS_LEN: usize = 3584; // up to 512 emitters * 7 floats
+const FRAME_OUT_LEN: usize = 16;
+const MAX_PARTICLES: usize = 512;
+const PARTICLE_STRIDE: usize = 8; // x, y, z, vx, vy, vz, grav, life
+const MAX_SPHERES: usize = 256;
 
 static mut COARSE_GRID: [f32; COARSE_LEN] = [0.0; COARSE_LEN];
 static mut EMITTERS_BUF: [f32; MAX_EMITTERS_LEN] = [0.0; MAX_EMITTERS_LEN];
 static mut LIGHT_OUT: [f32; 3] = [0.0; 3];
+static mut FRAME_OUT: [f32; FRAME_OUT_LEN] = [0.0; FRAME_OUT_LEN];
+static mut PARTICLE_BUF: [f32; MAX_PARTICLES * PARTICLE_STRIDE] = [0.0; MAX_PARTICLES * PARTICLE_STRIDE];
+static mut SPHERE_IN: [f32; MAX_SPHERES * 4] = [0.0; MAX_SPHERES * 4];
+static mut SPHERE_OUT: [u8; MAX_SPHERES] = [0; MAX_SPHERES];
 
 #[inline(always)]
 fn js_floor(x: f64) -> i32 {
     x.floor() as i32
+}
+
+#[inline(always)]
+fn sin_approx(x: f64) -> f64 {
+    const PI: f64 = 3.14159265358979323846;
+    const TWO_PI: f64 = 6.28318530717958647692;
+    let mut t = x - (x / TWO_PI).round() * TWO_PI;
+    if t > PI * 0.5 {
+        t = PI - t;
+    } else if t < -PI * 0.5 {
+        t = -PI - t;
+    }
+    let t2 = t * t;
+    t * (1.0 - t2 * (1.0 / 6.0 - t2 * (1.0 / 120.0 - t2 * (1.0 / 5040.0 - t2 / 362880.0))))
+}
+
+#[inline(always)]
+fn cos_approx(x: f64) -> f64 {
+    sin_approx(x + 1.5707963267948966)
 }
 
 #[inline(always)]
@@ -42,7 +69,27 @@ fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn wasm_abi_version() -> u32 {
-    1
+    2
+}
+
+#[no_mangle]
+pub extern "C" fn frame_out_ptr() -> *const f32 {
+    addr_of!(FRAME_OUT) as *const f32
+}
+
+#[no_mangle]
+pub extern "C" fn particle_buf_ptr() -> *mut f32 {
+    addr_of_mut!(PARTICLE_BUF) as *mut f32
+}
+
+#[no_mangle]
+pub extern "C" fn sphere_in_ptr() -> *mut f32 {
+    addr_of_mut!(SPHERE_IN) as *mut f32
+}
+
+#[no_mangle]
+pub extern "C" fn sphere_out_ptr() -> *const u8 {
+    addr_of!(SPHERE_OUT) as *const u8
 }
 
 #[no_mangle]
@@ -290,4 +337,140 @@ pub extern "C" fn eval_light_slice(lx: f32, ly: f32, lz: f32, slice_len: u32) ->
         *out_ptr.add(2) = sb;
     }
     sr
+}
+
+#[no_mangle]
+pub extern "C" fn step_env_wind_state(
+    time: f32,
+    weather: f32,
+    px: f32,
+    py: f32,
+    pz: f32,
+    lx: f32,
+    ly: f32,
+    lz: f32,
+    sh_rad: f32,
+    sh_size: f32,
+) -> u32 {
+    let t = time as f64;
+    let w = weather as f64;
+    let amp = 0.065 * (1.0 + w * 1.45);
+    let wind_x = (amp * (sin_approx(t * 1.35) + 0.42 * sin_approx(t * 2.9 + 1.1))) as f32;
+    let wind_z = (amp * (cos_approx(t * 1.12) + 0.38 * sin_approx(t * 2.45))) as f32;
+    let gust = ((0.5 + 0.5 * sin_approx(t * 0.65)) * (0.4 + 0.6 * w)) as f32;
+
+    // Orthonormal light-space texel snapping eliminates shadow shimmer on pan/rotation
+    let ldx = lx as f64;
+    let ldy = ly as f64;
+    let ldz = lz as f64;
+    let llen = (ldx * ldx + ldy * ldy + ldz * ldz).sqrt().max(1e-6);
+    let fx = ldx / llen;
+    let fy = ldy / llen;
+    let fz = ldz / llen;
+    let (ux_ref, uy_ref, uz_ref) = if fy.abs() > 0.98 { (0.0, 0.0, 1.0) } else { (0.0, 1.0, 0.0) };
+    let mut rx = uy_ref * fz - uz_ref * fy;
+    let mut ry = uz_ref * fx - ux_ref * fz;
+    let mut rz = ux_ref * fy - uy_ref * fx;
+    let rlen = (rx * rx + ry * ry + rz * rz).sqrt().max(1e-6);
+    rx /= rlen;
+    ry /= rlen;
+    rz /= rlen;
+    let ux = fy * rz - fz * ry;
+    let uy = fz * rx - fx * rz;
+    let uz = fx * ry - fy * rx;
+
+    let texel = ((sh_rad as f64) * 2.0) / (sh_size as f64).max(1.0);
+    let p_x = px as f64;
+    let p_y = py as f64;
+    let p_z = pz as f64;
+    let p_r = p_x * rx + p_y * ry + p_z * rz;
+    let p_u = p_x * ux + p_y * uy + p_z * uz;
+    let p_l = p_x * fx + p_y * fy + p_z * fz;
+    let s_r = (p_r / texel).round() * texel;
+    let s_u = (p_u / texel).round() * texel;
+    let snap_x = (rx * s_r + ux * s_u + fx * p_l) as f32;
+    let snap_y = (ry * s_r + uy * s_u + fy * p_l) as f32;
+    let snap_z = (rz * s_r + uz * s_u + fz * p_l) as f32;
+
+    let out_ptr = addr_of_mut!(FRAME_OUT) as *mut f32;
+    unsafe {
+        *out_ptr.add(0) = wind_x;
+        *out_ptr.add(1) = wind_z;
+        *out_ptr.add(2) = gust;
+        *out_ptr.add(3) = snap_x;
+        *out_ptr.add(4) = snap_y;
+        *out_ptr.add(5) = snap_z;
+    }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn step_particles_batch(count: u32, dt: f32) -> u32 {
+    let n = (count as usize).min(MAX_PARTICLES);
+    let ptr = addr_of_mut!(PARTICLE_BUF) as *mut f32;
+    let mut i = 0;
+    while i < n {
+        let base = i * PARTICLE_STRIDE;
+        unsafe {
+            let grav = *ptr.add(base + 6);
+            let vy = *ptr.add(base + 4) - grav * dt;
+            let x = *ptr.add(base + 0) + *ptr.add(base + 3) * dt;
+            let y = *ptr.add(base + 1) + vy * dt;
+            let z = *ptr.add(base + 2) + *ptr.add(base + 5) * dt;
+            let life = *ptr.add(base + 7) - dt;
+            *ptr.add(base + 0) = x;
+            *ptr.add(base + 1) = y;
+            *ptr.add(base + 2) = z;
+            *ptr.add(base + 4) = vy;
+            *ptr.add(base + 7) = life;
+        }
+        i += 1;
+    }
+    n as u32
+}
+
+#[no_mangle]
+pub extern "C" fn cull_spheres_batch(
+    count: u32,
+    cam_x: f32,
+    cam_y: f32,
+    cam_z: f32,
+    fwd_x: f32,
+    fwd_y: f32,
+    fwd_z: f32,
+    max_dist: f32,
+    cos_half_fov: f32,
+) -> u32 {
+    let n = (count as usize).min(MAX_SPHERES);
+    let in_ptr = addr_of!(SPHERE_IN) as *const f32;
+    let out_ptr = addr_of_mut!(SPHERE_OUT) as *mut u8;
+    let mut visible: u32 = 0;
+    let mut i = 0;
+    while i < n {
+        let base = i * 4;
+        unsafe {
+            let cx = *in_ptr.add(base + 0);
+            let cy = *in_ptr.add(base + 1);
+            let cz = *in_ptr.add(base + 2);
+            let rad = *in_ptr.add(base + 3);
+            let dx = cx - cam_x;
+            let dy = cy - cam_y;
+            let dz = cz - cam_z;
+            let d2 = dx * dx + dy * dy + dz * dz;
+            let max_r = max_dist + rad;
+            let vis = if d2 > max_r * max_r {
+                0u8
+            } else if d2 <= rad * rad * 2.25 + 64.0 {
+                1u8
+            } else {
+                let dot = dx * fwd_x + dy * fwd_y + dz * fwd_z;
+                let dist = d2.sqrt();
+                if dot + rad * 1.15 >= dist * cos_half_fov { 1u8 } else { 0u8 }
+            };
+            *out_ptr.add(i) = vis;
+            visible += vis as u32;
+        }
+        i += 1;
+    }
+    visible
 }

@@ -188,8 +188,9 @@
           } else {
             m = new THREE.Mesh(pr.geo, pr.mat);
           }
-          m.castShadow = !pr.isGlow;
-          m.receiveShadow = !pr.isGlow;
+        m.castShadow = !pr.isGlow;
+        m.receiveShadow = !pr.isGlow;
+        if (!pr.isGlow && m.material) m.material.shadowSide = THREE.FrontSide;
           grp.add(m);
         }
       }
@@ -1898,13 +1899,14 @@
         const leg = makePivot(g, sx, 0.70, 0); anim.legs.push({ p: leg, dir: d });
         addBoxTo(leg, 0.15, 0.70, 0.15, 0x94a3b8, 0, -0.35, 0, false, 0.72, 'stone');
       }
-    } else if (type === 'slime') {
+    } else if (type === 'slime' || type === 'sulfur_slime') {
+      const isSulf = (type === 'sulfur_slime');
       anim.torso = makePivot(g, 0, 0.45, 0);
-      addArtBox(anim.torso, 0.90, 0.90, 0.90, 'fb_slime_outer', (ctx, h) => {
-        h.fillAll(0x4ade80, 12, 'crystal', 18, -18);
-        h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 2, eyeCol: 0x052e16, sparkle: true, noseY: 10, noseW: 2, noseH: 2, noseCol: 0x052e16 });
-      }, 0, 0, 0, { rough: 0.24, transparent: true, opacity: 0.72, emissive: 0x064e3b, emissiveIntensity: 0.22 });
-      addBoxTo(anim.torso, 0.56, 0.56, 0.56, 0x16a34a, 0, 0, 0, false, 0.45, 'crystal');
+      addArtBox(anim.torso, 0.90, 0.90, 0.90, isSulf ? 'fb_sulfur_slime_outer' : 'fb_slime_outer', (ctx, h) => {
+        h.fillAll(isSulf ? 0xfacc15 : 0x4ade80, 12, 'crystal', 18, -18);
+        h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 2, eyeCol: isSulf ? 0x451a03 : 0x052e16, sparkle: true, noseY: 10, noseW: 2, noseH: 2, noseCol: isSulf ? 0x451a03 : 0x052e16 });
+      }, 0, 0, 0, { rough: 0.22, transparent: true, opacity: isSulf ? 0.78 : 0.72, emissive: isSulf ? 0xca8a04 : 0x064e3b, emissiveIntensity: isSulf ? 0.48 : 0.22 });
+      addBoxTo(anim.torso, 0.56, 0.56, 0.56, isSulf ? 0xca8a04 : 0x16a34a, 0, 0, 0, false, 0.40, 'crystal');
     } else if (type === 'wither_knight') {
       addBoxTo(g, 0.66, 0.90, 0.38, 0x18181b, 0, 1.24, 0, false, 0.42, 'stone');
       addBoxTo(g, 0.84, 0.26, 0.44, 0x27272a, 0, 1.58, 0, false, 0.40, 'stone');
@@ -4260,6 +4262,7 @@
     spider:          { hostile: true,  hp: 16, speed: 3.05, r: 0.80, h: 0.9, dmg: 2 },
     spider_jockey:   { hostile: true,  hp: 30, speed: 3.05, r: 0.80, h: 2.05, dmg: 3.5, ranged: 'arrow', displayName: 'Skeleton Cưỡi Nhện' },
     slime:           { hostile: true,  hp: 16, speed: 2.05, r: 0.62, h: 0.95, dmg: 2.5, hopper: true },
+    sulfur_slime:    { hostile: true,  hp: 20, speed: 2.15, r: 0.66, h: 0.98, dmg: 3.0, hopper: true, noSunBurn: true, displayName: 'Slime Lưu Huỳnh 🧪' },
     creeper:         { hostile: true,  hp: 20, speed: 2.30, r: 0.55, h: 1.8, dmg: 0 },
     charged_creeper: { hostile: true,  hp: 24, speed: 2.50, r: 0.55, h: 1.85, dmg: 0, noSunBurn: true, blastRadius: 5.0, blastDmg: 26, displayName: 'Creeper Điện ⚡' },
     icy_creeper:     { hostile: true,  hp: 22, speed: 2.35, r: 0.55, h: 1.80, dmg: 0, noSunBurn: true, blastRadius: 3.4, blastDmg: 17, frostBlast: true, displayName: 'Creeper Băng ❄️' },
@@ -5286,6 +5289,7 @@
           else if (biome === BIOMES.VOLCANIC || biome === BIOMES.CRIMSON_HIGHLAND) type = 'redstone_monstrosity';
           else type = Math.random() < 0.55 ? 'prismarine_colossus' : 'magma_golem';
         }
+        else if ((biome === BIOMES.SULFUR_SPRINGS || (isUnder && getUndergroundBiomeAt(wx, Math.floor(spawnY - depthOffset), wz) === UNDERGROUND_BIOMES.SULFUR_CAVE)) && r < 0.68) type = 'sulfur_slime';
         else if (isUnder && r < 0.14) type = 'rascal';
         else if (!isUnder && r < 0.08 && skyCnt < skyCap) { type = 'phantom_drake'; spawnY += 7; }
         else if (biome === BIOMES.DESERT && r < 0.36) type = Math.random() < 0.5 ? 'husk' : 'desert_skeleton';
@@ -5315,6 +5319,9 @@
         else if (r < 0.90) type = Math.random() < 0.45 ? 'creaking' : 'wither_knight';
         else type = Math.random() < 0.60 ? 'enderman' : 'void_stalker';
       } else {
+        if (biome === BIOMES.SULFUR_SPRINGS && r < 0.64 && (!getDifficultyCfg || getDifficultyCfg().hostileSpawn) && hostileCnt < hostileCap) {
+          type = 'sulfur_slime';
+        } else {
         if (spawnY <= WATER_LEVEL || passiveCnt >= passiveCap) return;
         if (r < 0.62) {
           type = pickBiomeAnimal(biome, false);
@@ -5336,6 +5343,7 @@
         else if (r < 0.95) type = 'cow';
         else if (r < 0.98) type = 'chicken';
         else type = 'fox';
+        }
       }
     }
     if (!getDifficultyCfg().hostileSpawn && MOB_STATS[type] && MOB_STATS[type].hostile) return;
@@ -5967,6 +5975,10 @@
       else if (mob.type === 'wither_knight') { spawnDroppedItem(bx, by, bz, B.COAL, { count: 2 }); spawnDroppedItem(bx, by, bz, B.GOLD_INGOT); }
       else if (mob.type === 'iron_golem') { spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.IRON_INGOT); spawnDroppedItem(bx, by, bz, B.FLOWER_RED); }
       else if (mob.type === 'slime') { spawnDroppedItem(bx, by, bz, B.MUSHROOM_GLOW); }
+      else if (mob.type === 'sulfur_slime') {
+        spawnDroppedItem(bx, by, bz, B.SULFUR_SLIMEBALL, { count: 1 + (Math.random() < 0.55 ? 1 : 0) });
+        if (Math.random() < 0.65) spawnDroppedItem(bx, by, bz, B.SULFUR_POWDER);
+      }
       else if (mob.type === 'phantom_drake') { spawnDroppedItem(bx, by, bz, B.GLOW_CRYSTAL); spawnDroppedItem(bx, by, bz, B.ARROW); }
       else if (mob.type === 'cow' || mob.type === 'bison' || mob.type === 'yak' || mob.type === 'sika_deer' || mob.type === 'deer' || mob.type === 'antler_deer' || mob.type === 'moose') {
         const beef = mob.burning ? B.COOKED_BEEF : B.RAW_BEEF;
@@ -7083,10 +7095,13 @@
       const isMobVis = (player.ridingDragon === m) ? true : _evalMobCulling(m, mdx, mdy, mdz, dist3D, lookX, lookY, lookZ, playerEyeY, i);
       if (m.group && m.group.visible !== isMobVis) m.group.visible = isMobVis;
       if (m.group && m.parts) {
-        const wantSh = isMobVis && dist < 24 && !!sunLight.castShadow;
+        const wantSh = isMobVis && dist < 28 && !!sunLight.castShadow;
         if (m._shCast !== wantSh) {
           m._shCast = wantSh;
-          for (let pi = 0; pi < m.parts.length; pi++) m.parts[pi].castShadow = wantSh;
+          for (let pi = 0; pi < m.parts.length; pi++) {
+            m.parts[pi].castShadow = wantSh;
+            if (m.parts[pi].material && m.parts[pi].material.shadowSide !== THREE.FrontSide) m.parts[pi].material.shadowSide = THREE.FrontSide;
+          }
         }
       }
       if (!isMobVis) _culledEntitiesCount++;
@@ -8212,6 +8227,7 @@
               wither_knight: 'Bạn bị Hiệp Sĩ Hắc Ám chém hạ!',
               husk: 'Bạn bị Xác Ướp Sa Mạc tấn công!',
               slime: 'Bạn bị Slime Ngọc đè bẹp!',
+              sulfur_slime: 'Bạn bị Slime Lưu Huỳnh làm bỏng rát!',
               wolf: 'Bạn bị Sói Rừng cắn!',
               zombie: 'Bạn bị Zombie tấn công!',
               chicken_jockey: 'Bạn bị Baby Zombie Cưỡi Gà tấn công!',

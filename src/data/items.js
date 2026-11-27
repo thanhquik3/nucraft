@@ -273,6 +273,11 @@
     { cat: 'misc',   is2x2: true, out: B.BLAZE_POWDER,    qty: 2, req: [{ id: B.BLAZE_ROD, qty: 1 }], grid: [B.BLAZE_ROD,0,0, 0,0,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.ENDER_EYE,       qty: 1, req: [{ id: B.ENDER_PEARL, qty: 1 }, { id: B.BLAZE_POWDER, qty: 1 }], grid: [B.ENDER_PEARL,B.BLAZE_POWDER,0, 0,0,0, 0,0,0] },
     { cat: 'misc',                out: B.END_CRYSTAL_BLOCK, qty: 1, req: [{ id: B.GLASS, qty: 7 }, { id: B.ENDER_EYE, qty: 1 }, { id: B.GHAST_TEAR, qty: 1 }], grid: [B.GLASS,B.GLASS,B.GLASS, B.GLASS,B.ENDER_EYE,B.GLASS, B.GLASS,B.GHAST_TEAR,B.GLASS] },
+    // v156 Sulfur Hot Springs & Sulfur Slime Recipes
+    { cat: 'blocks',              out: B.SULFUR_BLOCK,      qty: 1, req: [{ id: B.SULFUR_POWDER, qty: 9 }], grid: [B.SULFUR_POWDER,B.SULFUR_POWDER,B.SULFUR_POWDER, B.SULFUR_POWDER,B.SULFUR_POWDER,B.SULFUR_POWDER, B.SULFUR_POWDER,B.SULFUR_POWDER,B.SULFUR_POWDER] },
+    { cat: 'misc',   is2x2: true, out: B.SULFUR_POWDER,     qty: 9, req: [{ id: B.SULFUR_BLOCK, qty: 1 }], grid: [B.SULFUR_BLOCK,0,0, 0,0,0, 0,0,0] },
+    { cat: 'misc',   is2x2: true, out: B.TORCH_BLOCK,       qty: 4, req: [{ id: B.SULFUR_POWDER, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.SULFUR_POWDER,0, 0,B.STICK,0, 0,0,0] },
+    { cat: 'misc',   is2x2: true, out: B.SLIME_BLOCK,       qty: 1, req: [{ id: B.SULFUR_SLIMEBALL, qty: 4 }], grid: [B.SULFUR_SLIMEBALL,B.SULFUR_SLIMEBALL,0, B.SULFUR_SLIMEBALL,B.SULFUR_SLIMEBALL,0, 0,0,0] },
     // v43 Ichor & Aetherium Tools & Armor (The Sift Endgame Tiers!)
     { cat: 'tools',  out: B.ICHOR_PICK,       qty: 1, req: [{ id: B.ICHOR_CRYSTAL, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.ICHOR_CRYSTAL,B.ICHOR_CRYSTAL,B.ICHOR_CRYSTAL, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.ICHOR_SWORD,      qty: 1, req: [{ id: B.ICHOR_CRYSTAL, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.ICHOR_CRYSTAL,0, 0,B.ICHOR_CRYSTAL,0, 0,B.STICK,0] },
@@ -511,7 +516,8 @@
     DR_PLATEAU:           { id: 74, name: 'Thế Giới Rồng • Cao Nguyên Tử Tinh' },
     DR_PEAKS:             { id: 75, name: 'Thế Giới Rồng • Núi Cao Rồng Cổ' },
     DR_PLAINS:            { id: 76, name: 'Thế Giới Rồng • Đồng Bằng Hư Không' },
-    DR_CAVERNS:           { id: 77, name: 'Thế Giới Rồng • Hang Động Tinh Thể' }
+    DR_CAVERNS:           { id: 77, name: 'Thế Giới Rồng • Hang Động Tinh Thể' },
+    SULFUR_SPRINGS:       { id: 78, name: 'Suối Lưu Huỳnh (Sulfur Springs)' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -5284,6 +5290,86 @@
         '................',
         '................'
       ], palSovIcon);
+    }
+
+    // BUILD v156: Crisp 16x16 Sulfur Hot Springs Blocks & Sulfur Slime Item Textures
+    if (typeof V156_TILES !== 'undefined') {
+      const paintNoiseBlock = (tile, baseHex, darkHex, hiHex, veinHex = null, seedSalt = 0) => {
+        const pal = { b: baseHex, d: darkHex, h: hiHex, v: veinHex || hiHex };
+        const rows = [];
+        for (let y = 0; y < 16; y++) {
+          let row = '';
+          for (let x = 0; x < 16; x++) {
+            const h = (((x * 374761393 + y * 668265263 + seedSalt * 1442695041) ^ ((x + y) * 1274126177)) >>> 0) % 100;
+            if (veinHex && ((x + y * 2 + seedSalt) % 7 === 0) && h > 42 && h < 74) row += 'v';
+            else if (h < 22) row += 'd';
+            else if (h > 78) row += 'h';
+            else row += 'b';
+          }
+          rows.push(row);
+        }
+        drawSpriteMap(tile, rows, pal);
+      };
+      paintNoiseBlock(V156_TILES.sulfurBlock,     '#eab308', '#ca8a04', '#fde047', '#fef08a', 11);
+      paintNoiseBlock(V156_TILES.sulfurOre,       '#857c6c', '#57534e', '#a8a29e', '#fde047', 23);
+      paintNoiseBlock(V156_TILES.cinnabarStone,   '#991b1b', '#6b1212', '#b91c1c', '#dc2626', 37);
+      paintNoiseBlock(V156_TILES.travertineStone, '#ebe7de', '#c7c0b4', '#f8fafc', '#d6d3d1', 49);
+      paintNoiseBlock(V156_TILES.thermalCrust,    '#ea580c', '#9a3412', '#fb923c', '#facc15', 61);
+      paintNoiseBlock(V156_TILES.sulfurVent,      '#a16207', '#451a03', '#f59e0b', '#fef9c3', 73);
+      drawSpriteMap(V156_TILES.sulfurCrystal, [
+        '.......h........',
+        '......hWh.......',
+        '.....hYYWh......',
+        '....hYYYYYh.....',
+        '....hYYYYDh.....',
+        '...hWYYYYYDh....',
+        '...hYYYYYYDh..h.',
+        '..hYYYYYYYYDhhWh',
+        '..hYYYYDDDDDYYYh',
+        '.hWYYYYYYDYYYYDh',
+        '.hYYYYYYYDYYYYDh',
+        'hYYYYDDDDYYYYDDh',
+        'hYYYDYYYYYDDDYYh',
+        'DDDDYYYYDDDDDDDh',
+        'DDDDDDDDDDDDDDDD',
+        'oooooooooooooooo'
+      ], { o: '#713f12', D: '#ca8a04', Y: '#facc15', h: '#fde047', W: '#fefce8' });
+      drawSpriteMap(V156_TILES.sulfurSlimeball, [
+        '................',
+        '......oooo......',
+        '....ooHHHHoo....',
+        '...oHWWWWYYHo...',
+        '..oHWWYYYYYYYo..',
+        '..oHYYYYYYYYYo..',
+        '.oHYYYYYYDDDDYo.',
+        '.oYYYYYYDDDDDYo.',
+        '.oYYYYYDDDDDDYo.',
+        '..oYYYDDDDDDYo..',
+        '..oYYDDDDDDDYo..',
+        '...ooDDDDDDo....',
+        '.....oooooo.....',
+        '................',
+        '................',
+        '................'
+      ], { o: '#854d0e', W: '#fef9c3', H: '#fde047', Y: '#facc15', D: '#ca8a04' });
+      drawSpriteMap(V156_TILES.sulfurPowder, [
+        '................',
+        '................',
+        '................',
+        '.......oo.......',
+        '.....ooHHoo.....',
+        '....oHWWWWYo....',
+        '...oHYYYYYYYo...',
+        '..oHYYYYDDDDYo..',
+        '..oYYYYDDDDDDo..',
+        '.oYYYDDDDDDDDDo.',
+        '.oYYDDDDDDDDDDo.',
+        '..oooooooooooo..',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#713f12', W: '#fefce8', H: '#fde047', Y: '#eab308', D: '#ca8a04' });
     }
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)

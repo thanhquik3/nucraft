@@ -286,7 +286,8 @@
       snowy_plains:{ biome: BIOMES.SNOWY_PLAINS,     needWater: true,  time: 0.31,  preset: 'bsl',     pitch: -0.02,msg: '❄️ Đồng Bằng Tuyết Trắng Bất Tận' },
       dark_forest: { biome: BIOMES.DARK_FOREST,      needWater: false, time: 0.36,  preset: 'moonlit', pitch: 0.01, msg: '🌑 Rừng Tối Cây Cổ Thụ Rậm Rạp' },
       pale_garden: { biome: BIOMES.PALE_GARDEN,      needWater: false, time: 0.38,  preset: 'moonlit', pitch: 0.01, msg: '🤍 Khu Rừng Nhợt Nhạt & Sương Mù Lạnh' },
-      nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: 0.76, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' }
+      nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: 0.76, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' },
+      sulfur_springs:{ biome: BIOMES.SULFUR_SPRINGS, needWater: true, time: 0.33, preset: 'bsl', pitch: 0.01, msg: '🧪 Suối Lưu Huỳnh — Bậc Thềm Khoáng Vàng Ngọc Lam & Slime Lưu Huỳnh!' }
     };
     const cfg = mapCfg[targetKey]; if (!cfg) return;
     let found = null;
@@ -386,7 +387,7 @@
           } else if (targetKey === 'wheat_valley') {
             if (getBiomeAt(wx + 14, wz) !== BIOMES.WHEAT_VALLEY || getBiomeAt(wx - 14, wz) !== BIOMES.WHEAT_VALLEY ||
                 getBiomeAt(wx, wz + 10) !== BIOMES.WHEAT_VALLEY || getBiomeAt(wx, wz - 24) !== BIOMES.WHEAT_VALLEY) continue;
-          } else if (targetKey !== 'village' && targetKey !== 'castle_city' && targetKey !== 'seaport' && targetKey !== 'ocean_ruins' && targetKey !== 'abyss_trench') {
+          } else if (targetKey !== 'sulfur_springs' && targetKey !== 'village' && targetKey !== 'castle_city' && targetKey !== 'seaport' && targetKey !== 'ocean_ruins' && targetKey !== 'abyss_trench') {
             let blocked = false;
             for (const d of [8, 16, 24]) {
               const ax = wx + Math.round(fx * d), az = wz + Math.round(fz * d);
@@ -401,8 +402,8 @@
     if (!found && targetKey !== 'abyss_trench' && targetKey !== 'ocean_ruins' && targetKey !== 'mushroom') {
       const prefY = (targetKey === 'snow' || targetKey === 'winter_cabin') ? moonYawAt(cfg.time)
         : ((targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'pine_valley' || targetKey === 'wheat_valley') ? 0.0 : sunYawAt(cfg.time));
-      for (let r = 640; r <= 4096 && !found; r += 64) {
-        for (let dz = -r; dz <= r && !found; dz += 64) for (let dx = -r; dx <= r && !found; dx += 64) {
+      for (let r = 64; r <= 6400 && !found; r += 48) {
+        for (let dz = -r; dz <= r && !found; dz += 48) for (let dx = -r; dx <= r && !found; dx += 48) {
           if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
           const wx = ox + dx, wz = oz + dz, b = getBiomeAt(wx, wz);
           if (b !== cfg.biome) continue;
@@ -432,6 +433,13 @@
       clean = landPlayerScenic(found.x, found.z, found.yaw);
     }
     if (targetKey === 'sakura') ensureScenicSakuraAcrossLake(clean);
+    if (targetKey === 'sulfur_springs' && typeof spawnMobOfType === 'function') {
+      const lx = Math.floor(clean.x) - Math.sin(clean.yaw || 0) * 6, lz = Math.floor(clean.z) - Math.cos(clean.yaw || 0) * 6;
+      const sy1 = Math.max(WATER_LEVEL + 1, colGroundY(Math.floor(lx + 2), Math.floor(lz + 2))) + 1.1;
+      const sy2 = Math.max(WATER_LEVEL + 1, colGroundY(Math.floor(lx - 3), Math.floor(lz - 1))) + 1.1;
+      spawnMobOfType('sulfur_slime', lx + 2.5, sy1, lz + 2.5);
+      spawnMobOfType('sulfur_slime', lx - 2.5, sy2, lz - 1.5);
+    }
     if (targetKey === 'blue_forest') {
       ensureScenicBlueForestView(clean);
       _flushDirtyIfDirect();
@@ -1342,6 +1350,7 @@
     dark_forest:    { label: '🌑 Dark Forest',      desc: 'Dense dark oak canopy with red mushrooms and dappled twilight shade.' },
     pale_garden:    { label: '🤍 Pale Garden',      desc: 'Eerie pale woods shrouded in silver mist with pale oak trunks and moss carpets.' },
     nightmare_woods:{ label: '🕸️ Nightmare Woods',  desc: 'Cursed twilight forest cloaked in heavy crimson mist that restricts far visibility.' },
+    sulfur_springs: { label: '🧪 Sulfur Springs',   desc: 'Terraced geothermal turquoise pools ringed with yellow sulfur spires, red cinnabar stone, steam vents, and Sulfur Slimes.' },
     dim_sift:       { label: '✨ Dream Realm',      desc: 'The Sift dimension shimmering with emerald aurora skies, Lullaby Hills, Ichor pools, and cute mobs.' },
     dim_nether:     { label: '🔥 The Nether',       desc: 'Molten lava dimension filled with Crimson fungus forests and glowing Netherrack caverns.' },
     dim_end:        { label: '🐉 The End City',     desc: 'Deep violet void with floating End Stone islands, obsidian pillars, and glowing Purpur towers.' },
@@ -1590,6 +1599,7 @@ const ORE_BIOME_PREVIEWS = {
   dark_forest:    { label: '🌑 Rừng Tối',          desc: 'Rừng sồi đen tán rậm rạp phủ bóng râm âm u cùng nấm đỏ khổng lồ và thảm rêu cổ thụ.',                     sky1: '#141e26', sky2: '#2d3b32', grass: '#2c4c26', dirt: '#3f2e21', water: '#1e3a4c', tree: '#1e3a1a', trunk: '#3b2416', accent: '#ef4444', kind: 'trees' },
   pale_garden:    { label: '🤍 Rừng Nhợt Nhạt',    desc: 'Khu rừng sồi trắng nhợt nhạt bao phủ bởi rêu xám bạc và lớp sương mù lạnh buốt giăng lối.',                sky1: '#64748b', sky2: '#cbd5e1', grass: '#94a3b8', dirt: '#64748b', water: '#475569', tree: '#cbd5e1', trunk: '#94a3b8', accent: '#e2e8f0', kind: 'trees' },
   nightmare_woods:{ label: '🕸️ Rừng Ác Mộng',      desc: 'Khu rừng ma quái chìm trong màn sương tím sẫm đặc quánh làm hạn chế tầm nhìn ở xa!',                        sky1: '#09030b', sky2: '#3b0724', grass: '#3b152a', dirt: '#1f0b18', water: '#581c87', tree: '#4c0519', trunk: '#1c1917', accent: '#f43f5e', kind: 'sift' },
+  sulfur_springs: { label: '🧪 Suối Lưu Huỳnh',    desc: 'Hồ nước nóng ngọc lam xếp tầng với thềm lưu huỳnh vàng rực, đá chu sa đỏ, cột hơi phun và Slime Lưu Huỳnh.', sky1: '#1d7ee8', sky2: '#d5f3ff', grass: '#eab308', dirt: '#991b1b', water: '#06b6d4', tree: '#295748', trunk: '#4a3525', accent: '#fde047', kind: 'trees' },
   dim_sift:       { label: '✨ Khu Giấc Mơ',       desc: 'Chiều không gian mộng mơ The Sift với cực quang ngọc lục bảo, hồ Ichor phát sáng và tán cây huyền ảo.',               sky1: '#16284c', sky2: '#5eead4', grass: '#c084fc', dirt: '#6d28d9', water: '#2dd4bf', tree: '#f0abfc', trunk: '#312e81', accent: '#fef08a', kind: 'sift' },
   dim_nether:     { label: '🔥 Địa Ngục',         desc: 'Thế giới dung nham đỏ rực với rừng nấm Crimson và đá Netherrack rực lửa.',                                            sky1: '#450a0a', sky2: '#991b1b', grass: '#7f1d1d', dirt: '#450a0a', water: '#f97316', tree: '#b91c1c', trunk: '#292524', accent: '#facc15', kind: 'nether' },
   dim_end:        { label: '🐉 Thành Phố End',    desc: 'Hư không tím thẫm với đảo End Stone lơ lửng, trụ Hắc Diện Thạch và tháp Purpur phát sáng.',                           sky1: '#090514', sky2: '#2e1065', grass: '#e9d594', dirt: '#c2ad6b', water: '#1e1b4b', tree: '#18181b', trunk: '#09090b', accent: '#e879f9', kind: 'end' },

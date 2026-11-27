@@ -1,4 +1,4 @@
-# NUCRAFT (BUILD v155)
+# NUCRAFT (BUILD v156)
 
 [![CI Policy & Security](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml)
 [![Deploy GitHub Pages](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml)

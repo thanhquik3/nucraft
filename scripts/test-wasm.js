@@ -117,11 +117,15 @@ async function main() {
 
   const { instance } = await WebAssembly.instantiate(bytes, {});
   const w = instance.exports;
-  assert.strictEqual(w.wasm_abi_version(), 1);
+  assert.strictEqual(w.wasm_abi_version(), 2);
 
   const coarseView = new Float32Array(w.memory.buffer, w.coarse_grid_ptr(), 1625);
   const emitView = new Float32Array(w.memory.buffer, w.emitters_buf_ptr(), 3584);
   const lightView = new Float32Array(w.memory.buffer, w.light_out_ptr(), 3);
+  const frameOutView = new Float32Array(w.memory.buffer, w.frame_out_ptr(), 16);
+  const partView = new Float32Array(w.memory.buffer, w.particle_buf_ptr(), 512 * 8);
+  const sphereInView = new Float32Array(w.memory.buffer, w.sphere_in_ptr(), 256 * 4);
+  const sphereOutView = new Uint8Array(w.memory.buffer, w.sphere_out_ptr(), 256);
 
   // 1) Noise parity assertions
   for (let s = -5; s <= 5; s++) {
@@ -194,8 +198,37 @@ async function main() {
   }
   const wasmMs = performance.now() - tWasm0;
 
+  // 5) ABI v2: Env Wind + Orthonormal Light-Space Shadow Snap
+  assert.strictEqual(w.step_env_wind_state(12.5, 0.5, 100.3, 12.7, -45.2, 0.55, 0.72, 0.42, 48.0, 2048.0), 1);
+  assert(Math.abs(frameOutView[0]) <= 0.25 && Math.abs(frameOutView[1]) <= 0.25);
+  assert(frameOutView[2] >= 0.0 && frameOutView[2] <= 1.0);
+  assert(Number.isFinite(frameOutView[3]) && Number.isFinite(frameOutView[4]) && Number.isFinite(frameOutView[5]));
+
+  // 6) ABI v2: Batch Particle Physics
+  partView[0] = 10; partView[1] = 20; partView[2] = -5;
+  partView[3] = 2;  partView[4] = 4;  partView[5] = -1;
+  partView[6] = 9.8; partView[7] = 1.5;
+  assert.strictEqual(w.step_particles_batch(1, 0.1), 1);
+  assert(Math.abs(partView[4] - (4 - 0.98)) < 1e-4);
+  assert(Math.abs(partView[0] - 10.2) < 1e-4);
+  assert(Math.abs(partView[7] - 1.4) < 1e-4);
+
+  // 7) ABI v2: Batch Sphere Frustum Culling
+  sphereInView.set([
+    0, 0, -10, 2,   // ahead inside cone -> visible
+    0, 0, 40, 2,    // behind camera -> culled
+    0, 0, -250, 2,  // beyond maxDist -> culled
+    1, 1, 1, 3      // very close -> always visible
+  ]);
+  const visCount = w.cull_spheres_batch(4, 0, 0, 0, 0, 0, -1, 120.0, 0.35);
+  assert.strictEqual(visCount, 2);
+  assert.strictEqual(sphereOutView[0], 1);
+  assert.strictEqual(sphereOutView[1], 0);
+  assert.strictEqual(sphereOutView[2], 0);
+  assert.strictEqual(sphereOutView[3], 1);
+
   console.log(
-    `[NUCRAFT wasm test] PASS | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
+    `[NUCRAFT wasm test] PASS | ABI v2 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
     `maxCaveDiff=${maxCaveDiff.toExponential(2)} | maxLightDiff=${maxLightDiff.toExponential(2)} | ` +
     `40-chunk cave grid: JS=${jsMs.toFixed(1)}ms vs RustWASM=${wasmMs.toFixed(1)}ms`
   );

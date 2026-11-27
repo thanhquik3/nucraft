@@ -803,6 +803,7 @@
                       <button class="seg-btn" data-lbiome="dark_forest" type="button">🌑 Rừng Tối</button>
                       <button class="seg-btn" data-lbiome="pale_garden" type="button">🤍 Rừng Nhợt Nhạt</button>
                       <button class="seg-btn" data-lbiome="nightmare_woods" type="button">🕸️ Rừng Ác Mộng</button>
+                      <button class="seg-btn" data-lbiome="sulfur_springs" type="button">🧪 Suối Lưu Huỳnh</button>
                       <button class="seg-btn" data-lbiome="dim_sift" type="button">✨ Khu Giấc Mơ</button>
                     </div>
                     <div class="ore-setting-desc" id="lobbyBiomeDesc">Khởi đầu bên hồ Hoa Anh Đào rực rỡ dưới nắng vàng Shader BSL, có suối nước trong và thảm cỏ xanh.</div>
@@ -961,9 +962,10 @@
                     <div class="ore-setting-desc">Hỗ trợ nạp gói tài nguyên định dạng mở (<code>.mcpack</code>, <code>.mcaddon</code>, <code>.zip</code> — texture, âm thanh, công thức crafting, chỉ số mob) hoặc Mod NUCRAFT (<code>.json</code>, <code>.js</code>). File <code>.jar</code>/<code>.geo.json</code> xương phức tạp được bỏ qua an toàn không gây lỗi game.</div>
                     <div class="mod-dropzone" id="modDropZone">
                       <div class="mod-drop-hint">Kéo thả file Mod / Add-on vào đây hoặc chọn từ máy (lưu bền vững trong trình duyệt)</div>
-                      <div class="mod-drop-actions">
-                        <button class="mc-java-btn mc-java-green" id="btnPickModFile" type="button">+ Tải Mod / Add-on (.mcpack / .mcaddon / .zip / .json / .js)</button>
+                      <div class="mod-drop-actions" style="flex-wrap:wrap;justify-content:center;gap:8px;max-width:100%;">
+                        <button class="mc-java-btn mc-java-green" id="btnPickModFile" type="button" style="max-width:100%;white-space:normal;word-break:break-word;line-height:1.25;text-align:center;">+ Tải Mod / Add-on (.mcpack / .mcaddon / .zip / .json / .js)</button>
                         <button class="mc-bedrock-btn" id="btnInstallSampleMod" type="button">✨ Cài Add-on Mẫu</button>
+                        <button class="mc-bedrock-btn" id="btnInstallCartoonAddon" type="button">🎨 Thêm Add-on Đồ Họa Hoạt Hình</button>
                         <input id="inpModFile" type="file" multiple accept=".mcpack,.mcaddon,.zip,.json,.js" style="display:none;" />
                       </div>
                     </div>
