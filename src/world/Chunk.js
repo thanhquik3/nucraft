@@ -1783,168 +1783,23 @@
     particles: true,      // Sodium Extra: block break & spell particles toggle
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
     farEntities: true,    // Sodium Extra: distant entity rendering toggle
-    farLod: true,         // Horizon-style Rust WASM far-terrain LOD horizon ring
+    farLod: false,        // Disabled: Luanti/Minecraft proximity chunk loading + clean horizon fog only
     greedyMesh: true,     // Horizon-style Rust WASM 2D greedy solid face merging
     frameGen: 1,          // AI Frame Gen (1=Off, 2=x2, 4=x4 reprojection + optical-flow + RCAS super-res)
     rayTracing: false     // Real-time Ray Tracing GI, mirror water reflections & leaf light transmission
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
+  sodiumOpts.farLod = false;
   if (typeof window !== 'undefined') window.sodiumOpts = sodiumOpts;
 
-  // Horizon-style 2-Tier Cascading Far Terrain LOD Ring (256m Ring 1 + 768m Ring 2 with slope relief lighting)
-  const farLodSystem = (() => {
-    const step = _isMobilePerf ? 12 : 8;
-    const innerOuterRadius = _isMobilePerf ? 176 : 256;
-    const outerRadius = innerOuterRadius * 3;
-    const _maskScratch = new Uint8Array(4096);
-    let _mesh = null, _mat = null, _lastCx = 99999, _lastCz = 99999, _lastSeed = -1, _meshedRev = 0, _builtRev = -1, _lastBuildMs = 0, _inFlight = false;
-    function _getMat() {
-      if (_mat) return _mat;
-      _mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
-      _mat.customProgramCacheKey = () => 'nucraft_far_lod_v2';
-      _mat.onBeforeCompile = (shader) => {
-        if (typeof envUniforms !== 'undefined') {
-          Object.assign(shader.uniforms, {
-            uSunDir: envUniforms.uSunDir,
-            uSunColor: envUniforms.uSunColor,
-            uSkyTop: envUniforms.uSkyTop,
-            uSkyHorizon: envUniforms.uSkyHorizon,
-            uFogColor: envUniforms.uFogColor,
-            uLodFogStart: envUniforms.uLodFogStart,
-            uLodFogEnd: envUniforms.uLodFogEnd
-          });
-        }
-        shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', '#include <common>\nvarying vec3 vLodWPos;\nvarying vec3 vLodNorm;')
-          .replace('#include <project_vertex>', '#include <project_vertex>\nvLodWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvLodNorm = normalize(mat3(modelMatrix) * objectNormal);');
-        shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor;\nuniform float uLodFogStart, uLodFogEnd;\nvarying vec3 vLodWPos, vLodNorm;')
-          .replace('#include <opaque_fragment>', `
-            vec3 sunL = normalize(uSunDir);
-            vec3 lNorm = normalize(vLodNorm);
-            float sunUp = smoothstep(-0.08, 0.25, sunL.y);
-            float ndl = max(dot(lNorm, sunL), 0.0);
-            float hemi = clamp(lNorm.y * 0.5 + 0.5, 0.0, 1.0);
-            vec3 skyAmb = mix(uSkyHorizon, uSkyTop, hemi * 0.65) * (0.34 + 0.54 * sunUp);
-            vec3 direct = uSunColor * (ndl * sunUp * 0.88);
-            vec3 lit = diffuseColor.rgb * (skyAmb + direct + vec3(0.06, 0.08, 0.14) * (1.0 - sunUp));
-            float lodDist = length(vLodWPos - cameraPosition);
-            float aerial = smoothstep(uLodFogStart * 0.72, uLodFogEnd * 0.90, lodDist) * 0.44;
-            lit = mix(lit, mix(uSkyHorizon, uFogColor, 0.55), clamp(aerial, 0.0, 0.52));
-            float lodFog = smoothstep(uLodFogStart, uLodFogEnd, lodDist);
-            gl_FragColor = vec4(mix(lit, uFogColor, clamp(lodFog, 0.0, 1.0)), 1.0);
-          `);
-      };
-      return _mat;
-    }
-    function _applyGeo(pos, norm, col, idx, vCount, iCount, cx, cz) {
-      if (vCount === 0 || iCount === 0) {
-        if (_mesh) _mesh.visible = false;
-        _nucraftWasmState.lodVisible = false;
-        _nucraftWasmState.lodTriangles = 0;
-        return;
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      geo.setIndex(new THREE.BufferAttribute(idx, 1));
-      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx * 16 + 8, 24, cz * 16 + 8), outerRadius + 96);
-      if (_mesh) {
-        if (_mesh.geometry) _mesh.geometry.dispose();
-        _mesh.geometry = geo;
-      } else {
-        _mesh = new THREE.Mesh(geo, _getMat());
-        _mesh.castShadow = false;
-        _mesh.receiveShadow = false;
-        _mesh.frustumCulled = false;
-        _mesh.matrixAutoUpdate = false;
-        _mesh.updateMatrix();
-        if (typeof scene !== 'undefined' && scene) scene.add(_mesh);
-      }
-      _mesh.visible = true;
-      _nucraftWasmState.lodBuilds++;
-      _nucraftWasmState.lodTriangles = (iCount / 3) | 0;
-      _nucraftWasmState.lodVisible = true;
-    }
-    function isActive() {
-      return (typeof currentDimension === 'undefined' || currentDimension === 'overworld')
-        && (typeof depthOffset === 'undefined' || depthOffset === 0)
-        && !(typeof player !== 'undefined' && player && player.eyesInWater)
-        && (!sodiumOpts || sodiumOpts.farLod !== false)
-        && (typeof sodiumOpts === 'undefined' || sodiumOpts.fog !== false);
-    }
-    function hide() {
-      if (_mesh) _mesh.visible = false;
-      _nucraftWasmState.lodVisible = false;
-    }
-    function dispose() {
-      _inFlight = false;
-      _lastCx = 99999; _lastCz = 99999; _builtRev = -1;
-      if (_mesh) {
-        if (typeof scene !== 'undefined' && scene) scene.remove(_mesh);
-        if (_mesh.geometry) _mesh.geometry.dispose();
-        _mesh = null;
-      }
-      _nucraftWasmState.lodVisible = false;
-      _nucraftWasmState.lodTriangles = 0;
-    }
-    function markChunkMeshed() { _meshedRev++; }
-    function update(pcx, pcz, forceSync = false) {
-      if (!isActive()) { hide(); return; }
-      const now = performance.now();
-      const rd = (typeof renderDistance === 'number' ? renderDistance : 4);
-      const needRebuild = forceSync || !_mesh || pcx !== _lastCx || pcz !== _lastCz || _lastSeed !== worldSeed ||
-        (_meshedRev !== _builtRev && ((_meshedRev - _builtRev) >= 3 || (now - _lastBuildMs) > 450));
-      if (!needRebuild) {
-        if (_mesh && !_mesh.visible) { _mesh.visible = true; _nucraftWasmState.lodVisible = true; }
-        return;
-      }
-      if (_inFlight && !forceSync) return;
-      const maskR = Math.min(20, Math.max(2, rd + 2));
-      const maskW = maskR * 2 + 1;
-      let mi = 0;
-      for (let dz = -maskR; dz <= maskR; dz++) {
-        for (let dx = -maskR; dx <= maskR; dx++) {
-          const ch = chunks.get(chunkKey(pcx + dx, pcz + dz));
-          _maskScratch[mi++] = (ch && ch.meshed) ? 1 : 0;
-        }
-      }
-      const maskView = _maskScratch.subarray(0, maskW * maskW);
-      _lastCx = pcx; _lastCz = pcz; _lastSeed = worldSeed; _builtRev = _meshedRev; _lastBuildMs = now;
-      if ((forceSync || !_mesh) && _nwExports && _nwExports.build_far_lod_mesh) {
-        _syncWasmViews();
-        _nwLodMask.fill(0);
-        _nwLodMask.set(maskView);
-        _nwExports.build_far_lod_mesh(pcx | 0, pcz | 0, worldSeed | 0, WATER_LEVEL | 0, step, innerOuterRadius, maskR);
-        const vCount = _nwLodMeta[0] >>> 0, iCount = _nwLodMeta[1] >>> 0;
-        const pos = _nwLodPos.slice(0, vCount * 3);
-        const norm = _nwLodNorm.slice(0, vCount * 3);
-        const col = _nwLodCol.slice(0, vCount * 3);
-        let idx;
-        if (vCount <= 65535) {
-          idx = new Uint16Array(iCount);
-          for (let i = 0; i < iCount; i++) idx[i] = _nwLodIdx[i];
-        } else {
-          idx = _nwLodIdx.slice(0, iCount);
-        }
-        _applyGeo(pos, norm, col, idx, vCount, iCount, pcx, pcz);
-        return;
-      }
-      if (chunkWorkerPool.active) {
-        _inFlight = true;
-        chunkWorkerPool.requestLod({
-          centerCx: pcx, centerCz: pcz, seed: worldSeed | 0, waterLevel: WATER_LEVEL | 0,
-          step, outerRadius: innerOuterRadius, maskRadius: maskR, loadedMask: maskView
-        }, (res) => {
-          _inFlight = false;
-          if (!res || res.type !== 'build_lod_ok') return;
-          if (!isActive()) { hide(); return; }
-          _applyGeo(res.pos, res.norm, res.col, res.idx, res.vCount, res.iCount, res.centerCx, res.centerCz);
-        });
-      }
-    }
-    return { isActive, hide, dispose, markChunkMeshed, update, outerRadius };
-  })();
+  // Far LOD disabled: only real chunks loaded within renderDistance are rendered behind clean distance fog
+  const farLodSystem = {
+    isActive: () => false,
+    isVisible: () => false,
+    hide() {},
+    dispose() {},
+    markChunkMeshed() {},
+    update() {}
+  };
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
     if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;

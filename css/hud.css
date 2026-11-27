@@ -90,21 +90,6 @@
     opacity: 0; transition: opacity 0.14s; z-index: 5;
   }
   #damageOverlay.flash { opacity: 1; }
-  #fireHudOverlay {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 34%; pointer-events: none; z-index: 5;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='16' shape-rendering='crispEdges'%3E%3Cpath d='M0,16V10h1V7h2V4h1V7h1V11h1V9h2V6h1V8h1V12h1V5h1V2h2V5h1V9h1V11h1V7h2V4h1V7h1V12h1V8h2V5h1V8h1V11h1V9h2V6h1V9h1V16z' fill='%23c2410c'/%3E%3Cpath d='M1,16V10h3V16z M6,16V11h3V16z M11,16V8h1V5h2V8h1V16z M17,16V9h3V16z M22,16V10h3V16z M27,16V11h3V16z' fill='%23ea580c'/%3E%3Cpath d='M2,16V12h1V16z M12,16V9h2V16z M18,16V11h1V16z M23,16V12h1V16z M28,16V13h1V16z' fill='%23fbbf24'/%3E%3C/svg%3E");
-    background-repeat: repeat-x; background-position: 0 bottom; background-size: 256px 100%;
-    image-rendering: pixelated;
-    opacity: 0; transition: opacity 0.14s ease;
-  }
-  #fireHudOverlay::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 84%; pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='16' shape-rendering='crispEdges'%3E%3Cpath d='M2,16V11h1V8h2V10h1V16z M10,16V10h1V7h2V9h1V16z M20,16V9h1V6h2V9h1V16z M26,16V11h1V8h2V10h1V16z' fill='%23f59e0b' fill-opacity='0.88'/%3E%3Cpath d='M3,16V12h1V16z M11,16V11h1V16z M21,16V10h1V16z M27,16V12h1V16z' fill='%23fde047' fill-opacity='0.94'/%3E%3C/svg%3E");
-    background-repeat: repeat-x; background-position: 84px bottom; background-size: 256px 100%;
-    image-rendering: pixelated;
-    animation: fireHudFlicker 0.21s steps(2) infinite alternate-reverse;
-  }
-  #fireHudOverlay.active { opacity: 0.96; animation: fireHudFlicker 0.24s steps(2) infinite alternate; }
   #darknessOverlay {
     position: absolute; inset: 0; pointer-events: none; z-index: 4;
     background: radial-gradient(circle, rgba(2, 5, 10, 0.14) 12%, rgba(2, 5, 10, 0.88) 52%, rgba(1, 3, 6, 0.99) 84%);
@@ -116,10 +101,6 @@
     opacity: 0; transition: opacity 0.22s ease;
   }
   #totemFlash.active { opacity: 1; }
-  @keyframes fireHudFlicker {
-    from { transform: translateY(0) scaleY(1); filter: brightness(0.95); }
-    to   { transform: translateY(-4px) scaleY(1.06); filter: brightness(1.16); }
-  }
 
   #crosshairWrap {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);

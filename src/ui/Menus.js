@@ -673,7 +673,7 @@
       player.eyesInWater = false; player.inWater = false; player.eyesInLava = false; player.inLava = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
       if (typeof _elUnderwater !== 'undefined' && _elUnderwater) { _elUnderwater.classList.remove('active'); _lastEyesInWater = false; }
       if (typeof _elLava !== 'undefined' && _elLava) { _elLava.classList.remove('active'); _lastEyesInLava = false; }
-      if (typeof _elFireHud !== 'undefined' && _elFireHud) { _elFireHud.classList.remove('active'); _lastFireHudOn = false; }
+      player._burnSoul = false;
       document.getElementById('airRow')?.classList.remove('visible');
       player.invuln = 2.5;
       renderStatusBars(); renderHotbar();
@@ -699,6 +699,7 @@
     btn.addEventListener('click', () => {
       document.querySelectorAll('#renderDistSeg .seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active'); renderDistance = parseInt(btn.dataset.val, 10); lastPlayerCx = 99999;
+      if (typeof updateAtmosphere === 'function') updateAtmosphere(0);
       if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ renderDistance });
       showToast(`Tầm nhìn: ${btn.textContent}`);
     });

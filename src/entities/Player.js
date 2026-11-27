@@ -1115,10 +1115,12 @@
     offTotem.add(otMesh);
     offTotem.visible = false;
 
+    const flameGroup = (typeof makeSharedFlameGroup === 'function') ? makeSharedFlameGroup() : null;
+    if (flameGroup) g.add(flameGroup);
     const rig = {
       g, hips, torso, torsoOuter, head, headOuter, headAcc, armL, armR, handHold, legL, legR,
       armVariant: { slimL, classicL, slimR, classicR },
-      skinMat, outerMat, skinId, heldItemId: -1,
+      skinMat, outerMat, skinId, heldItemId: -1, flameGroup,
       r6Rest: {
         hipsY: 1.125,
         torso: [0, 0, 0],
@@ -1915,6 +1917,21 @@
       const tgtZ = -_r6Eul.z * 0.65 + Math.cos(tNow * 1.72 + 0.9) * 0.05 + strafe * 0.14;
       const s = _stepLanternPendulum(rig._r3OffLSw, tgtX, tgtZ, dtClamped);
       offPiv.rotation.set(s.rx, 0, s.rz);
+    }
+    if (rig.flameGroup && typeof updateEntityFlameGroup === 'function') {
+      if (st && st.burning) {
+        let wx = rig.g.position.x, wz = rig.g.position.z, wy = rig.g.rotation.y;
+        let bScale = rig.g.scale.x || 1;
+        if (rig.g.parent && rig.g.parent !== scene) {
+          rig.g.getWorldPosition(_r6V1);
+          wx = _r6V1.x; wz = _r6V1.z;
+          wy = (rig.g.parent.rotation ? rig.g.parent.rotation.y : 0) + rig.g.rotation.y;
+          bScale = Math.abs(rig.g.parent.scale ? rig.g.parent.scale.x : 1) * (rig.g.scale.x || 1);
+        }
+        updateEntityFlameGroup(rig.flameGroup, wx, wz, wy, 0.30, st.sneaking ? 1.50 : 1.80, bScale, tNow, rig.animPhase || 0, !!st.burnSoul);
+      } else if (rig.flameGroup.visible) {
+        rig.flameGroup.visible = false;
+      }
     }
   }
 
@@ -6008,6 +6025,7 @@
     const _isFireImmuneEquip = (player.dragonArmorSet === 'fire' || !!(player.equip.chest && BLOCK_DEF[player.equip.chest] && BLOCK_DEF[player.equip.chest].fireImmune));
     if (player.inLava && gameMode !== 'creative' && !_isFireImmuneEquip) {
       player.burnTime = Math.max(player.burnTime || 0, 6.0);
+      player._burnSoul = false;
       lavaTick += dt;
       if (lavaTick >= 0.45) { lavaTick = 0; hurtPlayer(4, 'Bạn rơi xuống hồ Dung Nham!'); }
     } else if (player.onGround && !player.sneaking && getBlockWorld(Math.floor(player.x), Math.floor(player.y - 0.15), Math.floor(player.z)) === B.MAGMA_BLOCK && gameMode !== 'creative' && !_isFireImmuneEquip) {
@@ -6067,11 +6085,6 @@
           playSfx('burn');
         }
       } else { player._burnSoul = false; fireTick = 0; }
-    }
-    const fireHudOn = (!player.inLava && !player.eyesInLava && (player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
-    if (_elFireHud && fireHudOn !== _lastFireHudOn) {
-      _lastFireHudOn = fireHudOn;
-      _elFireHud.classList.toggle('active', fireHudOn);
     }
 
     // === v62 Instant Portal Detection (0s Minecraft-style immediate portal trigger -> Bedrock Dynamic Loading Screen!) ===
@@ -7097,7 +7110,9 @@
         blocking: player.blockingT > 0,
         shieldRaiseT: player.shieldRaiseT || 0,
         shieldHand: (typeof getActiveShieldHand === 'function') ? getActiveShieldHand() : null,
-        flying: player.flying, gliding: !!player.gliding, hurtT: player.hurtAnimT
+        flying: player.flying, gliding: !!player.gliding, hurtT: player.hurtAnimT,
+        burning: ((player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead),
+        burnSoul: !!player._burnSoul
       }, dt, elapsed);
     } else {
       // Bị đánh trúng: giật camera NGẢ RA SAU (ngẩng mặt) thay vì nghiêng sang một bên

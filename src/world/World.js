@@ -8546,7 +8546,7 @@
     );
   }
 
-  let _lastEyesInWater = false, _lastEyesInLava = false, _lastFireHudOn = false;
+  let _lastEyesInWater = false, _lastEyesInLava = false;
   function _clearWorldInteractiveCaches(alsoClearChunks = false, wipeWorldState = false) {
     if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); plantedSaplings.clear(); saplingFertilizeCount.clear(); }
     else { worldModsByChunk.clear(); activeFires.clear(); }
@@ -8857,7 +8857,7 @@
     player.eyesInWater = false; player.inWater = false; player.eyesInLava = false; player.inLava = false; player.deepWater = false; drownTick = 0; player.burnTime = 0; player._stepCamOff = 0;
     if (typeof _elUnderwater !== 'undefined' && _elUnderwater) { _elUnderwater.classList.remove('active'); _lastEyesInWater = false; }
     if (typeof _elLava !== 'undefined' && _elLava) { _elLava.classList.remove('active'); _lastEyesInLava = false; }
-    if (typeof _elFireHud !== 'undefined' && _elFireHud) { _elFireHud.classList.remove('active'); _lastFireHudOn = false; }
+    player._burnSoul = false;
     recalcPlayerArmor();
     player.dead = false; player.fallStartY = sp.y; dayTime = 0.34;
     renderHotbar(); renderStatusBars(); renderXpBar();

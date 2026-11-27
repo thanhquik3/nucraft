@@ -530,7 +530,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v170';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v171';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -818,21 +818,21 @@
           vec3 uwCol = mix(uwBotCol, uwTopCol, smoothstep(-0.62, 0.68, viewDirF.y));
           gl_FragColor.rgb = mix(gl_FragColor.rgb, uwCol, clamp(uwFog, 0.0, 0.985));
         } else {
-          float fogFactor = smoothstep(uFogStart, uFogEnd, distF);
-          float mistLow = exp(-max(vWPos.y - 2.0, 0.0) * 0.12) * smoothstep(26.0, 74.0, distF) * mix(0.20, 0.24, max(uChillMode, uEclipseMode));
-          float scatterAmt = clamp(max(fogFactor * 0.84, mistLow), 0.0, 0.86);
-          scatterAmt = mix(scatterAmt, scatterAmt * 0.88, uDlssMode);
+          float fogDist = max(length(viewVecF.xz), distF * 0.88);
+          float fogFactor = smoothstep(uFogStart, uFogEnd, fogDist);
+          float mistLow = exp(-max(vWPos.y - 2.0, 0.0) * 0.12) * smoothstep(uFogStart * 0.55, uFogEnd * 0.92, fogDist) * mix(0.14, 0.20, max(uChillMode, uEclipseMode));
+          float horizonLock = smoothstep(0.68, 1.0, fogFactor);
+          float scatterAmt = clamp(max(fogFactor, mistLow), 0.0, 1.0);
           vec3 fSun = normalize(uSunDir);
           vec3 activeSunF = fSun.y > -0.05 ? fSun : -fSun;
           vec3 activeColF = fSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
           float noonTame = 1.0 - smoothstep(0.45, 0.92, fSun.y) * mix(0.68, 0.42, uEclipseMode);
           float sunScatter = pow(max(dot(viewDirF, activeSunF), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (fSun.y > -0.05 ? smoothstep(-0.1, 0.25, fSun.y) * noonTame : 0.35);
-          vec3 aerialMistCol = vec3(0.663, 0.741, 0.816) * (0.14 + 0.86 * smoothstep(-0.10, 0.20, fSun.y));
-          vec3 fogBase = mix(uFogColor * mix(1.00, 0.92, smoothstep(0.45, 0.92, fSun.y)), aerialMistCol, 0.35 * (1.0 - uCartoonMode));
-          vec3 scatterCol = mix(fogBase, min(activeColF * mix(0.90, 1.04, max(uChillMode, uEclipseMode)), vec3(1.0, 0.93, 0.82)), sunScatter * mix(0.14, 0.36, max(uChillMode, uEclipseMode)));
+          vec3 midFogCol = mix(uFogColor, min(activeColF * mix(0.94, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.95, 0.86)), sunScatter * mix(0.14, 0.34, max(uChillMode, uEclipseMode)));
+          vec3 scatterCol = mix(midFogCol, uFogColor, horizonLock);
           float blLumaT = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistT = 1.0 - clamp(blLumaT * 0.80, 0.0, 0.84);
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, scatterCol, scatterAmt * lightFogResistT);
+          float lightFogResistT = mix(1.0 - clamp(blLumaT * 0.72, 0.0, 0.76), 1.0, horizonLock);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, scatterCol, clamp(scatterAmt * lightFogResistT, 0.0, 1.0));
         }
         gl_FragColor.a = 1.0;`);
   };
@@ -842,7 +842,7 @@
     map: atlasTex,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v42';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v43';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -945,16 +945,19 @@
           float lvFogL = smoothstep(0.30, 3.05, distL);
           gl_FragColor.rgb = mix(gl_FragColor.rgb * vec3(1.12, 0.56, 0.32), uFogColor, clamp(lvFogL, 0.0, 0.995));
         } else {
-          float fogL = smoothstep(uFogStart, uFogEnd, distL);
+          float fogDistL = max(length(viewVecL.xz), distL * 0.88);
+          float fogL = smoothstep(uFogStart, uFogEnd, fogDistL);
+          float horizonLockL = smoothstep(0.68, 1.0, fogL);
           vec3 lSun = normalize(uSunDir);
           vec3 activeSunL = lSun.y > -0.05 ? lSun : -lSun;
           vec3 activeColL = lSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
           float lNoonTame = 1.0 - smoothstep(0.45, 0.92, lSun.y) * mix(0.68, 0.42, uEclipseMode);
           float lScatter = pow(max(dot(viewDirL, activeSunL), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (lSun.y > -0.05 ? smoothstep(-0.1, 0.25, lSun.y) * lNoonTame : 0.35);
-          vec3 lFogBase = uFogColor * mix(0.94, 0.88, smoothstep(0.45, 0.92, lSun.y));
+          vec3 lMidFog = mix(uFogColor, min(activeColL * mix(0.94, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.95, 0.86)), lScatter * mix(0.16, 0.44, max(uChillMode, uEclipseMode)));
+          vec3 lFogCol = mix(lMidFog, uFogColor, horizonLockL);
           float blLumaL = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistL = 1.0 - clamp(blLumaL * 0.78, 0.0, 0.82);
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(lFogBase, min(activeColL * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), lScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogL * lightFogResistL);
+          float lightFogResistL = mix(1.0 - clamp(blLumaL * 0.72, 0.0, 0.76), 1.0, horizonLockL);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, lFogCol, clamp(fogL * lightFogResistL, 0.0, 1.0));
         }
         gl_FragColor.a = 1.0;`);
   };
@@ -999,7 +1002,7 @@
   const plantMat = new THREE.MeshStandardMaterial({
     map: atlasTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.80, metalness: 0.0
   });
-  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v39';
+  plantMat.customProgramCacheKey = () => 'luanti_plant_bsl_v40';
   plantMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -1110,16 +1113,19 @@
           vec3 uwColP = mix(uFogColor * vec3(0.18, 0.28, 0.44), uFogColor * vec3(1.16, 1.38, 1.52), smoothstep(-0.62, 0.68, viewDirP.y));
           gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColP, clamp(uwFogP, 0.0, 0.985));
         } else {
-          float fogP = smoothstep(uFogStart, uFogEnd, distP);
+          float fogDistP = max(length(viewVecP.xz), distP * 0.88);
+          float fogP = smoothstep(uFogStart, uFogEnd, fogDistP);
+          float horizonLockP = smoothstep(0.68, 1.0, fogP);
           vec3 pSun = normalize(uSunDir);
           vec3 activeSunP = pSun.y > -0.05 ? pSun : -pSun;
           vec3 activeColP = pSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
           float pNoonTame = 1.0 - smoothstep(0.45, 0.92, pSun.y) * mix(0.68, 0.42, uEclipseMode);
           float pScatter = pow(max(dot(viewDirP, activeSunP), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (pSun.y > -0.05 ? smoothstep(-0.1, 0.25, pSun.y) * pNoonTame : 0.35);
-          vec3 pFogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, pSun.y));
+          vec3 pMidFog = mix(uFogColor, min(activeColP * mix(0.94, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.95, 0.86)), pScatter * mix(0.16, 0.44, max(uChillMode, uEclipseMode)));
+          vec3 pFogCol = mix(pMidFog, uFogColor, horizonLockP);
           float blLumaP = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
-          float lightFogResistP = 1.0 - clamp(blLumaP * 0.78, 0.0, 0.82);
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(pFogBase, min(activeColP * mix(0.90, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.91, 0.78)), pScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode))), fogP * lightFogResistP);
+          float lightFogResistP = mix(1.0 - clamp(blLumaP * 0.72, 0.0, 0.76), 1.0, horizonLockP);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, pFogCol, clamp(fogP * lightFogResistP, 0.0, 1.0));
         }
         gl_FragColor.a = 1.0;`);
   };
@@ -1137,7 +1143,7 @@
         float et = aEmissiveType;
         vec3 posL = position;
         float hasModel = abs(modelMatrix[3].x) + abs(modelMatrix[3].y) + abs(modelMatrix[3].z);
-        vFireSeed = (hasModel > 0.001) ? floor(abs(modelMatrix[3].x) + abs(modelMatrix[3].z)) * 1.73 : (floor(position.x) * 1.37 + floor(position.z) * 2.19);
+        vFireSeed = (hasModel > 0.001) ? (floor(position.y * 2.2) * 1.13 + abs(position.z) * 11.7) : (floor(position.x) * 1.37 + floor(position.z) * 2.19);
         if (et > 9.5) {
           et -= 10.0;
           vec3 cell = floor(posL);
@@ -1165,6 +1171,8 @@
       varying vec2 vUv; varying float vDist, vEType, vFireSeed; varying vec3 vWPos;
       void main() {
         if (vWPos.y < uReflClipY) discard;
+        float eDist = max(length((vWPos - cameraPosition).xz), vDist * 0.88);
+        float eHorFog = smoothstep(uFogStart * 0.92, uFogEnd, eDist);
         if (vEType > 3.5) {
           float fPhase = floor(mod(uTime * 12.5 + vFireSeed, 4.0));
           float shimmer = sin(uTime * 16.0 + vUv.y * 28.0 + vFireSeed) * 0.0025;
@@ -1172,7 +1180,7 @@
           if (fTex.a < 0.45) discard;
           float flick = 0.94 + 0.08 * sin(uTime * 21.0 + vFireSeed * 3.1) + 0.04 * cos(uTime * 34.0 + vFireSeed);
           vec3 fCol = fTex.rgb * flick + (vEType > 4.5 ? vec3(0.01, 0.07, 0.11) : vec3(0.06, 0.025, 0.005));
-          float fFog = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : smoothstep(uFogStart * 1.35, uFogEnd * 2.4, vDist) * 0.30;
+          float fFog = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : clamp(max(smoothstep(uFogStart, uFogEnd, eDist) * 0.40, eHorFog), 0.0, 1.0);
           gl_FragColor = vec4(mix(fCol, uFogColor, fFog), 1.0);
           return;
         }
@@ -1184,21 +1192,88 @@
           // Soft bioluminescent glow for Cave Mushrooms visible clearly across caves
           float mPulse = 0.82 + 0.06 * sin(uTime * 2.2);
           col = tex.rgb * mPulse;
-          fogF = smoothstep(uFogStart * 1.25, uFogEnd * 2.0, vDist) * 0.42;
+          fogF = clamp(max(smoothstep(uFogStart * 0.95, uFogEnd, eDist) * 0.48, eHorFog), 0.0, 1.0);
         } else if (vEType < 0.5) {
           // Cozy warm amber Lantern & Shroomlight glow with crisp pixel details
           float lPulse = 0.94 + 0.03 * sin(uTime * 2.4);
           col = tex.rgb * lPulse + vec3(0.04, 0.02, 0.004);
-          fogF = smoothstep(uFogStart * 1.4, uFogEnd * 2.5, vDist) * 0.28;
+          fogF = clamp(max(smoothstep(uFogStart * 1.05, uFogEnd, eDist) * 0.34, eHorFog), 0.0, 1.0);
         } else {
           float pulse = 0.92 + 0.04 * sin(uTime * 2.6 + vEType * 2.0);
           col = tex.rgb * pulse;
-          fogF = smoothstep(uFogStart * 1.35, uFogEnd * 2.4, vDist) * 0.32;
+          fogF = clamp(max(smoothstep(uFogStart, uFogEnd, eDist) * 0.38, eHorFog), 0.0, 1.0);
         }
         if (uInLava > 0.5) fogF = clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995);
         gl_FragColor = vec4(mix(col, uFogColor, fogF), 1.0);
       }`
   });
+
+  // Authentic Minecraft Stacked On-Entity Flame Mesh & Updater (shared by Players, Remote Players & Mobs)
+  function _buildEntityFlameGeo(tileIdx, etVal) {
+    const uStep = 1 / ATLAS_COLS, vStep = 1 / ATLAS_ROWS, padU = 0.0025, padV = 0.002;
+    const tx = tileIdx & 7, ty = tileIdx >> 3;
+    const u0 = tx * uStep + padU, u1 = (tx + 1) * uStep - padU;
+    const v0 = ty * vStep + padV, v1 = (ty + 1) * vStep - padV;
+    const pos = [], uvs = [], et = [], idx = [];
+    let vc = 0;
+    const pushQuad = (ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, flipU) => {
+      pos.push(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz);
+      if (flipU) uvs.push(u1, v1, u0, v1, u0, v0, u1, v0);
+      else uvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
+      et.push(etVal, etVal, etVal, etVal);
+      idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3);
+      vc += 4;
+    };
+    const tiers = [
+      { y0: 0.00, y1: 0.92, hw: 0.42, z0: 0.24, z1: 0.22, flip: false },
+      { y0: 0.38, y1: 1.34, hw: 0.38, z0: 0.20, z1: 0.17, flip: true },
+      { y0: 0.80, y1: 1.82, hw: 0.34, z0: 0.14, z1: 0.10, flip: false },
+      { y0: 1.24, y1: 2.38, hw: 0.30, z0: 0.06, z1: 0.02, flip: true },
+      { y0: 0.04, y1: 1.72, hw: 0.38, z0: -0.18, z1: -0.14, flip: true }
+    ];
+    for (const t of tiers) {
+      pushQuad(-t.hw, t.y0, t.z0, t.hw, t.y0, t.z0, t.hw * 0.94, t.y1, t.z1, -t.hw * 0.94, t.y1, t.z1, t.flip);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setAttribute('aEmissiveType', new THREE.Float32BufferAttribute(et, 1));
+    g.setIndex(idx);
+    return g;
+  }
+  const _entityFlameGeo = _buildEntityFlameGeo(824, 4.0);
+  const _entitySoulFlameGeo = _buildEntityFlameGeo(828, 5.0);
+  function makeSharedFlameGroup() {
+    const fg = new THREE.Group();
+    const fMesh = new THREE.Mesh(_entityFlameGeo, emissiveMat);
+    fMesh.frustumCulled = false;
+    fMesh.renderOrder = 2;
+    fg.add(fMesh);
+    fg._mesh = fMesh;
+    fg._isSoul = false;
+    fg.visible = false;
+    return fg;
+  }
+  function updateEntityFlameGroup(fg, worldX, worldZ, parentRotY, hitboxR, hitboxH, baseScale, elapsed, seed, isSoul) {
+    if (!fg) return;
+    fg.visible = true;
+    const wantSoul = !!isSoul;
+    if (fg._mesh && fg._isSoul !== wantSoul) {
+      fg._isSoul = wantSoul;
+      fg._mesh.geometry = wantSoul ? _entitySoulFlameGeo : _entityFlameGeo;
+    }
+    fg.rotation.y = Math.atan2(camera.position.x - worldX, camera.position.z - worldZ) - (parentRotY || 0);
+    const invS = 1 / (baseScale || 1);
+    const r = hitboxR || 0.30;
+    const h = hitboxH || 1.80;
+    const visR = (r >= 0.45 && r <= 0.62 && h >= 1.45) ? (r * 0.72) : r;
+    const wBase = Math.max(0.68, visR * 2.35) * invS;
+    const hBase = Math.max(0.50, h / 1.80) * invS;
+    const s = seed || 0;
+    const pXZ = 0.97 + Math.sin(elapsed * 19 + s) * 0.04;
+    const pY  = 0.97 + Math.cos(elapsed * 16 + s * 1.7) * 0.05;
+    fg.scale.set(wBase * pXZ, hBase * pY, wBase * pXZ);
+  }
 
   // Translucent Thin Portal Shader (Nether purple 0, Dream aura 1, End cosmic void 2, Warden sculk vortex 3)
   const portalMat = new THREE.ShaderMaterial({
@@ -1287,7 +1362,7 @@
           col = mix(vec3(0.03, 0.04, 0.14), vec3(0.22, 0.12, 0.42), swirl * 0.65) + vec3(0.35, 0.92, 0.96) * star * 1.15 + mist * vec3(0.08, 0.06, 0.18);
           a = 0.98;
         }
-        float fogF = smoothstep(uFogStart, uFogEnd * 1.1, vDist);
+        float fogF = smoothstep(uFogStart, uFogEnd, max(length((vWPos - cameraPosition).xz), vDist * 0.88));
         gl_FragColor = vec4(mix(col, uFogColor, fogF), a);
       }`
   });
@@ -1414,6 +1489,7 @@
           colE += vec3(0.85, 0.34, 0.98) * smoothstep(0.58, 0.92, neb2) * 0.32;
           float stE = cHash(floor(d.xz / (abs(d.y) + 0.35) * 90.0));
           if (stE > 0.983) colE += vec3(0.98, 0.82, 1.0) * (0.65 + 0.35 * sin(uTime * 2.5 + stE * 80.0)) * 1.35;
+          colE = mix(colE, uFogColor, smoothstep(0.08, -0.03, d.y));
           gl_FragColor = vec4(colE, 0.0);
           return;
         }
@@ -1451,7 +1527,7 @@
             float sqSun = step(max(abs(sUv.x), abs(sUv.y)), 0.072) * step(0.0, d.y + 0.04);
             cSky = mix(cSky, vec3(1.0, 0.98, 0.78), sqSun * sUpC);
           }
-          if (d.y < 0.02) cSky = mix(cSky, uFogColor, smoothstep(0.02, -0.10, d.y));
+          cSky = mix(cSky, uFogColor, smoothstep(0.09, -0.02, d.y));
           gl_FragColor = vec4(cSky, 0.0);
           return;
         }
@@ -1568,7 +1644,7 @@
         // Seamless horizon continuity: lock sky horizon band to exact uFogColor so terrain edges never cut at night/day
         float horSkirt = smoothstep(0.09, -0.02, d.y);
         col = mix(col, uFogColor, horSkirt);
-        if (d.y < -0.06) col = mix(col, uFogColor * 0.86, smoothstep(-0.06, -0.34, d.y));
+        if (d.y < -0.14) col = mix(col, uFogColor * 0.92, smoothstep(-0.14, -0.45, d.y));
         gl_FragColor = vec4(col, uVolumetricClouds > 0.5 ? clamp(cloudAlpha * 0.62, 0.0, 0.74) : 0.0);
       }`
   });
@@ -1858,8 +1934,10 @@
             cWater += vec3(0.06, 0.13, 0.18) * cWave * sunUp;
             float cShore = smoothstep(0.76, 0.96, vShore);
             cWater = mix(cWater, vec3(0.84, 0.97, 1.0), cShore * 0.48);
-            float cFog = smoothstep(uFogStart, uFogEnd, vDist);
-            gl_FragColor = vec4(mix(cWater, uFogColor, clamp(cFog, 0.0, 1.0)), clamp(0.82 + vColDepth * 0.14, 0.82, 0.94));
+            float fogDistCW = max(length((vWorldPos - cameraPosition).xz), vDist * 0.88);
+            float cFog = smoothstep(uFogStart, uFogEnd, fogDistCW);
+            float cHorLock = smoothstep(0.68, 1.0, cFog);
+            gl_FragColor = vec4(mix(cWater, uFogColor, clamp(cFog, 0.0, 1.0)), mix(clamp(0.82 + vColDepth * 0.14, 0.82, 0.94), 1.0, cHorLock));
             return;
           }
           bool isUltraW = (uQuality > 1.5);
@@ -1947,14 +2025,16 @@
           float uwFogW = (1.0 - exp(-vDist * mix(0.042, 0.125, clamp(uWaterDepth / 34.0, 0.0, 1.0)))) * ((fromBelow && vIsTop > 0.5) ? 0.38 : 1.0);
           gl_FragColor = vec4(mix(col, uFogColor, clamp(uwFogW, 0.0, 0.98)), alpha);
         } else {
-          float fogF = smoothstep(uFogStart, uFogEnd, vDist);
+          float fogDistW = max(length((vWorldPos - cameraPosition).xz), vDist * 0.88);
+          float fogF = smoothstep(uFogStart, uFogEnd, fogDistW);
+          float horizonLockW = smoothstep(0.68, 1.0, fogF);
           vec3 vDirW = normalize(vWorldPos - cameraPosition);
           float wNoonTame = 1.0 - smoothstep(0.45, 0.92, sunD.y) * mix(0.68, 0.42, uEclipseMode);
           float wScatter = pow(max(dot(vDirW, activeLightDir), 0.0), mix(7.0, 4.0, uEclipseMode)) * activeStrength;
-          vec3 wFogBase = uFogColor * mix(1.00, 0.90, smoothstep(0.45, 0.92, sunD.y));
           vec3 wSunGlow = mix(min(activeLightCol * 0.90, vec3(0.90, 0.84, 0.74)), min(activeLightCol * 1.08, vec3(1.0, 0.90, 0.72)), uEclipseMode);
-          vec3 scatterFogW = mix(wFogBase, wSunGlow, wScatter * (mix(0.18, 0.46, uEclipseMode) * sunUp * wNoonTame + 0.14 * nightK));
-          gl_FragColor = vec4(mix(col, scatterFogW, fogF), alpha);
+          vec3 midFogW = mix(uFogColor, wSunGlow, wScatter * (mix(0.18, 0.44, uEclipseMode) * sunUp * wNoonTame + 0.14 * nightK));
+          vec3 scatterFogW = mix(midFogW, uFogColor, horizonLockW);
+          gl_FragColor = vec4(mix(col, scatterFogW, fogF), mix(alpha, 1.0, horizonLockW));
         }
       }`
   });
@@ -2060,7 +2140,8 @@
             + vec3(0.96, 0.28, 0.03) * fresnel * 0.30
             + vec3(0.60, 0.16, 0.02) * vShore * (1.0 - smoothstep(0.55, 0.88, heat)) * 0.35;
 
-        float fogF = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : smoothstep(uFogStart, uFogEnd * 1.12, vDist);
+        float fogDistLv = max(length((vWorldPos - cameraPosition).xz), vDist * 0.88);
+        float fogF = uInLava > 0.5 ? clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995) : smoothstep(uFogStart, uFogEnd, fogDistLv);
         gl_FragColor = vec4(mix(col, uFogColor, fogF), 1.0);
       }`
   });
@@ -4655,9 +4736,11 @@
         float tipRim = smoothstep(0.55, 1.0, vBladeH) * (1.0 - abs(vSide)) * 0.04 * sunUp * vSkyAo * mix(1.0, rtShLumG, rtFadeG * 0.90);
         vec3 sunBal = mix(uSunColor, vec3(1.0), 0.40);
         vec3 litCol = albedo * (skyHemi + sunDirect) * cloudDapple + albedo * sunBal * (sssFwd + gustSheen) + sunBal * tipRim;
-        float fogF = smoothstep(uFogStart, uFogEnd, vDist);
+        float fogDistG = max(length((vWPos - cameraPosition).xz), vDist * 0.88);
+        float fogF = smoothstep(uFogStart, uFogEnd, fogDistG);
+        float horLockG = smoothstep(0.68, 1.0, fogF);
         float sunSc = pow(max(dot(vDir, sDir.y > -0.05 ? sDir : -sDir), 0.0), 4.2) * (sDir.y > -0.05 ? sunUp : 0.35);
-        vec3 fogCol = mix(uFogColor * 0.92, min(uSunColor * 1.05, vec3(1.0, 0.91, 0.78)), sunSc * 0.46);
+        vec3 fogCol = mix(mix(uFogColor, min(uSunColor * 1.05, vec3(1.0, 0.91, 0.78)), sunSc * 0.42), uFogColor, horLockG);
         if (uInLava > 0.5) {
           gl_FragColor = vec4(mix(litCol * vec3(1.10, 0.54, 0.30), uFogColor, clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995)), 1.0);
         } else {

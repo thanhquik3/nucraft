@@ -49,6 +49,7 @@
     rp.swingActive = !!st.swingActive; rp.swingU = st.swingU || 0;
     rp.bowDrawing = !!st.bowDrawing; rp.bowCharge = st.bowCharge || 0; rp.bowStage = st.bowStage || 0;
     rp.actionType = st.actionType || rp.actionType || 'attack';
+    rp.burning = !!st.burning; rp.burnSoul = !!st.burnSoul;
     if (st.swSeq) { rp.swordAtkSeq = st.swSeq; rp.swordAtkHit = st.swHit || 1; } else if (!rp.swing) rp.swordAtkSeq = 0;
     if (equip) {
       const eqSig = `${equip.helmet||0}_${equip.chest||0}_${equip.legs||0}_${equip.boots||0}_${equip.offhand||0}`;
@@ -79,7 +80,7 @@
 
   const locatorDotEls = new Map();
   let _lastHasPeers = false;
-  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, bowStage: 0, eqSig: '', skinId: '', customSkinSig: '', idleAt: 0, metaAt: 0, _hadSwing: false, _hadSwAtk: false };
+  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, bowStage: 0, eqSig: '', skinId: '', customSkinSig: '', idleAt: 0, metaAt: 0, _hadSwing: false, _hadSwAtk: false, _burning: false, _burnSoul: false };
   let _localPrevPos = null;
   let _localVelX = 0, _localVelY = 0, _localVelZ = 0;
   let _localStateSeq = 0, _lastStateSendMs = 0, _wasMovingNet = false, _wasOnGroundNet = true;
@@ -116,12 +117,16 @@
       const qYaw = q3(player.yaw), qPitch = q3(player.pitch);
       const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
       const swingEdge = ((player.curSwing || 0) > 0.02 && !_lastSentNet._hadSwing) || (!!player.swordAtkActive && !_lastSentNet._hadSwAtk);
+      const _burnNow = ((player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
+      const _burnSoulNow = _burnNow && !!player._burnSoul;
       const rotChanged = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.008 || Math.abs(qPitch - _lastSentNet.pitch) > 0.008;
       const edgeChanged = (_isMovingNet !== _wasMovingNet)
         || (!!player.onGround !== _wasOnGroundNet)
         || (Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.35)
         || swingEdge
-        || (heldId !== _lastSentNet.held);
+        || (heldId !== _lastSentNet.held)
+        || (_burnNow !== !!_lastSentNet._burning)
+        || (_burnSoulNow !== !!_lastSentNet._burnSoul);
       const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? 50 : (rotChanged ? 120 : 1000);
       if (edgeChanged || (nowPerf - _lastStateSendMs) >= _sendIntervalMs) {
         const eq = player.equip;
@@ -136,6 +141,8 @@
           _wasOnGroundNet = !!player.onGround;
           _lastSentNet._hadSwing = (player.curSwing || 0) > 0.02;
           _lastSentNet._hadSwAtk = !!player.swordAtkActive;
+          _lastSentNet._burning = _burnNow;
+          _lastSentNet._burnSoul = _burnSoulNow;
           _lastSentNet.idleAt = nowPerf;
           _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
           _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
@@ -161,6 +168,7 @@
               swingActive: !!player.swingActive, swingU: q3(player.swingU || 0), actionType: player.actionType || 'mine',
               bowDrawing: !!player.bowDrawing, bowCharge: q2(player.bowCharge || 0), bowStage: player.bowStage || 0,
               swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
+              burning: _burnNow, burnSoul: _burnSoulNow,
               held: heldId
             }
           };

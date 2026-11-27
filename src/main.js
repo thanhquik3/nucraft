@@ -830,7 +830,6 @@
   const _elDays = document.getElementById('daysText'), _elDepth = document.getElementById('depthText');
   const _elUnderwater = document.getElementById('underwaterOverlay');
   const _elLava = document.getElementById('lavaOverlay');
-  const _elFireHud = document.getElementById('fireHudOverlay');
   const _elDarknessOv = document.getElementById('darknessOverlay');
   const _elDressingRoom = document.getElementById('dressingRoomScreen');
   const _elInvModal = document.getElementById('invModal');
@@ -844,6 +843,8 @@
   const _tmpFog = new THREE.Color(0xc8f2ef);
   function updateAtmosphere(dt) {
     envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'dragon_realm' ? 2.15 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0))));
+    // Luanti/Minecraft horizon rule: distance fog MUST reach 100% strictly inside loaded chunks (never past unloaded border)
+    const loadedEdge = Math.max(15.0, renderDistance * 16.0 - 2.5);
     const applyLavaAtmo = () => {
       const inLv = !!(player && player.eyesInLava);
       envUniforms.uInLava.value = inLv ? 1.0 : 0.0;
@@ -872,9 +873,8 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      const _shF = (renderDistance <= 2);
-      const _wEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(64, renderDistance * 17);
-      const _wStart = _shF ? Math.min(20, _wEnd * 0.52) : 20;
+      const _wEnd = Math.min(loadedEdge, Math.max(48.0, renderDistance * 15.0));
+      const _wStart = Math.min(20.0, _wEnd * 0.56);
       scene.fog.near = _wStart; scene.fog.far = _wEnd;
       envUniforms.uFogStart.value = _wStart; envUniforms.uFogEnd.value = _wEnd;
       renderer.setClearColor(_tmpFog, 1);
@@ -908,9 +908,8 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      const _shF = (renderDistance <= 2);
-      const _drEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(88, renderDistance * 21);
-      const _drStart = _shF ? Math.min(28, _drEnd * 0.52) : 28;
+      const _drEnd = loadedEdge;
+      const _drStart = Math.min(28.0, _drEnd * 0.52);
       scene.fog.near = _drStart; scene.fog.far = _drEnd;
       envUniforms.uFogStart.value = _drStart; envUniforms.uFogEnd.value = _drEnd;
       renderer.setClearColor(_tmpFog, 1);
@@ -944,9 +943,8 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      const _shF = (renderDistance <= 2);
-      const _sfEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(76, renderDistance * 20);
-      const _sfStart = _shF ? Math.min(38, _sfEnd * 0.52) : 38;
+      const _sfEnd = loadedEdge;
+      const _sfStart = Math.min(36.0, _sfEnd * 0.50);
       scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
       envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
@@ -981,9 +979,8 @@
       _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : 0x451216)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
-      const _shF = (renderDistance <= 2);
-      const _nEnd = _shF ? Math.min(20.0, (renderDistance + 0.35) * (isBasalt ? 14.0 : 15.5)) : renderDistance * (isBasalt ? 14.5 : 16.5);
-      envUniforms.uFogStart.value = _shF ? Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.52) : (isBasalt ? 11.0 : 14.0);
+      const _nEnd = Math.min(loadedEdge, isBasalt ? renderDistance * 14.0 : loadedEdge);
+      envUniforms.uFogStart.value = Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.52);
       envUniforms.uFogEnd.value = _nEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
@@ -1010,9 +1007,8 @@
       _tmpTop.setHex(0x090414); _tmpHor.setHex(0x1b0e2e);
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
-      const _shF = (renderDistance <= 2);
-      const _eEnd = _shF ? (renderDistance + 0.35) * 16.0 : renderDistance * 24.0;
-      envUniforms.uFogStart.value = _shF ? Math.min(26.0, _eEnd * 0.52) : 26.0;
+      const _eEnd = loadedEdge;
+      envUniforms.uFogStart.value = Math.min(26.0, _eEnd * 0.52);
       envUniforms.uFogEnd.value = _eEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.45, 0.80, 0.38).normalize();
@@ -1127,46 +1123,32 @@
       envUniforms.uFogColor.value.setHex(depthOffset >= 750 ? 0x260b0b : (ugBioFog ? ugBioFog.fogHex : 0x090d17));
       envUniforms.uFogStart.value = 12.0; envUniforms.uFogEnd.value = 34.0;
     } else {
-      const inMegaCity = isAbandonedCity(player.x, player.z) || player.y > 46;
-      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.42 * dayWeight * (1 - rainIntensity * 0.5));
-      if (inMegaCity && dayWeight > 0.2) envUniforms.uFogColor.value.lerp(_colCityMistWarm, 0.16 * dayWeight);
+      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.36 * dayWeight * (1 - rainIntensity * 0.5));
       if (activeWeatherKind === 'sandstorm') envUniforms.uFogColor.value.lerp(_colSandFog, 0.85 * rainIntensity);
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);
       else if (activeWeatherKind === 'fog') envUniforms.uFogColor.value.lerp(_colDenseFog, 0.74 * rainIntensity);
       else if (activeWeatherKind === 'ashfall') envUniforms.uFogColor.value.lerp(_colAshFog, 0.74 * rainIntensity);
-      const isUltraShort = (renderDistance <= 2);
-      const maxChunkFog = isUltraShort ? ((renderDistance + 0.35) * 16.0) : Math.max(46, (renderDistance - 0.25) * 16.0);
-      const rawEnd = renderDistance * (16.4 - rainIntensity * 3.8 - nightFogMul * 1.8);
-      const baseEnd = Math.min(maxChunkFog, isUltraShort ? Math.max(18.0, (renderDistance + 0.30) * 15.5 - rainIntensity * 3.0) : rawEnd);
-      const baseStart = Math.min(baseEnd * 0.56, renderDistance * (10.2 - rainIntensity * 2.8 - nightFogMul * 1.4));
-      envUniforms.uFogStart.value = (inMegaCity && !isUltraShort) ? 64.0 : Math.max(isUltraShort ? 9.0 : 22.0, baseStart);
-      envUniforms.uFogEnd.value   = (inMegaCity && !isUltraShort) ? Math.max(165.0, renderDistance * 52.0) : Math.max(isUltraShort ? 19.0 : 48.0, baseEnd);
-      const lodActive = (typeof farLodSystem !== 'undefined' && farLodSystem.isActive() &&
-        curBiome !== BIOMES.NIGHTMARE_WOODS && curBiome !== BIOMES.PALE_GARDEN && curBiome !== BIOMES.DARK_FOREST &&
-        activeWeatherKind !== 'blizzard' && activeWeatherKind !== 'sandstorm' && activeWeatherKind !== 'fog' && activeWeatherKind !== 'ashfall');
-      if (lodActive && envUniforms.uLodFogStart && envUniforms.uLodFogEnd) {
-        const lodOuter = farLodSystem.outerRadius || 768;
-        envUniforms.uLodFogStart.value = Math.max(52.0, (renderDistance || 3) * 16.0);
-        envUniforms.uLodFogEnd.value = Math.max(envUniforms.uLodFogStart.value + 96.0, lodOuter * 0.94);
-        envUniforms.uFogStart.value = Math.max(envUniforms.uFogStart.value, (renderDistance || 3) * 14.5);
-        envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, (renderDistance || 3) * 16.0 + 56.0);
-      }
+      const isEcMode = (shaderPreset === 'eclipse');
+      const fogEnd = Math.max(14.5, loadedEdge * (1.0 - rainIntensity * 0.22));
+      const fogStartRatio = (isEcMode ? 0.44 : 0.48) - rainIntensity * 0.14;
+      envUniforms.uFogStart.value = Math.max(8.0, Math.min(fogEnd * 0.70, fogEnd * fogStartRatio));
+      envUniforms.uFogEnd.value   = fogEnd;
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
         envUniforms.uFogColor.value.copy(_colNightmareFog);
-        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 4.5);
-        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 16.0);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 44.0);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.26);
       } else if (curBiome === BIOMES.PALE_GARDEN) {
         envUniforms.uFogColor.value.lerp(_colPaleFog, 0.78);
-        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 8.0);
-        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 26.0);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 34.0);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.24);
       } else if (curBiome === BIOMES.DARK_FOREST) {
         envUniforms.uFogColor.value.lerp(_colDarkForestFog, 0.55);
-        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 12.0);
-        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 36.0);
+        envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 42.0);
+        envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.30);
       }
       if (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm' || activeWeatherKind === 'fog' || activeWeatherKind === 'ashfall') {
-        const tgtS = activeWeatherKind === 'fog' ? 7.0 : (activeWeatherKind === 'ashfall' ? 11.0 : 8.5);
-        const tgtE = activeWeatherKind === 'fog' ? 30.0 : (activeWeatherKind === 'ashfall' ? 38.0 : 32.0);
+        const tgtE = Math.min(loadedEdge, activeWeatherKind === 'fog' ? 30.0 : (activeWeatherKind === 'ashfall' ? 38.0 : 32.0));
+        const tgtS = Math.min(tgtE * 0.42, activeWeatherKind === 'fog' ? 7.0 : (activeWeatherKind === 'ashfall' ? 11.0 : 8.5));
         envUniforms.uFogStart.value += (tgtS - envUniforms.uFogStart.value) * Math.min(1, rainIntensity * 0.92);
         envUniforms.uFogEnd.value   += (tgtE - envUniforms.uFogEnd.value) * Math.min(1, rainIntensity * 0.92);
       }
@@ -1187,7 +1169,7 @@
     const nvOn = (player._nightVisionT || 0) > 0;
     const darkT = player._darknessT || 0;
     if (nvOn) {
-      envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, 72.0);
+      envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, Math.min(loadedEdge, 72.0));
     }
     if (darkT > 0) {
       const dPulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(envUniforms.uTime.value * 2.4));
@@ -2302,6 +2284,8 @@
       activeWakes: envUniforms.uWakePts ? envUniforms.uWakePts.value.filter(w => w.w > 0.01 && (elapsed - w.z) < 4.2).length : 0
     }),
     setWeatherMode: (w) => { weatherMode = w; activeWeatherKind = (w === 'auto' ? 'clear' : w); syncLiveTimeAndWeatherUi(true); },
+    getFogAndFireState: () => ({ fogStart: envUniforms.uFogStart.value, fogEnd: envUniforms.uFogEnd.value, fogHex: envUniforms.uFogColor.value.getHexString(), renderDistance, lodVisible: !!(typeof farLodSystem !== 'undefined' && farLodSystem.isVisible()), hasFireHudEl: !!document.getElementById('fireHudOverlay'), burnTime: player.burnTime || 0, burnSoul: !!player._burnSoul, avatarFlameVisible: !!(playerAvatar && playerAvatar.flameGroup && playerAvatar.flameGroup.visible) }),
+    setPlayerBurn: (sec, soul = false) => { player.burnTime = sec; player._burnSoul = !!soul; },
     handlePlaceOrEat,
     BLOCK_DEF,
     TRIM_MATERIALS,

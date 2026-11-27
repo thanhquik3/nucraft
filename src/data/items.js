@@ -5401,6 +5401,89 @@
       ], { o: '#713f12', W: '#fefce8', H: '#fde047', Y: '#eab308', D: '#ca8a04' });
     }
 
+    // 824..827 (Row 103, cols 0..3): Authentic Minecraft Serrated Multi-Tongue On-Entity Fire (transparent vertical gaps, bright gold-orange base)
+    // 828..831 (Row 103, cols 4..7): Matching Cyan Soul Entity Fire
+    const _entFlameFrames = [
+      [
+        '..R......O......',
+        '..O..R...Y...R..',
+        '.RO..O..OY...O..',
+        '.OY..DO..O..DO..',
+        '.OY..OY..YD.OY.R',
+        'DOY..OY..OY.OY.O',
+        'OYO.DOY..OYDOY.O',
+        'OYL.OYY.DOYLYYDO',
+        'OYLDOYL.OYYLLOYO',
+        'DYYOYLLDOYLLLYOO',
+        'OYLOYLLLOYLLLYOD',
+        'OYLLYLLLYYLLYYOO',
+        'DYYLLYWWYLLLYYYD',
+        '.OYLLWWWYLLLYYO.',
+        '.DOYYLWYLLWYYOD.',
+        '..ROYOOYYYYOOR..'
+      ],
+      [
+        '.....R......O...',
+        '.R...O...R..OY..',
+        '.O..OY...O..OY..',
+        '.OY.OY..DO..DY.R',
+        '.OY.DOY.OY..OY.O',
+        'DOY..OY.OY.DOY.O',
+        'OYL.DOY.OYDOYYDO',
+        'OYO.OYY.OYYLLYOO',
+        'OYYDOYLLOYLLLYOY',
+        'OYLOYLLLYYLLLYOO',
+        'DYYOYLLLLLLLLYYD',
+        'OYYLYLLWLLLLYYOD',
+        'OYLLYWWWYLLWYYOO',
+        '.OYLLWWYYLLLYYO.',
+        '.DOYYLYYYLLYYOD.',
+        '..DOOOYYYYOOOD..'
+      ],
+      [
+        '...O.....R......',
+        '..OY..R..O...R..',
+        '..OY..O..OY..O..',
+        'R.DO..OY.OY..OY.',
+        'O.OY..OY.DO..OY.',
+        'O.OY.DOY..O.DOYO',
+        'ODOY.OYY.OY.OYYO',
+        'OYLYDOYYDOYDOYLO',
+        'OYLLOYLLOYLLOYOO',
+        'OYYLOYLLLYLLLYOD',
+        'DOYLOLLLLLLLLYYO',
+        'OYYLLLWLLWLLLYOO',
+        'DYYLYWWYYWWLYYYD',
+        '.OYYLWYYLLWYYOO.',
+        '.ROYLLYYYYLLYOD.',
+        '..RDOYYYYYYOOR..'
+      ],
+      [
+        '......R......O..',
+        '..R...O...R..O..',
+        '.KO..OY...O..OY.'.replace('K','.'),
+        '.OY..OY..DO..OY.',
+        '.OY.DOY..OY.DOY.',
+        'DOY..OY..OY..OYO',
+        'OYO.DOY.DOY.DOYO',
+        'OYY.OYY.OYY.OYLO',
+        'OYLDOYLLOYLDOYOO',
+        'OYYOYLLLYYLLLYOD',
+        'OYLLWLLLWLLLLYYO',
+        'DYYLLWWLLWWLLYYO',
+        'OYYLYWWYYWWLYYYD',
+        '.OYLLWYYYYWLLYO.',
+        '.DOYYYYLLYYYYOD.',
+        '..ROOOYYYYOOOR..'
+      ]
+    ];
+    const entFirePal = { R: '#dc2626', D: '#ea580c', O: '#ff7a00', Y: '#facc15', L: '#fef08a', W: '#fffbeb' };
+    const entSoulPal = { R: '#0369a1', D: '#0284c7', O: '#06b6d4', Y: '#22d3ee', L: '#a5f3fc', W: '#ecfeff' };
+    for (let fi = 0; fi < 4; fi++) {
+      drawSpriteMap(824 + fi, _entFlameFrames[fi], entFirePal);
+      drawSpriteMap(828 + fi, _entFlameFrames[fi], entSoulPal);
+    }
+
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur — integer BT.601 bitshift on boot, WASM on live mod rebuild)
     const bumpCanvas = document.createElement('canvas');
     bumpCanvas.width = canvas.width; bumpCanvas.height = canvas.height;

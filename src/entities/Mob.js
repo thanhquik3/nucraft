@@ -282,31 +282,6 @@
   }
 
   const blenderMobTemplates = new Map();
-  const _mobFlameGeo = (() => {
-    const uStep = 1 / ATLAS_COLS, vStep = 1 / ATLAS_ROWS, padU = 0.002, padV = 0.002;
-    const tx = 324 & 7, ty = 324 >> 3;
-    const u0 = tx * uStep + padU, u1 = (tx + 1) * uStep - padU, v0 = ty * vStep + padV, v1 = (ty + 1) * vStep - padV;
-    const pos = [
-      -0.46, 0.0, -0.46,  0.46, 0.0,  0.46,  0.46, 1.38,  0.46, -0.46, 1.38, -0.46,
-      -0.46, 0.0,  0.46,  0.46, 0.0, -0.46,  0.46, 1.38, -0.46, -0.46, 1.38,  0.46
-    ];
-    const uvs = [u0, v1, u1, v1, u1, v0, u0, v0, u0, v1, u1, v1, u1, v0, u0, v0];
-    const et = [4, 4, 4, 4, 4, 4, 4, 4];
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    g.setAttribute('aEmissiveType', new THREE.Float32BufferAttribute(et, 1));
-    g.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
-    return g;
-  })();
-  function makeSharedFlameGroup() {
-    const fg = new THREE.Group();
-    const fMesh = new THREE.Mesh(_mobFlameGeo, emissiveMat);
-    fMesh.position.y = 0.06;
-    fg.add(fMesh);
-    fg.visible = false;
-    return fg;
-  }
   // Lazy on-demand GLB decoding: uses binary assets/models/*.glb on web (0MB startup) or embedded bundle on standalone Mobile HTML
   let _glbFetchCount = 0;
   const _glbFetching = new Map();
@@ -7590,9 +7565,11 @@
       const mFeetB = getBlockWorld(Math.floor(m.x), Math.floor(m.y + 0.15), Math.floor(m.z));
       const mBodyB = getBlockWorld(Math.floor(m.x), Math.floor(m.y + 0.75), Math.floor(m.z));
       const inLava = (mFeetB === B.LAVA || mBodyB === B.LAVA);
-      const inFire = (mFeetB === B.FIRE || mBodyB === B.FIRE);
+      const inSoulFire = (mFeetB === B.SOUL_FIRE || mBodyB === B.SOUL_FIRE);
+      const inFire = (mFeetB === B.FIRE || mBodyB === B.FIRE || inSoulFire);
       if (inLava && !FIRE_IMMUNE_MOBS.has(m.type)) {
         m.burning = true;
+        m._burnSoul = false;
         m.burnTime = Math.max(m.burnTime || 0, 6.0);
         m.lavaTick += dt;
         if (m.lavaTick >= 0.50) {
@@ -7605,10 +7582,11 @@
         m.lavaTick = 0;
         if (inFire && !FIRE_IMMUNE_MOBS.has(m.type)) {
           m.burning = true;
+          m._burnSoul = inSoulFire;
           m.burnTime = Math.max(m.burnTime || 0, 5.5);
           if (!m.hostile && !m.neutral) m.fleeT = Math.max(m.fleeT || 0, 3.5);
         } else if (mFeetB === B.WATER || mBodyB === B.WATER) {
-          m.burning = false; m.burnTime = 0;
+          m.burning = false; m._burnSoul = false; m.burnTime = 0;
         }
       }
 
@@ -7632,32 +7610,33 @@
           m._sunChkT = 0.35;
           const inW = getBlockWorld(Math.floor(m.x), Math.floor(m.y + 0.3), Math.floor(m.z)) === B.WATER;
           m._sunLit = !!(isDaytime && !isRaining && isExposedToSky(m.x, m.y + 1.5, m.z) && !inW);
-          if (m._sunLit) { m.burning = true; m.burnTime = Math.max(m.burnTime || 0, 2.5); }
-          else if (inW) { m.burning = false; m.burnTime = 0; }
+          if (m._sunLit) { m.burning = true; m._burnSoul = false; m.burnTime = Math.max(m.burnTime || 0, 2.5); }
+          else if (inW) { m.burning = false; m._burnSoul = false; m.burnTime = 0; }
         }
         sunBurnNow = !!m._sunLit;
       }
       if (m.burning) {
         if (!inLava && !inFire && !sunBurnNow && m.burnTime !== undefined) {
           m.burnTime -= dt;
-          if (m.burnTime <= 0) { m.burning = false; m.burnTime = 0; }
+          if (m.burnTime <= 0) { m.burning = false; m._burnSoul = false; m.burnTime = 0; }
         }
       }
       }
       if (m.burning) {
         if (!_isGuestMobClient && !m.hostile && !m.neutral) m.fleeT = Math.max(m.fleeT || 0, 0.6);
         if (m.flameGroup) {
-          m.flameGroup.visible = true;
-          const fScale = Math.max(0.75, m.hitboxH * 0.68);
-          const fl = fScale * (0.94 + Math.sin(elapsed * 20 + i) * 0.08);
-          m.flameGroup.scale.set(fl, fScale * (0.95 + Math.cos(elapsed * 18 + i) * 0.09), fl);
+          updateEntityFlameGroup(
+            m.flameGroup, m.x, m.z, m.group ? m.group.rotation.y : 0,
+            m.hitboxR || 0.32, m.hitboxH || 1.80, m.baseScale || 1,
+            elapsed, i, !!m._burnSoul
+          );
         }
         if (!_isGuestMobClient) {
           m.burnTick += dt;
           if (m.burnTick >= 0.55) {
-            m.burnTick = 0; spawnParticles(m.x, m.y + 1.2, m.z, Math.random() > 0.4 ? 0xff7b00 : 0xfef08a, 3, true);
+            m.burnTick = 0; spawnParticles(m.x, m.y + 1.2, m.z, m._burnSoul ? 0x22d3ee : (Math.random() > 0.4 ? 0xff7b00 : 0xfef08a), 3, true);
             if (Math.hypot(m.x - player.x, m.z - player.z) < 14) playSfx('burn');
-            if (hurtMob(m, 1.2, 0, 0, 0, false, false)) continue;
+            if (hurtMob(m, m._burnSoul ? 1.8 : 1.2, 0, 0, 0, false, false)) continue;
           }
         }
       } else if (m.flameGroup) m.flameGroup.visible = false;
