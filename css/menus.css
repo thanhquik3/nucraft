@@ -931,11 +931,53 @@
     gap: 5px;
   }
   .dr-pack-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
     font-family: var(--font-pixel);
     font-size: 10.5px;
     font-weight: 800;
     color: #f8fafc;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.4px;
+  }
+  .dr-pack-title {
+    min-width: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dr-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .dr-filter-btn {
+    height: 22px;
+    padding: 0 8px;
+    background: #2f3239;
+    border: 1.5px solid #141414;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+    color: #cbd5e1;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dr-filter-btn:hover { background: #3f444e; color: #fff; }
+  .dr-filter-btn.active {
+    background: #3c8527;
+    color: #ffffff;
+    border-color: #bbf7d0;
+    box-shadow: inset 0 1px 0 #5cc43d;
+  }
+  #btnDrFilterCouples.active {
+    background: #be185d;
+    border-color: #fbcfe8;
+    box-shadow: inset 0 1px 0 #f472b6;
   }
   .dr-strip-wrap {
     display: flex;
@@ -959,10 +1001,36 @@
     flex: 1;
     min-width: 0;
     display: flex;
+    align-items: flex-end;
     gap: 6px;
     overflow-x: auto;
     padding-bottom: 2px;
     scrollbar-width: thin;
+  }
+  .dr-pair-group {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 3px 4px 4px;
+    background: rgba(244, 114, 182, 0.10);
+    border: 1.5px solid rgba(244, 114, 182, 0.50);
+  }
+  .dr-pair-tag {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    font-weight: 700;
+    color: #fbcfe8;
+    text-align: center;
+    white-space: nowrap;
+    line-height: 1.1;
+  }
+  .dr-pair-cards {
+    display: flex;
+    gap: 4px;
+  }
+  #drSkinStrip.couples-only > .dr-skin-card {
+    display: none;
   }
   .dr-skin-card {
     position: relative;
@@ -1034,7 +1102,10 @@
     .dr-status-bar { padding: 3px 8px; font-size: 9.5px; }
     .dr-bedrock-btn { height: 28px; font-size: 9.5px; padding: 0 6px; }
     .dr-bottom-pack { padding: 4px 6px 5px; gap: 3px; }
-    .dr-pack-header { font-size: 9px; }
+    .dr-pack-header { font-size: 9px; gap: 4px; }
+    .dr-filter-btn { height: 20px; padding: 0 6px; font-size: 8px; }
+    .dr-pair-group { padding: 2px 3px 3px; gap: 2px; }
+    .dr-pair-tag { font-size: 7.5px; }
     .dr-skin-card { flex: 0 0 66px; padding: 3px; }
     .dr-skin-card canvas { width: 42px; height: 50px; }
     .dr-skin-card span { font-size: 7.5px; }

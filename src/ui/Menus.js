@@ -2024,37 +2024,62 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   function updateDressingRoomCarousel() {
     const idx = Math.max(0, PLAYER_SKINS.findIndex(s => s.id === selectedSkinId));
     const n = PLAYER_SKINS.length;
-    const slotMap = [
-      ['drSlotM2', (idx - 2 + n) % n],
-      ['drSlotM1', (idx - 1 + n) % n],
-      ['drSlotP1', (idx + 1) % n],
-      ['drSlotP2', (idx + 2) % n],
-    ];
-    for (const [elId, sIdx] of slotMap) {
-      const box = document.getElementById(elId);
-      if (!box) continue;
-      const sk = PLAYER_SKINS[sIdx];
-      box.dataset.skin = sk.id;
-      const cv = box.querySelector('canvas');
-      if (cv) drawSkinThumbPortrait(cv, sk.id);
-      const sp = box.querySelector('span');
-      if (sp) sp.textContent = sk.name;
+    const drOpen = !document.getElementById('dressingRoomScreen')?.classList.contains('hidden');
+    if (drOpen) {
+      const slotMap = [
+        ['drSlotM2', (idx - 2 + n) % n],
+        ['drSlotM1', (idx - 1 + n) % n],
+        ['drSlotP1', (idx + 1) % n],
+        ['drSlotP2', (idx + 2) % n],
+      ];
+      for (const [elId, sIdx] of slotMap) {
+        const box = document.getElementById(elId);
+        if (!box) continue;
+        const sk = PLAYER_SKINS[sIdx];
+        box.dataset.skin = sk.id;
+        const cv = box.querySelector('canvas');
+        if (cv) drawSkinThumbPortrait(cv, sk.id);
+        const sp = box.querySelector('span');
+        if (sp) sp.textContent = sk.name;
+      }
     }
     const skCur = getSkinDef(selectedSkinId);
     const displayName = selectedSkinId === 'custom' ? 'Skin Tùy Chỉnh (.PNG)' : skCur.name;
     const cName = document.getElementById('drCenterSkinName');
     if (cName) cName.textContent = displayName;
     const cStat = document.getElementById('drCurrentSkinStatus');
-    if (cStat) cStat.textContent = `Skin hiện tại: ${displayName}`;
+    if (cStat) cStat.textContent = `Skin hiện tại: ${displayName}${skCur.pair ? ` • 💞 Cặp ${skCur.pair}` : ''}`;
     const tName = document.getElementById('titleSkinName');
     if (tName) tName.textContent = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) ? getLockedPlayerUid() : displayName;
     document.querySelectorAll('#drSkinStrip .dr-skin-card').forEach(el => {
       const isAct = el.dataset.skin === selectedSkinId;
       el.classList.toggle('active', isAct);
       if (isAct && !document.getElementById('dressingRoomScreen')?.classList.contains('hidden')) {
+        const cv = el.querySelector('canvas');
+        if (cv && cv.dataset.thumbDrawn !== '1') {
+          drawSkinThumbPortrait(cv, el.dataset.skin);
+          cv.dataset.thumbDrawn = '1';
+        }
         el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       }
     });
+  }
+
+  let _skinCatalogDirty = true;
+  let _skinThumbObserver = null;
+
+  function _syncDrFilterLabels() {
+    let pairGroups = 0;
+    for (let i = 0; i + 1 < PLAYER_SKINS.length; i++) {
+      if (PLAYER_SKINS[i].pair && PLAYER_SKINS[i].pair === PLAYER_SKINS[i + 1].pair) {
+        pairGroups++;
+        i++;
+      }
+    }
+    const bAll = document.getElementById('btnDrFilterAll');
+    const bCpl = document.getElementById('btnDrFilterCouples');
+    if (bAll) bAll.textContent = `Tất cả (${PLAYER_SKINS.length})`;
+    if (bCpl) bCpl.textContent = `💞 Cặp Đôi (${pairGroups})`;
   }
 
   function openDressingRoom() {
@@ -2064,6 +2089,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     lobby.classList.remove('hidden', 'sub-open');
     lobby.classList.add('dr-open');
     dr.classList.remove('hidden');
+    if (_skinCatalogDirty) renderSkinCatalogUI();
     updateDressingRoomCarousel();
     renderSkinPreview3DOnce();
     requestAnimationFrame(renderSkinPreview3DOnce);
@@ -2109,51 +2135,97 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     _skinViewportThumbCache.delete(skinId);
     saveCustomSkinsList();
     if (selectedSkinId === skinId) selectPlayerSkin(PLAYER_SKINS[0].id, false);
-    renderSkinCatalogUI();
+    _skinCatalogDirty = true;
+    if (!document.getElementById('dressingRoomScreen')?.classList.contains('hidden')) renderSkinCatalogUI();
     showToast('🗑️ Đã xóa Skin tùy chỉnh!');
+  }
+
+  function _createSkinCardEl(sk, className, onPick, eagerDraw = false) {
+    const card = document.createElement('div');
+    card.className = className + (sk.id === selectedSkinId ? ' active' : '');
+    card.dataset.skin = sk.id;
+    const cv = document.createElement('canvas'); cv.width = 96; cv.height = 116;
+    if (eagerDraw) {
+      drawSkinThumbPortrait(cv, sk.id);
+      cv.dataset.thumbDrawn = '1';
+    } else if (typeof IntersectionObserver !== 'function') {
+      drawSkinThumbPortrait(cv, sk.id);
+      cv.dataset.thumbDrawn = '1';
+    }
+    const sp = document.createElement('span'); sp.textContent = sk.name;
+    card.append(cv, sp);
+    if (sk.isCustom) {
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'dr-skin-del'; del.title = 'Xóa skin này'; del.textContent = '×';
+      del.addEventListener('click', (e) => { e.stopPropagation(); removeCustomSkin(sk.id); });
+      card.appendChild(del);
+    }
+    bindSkinThumbHover(card, cv, () => sk.id);
+    card.addEventListener('click', () => onPick(sk));
+    return card;
   }
 
   function renderSkinCatalogUI() {
     const grid = document.getElementById('lobbySkinGrid');
-    if (grid) {
+    if (grid && grid.offsetParent !== null) {
       grid.innerHTML = '';
       for (const sk of PLAYER_SKINS) {
-        const card = document.createElement('div');
-        card.className = 'skin-card' + (sk.id === selectedSkinId ? ' active' : '');
-        card.dataset.skin = sk.id;
-        const cv = document.createElement('canvas'); cv.width = 96; cv.height = 116;
-        drawSkinThumbPortrait(cv, sk.id);
-        const sp = document.createElement('span'); sp.textContent = sk.name;
-        card.append(cv, sp);
-        bindSkinThumbHover(card, cv, () => sk.id);
-        card.addEventListener('click', () => selectPlayerSkin(sk.id, true));
-        grid.appendChild(card);
+        grid.appendChild(_createSkinCardEl(sk, 'skin-card', (s) => selectPlayerSkin(s.id, true), true));
       }
     }
     const drStrip = document.getElementById('drSkinStrip');
     if (drStrip) {
+      if (_skinThumbObserver) { _skinThumbObserver.disconnect(); _skinThumbObserver = null; }
       drStrip.innerHTML = '';
-      for (const sk of PLAYER_SKINS) {
-        const card = document.createElement('div');
-        card.className = 'dr-skin-card' + (sk.id === selectedSkinId ? ' active' : '');
-        card.dataset.skin = sk.id;
-        const cv = document.createElement('canvas'); cv.width = 96; cv.height = 116;
-        drawSkinThumbPortrait(cv, sk.id);
-        const sp = document.createElement('span'); sp.textContent = sk.name;
-        card.append(cv, sp);
-        if (sk.isCustom) {
-          const del = document.createElement('button');
-          del.type = 'button'; del.className = 'dr-skin-del'; del.title = 'Xóa skin này'; del.textContent = '×';
-          del.addEventListener('click', (e) => { e.stopPropagation(); removeCustomSkin(sk.id); });
-          card.appendChild(del);
+      const lazyCards = [];
+      for (let i = 0; i < PLAYER_SKINS.length; i++) {
+        const sk = PLAYER_SKINS[i];
+        const nextSk = (i + 1 < PLAYER_SKINS.length) ? PLAYER_SKINS[i + 1] : null;
+        if (sk.pair && nextSk && nextSk.pair === sk.pair) {
+          const grp = document.createElement('div');
+          grp.className = 'dr-pair-group';
+          grp.dataset.pair = sk.pair;
+          const tag = document.createElement('div');
+          tag.className = 'dr-pair-tag';
+          tag.textContent = `💞 Cặp ${sk.pair}`;
+          const row = document.createElement('div');
+          row.className = 'dr-pair-cards';
+          const c1 = _createSkinCardEl(sk, 'dr-skin-card', (s) => selectPlayerSkin(s.id, false), i < 8 || sk.id === selectedSkinId);
+          const c2 = _createSkinCardEl(nextSk, 'dr-skin-card', (s) => selectPlayerSkin(s.id, false), i + 1 < 8 || nextSk.id === selectedSkinId);
+          row.append(c1, c2);
+          grp.append(tag, row);
+          drStrip.appendChild(grp);
+          lazyCards.push(c1, c2);
+          i++;
+        } else {
+          const c = _createSkinCardEl(sk, 'dr-skin-card', (s) => selectPlayerSkin(s.id, false), i < 8 || sk.id === selectedSkinId);
+          drStrip.appendChild(c);
+          lazyCards.push(c);
         }
-        bindSkinThumbHover(card, cv, () => sk.id);
-        card.addEventListener('click', () => selectPlayerSkin(sk.id, false));
-        drStrip.appendChild(card);
       }
+      if (typeof IntersectionObserver === 'function') {
+        _skinThumbObserver = new IntersectionObserver((entries) => {
+          for (const ent of entries) {
+            if (!ent.isIntersecting) continue;
+            const el = ent.target;
+            const cv = el.querySelector('canvas');
+            const sid = el.dataset.skin;
+            if (cv && sid && cv.dataset.thumbDrawn !== '1') {
+              drawSkinThumbPortrait(cv, sid);
+              cv.dataset.thumbDrawn = '1';
+            }
+            _skinThumbObserver?.unobserve(el);
+          }
+        }, { root: drStrip, rootMargin: '220px', threshold: 0.01 });
+        for (const c of lazyCards) {
+          if (c.querySelector('canvas')?.dataset.thumbDrawn !== '1') _skinThumbObserver.observe(c);
+        }
+      }
+      _skinCatalogDirty = false;
     }
     const drCnt = document.getElementById('drSkinCountLbl');
     if (drCnt) drCnt.textContent = `${PLAYER_SKINS.length} Skins`;
+    _syncDrFilterLabels();
     updateDressingRoomCarousel();
   }
 
@@ -2256,10 +2328,16 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   }
 
   function refreshSkinThumbCanvases() {
+    const drVisible = !document.getElementById('dressingRoomScreen')?.classList.contains('hidden');
+    const gridVisible = !!(document.getElementById('lobbySkinGrid')?.offsetParent !== null);
+    if (!drVisible && !gridVisible) return;
     document.querySelectorAll('#lobbySkinGrid .skin-card, #drSkinStrip .dr-skin-card, .dr-side-slot').forEach(el => {
       const sid = el.dataset.skin;
       const cv = el.querySelector('canvas');
-      if (sid && cv) drawSkinThumbPortrait(cv, sid);
+      if (!sid || !cv) return;
+      if (el.classList.contains('dr-side-slot') || el.closest('#lobbySkinGrid') || cv.dataset.thumbDrawn === '1') {
+        drawSkinThumbPortrait(cv, sid);
+      }
     });
   }
 
@@ -2288,6 +2366,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     skinTexCache.delete(id);
     _skinViewportThumbCache.delete(id);
     saveCustomSkinsList();
+    _skinCatalogDirty = true;
     renderSkinCatalogUI();
     selectPlayerSkin(id, true);
     return entry;
@@ -2310,7 +2389,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   }
 
   function initLobbySkinPicker() {
-    if (typeof preloadAllSkinTextures === 'function') preloadAllSkinTextures();
+    // Lazy skin bootstrap: decode only active skin on startup; defer 33-card 3D strip until Dressing Room opens!
     // 1) Dressing Room Center 3D Character Canvas (#drSkinPreview3D)
     const drCanvas = document.getElementById('drSkinPreview3D') || document.getElementById('skinPreview3D');
     if (drCanvas && !skinPreviewRenderer) {
@@ -2355,8 +2434,21 @@ function launchWorldFromLobby(opts, hostCoop = false) {
         window.addEventListener('pointermove', (e) => { if (dragTitleSkin) { titleSkinRotY += (e.clientX - txPrev) * 0.018; txPrev = e.clientX; renderSkinPreview3DOnce(); } });
       } catch (_) {}
     }
-    // 3) Populate Dressing Room Bottom Strip & Lobby Grid via shared renderer
-    renderSkinCatalogUI();
+    // 3) Lazy Dressing Room counter & filter buttons (cards render when Dressing Room opens)
+    const drCnt = document.getElementById('drSkinCountLbl');
+    if (drCnt) drCnt.textContent = `${PLAYER_SKINS.length} Skins`;
+    _syncDrFilterLabels();
+    const setDrCouplesFilter = (onlyCouples) => {
+      const drStrip = document.getElementById('drSkinStrip');
+      if (drStrip) {
+        drStrip.classList.toggle('couples-only', !!onlyCouples);
+        drStrip.scrollLeft = 0;
+      }
+      document.getElementById('btnDrFilterAll')?.classList.toggle('active', !onlyCouples);
+      document.getElementById('btnDrFilterCouples')?.classList.toggle('active', !!onlyCouples);
+    };
+    document.getElementById('btnDrFilterAll')?.addEventListener('click', () => setDrCouplesFilter(false));
+    document.getElementById('btnDrFilterCouples')?.addEventListener('click', () => setDrCouplesFilter(true));
     document.getElementById('btnDressingRoom')?.addEventListener('click', () => { ensureAudio(); openDressingRoom(); });
     document.getElementById('btnDrBack')?.addEventListener('click', () => { ensureAudio(); closeDressingRoom(); });
     document.getElementById('btnDrConfirm')?.addEventListener('click', () => {

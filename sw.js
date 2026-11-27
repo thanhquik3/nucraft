@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nucraft-v171';
+const CACHE_NAME = 'nucraft-v172';
 const ASSETS = [
   './',
   './index.html',
