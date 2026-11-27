@@ -1564,6 +1564,7 @@
   }
   function saveFriendsList(arr) {
     try { localStorage.setItem(FRIENDS_STORAGE_KEY, JSON.stringify(arr)); } catch (_) {}
+    if (typeof window.scheduleAccountCloudSync === 'function') window.scheduleAccountCloudSync();
   }
   function loadIncomingFriendReqs() {
     try {
@@ -1621,7 +1622,7 @@
     if (coopBadge) coopBadge.textContent = String(reqs.length);
   }
 
-  function openProfileModal() {
+  function openProfileModal(initialTab = 'uid') {
     const modal = document.getElementById('profileModal');
     if (!modal) return;
     const uid = getLockedPlayerUid();
@@ -1634,14 +1635,346 @@
       if (btnSave) { btnSave.disabled = true; btnSave.textContent = 'Đã khóa UID'; btnSave.style.opacity = '0.55'; }
     } else {
       if (st) st.textContent = 'Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):';
-      if (inp) { inp.value = ''; inp.disabled = false; setTimeout(() => inp.focus(), 60); }
+      if (inp) { inp.value = ''; inp.disabled = false; }
       if (btnSave) { btnSave.disabled = false; btnSave.textContent = 'Lưu UID cố định'; btnSave.style.opacity = '1'; }
     }
+    syncAccountBadgeUI();
+    switchProfileModalTab(initialTab === 'auth' ? 'auth' : 'uid');
     modal.classList.remove('hidden');
   }
   function closeProfileModal() {
     document.getElementById('profileModal')?.classList.add('hidden');
   }
+
+  // ===================== v157: E2EE TÀI KHOẢN & MẬT KHẨU ĐỒNG BỘ CHÉO THIẾT BỊ =====================
+  const ACC_VAULT_KEY = 'nucraft_acc_vault_v1';
+  const ACC_ACTIVE_KEY = 'nucraft_active_acc_v1';
+  let _activeAccSession = null; // { username, uKey, accountId, aesKey, verifier, lastSyncAt }
+  let _accSyncTimer = null;
+
+  function _abToHex(buf) {
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function _u8ToB64Acc(u8) {
+    let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+  function _b64ToU8Acc(b64) {
+    const bin = atob(b64); const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  async function _deriveAccountCrypto(rawUser, rawPass) {
+    const username = String(rawUser || '').trim();
+    const pass = String(rawPass || '');
+    if (!/^[a-zA-Z0-9_]{3,18}$/.test(username)) {
+      throw new Error('Tên tài khoản 3–18 ký tự, chỉ gồm chữ không dấu, số và dấu gạch dưới (_).');
+    }
+    if (pass.length < 6) {
+      throw new Error('Mật khẩu cần tối thiểu 6 ký tự!');
+    }
+    const uKey = username.toLowerCase();
+    const enc = new TextEncoder();
+    const idHash = await crypto.subtle.digest('SHA-256', enc.encode('nucraft-acc-id-v1:' + uKey));
+    const accountId = _abToHex(idHash).slice(0, 32);
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: enc.encode('nucraft-acc-salt-v1:' + uKey), iterations: 100000, hash: 'SHA-256' },
+      keyMat, 512
+    );
+    const raw = new Uint8Array(bits);
+    const aesKey = await crypto.subtle.importKey('raw', raw.slice(0, 32), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    const verifier = _abToHex(raw.slice(32, 64));
+    return { username, uKey, accountId, aesKey, verifier };
+  }
+  async function _encryptAccountEnvelope(cryptoInfo, snapshot) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plain = new TextEncoder().encode(JSON.stringify(snapshot));
+    const ctBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoInfo.aesKey, plain);
+    return {
+      v: 1,
+      accountId: cryptoInfo.accountId,
+      verifier: cryptoInfo.verifier,
+      iv: _u8ToB64Acc(iv),
+      ct: _u8ToB64Acc(new Uint8Array(ctBuf)),
+      updatedAt: snapshot.savedAt || Date.now()
+    };
+  }
+  async function _decryptAccountEnvelope(cryptoInfo, envelope) {
+    if (!envelope || typeof envelope.iv !== 'string' || typeof envelope.ct !== 'string') {
+      throw new Error('Dữ liệu tài khoản không hợp lệ.');
+    }
+    if (envelope.verifier && envelope.verifier !== cryptoInfo.verifier) {
+      throw new Error('Sai mật khẩu! Vui lòng kiểm tra lại.');
+    }
+    const iv = _b64ToU8Acc(envelope.iv);
+    const ct = _b64ToU8Acc(envelope.ct);
+    try {
+      const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoInfo.aesKey, ct);
+      return JSON.parse(new TextDecoder().decode(dec));
+    } catch (_) {
+      throw new Error('Sai mật khẩu hoặc dữ liệu sao lưu bị hỏng!');
+    }
+  }
+  function _getLocalVaultMap() {
+    try {
+      const obj = JSON.parse(localStorage.getItem(ACC_VAULT_KEY) || '{}');
+      return (obj && typeof obj === 'object') ? obj : {};
+    } catch (_) { return {}; }
+  }
+  function _saveLocalVaultEnvelope(accountId, env) {
+    try {
+      const m = _getLocalVaultMap();
+      m[accountId] = env;
+      localStorage.setItem(ACC_VAULT_KEY, JSON.stringify(m));
+    } catch (_) {}
+  }
+  function _canHitLocalAccountApi() {
+    if (typeof location === 'undefined') return false;
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return false;
+    if (/\.github\.io$/i.test(location.hostname || '')) return false;
+    return true;
+  }
+  async function _fetchCloudAccountEnvelope(accountId) {
+    const localEnv = _getLocalVaultMap()[accountId] || null;
+    const candidates = localEnv ? [localEnv] : [];
+    const jobs = [];
+    if (_canHitLocalAccountApi()) {
+      jobs.push(fetch('/api/account/' + encodeURIComponent(accountId), { cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => { if (j && j.found && j.envelope) candidates.push(j.envelope); })
+        .catch(() => {}));
+    }
+    if (typeof ncMqtt !== 'undefined' && ncMqtt && typeof ncMqtt.subscribe === 'function') {
+      jobs.push(new Promise((resolve) => {
+        let done = false;
+        const topic = MQTT_NS + '/acc/' + accountId;
+        const unsub = ncMqtt.subscribe(topic, (msg) => {
+          if (msg && msg.v === 1 && msg.ct && msg.verifier) candidates.push(msg);
+          if (!done) { done = true; try { unsub(); } catch (_) {} resolve(); }
+        });
+        setTimeout(() => { if (!done) { done = true; try { unsub(); } catch (_) {} resolve(); } }, 1650);
+      }));
+    }
+    await Promise.all(jobs);
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return candidates[0];
+  }
+  async function _pushCloudAccountEnvelope(accountId, envelope, mode = 'sync') {
+    _saveLocalVaultEnvelope(accountId, envelope);
+    if (_canHitLocalAccountApi()) {
+      try {
+        const res = await fetch('/api/account/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId, envelope, mode })
+        });
+        if (res.status === 409) throw new Error('Tên tài khoản này đã tồn tại! Hãy chuyển sang Đăng nhập.');
+        if (res.status === 403) throw new Error('Sai mật khẩu xác thực tài khoản!');
+      } catch (err) {
+        if (err && /tồn tại|Sai mật khẩu/.test(err.message || '')) throw err;
+      }
+    }
+    if (typeof ncMqtt !== 'undefined' && ncMqtt && typeof ncMqtt.publish === 'function') {
+      try { ncMqtt.publish(MQTT_NS + '/acc/' + accountId, envelope, true); } catch (_) {}
+    }
+  }
+  function collectAccountSnapshot(username, compactForCloud = true) {
+    let customSkins = [];
+    try { customSkins = JSON.parse(localStorage.getItem('luanti_custom_skins_v1') || '[]'); } catch (_) {}
+    let worlds = (typeof getSavedWorldsList === 'function') ? getSavedWorldsList() : [];
+    const trimWorlds = (arr, dropThumbs, maxMods) => arr.slice(0, 8).map(w => {
+      const c = { ...w };
+      if (dropThumbs) delete c.thumb;
+      if (Array.isArray(c.mods) && c.mods.length > maxMods) c.mods = c.mods.slice(-maxMods);
+      return c;
+    });
+    const addons = (typeof window.exportModsForAccountSync === 'function') ? window.exportModsForAccountSync() : [];
+    let gfx = null;
+    try { gfx = (typeof CFG !== 'undefined' && CFG.loadGfxPrefs) ? CFG.loadGfxPrefs() : null; } catch (_) {}
+    const snap = {
+      v: 1,
+      uid: username,
+      skinId: (typeof selectedSkinId !== 'undefined') ? selectedSkinId : 'steve',
+      customSkins: Array.isArray(customSkins) ? customSkins.slice(0, 6) : [],
+      worlds: trimWorlds(worlds, compactForCloud, 2200),
+      friends: loadFriendsList(),
+      friendReqs: loadIncomingFriendReqs(),
+      outgoingReqs: loadOutgoingFriendReqs(),
+      addons,
+      lang: (typeof currentLang !== 'undefined') ? currentLang : 'vi',
+      gfx,
+      savedAt: Date.now()
+    };
+    if (compactForCloud && JSON.stringify(snap).length > 88000) {
+      snap.worlds = trimWorlds(worlds, true, 900);
+      snap.customSkins = snap.customSkins.slice(0, 2);
+    }
+    return snap;
+  }
+  async function applyAccountSnapshot(snap) {
+    if (!snap || !snap.uid) return;
+    try { localStorage.setItem(UID_STORAGE_KEY, snap.uid); } catch (_) {}
+    if (typeof localPlayerName !== 'undefined') localPlayerName = snap.uid;
+    try { localStorage.setItem(FRIENDS_STORAGE_KEY, JSON.stringify(Array.isArray(snap.friends) ? snap.friends : [])); } catch (_) {}
+    try { localStorage.setItem(FRIEND_REQS_KEY, JSON.stringify(Array.isArray(snap.friendReqs) ? snap.friendReqs : [])); } catch (_) {}
+    try { localStorage.setItem(OUTGOING_REQS_KEY, JSON.stringify(Array.isArray(snap.outgoingReqs) ? snap.outgoingReqs : [])); } catch (_) {}
+    if (Array.isArray(snap.worlds)) {
+      try { localStorage.setItem('luanti_craft_v14_worlds', JSON.stringify(snap.worlds)); } catch (_) {}
+      if (typeof renderSavedWorldsList === 'function') renderSavedWorldsList();
+    }
+    if (Array.isArray(snap.customSkins) && snap.customSkins.length && typeof window.restoreCustomSkinsFromSync === 'function') {
+      window.restoreCustomSkinsFromSync(snap.customSkins);
+    }
+    if (snap.skinId && typeof selectPlayerSkin === 'function') {
+      try { localStorage.setItem('luanti_skin_id', snap.skinId); } catch (_) {}
+      selectPlayerSkin(snap.skinId, false);
+    }
+    if (Array.isArray(snap.addons) && typeof window.importModsFromAccountSync === 'function') {
+      await window.importModsFromAccountSync(snap.addons);
+    }
+    if (snap.lang && typeof applyLanguage === 'function' && typeof currentLang !== 'undefined' && snap.lang !== currentLang) {
+      applyLanguage(snap.lang, false);
+    }
+    syncPlayerUidUI();
+    initFriendNetworkPeer();
+    if (typeof renderFriendsModalContent === 'function') renderFriendsModalContent();
+    if (typeof renderFriendWorldsList === 'function') renderFriendWorldsList();
+  }
+  function switchProfileModalTab(tab = 'uid') {
+    const isAuth = (tab === 'auth');
+    document.getElementById('btnProfTabUid')?.classList.toggle('active', !isAuth);
+    document.getElementById('btnProfTabAuth')?.classList.toggle('active', isAuth);
+    document.getElementById('profPaneUid')?.classList.toggle('hidden', isAuth);
+    document.getElementById('profPaneAuth')?.classList.toggle('hidden', !isAuth);
+    const btnUidSave = document.getElementById('btnSaveProfileUid');
+    if (btnUidSave) btnUidSave.style.display = isAuth ? 'none' : '';
+    if (isAuth) setTimeout(() => document.getElementById('inpAuthUser')?.focus(), 40);
+  }
+  function syncAccountBadgeUI() {
+    const badge = document.getElementById('profileAccBadge');
+    const sub = document.getElementById('profileAccSub');
+    const btnGo = document.getElementById('btnProfileGoAuth');
+    const btnSync = document.getElementById('btnProfileSyncNow');
+    const btnOut = document.getElementById('btnProfileLogout');
+    let savedMeta = null;
+    try { savedMeta = JSON.parse(localStorage.getItem(ACC_ACTIVE_KEY) || 'null'); } catch (_) {}
+    const uName = _activeAccSession?.username || savedMeta?.username || '';
+    const hasSession = !!(_activeAccSession && _activeAccSession.aesKey);
+    if (badge) {
+      badge.textContent = uName ? (hasSession ? `🟢 Đã đăng nhập: @${uName}` : `🟡 Đã lưu phiên: @${uName} (nhập MK để đồng bộ)`) : 'Chưa đăng nhập tài khoản đồng bộ';
+      badge.style.color = hasSession ? '#4ade80' : '#facc15';
+    }
+    if (sub) {
+      const ts = _activeAccSession?.lastSyncAt || savedMeta?.lastSyncAt;
+      sub.textContent = uName
+        ? (ts ? `Đồng bộ gần nhất: ${new Date(ts).toLocaleTimeString()} • Skin, Map, Add-on & Bạn bè` : 'Đã sẵn sàng đồng bộ Skin, Map, Add-on & Bạn bè')
+        : 'Đăng nhập để mang Skin, Map, Add-on & Bạn bè sang máy/trình duyệt khác';
+    }
+    if (btnGo) btnGo.textContent = uName ? '🔐 Đổi tài khoản' : '🔐 Đăng nhập / Tạo acc';
+    if (btnSync) btnSync.classList.toggle('hidden', !hasSession);
+    if (btnOut) btnOut.classList.toggle('hidden', !uName);
+  }
+  async function nucraftRegisterAccount(username, password, confirmPassword) {
+    if (String(password) !== String(confirmPassword)) {
+      throw new Error('Mật khẩu nhập lại không khớp!');
+    }
+    const cInfo = await _deriveAccountCrypto(username, password);
+    const existing = await _fetchCloudAccountEnvelope(cInfo.accountId);
+    if (existing) {
+      throw new Error('Tên tài khoản này đã có người đăng ký! Hãy đăng nhập hoặc chọn tên khác.');
+    }
+    try { localStorage.setItem(UID_STORAGE_KEY, cInfo.username); } catch (_) {}
+    if (typeof localPlayerName !== 'undefined') localPlayerName = cInfo.username;
+    const snap = collectAccountSnapshot(cInfo.username, true);
+    const env = await _encryptAccountEnvelope(cInfo, snap);
+    await _pushCloudAccountEnvelope(cInfo.accountId, env, 'register');
+    _activeAccSession = { ...cInfo, lastSyncAt: env.updatedAt };
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: cInfo.username, accountId: cInfo.accountId, lastSyncAt: env.updatedAt })); } catch (_) {}
+    syncPlayerUidUI();
+    initFriendNetworkPeer();
+    syncAccountBadgeUI();
+    return snap;
+  }
+  async function nucraftLoginAccount(username, password) {
+    const cInfo = await _deriveAccountCrypto(username, password);
+    const env = await _fetchCloudAccountEnvelope(cInfo.accountId);
+    if (!env) {
+      throw new Error('Không tìm thấy tài khoản trên máy chủ hoặc trình duyệt này! Hãy kiểm tra tên hoặc dùng file sao lưu .ncacc.');
+    }
+    const snap = await _decryptAccountEnvelope(cInfo, env);
+    _saveLocalVaultEnvelope(cInfo.accountId, env);
+    _activeAccSession = { ...cInfo, lastSyncAt: snap.savedAt || env.updatedAt || Date.now() };
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: snap.uid || cInfo.username, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
+    await applyAccountSnapshot(snap);
+    syncAccountBadgeUI();
+    return snap;
+  }
+  async function nucraftSyncActiveAccountNow() {
+    if (!_activeAccSession || !_activeAccSession.aesKey) return false;
+    const snap = collectAccountSnapshot(_activeAccSession.username, true);
+    const env = await _encryptAccountEnvelope(_activeAccSession, snap);
+    await _pushCloudAccountEnvelope(_activeAccSession.accountId, env, 'sync');
+    _activeAccSession.lastSyncAt = env.updatedAt;
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: _activeAccSession.username, accountId: _activeAccSession.accountId, lastSyncAt: env.updatedAt })); } catch (_) {}
+    syncAccountBadgeUI();
+    return true;
+  }
+  function scheduleAccountCloudSync() {
+    if (!_activeAccSession || !_activeAccSession.aesKey) return;
+    if (_accSyncTimer) clearTimeout(_accSyncTimer);
+    _accSyncTimer = setTimeout(() => { _accSyncTimer = null; nucraftSyncActiveAccountNow().catch(() => {}); }, 1200);
+  }
+  function nucraftLogoutAccount() {
+    _activeAccSession = null;
+    try { localStorage.removeItem(ACC_ACTIVE_KEY); } catch (_) {}
+    syncAccountBadgeUI();
+  }
+  async function nucraftExportAccountFile() {
+    const uid = _activeAccSession?.username || getLockedPlayerUid() || 'Player';
+    let payloadStr = '';
+    if (_activeAccSession && _activeAccSession.aesKey) {
+      const snap = collectAccountSnapshot(uid, false);
+      const env = await _encryptAccountEnvelope(_activeAccSession, snap);
+      payloadStr = JSON.stringify({ type: 'nucraft_e2ee_account_v1', username: uid, envelope: env });
+    } else {
+      const m = _getLocalVaultMap();
+      const firstEnv = Object.values(m)[0];
+      if (!firstEnv) throw new Error('Hãy đăng ký hoặc đăng nhập tài khoản trước khi xuất file!');
+      payloadStr = JSON.stringify({ type: 'nucraft_e2ee_account_v1', username: uid, envelope: firstEnv });
+    }
+    const blob = new Blob([payloadStr], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `nucraft_${uid}.ncacc`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+  async function nucraftImportAccountFile(jsonText, username, password) {
+    const parsed = JSON.parse(jsonText);
+    const env = (parsed && parsed.envelope) ? parsed.envelope : parsed;
+    const u = username || parsed.username || '';
+    const cInfo = await _deriveAccountCrypto(u, password);
+    const snap = await _decryptAccountEnvelope(cInfo, env);
+    _saveLocalVaultEnvelope(cInfo.accountId, env);
+    _activeAccSession = { ...cInfo, lastSyncAt: snap.savedAt || Date.now() };
+    try { localStorage.setItem(ACC_ACTIVE_KEY, JSON.stringify({ username: snap.uid || cInfo.username, accountId: cInfo.accountId, lastSyncAt: _activeAccSession.lastSyncAt })); } catch (_) {}
+    await applyAccountSnapshot(snap);
+    await _pushCloudAccountEnvelope(cInfo.accountId, env, 'sync');
+    syncAccountBadgeUI();
+    return snap;
+  }
+  window.openProfileModal = openProfileModal;
+  window.switchProfileModalTab = switchProfileModalTab;
+  window.syncAccountBadgeUI = syncAccountBadgeUI;
+  window.nucraftRegisterAccount = nucraftRegisterAccount;
+  window.nucraftLoginAccount = nucraftLoginAccount;
+  window.nucraftSyncActiveAccountNow = nucraftSyncActiveAccountNow;
+  window.scheduleAccountCloudSync = scheduleAccountCloudSync;
+  window.nucraftLogoutAccount = nucraftLogoutAccount;
+  window.nucraftExportAccountFile = nucraftExportAccountFile;
+  window.nucraftImportAccountFile = nucraftImportAccountFile;
 
   function getMySharedWorldPayload() {
     if (document.body.classList.contains('in-lobby') || isWorldLoading || !currentWorldMeta || !currentWorldMeta.shareWithFriends || !activeRoomId) return null;

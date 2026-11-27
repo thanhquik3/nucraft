@@ -63,7 +63,18 @@
         try { localStorage.setItem(CUSTOM_SKINS_STORAGE_KEY, JSON.stringify(PLAYER_SKINS.filter(s => s.isCustom))); } catch (__) {}
       }
     }
+    if (typeof window.scheduleAccountCloudSync === 'function') window.scheduleAccountCloudSync();
   }
+  window.restoreCustomSkinsFromSync = function (customArr) {
+    if (!Array.isArray(customArr)) return;
+    for (let i = PLAYER_SKINS.length - 1; i >= 0; i--) {
+      if (PLAYER_SKINS[i] && PLAYER_SKINS[i].isCustom) PLAYER_SKINS.splice(i, 1);
+    }
+    for (const cs of customArr) {
+      if (cs && cs.id && cs.dataUrl) PLAYER_SKINS.push({ ...cs, isCustom: true });
+    }
+    try { localStorage.setItem(CUSTOM_SKINS_STORAGE_KEY, JSON.stringify(PLAYER_SKINS.filter(s => s.isCustom))); } catch (_) {}
+  };
   loadSavedCustomSkins();
   let selectedSkinId = localStorage.getItem('luanti_skin_id') || PLAYER_SKINS[0].id;
   if (!PLAYER_SKINS.some(s => s.id === selectedSkinId)) selectedSkinId = PLAYER_SKINS[0].id;

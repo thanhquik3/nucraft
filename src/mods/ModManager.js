@@ -266,18 +266,22 @@
     if (typeof renderHotbar === 'function') renderHotbar();
   }
 
-  // Built-in Bare Bones Cartoon Resource Pack: flat graphic 2-tone block clusters + bright trailer colors
+  // Built-in Bare Bones Cartoon Resource Pack: flat graphic 2-tone blocks, solid lush/cherry leaf cubes, & trailer palette
   function applyCartoonBareBonesPack() {
     if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 1.0;
     if (typeof atlasCtx === 'undefined' || typeof atlasCanvas === 'undefined') return 0;
     const cols = typeof ATLAS_COLS !== 'undefined' ? ATLAS_COLS : 8;
     const px = typeof TILE_PX !== 'undefined' ? TILE_PX : 16;
     const terrainTiles = new Set();
+    const leafTiles = new Set();
     if (typeof BLOCK_DEF !== 'undefined') {
       for (let id = 1; id < BLOCK_DEF.length; id++) {
         const d = BLOCK_DEF[id];
         if (!d || d.itemOnly || d.tool || !Array.isArray(d.tiles)) continue;
-        for (const t of d.tiles) if (typeof t === 'number' && t >= 0) terrainTiles.add(t);
+        for (const t of d.tiles) if (typeof t === 'number' && t >= 0) {
+          terrainTiles.add(t);
+          if (d.leaves) leafTiles.add(t);
+        }
         if (typeof d.frontTile === 'number' && d.frontTile >= 0) terrainTiles.add(d.frontTile);
       }
     }
@@ -292,11 +296,21 @@
       atlasCtx.fillStyle = col;
       atlasCtx.fillRect(tx + x, ty + y, w, h);
     };
+    // 1. Clean 4x4 Super-Pixel Bare Bones filter across ALL terrain/foliage tiles (making leaves cute solid 2-tone cubes!)
     const img = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height);
     const d = img.data, W = atlasCanvas.width;
     for (const tIdx of terrainTiles) {
       const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
       if (tx + px > W || ty + px > atlasCanvas.height) continue;
+      const isLeaf = leafTiles.has(tIdx);
+      let tr = 0, tg = 0, tb = 0, tcnt = 0;
+      if (isLeaf) {
+        for (let yy = 0; yy < px; yy++) for (let xx = 0; xx < px; xx++) {
+          const i0 = ((ty + yy) * W + (tx + xx)) * 4;
+          if (d[i0 + 3] > 60) { tr += d[i0]; tg += d[i0 + 1]; tb += d[i0 + 2]; tcnt++; }
+        }
+        if (tcnt > 0) { tr /= tcnt; tg /= tcnt; tb /= tcnt; }
+      }
       for (let by = 0; by < px; by += 4) {
         for (let bx = 0; bx < px; bx += 4) {
           let r = 0, g = 0, b = 0, cnt = 0;
@@ -304,13 +318,27 @@
             const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
             if (d[idx + 3] > 60) { r += d[idx]; g += d[idx + 1]; b += d[idx + 2]; cnt++; }
           }
+          if (isLeaf) {
+            const br = cnt > 0 ? r / cnt : tr, bg = cnt > 0 ? g / cnt : tg, bb = cnt > 0 ? b / cnt : tb;
+            const lum = 0.299 * br + 0.587 * bg + 0.114 * bb;
+            const tone = (((bx >> 2) + (by >> 2)) & 1) ? 1.07 : 0.94;
+            const sat = 1.28;
+            const nr = Math.min(255, Math.max(0, Math.round((lum + (br - lum) * sat) * tone + 8)));
+            const ng = Math.min(255, Math.max(0, Math.round((lum + (bg - lum) * sat) * tone + 8)));
+            const nb = Math.min(255, Math.max(0, Math.round((lum + (bb - lum) * sat) * tone + 6)));
+            for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+              const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+              d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; d[idx + 3] = 255;
+            }
+            continue;
+          }
           if (cnt < 3) continue;
           r /= cnt; g /= cnt; b /= cnt;
           const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const sat = 1.24;
-          const nr = Math.min(255, Math.max(0, Math.round(lum + (r - lum) * sat)));
-          const ng = Math.min(255, Math.max(0, Math.round(lum + (g - lum) * sat)));
-          const nb = Math.min(255, Math.max(0, Math.round(lum + (b - lum) * sat)));
+          const sat = 1.28;
+          const nr = Math.min(255, Math.max(0, Math.round(lum + (r - lum) * sat + 6)));
+          const ng = Math.min(255, Math.max(0, Math.round(lum + (g - lum) * sat + 6)));
+          const nb = Math.min(255, Math.max(0, Math.round(lum + (b - lum) * sat + 5)));
           for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
             const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
             if (d[idx + 3] > 60) { d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; }
@@ -321,33 +349,48 @@
     }
     atlasCtx.putImageData(img, 0, 0);
 
-    fillRectTile(0, '#5ac434');
-    pxTile(0, 2, 2, 4, 4, '#6ad642'); pxTile(0, 10, 8, 4, 4, '#6ad642'); pxTile(0, 4, 11, 3, 2, '#4eb02b');
-    fillRectTile(1, '#9c6844');
-    pxTile(1, 0, 0, 16, 4, '#5ac434');
-    pxTile(1, 0, 4, 4, 2, '#5ac434'); pxTile(1, 8, 4, 4, 2, '#5ac434'); pxTile(1, 14, 4, 2, 1, '#5ac434');
-    pxTile(1, 2, 9, 4, 3, '#8c5a38'); pxTile(1, 10, 11, 4, 3, '#8c5a38');
-    fillRectTile(2, '#9c6844');
-    pxTile(2, 2, 2, 5, 4, '#8c5a38'); pxTile(2, 9, 9, 5, 4, '#8c5a38'); pxTile(2, 11, 3, 3, 3, '#ab7650');
-    fillRectTile(3, '#949ca8');
-    pxTile(3, 1, 2, 6, 4, '#858d99'); pxTile(3, 8, 8, 6, 5, '#858d99'); pxTile(3, 9, 2, 4, 3, '#a4adb9');
-    fillRectTile(8, '#c89656');
-    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#a87840');
-    pxTile(8, 2, 1, 6, 2, '#d4a364'); pxTile(8, 9, 9, 5, 2, '#d4a364');
-    const paintFlatLeaves = (tIdx, c1, c2) => {
-      const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
-      const tImg = atlasCtx.getImageData(tx, ty, px, px), td = tImg.data;
-      for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
-        const idx = (y * px + x) * 4;
-        if (td[idx + 3] < 40) continue;
-        const pick = (((x >> 2) + (y >> 2)) & 1) ? c2 : c1;
-        td[idx] = pick[0]; td[idx + 1] = pick[1]; td[idx + 2] = pick[2];
-      }
-      atlasCtx.putImageData(tImg, tx, ty);
+    // 2. Signature Bare Bones Trailer Hero Overlays (matching reference screenshots 100%)
+    fillRectTile(0, '#59d130');
+    pxTile(0, 2, 2, 4, 4, '#6be040'); pxTile(0, 10, 8, 4, 4, '#6be040'); pxTile(0, 4, 11, 3, 2, '#4bc228');
+    fillRectTile(1, '#c98842');
+    pxTile(1, 0, 0, 16, 4, '#59d130');
+    pxTile(1, 0, 4, 4, 2, '#59d130'); pxTile(1, 8, 4, 4, 2, '#59d130'); pxTile(1, 14, 4, 2, 1, '#59d130');
+    pxTile(1, 2, 9, 4, 3, '#b57434'); pxTile(1, 10, 11, 4, 3, '#b57434');
+    fillRectTile(2, '#c98842');
+    pxTile(2, 2, 2, 5, 4, '#b57434'); pxTile(2, 9, 9, 5, 4, '#b57434'); pxTile(2, 11, 3, 3, 3, '#d69852');
+    fillRectTile(3, '#8c95a3');
+    pxTile(3, 1, 2, 6, 4, '#7d8694'); pxTile(3, 8, 8, 6, 5, '#7d8694'); pxTile(3, 9, 2, 4, 3, '#9da6b5');
+    fillRectTile(33, '#929ca8');
+    pxTile(33, 0, 7, 16, 1, '#79838f'); pxTile(33, 0, 15, 16, 1, '#79838f');
+    pxTile(33, 7, 0, 1, 7, '#79838f'); pxTile(33, 15, 8, 1, 7, '#79838f');
+    fillRectTile(4, '#e2ba78');
+    pxTile(4, 0, 0, 16, 2, '#754b28'); pxTile(4, 0, 14, 16, 2, '#754b28');
+    pxTile(4, 0, 0, 2, 16, '#754b28'); pxTile(4, 14, 0, 2, 16, '#754b28');
+    pxTile(4, 5, 5, 6, 6, '#cda05e');
+    fillRectTile(5, '#754b28');
+    pxTile(5, 2, 0, 3, 16, '#633d1f'); pxTile(5, 9, 0, 3, 16, '#633d1f'); pxTile(5, 6, 0, 2, 16, '#875a33');
+    fillRectTile(6, '#4cc42d');
+    pxTile(6, 0, 0, 4, 4, '#60d63d'); pxTile(6, 8, 4, 4, 4, '#60d63d'); pxTile(6, 4, 10, 4, 4, '#3da822'); pxTile(6, 12, 12, 4, 4, '#60d63d');
+    fillRectTile(13, '#2e8c36');
+    pxTile(13, 0, 0, 4, 4, '#3ba644'); pxTile(13, 8, 6, 4, 4, '#3ba644'); pxTile(13, 4, 12, 4, 4, '#24732b');
+    fillRectTile(15, '#ff9ec9');
+    pxTile(15, 0, 0, 4, 4, '#ffb3d6'); pxTile(15, 8, 4, 4, 4, '#ffb3d6');
+    pxTile(15, 4, 10, 4, 4, '#f07eb3'); pxTile(15, 12, 12, 4, 4, '#ffb3d6');
+    pxTile(15, 12, 0, 4, 4, '#f07eb3'); pxTile(15, 0, 8, 4, 4, '#f48cbe');
+    fillRectTile(16, '#f4efe6');
+    pxTile(16, 2, 3, 5, 2, '#4a4e54'); pxTile(16, 10, 7, 4, 2, '#4a4e54'); pxTile(16, 3, 12, 6, 2, '#4a4e54');
+    fillRectTile(7, '#f5df8c'); pxTile(7, 3, 3, 5, 3, '#ebd078'); pxTile(7, 9, 10, 5, 3, '#ebd078');
+    fillRectTile(8, '#d6a15c');
+    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#b57f3d');
+    pxTile(8, 2, 1, 6, 2, '#e2b06b'); pxTile(8, 9, 9, 5, 2, '#e2b06b');
+    fillRectTile(9, '#f4f9ff'); pxTile(9, 2, 3, 5, 3, '#dceeff'); pxTile(9, 10, 10, 4, 3, '#dceeff');
+    const drawOre = (tIdx, gem) => {
+      fillRectTile(tIdx, '#8c95a3');
+      pxTile(tIdx, 3, 3, 3, 3, gem); pxTile(tIdx, 10, 4, 3, 2, gem);
+      pxTile(tIdx, 4, 10, 3, 3, gem); pxTile(tIdx, 9, 10, 4, 3, gem);
     };
-    paintFlatLeaves(6,  [84, 198, 48],  [104, 218, 64]);
-    paintFlatLeaves(13, [54, 152, 46],  [70, 174, 60]);
-    paintFlatLeaves(15, [252, 165, 206],[255, 196, 224]);
+    drawOre(20, '#facc15'); drawOre(24, '#272a30'); drawOre(25, '#f2cdb0');
+    drawOre(26, '#38e8ff'); drawOre(158, '#eb7d44'); drawOre(160, '#22e564');
     return painted;
   }
 
@@ -560,7 +603,69 @@
     }
     refreshWorldVisualsAfterMods();
     renderModManagerList();
+    const cartoonActive = _installedMods.some(m => m.id === 'builtin_cartoon_barebones' && m.enabled);
+    if (typeof window.syncCartoonExclusiveShaderUI === 'function') window.syncCartoonExclusiveShaderUI(cartoonActive);
+    if (!_isImportingAccountMods && typeof window.scheduleAccountCloudSync === 'function') window.scheduleAccountCloudSync();
   }
+  let _isImportingAccountMods = false;
+  function _u8ToB64(u8) {
+    let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+  function _b64ToU8(b64) {
+    const bin = atob(b64); const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  window.exportModsForAccountSync = () => _installedMods.map(m => {
+    if (m.format === 'builtin-cartoon') {
+      return { id: m.id, name: m.name, format: m.format, description: m.description, enabled: !!m.enabled, size: m.size || 4096, installedAt: m.installedAt || 0 };
+    }
+    const base = { id: m.id, name: m.name, fileName: m.fileName, version: m.version, format: m.format, description: m.description, enabled: !!m.enabled, size: m.size || 0, installedAt: m.installedAt || 0 };
+    if (typeof m.data === 'string' && m.data.length <= 48000) base.dataStr = m.data;
+    else if (m.data instanceof Uint8Array && m.data.byteLength <= 36000) base.dataB64 = _u8ToB64(m.data);
+    else base.oversized = true;
+    return base;
+  });
+  window.importModsFromAccountSync = async (arr) => {
+    if (!Array.isArray(arr)) return;
+    _isImportingAccountMods = true;
+    try {
+      const curIds = _installedMods.map(m => m.id);
+      for (const id of curIds) if (id !== 'builtin_cartoon_barebones') await dbDeleteMod(id);
+      const next = [];
+      let cartoonEnabled = false;
+      for (const item of arr) {
+        if (!item || !item.id) continue;
+        if (item.id === 'builtin_cartoon_barebones') { cartoonEnabled = !!item.enabled; continue; }
+        const rec = {
+          id: item.id, name: item.name || 'Mod', fileName: item.fileName || '', version: item.version || '1.0',
+          format: item.format || 'nucraft-json', description: item.description || '', enabled: !!item.enabled,
+          size: item.size || 0, installedAt: item.installedAt || Date.now(), runtimeNote: '', warnings: [],
+          data: item.dataStr !== undefined ? item.dataStr : (item.dataB64 ? _b64ToU8(item.dataB64) : undefined)
+        };
+        if (rec.data === undefined) { rec.enabled = false; rec.runtimeNote = '⚠️ File >48KB cần cài lại thủ công trên thiết bị mới'; }
+        next.push(rec);
+        await dbPutMod(rec);
+      }
+      const defC = _installedMods.find(m => m.id === 'builtin_cartoon_barebones') || {
+        id: 'builtin_cartoon_barebones',
+        name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
+        format: 'builtin-cartoon',
+        description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+        size: 4096,
+        enabled: false,
+        installedAt: Date.now() - 1000
+      };
+      defC.enabled = cartoonEnabled;
+      next.unshift(defC);
+      await dbPutMod(defC);
+      _installedMods = next;
+      await applyAllEnabledMods();
+    } finally {
+      _isImportingAccountMods = false;
+    }
+  };
 
   function _escMod(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

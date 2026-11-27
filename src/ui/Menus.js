@@ -185,7 +185,7 @@
           spawnedDragonNests.add(nr.idx);
           spawnMobOfType(nr.el + '_dragon', nr.x + 0.5, nr.y + 8.5, nr.z - 4.0);
         }
-        if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+        if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
         dayTime = 0.34;
         if (!isWorldLoading) startPlaying();
         showToast('🌋 Đã tới Tổ Rồng Nguyên Tố! Khai thác Quặng Tinh Thể Rồng bằng Cúp Sắt+ & nhặt Trứng Rồng!');
@@ -212,7 +212,7 @@
       player.yaw = 0.0; player.pitch = 0.08;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = 15.2;
       lastPlayerCx = 99999; lastPlayerCz = 99999;
-      if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.30;
       if (!isWorldLoading) startPlaying();
       showToast('🏛️ Chào mừng tới Khu Tàn Tích Cổ Đại 1000×1000 & Đền Cổng The End! Đặt đủ 12 Mắt Ender để mở cổng!');
@@ -239,7 +239,7 @@
       lastPlayerCx = 99999; lastPlayerCz = 99999;
       spawnMobOfType('ruin_stalker', tx + 5.5, 3.2, tz - 10.5);
       spawnMobOfType('gargoyle', tx - 4.0, 14.5, tz - 14.0);
-      if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.31;
       if (!isWorldLoading) startPlaying();
       return;
@@ -1788,6 +1788,7 @@ function syncTitleAvatarFace() {
         ...serializeChestData()
       });
       localStorage.setItem(WORLDS_KEY, JSON.stringify(list.slice(0, 8)));
+      if (typeof window.scheduleAccountCloudSync === 'function') window.scheduleAccountCloudSync();
     } catch (_) {}
   }
 
@@ -1891,7 +1892,7 @@ function renderSavedWorldsList() {
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(pcx + dx, pcz + dz);
     if (!isWorldLoading) { for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch); }
-    applyShaderPreset(shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse'));
+    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse')));
     renderHotbar(); renderStatusBars(); renderXpBar(); renderEquipmentUI();
       document.getElementById('lobbyScreen').classList.add('hidden');
       if (!isWorldLoading) startPlaying();
@@ -1954,7 +1955,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     resetWorld(seedNum, { deferSpawnChunks: true });
     document.getElementById('lobbyScreen').classList.add('hidden');
     document.body.classList.remove('in-lobby');
-    applyShaderPreset(shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse'));
+    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse')));
     try { teleportToScenicBiome(chosenBiome, { preserveShader: true }); } catch (err) { console.error('Biome teleport error:', err); }
     window._worldSpawnPos = { x: player.x, y: player.y, z: player.z, yaw: player.yaw };
     if (currentDimension === 'overworld') {
@@ -2059,6 +2060,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     if (!PLAYER_SKINS.some(s => s.id === skinId) && skinId !== 'custom') skinId = PLAYER_SKINS[0].id;
     selectedSkinId = skinId;
     try { if (skinId !== 'custom') localStorage.setItem('luanti_skin_id', skinId); } catch (_) {}
+    if (typeof window.scheduleAccountCloudSync === 'function') window.scheduleAccountCloudSync();
     applySkinToRig(playerAvatar, skinId);
     if (skinPreviewRig) applySkinToRig(skinPreviewRig, skinId);
     if (titleSkinRig) applySkinToRig(titleSkinRig, skinId);
@@ -3107,10 +3109,105 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
       mm?.classList.add('pause-mode');
     }
   });
-  document.getElementById('btnTitleProfile')?.addEventListener('click', () => { ensureAudio(); openProfileModal(); });
-  document.getElementById('pauseBtnProfile')?.addEventListener('click', () => { ensureAudio(); openProfileModal(); });
+  document.getElementById('btnTitleProfile')?.addEventListener('click', () => { ensureAudio(); openProfileModal('uid'); });
+  document.getElementById('pauseBtnProfile')?.addEventListener('click', () => { ensureAudio(); openProfileModal('uid'); });
   document.getElementById('btnCloseProfile')?.addEventListener('click', closeProfileModal);
   document.getElementById('btnCancelProfile')?.addEventListener('click', closeProfileModal);
+  document.getElementById('btnProfTabUid')?.addEventListener('click', () => { ensureAudio(); window.switchProfileModalTab?.('uid'); });
+  document.getElementById('btnProfTabAuth')?.addEventListener('click', () => { ensureAudio(); window.switchProfileModalTab?.('auth'); });
+  document.getElementById('btnProfileGoAuth')?.addEventListener('click', () => { ensureAudio(); window.switchProfileModalTab?.('auth'); });
+  document.getElementById('btnProfileSyncNow')?.addEventListener('click', async () => {
+    ensureAudio();
+    try {
+      const ok = await window.nucraftSyncActiveAccountNow?.();
+      showToast(ok ? '☁️ Đã đồng bộ tài khoản (Skin, Map, Add-on & Bạn bè)!' : '⚠️ Vui lòng đăng nhập lại để đồng bộ.');
+    } catch (err) {
+      showToast('⚠️ ' + (err.message || err));
+    }
+  });
+  document.getElementById('btnProfileLogout')?.addEventListener('click', () => {
+    ensureAudio();
+    window.nucraftLogoutAccount?.();
+    showToast('🚪 Đã đăng xuất phiên tài khoản.');
+  });
+  let _authModeReg = false;
+  const _setAuthMode = (isReg) => {
+    _authModeReg = !!isReg;
+    document.getElementById('btnAuthModeLogin')?.classList.toggle('active', !_authModeReg);
+    document.getElementById('btnAuthModeRegister')?.classList.toggle('active', _authModeReg);
+    document.getElementById('authConfirmWrap')?.classList.toggle('hidden', !_authModeReg);
+    const sub = document.getElementById('btnAuthSubmit');
+    if (sub) sub.textContent = _authModeReg ? '✨ Tạo tài khoản & Lưu ngay' : '▶ Đăng nhập & Tải dữ liệu';
+    const st = document.getElementById('authStatusMsg');
+    if (st) st.textContent = '';
+  };
+  document.getElementById('btnAuthModeLogin')?.addEventListener('click', () => { ensureAudio(); _setAuthMode(false); });
+  document.getElementById('btnAuthModeRegister')?.addEventListener('click', () => { ensureAudio(); _setAuthMode(true); });
+  document.getElementById('btnToggleAuthPass')?.addEventListener('click', () => {
+    const p1 = document.getElementById('inpAuthPass');
+    const p2 = document.getElementById('inpAuthPass2');
+    const nextType = (p1 && p1.type === 'password') ? 'text' : 'password';
+    if (p1) p1.type = nextType;
+    if (p2) p2.type = nextType;
+  });
+  const _runAuthSubmit = async () => {
+    const u = document.getElementById('inpAuthUser')?.value || '';
+    const p1 = document.getElementById('inpAuthPass')?.value || '';
+    const p2 = document.getElementById('inpAuthPass2')?.value || '';
+    const st = document.getElementById('authStatusMsg');
+    const btn = document.getElementById('btnAuthSubmit');
+    if (btn) btn.disabled = true;
+    if (st) { st.style.color = '#fde047'; st.textContent = _authModeReg ? '⏳ Đang mã hóa & tạo tài khoản...' : '⏳ Đang xác thực & tải dữ liệu...'; }
+    try {
+      const snap = _authModeReg
+        ? await window.nucraftRegisterAccount(u, p1, p2)
+        : await window.nucraftLoginAccount(u, p1);
+      if (st) {
+        st.style.color = '#4ade80';
+        const wCnt = Array.isArray(snap?.worlds) ? snap.worlds.length : 0;
+        const fCnt = Array.isArray(snap?.friends) ? snap.friends.length : 0;
+        const aCnt = Array.isArray(snap?.addons) ? snap.addons.filter(x => x && x.enabled).length : 0;
+        st.textContent = _authModeReg
+          ? `✅ Tạo tài khoản @${snap.uid} thành công! (${wCnt} map, ${fCnt} bạn bè, ${aCnt} add-on đã lưu)`
+          : `✅ Đăng nhập @${snap.uid} thành công! Đã nạp Skin, ${wCnt} map, ${aCnt} add-on & ${fCnt} bạn bè!`;
+      }
+      showToast(_authModeReg ? `✅ Đã tạo tài khoản @${snap.uid}!` : `✅ Chào mừng @${snap.uid} trở lại!`);
+    } catch (err) {
+      if (st) { st.style.color = '#fca5a5'; st.textContent = '⚠️ ' + (err?.message || err); }
+      showToast('⚠️ ' + (err?.message || err));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  document.getElementById('btnAuthSubmit')?.addEventListener('click', () => { ensureAudio(); _runAuthSubmit(); });
+  document.getElementById('inpAuthPass')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !_authModeReg) _runAuthSubmit(); });
+  document.getElementById('inpAuthPass2')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && _authModeReg) _runAuthSubmit(); });
+  document.getElementById('btnAuthExport')?.addEventListener('click', async () => {
+    ensureAudio();
+    try { await window.nucraftExportAccountFile(); showToast('💾 Đã tải xuống file sao lưu .ncacc!'); }
+    catch (err) { showToast('⚠️ ' + (err?.message || err)); }
+  });
+  document.getElementById('btnAuthImport')?.addEventListener('click', () => {
+    ensureAudio();
+    document.getElementById('inpAuthImportFile')?.click();
+  });
+  document.getElementById('inpAuthImportFile')?.addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const u = document.getElementById('inpAuthUser')?.value || '';
+    const p1 = document.getElementById('inpAuthPass')?.value || '';
+    const st = document.getElementById('authStatusMsg');
+    try {
+      const txt = await f.text();
+      const snap = await window.nucraftImportAccountFile(txt, u, p1);
+      if (st) { st.style.color = '#4ade80'; st.textContent = `✅ Đã khôi phục @${snap.uid} từ file sao lưu!`; }
+      showToast(`✅ Đã khôi phục tài khoản @${snap.uid}!`);
+    } catch (err) {
+      if (st) { st.style.color = '#fca5a5'; st.textContent = '⚠️ ' + (err?.message || err); }
+      showToast('⚠️ ' + (err?.message || err));
+    }
+  });
   document.getElementById('btnSaveProfileUid')?.addEventListener('click', () => {
     const raw = document.getElementById('inpProfileUid')?.value || '';
     const res = setLockedPlayerUidOnce(raw);

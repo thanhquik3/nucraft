@@ -185,21 +185,71 @@
     </div>
   </div>
 
-  <!-- v45: Hộp thoại Hồ Sơ & Đặt Tên UID Vĩnh Viễn (Chỉ đặt 1 lần!) -->
+  <!-- v45/v157: Hộp thoại Hồ Sơ UID & Tài khoản Mật khẩu Đồng Bộ Chéo Thiết Bị (Chuẩn Minecraft Ore UI) -->
   <div class="ore-dialog-backdrop hidden" id="profileModal">
-    <div class="ore-dialog-box" style="width:min(440px, 94vw);">
+    <div class="ore-dialog-box" style="width:min(490px, 95vw);">
       <div class="ore-dialog-head">
         <div style="width:26px;"></div>
-        <div class="ore-dialog-title">Hồ sơ người chơi (UID)</div>
+        <div class="ore-dialog-title">Hồ sơ &amp; Tài khoản (UID)</div>
         <button class="ore-dialog-close" id="btnCloseProfile" title="Đóng">×</button>
       </div>
-      <div class="ore-dialog-body" style="min-height:120px;gap:10px;padding:12px;">
-        <div style="color:#ffffff;font-family:var(--font-pixel);font-size:12px;" id="profileUidStatus">
-          Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):
+      <div class="ore-dialog-body" style="min-height:160px;gap:10px;padding:12px;">
+        <div class="seg-group" id="profileModalTabs" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button class="seg-btn active" id="btnProfTabUid" type="button">👤 Hồ sơ &amp; UID</button>
+          <button class="seg-btn" id="btnProfTabAuth" type="button">🔐 Tài khoản &amp; Đăng nhập</button>
         </div>
-        <input id="inpProfileUid" class="mc-input" type="text" maxlength="18" placeholder="VD: Banhbeomegame" />
-        <div id="profileUidHint" style="color:#e5e7eb;font-size:13px;line-height:1.48;text-shadow:0 1px 1px #000;">
-          Tên UID hiển thị trên đầu nhân vật ngoài sảnh và dùng để bạn bè tìm kiếm, kết bạn và vào thế giới của bạn.
+
+        <div id="profPaneUid" style="display:flex;flex-direction:column;gap:9px;">
+          <div id="profileAccSummary" style="background:rgba(15,23,42,0.72);border:2px solid #475569;padding:8px 10px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <div id="profileAccBadge" style="color:#facc15;font-family:var(--font-pixel);font-size:12px;">Chưa đăng nhập tài khoản đồng bộ</div>
+              <div id="profileAccSub" style="color:#cbd5e1;font-size:11px;">Đăng nhập để mang Skin, Map, Add-on &amp; Bạn bè sang máy/trình duyệt khác</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <button class="mc-btn mc-btn-green" id="btnProfileGoAuth" type="button" style="padding:4px 8px;font-size:11px;">🔐 Đăng nhập / Tạo acc</button>
+              <button class="mc-btn hidden" id="btnProfileSyncNow" type="button" style="padding:4px 8px;font-size:11px;">🔄 Đồng bộ ngay</button>
+              <button class="mc-btn mc-btn-red hidden" id="btnProfileLogout" type="button" style="padding:4px 8px;font-size:11px;">🚪 Đăng xuất</button>
+            </div>
+          </div>
+          <div style="color:#ffffff;font-family:var(--font-pixel);font-size:12px;" id="profileUidStatus">
+            Đặt tên UID của bạn (chỉ nhập 1 lần duy nhất, không thể thay đổi sau khi lưu):
+          </div>
+          <input id="inpProfileUid" class="mc-input" type="text" maxlength="18" placeholder="VD: Banhbeomegame" />
+          <div id="profileUidHint" style="color:#e5e7eb;font-size:13px;line-height:1.48;text-shadow:0 1px 1px #000;">
+            Tên UID hiển thị trên đầu nhân vật ngoài sảnh và dùng để bạn bè tìm kiếm, kết bạn và vào thế giới của bạn.
+          </div>
+        </div>
+
+        <div id="profPaneAuth" class="hidden" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="seg-group" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <button class="seg-btn active" id="btnAuthModeLogin" type="button">🔑 Đăng nhập</button>
+            <button class="seg-btn" id="btnAuthModeRegister" type="button">✨ Tạo tài khoản mới</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label for="inpAuthUser" style="color:#e2e8f0;font-size:12px;font-weight:700;">Tên tài khoản (UID 3–18 ký tự: chữ, số, _)</label>
+            <input id="inpAuthUser" class="mc-input" type="text" maxlength="18" autocomplete="username" placeholder="VD: SteveVN_2026" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label for="inpAuthPass" style="color:#e2e8f0;font-size:12px;font-weight:700;">Mật khẩu (tối thiểu 6 ký tự)</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="inpAuthPass" class="mc-input" type="password" maxlength="64" autocomplete="current-password" placeholder="Nhập mật khẩu..." style="flex:1;" />
+              <button class="mc-btn" id="btnToggleAuthPass" type="button" title="Hiện/Ẩn mật khẩu" style="min-width:42px;padding:7px 8px;">👁️</button>
+            </div>
+          </div>
+          <div id="authConfirmWrap" class="hidden" style="display:flex;flex-direction:column;gap:4px;">
+            <label for="inpAuthPass2" style="color:#e2e8f0;font-size:12px;font-weight:700;">Nhập lại mật khẩu</label>
+            <input id="inpAuthPass2" class="mc-input" type="password" maxlength="64" autocomplete="new-password" placeholder="Xác nhận mật khẩu..." />
+          </div>
+          <button class="mc-btn mc-btn-green" id="btnAuthSubmit" type="button" style="width:100%;padding:9px 12px;font-size:13px;">▶ Đăng nhập &amp; Tải dữ liệu</button>
+          <div id="authStatusMsg" style="color:#fde047;font-size:12px;min-height:16px;line-height:1.4;text-shadow:0 1px 1px #000;"></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;border-top:1px solid rgba(148,163,184,0.35);padding-top:7px;">
+            <button class="mc-btn" id="btnAuthExport" type="button" style="flex:1;padding:5px 8px;font-size:11px;">💾 Xuất file sao lưu (.ncacc)</button>
+            <button class="mc-btn" id="btnAuthImport" type="button" style="flex:1;padding:5px 8px;font-size:11px;">📂 Nhập file sao lưu (.ncacc)</button>
+            <input id="inpAuthImportFile" type="file" accept=".ncacc,.json" style="display:none;" />
+          </div>
+          <div style="background:rgba(15,23,42,0.75);border:1px solid #475569;padding:6px 8px;color:#cbd5e1;font-size:11px;line-height:1.4;">
+            🛡️ Tài khoản NUCRAFT Fanmade (mã hóa AES-256-GCM đầu cuối trên trình duyệt). <b>KHÔNG</b> nhập mật khẩu Microsoft/Minecraft chính thức hoặc ngân hàng.
+          </div>
         </div>
       </div>
       <div class="ore-dialog-foot" style="grid-template-columns:1fr 1fr;">
@@ -847,6 +897,7 @@
                       <button class="seg-btn" data-lshader="verdant_fresh" type="button">🌿 Xanh Tươi Mát</button>
                       <button class="seg-btn" data-lshader="moonlit" type="button">Ánh Trăng</button>
                       <button class="seg-btn" data-lshader="dlss_ultra" type="button">✨ DLSS Siêu Thực</button>
+                      <button class="seg-btn seg-btn-cartoon hidden" data-lshader="cartoon_barebones" type="button">🎨 Cartoon Trailer Shader</button>
                     </div>
                     <div class="ore-setting-desc">Thay đổi bầu trời, ánh nắng và sắc thái mây 3D khi bước vào thế giới.</div>
                     <!-- Preserved hidden legacy controls -->
@@ -1315,6 +1366,7 @@
                   <button class="seg-btn" data-preset="verdant_fresh" type="button">🌿 Xanh Tươi Mát</button>
                   <button class="seg-btn" data-preset="moonlit" type="button">Đêm Trăng</button>
                   <button class="seg-btn" data-preset="dlss_ultra" type="button">✨ DLSS Siêu Thực</button>
+                  <button class="seg-btn seg-btn-cartoon hidden" data-preset="cartoon_barebones" type="button">🎨 Cartoon Trailer Shader</button>
                 </div>
               </div>
               <div class="mcd-row" data-title="RAY TRACING (DÒ TIA THỜI GIAN THỰC)" data-desc="Dò tia voxel 3D thời gian thực trên GPU: bóng đổ tiếp xúc & xuyên tán lá, ánh sáng gián tiếp đa phản xạ (GI Color Bleeding), phản chiếu gương trên nước ở mọi độ cao, băng, kính, kim loại & khử nhiễu mượt mà." data-def="TẮT">

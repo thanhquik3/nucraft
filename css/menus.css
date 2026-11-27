@@ -5578,4 +5578,26 @@ body.survival-locked-mobs #gmPaneMobs .gm-btn-grid {
   pointer-events: none;
   filter: grayscale(0.45);
 }
+.hidden,
+[hidden],
+#profPaneUid.hidden,
+#profPaneAuth.hidden,
+#authConfirmWrap.hidden,
+#btnProfileSyncNow.hidden,
+#btnProfileLogout.hidden,
+#lobbyScreen #lobbyShaderSeg .seg-btn.hidden,
+#menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.hidden {
+  display: none !important;
+}
+#lobbyScreen #lobbyShaderSeg .seg-btn.seg-btn-cartoon:not(.hidden),
+#menuModal:not(.pause-mode):not(.hidden) .gm-content #presetSeg .seg-btn.seg-btn-cartoon:not(.hidden) {
+  grid-column: 1 / -1 !important;
+  background: linear-gradient(180deg, #1d86d8, #12589a) !important;
+  color: #ffffff !important;
+  border-color: #1e1e1f !important;
+  font-weight: 800;
+}
+#profileModal .ore-dialog-body {
+  max-height: min(68vh, 470px);
+}
 

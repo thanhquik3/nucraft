@@ -39,6 +39,35 @@ const rooms = new Map();
 const allWsPeers = new Set();
 const uidPeers = new Map(); // uidKey -> Set<peer>
 const friendMailbox = new Map(); // uidKey -> Array<payload> (offline LAN friend queue)
+const ACCOUNT_VAULT_FILE = path.join(__dirname, '.nucraft_accounts.json');
+const accountVault = new Map(); // accountId -> opaque E2EE envelope { v, accountId, verifier, iv, ct, updatedAt }
+let _accLoaded = false, _accSaveTimer = null;
+function loadAccountVault() {
+  if (_accLoaded) return;
+  _accLoaded = true;
+  try {
+    if (!fs.existsSync(ACCOUNT_VAULT_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(ACCOUNT_VAULT_FILE, 'utf8'));
+    if (raw && typeof raw === 'object') {
+      for (const [k, v] of Object.entries(raw)) {
+        if (/^[a-f0-9]{16,64}$/.test(k) && v && typeof v.ct === 'string' && typeof v.verifier === 'string') {
+          accountVault.set(k, v);
+        }
+      }
+    }
+  } catch (_) {}
+}
+function persistAccountVaultSoon() {
+  if (_accSaveTimer) clearTimeout(_accSaveTimer);
+  _accSaveTimer = setTimeout(() => {
+    _accSaveTimer = null;
+    try {
+      const obj = {};
+      for (const [k, v] of accountVault.entries()) obj[k] = v;
+      fs.writeFile(ACCOUNT_VAULT_FILE, JSON.stringify(obj), () => {});
+    } catch (_) {}
+  }, 250);
+}
 const PEER_COLORS = ['#38bdf8', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#c084fc', '#2dd4bf', '#f87171'];
 
 function sanitizeUidKey(uid) {
@@ -591,6 +620,58 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/api/rooms') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ ok: true, rooms: getAllRoomsSummary() }));
+    return;
+  }
+  if (urlPath.startsWith('/api/account/')) {
+    loadAccountVault();
+    const sendApiJson = (code, obj) => {
+      res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(obj));
+    };
+    if (req.method === 'GET') {
+      const id = urlPath.slice('/api/account/'.length).trim().toLowerCase();
+      if (!/^[a-f0-9]{16,64}$/.test(id)) { sendApiJson(400, { ok: false, code: 'BAD_ID' }); return; }
+      const env = accountVault.get(id) || null;
+      sendApiJson(200, env ? { ok: true, found: true, envelope: env } : { ok: true, found: false });
+      return;
+    }
+    if (req.method === 'POST' && urlPath === '/api/account/save') {
+      let body = '', tooBig = false;
+      req.on('data', (chunk) => {
+        if (tooBig) return;
+        body += chunk;
+        if (body.length > 524288) { tooBig = true; sendApiJson(413, { ok: false, code: 'TOO_LARGE' }); req.destroy(); }
+      });
+      req.on('end', () => {
+        if (tooBig) return;
+        try {
+          const parsed = JSON.parse(body || '{}');
+          const id = String(parsed.accountId || '').toLowerCase();
+          const env = parsed.envelope;
+          if (!/^[a-f0-9]{16,64}$/.test(id) || !env || typeof env.verifier !== 'string' || typeof env.iv !== 'string' || typeof env.ct !== 'string' || typeof env.updatedAt !== 'number') {
+            sendApiJson(400, { ok: false, code: 'INVALID_ENVELOPE' }); return;
+          }
+          const existing = accountVault.get(id);
+          if (parsed.mode === 'register' && existing) {
+            sendApiJson(409, { ok: false, code: 'EXISTS' }); return;
+          }
+          if (existing && existing.verifier !== env.verifier) {
+            sendApiJson(403, { ok: false, code: 'WRONG_PASSWORD' }); return;
+          }
+          if (accountVault.size > 4000 && !existing) accountVault.delete(accountVault.keys().next().value);
+          accountVault.set(id, {
+            v: 1, accountId: id, verifier: env.verifier.slice(0, 128),
+            iv: env.iv.slice(0, 64), ct: env.ct, updatedAt: env.updatedAt
+          });
+          persistAccountVaultSoon();
+          sendApiJson(200, { ok: true, savedAt: env.updatedAt });
+        } catch (_) {
+          sendApiJson(400, { ok: false, code: 'BAD_JSON' });
+        }
+      });
+      return;
+    }
+    sendApiJson(405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
     return;
   }
   const rel = urlPath === '/' ? DEFAULT_HTML : urlPath.replace(/^\/+/, '');

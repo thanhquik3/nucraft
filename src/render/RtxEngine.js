@@ -44,7 +44,7 @@
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = (shaderQuality !== 'low');
-  const _useDirectRender = () => ((shaderQuality === 'low' || (shaderQuality === 'high' && (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false))) && !(typeof sodiumOpts !== 'undefined' && (sodiumOpts.rayTracing || (sodiumOpts.frameGen | 0) > 1)));
+  const _useDirectRender = () => ((shaderQuality === 'low' || !!window._cartoonAddonActive || (shaderQuality === 'high' && (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false))) && !(typeof sodiumOpts !== 'undefined' && (sodiumOpts.rayTracing || (sodiumOpts.frameGen | 0) > 1)));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.96 : 0.74;
   renderer.setClearColor(0x9bc4e8, 1);
@@ -499,7 +499,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v74';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v75';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -510,14 +510,15 @@
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
       uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
       uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
-      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality
+      uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
+      uCartoonMode: envUniforms.uCartoonMode
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNorm = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing;
+        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
         ${RT_DDA_GLSL}
@@ -563,8 +564,15 @@
         }
         float upW = clamp(vWNorm.y, 0.0, 1.0);
         float shoreWet = smoothstep(1.35, 0.72, vWPos.y) * smoothstep(-3.0, 0.0, vWPos.y);
-        float wetAmt = clamp(max(shoreWet, uRainWetness * upW * 0.85), 0.0, 1.0);
-        diffuseColor.rgb *= mix(1.0, 0.86, wetAmt);`)
+        float wetAmt = clamp(max(shoreWet, uRainWetness * upW * 0.85), 0.0, 1.0) * (1.0 - uCartoonMode);
+        diffuseColor.rgb *= mix(1.0, 0.86, wetAmt);
+        if (uCartoonMode > 0.5) {
+          float mx = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b));
+          float mn = min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
+          float sat = mx - mn;
+          vec3 boosted = mix(vec3((diffuseColor.r + diffuseColor.g + diffuseColor.b) * 0.3333), diffuseColor.rgb, 1.16);
+          diffuseColor.rgb = clamp(mix(boosted, boosted * (1.04 + upW * 0.06), sat > 0.02 ? 1.0 : 0.4), 0.0, 1.0);
+        }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         float upR = clamp(vWNorm.y, 0.0, 1.0);
         float wetR = clamp(max(smoothstep(1.35, 0.72, vWPos.y), uRainWetness * upR * 0.9), 0.0, 1.0);
@@ -1149,13 +1157,13 @@
       uSunColor: envUniforms.uSunColor, uTime: envUniforms.uTime,
       uCloudCover: envUniforms.uCloudCover, uVolumetricClouds: envUniforms.uVolumetricClouds,
       uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth,
-      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode
+      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uCartoonMode: envUniforms.uCartoonMode
     },
     vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * (modelViewMatrix * vec4(position, 1.0)); }`,
     fragmentShader: `
       precision mediump float;
       uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor, uFogColor;
-      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode;
+      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode, uCartoonMode;
       varying vec3 vDir;
       float cHash(vec2 p) { return fract(sin(dot(mod(p, 289.0), vec2(127.1, 311.7))) * 43758.5453); }
       float cNoise(vec2 p) {
@@ -1274,6 +1282,23 @@
           float overheadGlow = pow(max(d.y, 0.0), 3.2) * exp(-uWaterDepth * 0.045) * sunUpW;
           colUW += vec3(0.14, 0.46, 0.62) * overheadGlow * (1.0 - abyssS * 0.65);
           gl_FragColor = vec4(colUW, 1.0);
+          return;
+        }
+        if (uCartoonMode > 0.5) {
+          vec3 sunC = normalize(uSunDir);
+          float sUpC = smoothstep(-0.12, 0.22, sunC.y);
+          vec3 toonDay = mix(vec3(0.56, 0.90, 1.00), vec3(0.04, 0.50, 0.99), pow(max(h, 0.0001), 0.52));
+          vec3 toonNight = mix(vec3(0.06, 0.14, 0.34), vec3(0.02, 0.04, 0.14), pow(max(h, 0.0001), 0.58));
+          vec3 cSky = mix(toonNight, toonDay, sUpC);
+          vec3 sRight = normalize(cross(vec3(0.0, 1.0, 0.01), sunC));
+          vec3 sUpAx = cross(sunC, sRight);
+          if (dot(d, sunC) > 0.0) {
+            vec2 sUv = vec2(dot(d, sRight), dot(d, sUpAx));
+            float sqSun = step(max(abs(sUv.x), abs(sUv.y)), 0.072) * step(0.0, d.y + 0.04);
+            cSky = mix(cSky, vec3(1.0, 0.98, 0.78), sqSun * sUpC);
+          }
+          if (d.y < 0.02) cSky = mix(cSky, uFogColor, smoothstep(0.02, -0.10, d.y));
+          gl_FragColor = vec4(cSky, 0.0);
           return;
         }
         vec3 col = mix(uSkyHorizon, uSkyTop, pow(max(h, 0.0001), mix(0.46, 0.30, uChillMode)));
@@ -1665,6 +1690,19 @@
           col = mix(totalIntRefl + vec3(0.24, 0.64, 0.72) * rippleEdge, skyThru + sunPatch, snell);
           alpha = mix(0.92, 0.94, snell);
         } else if (vIsTop > 0.5) {
+          if (uCartoonMode > 0.5) {
+            vec3 cShallow = mix(vec3(0.16, 0.70, 0.96), vec3(0.12, 0.80, 0.74), uSulfurWater);
+            vec3 cDeep = mix(vec3(0.06, 0.49, 0.87), vec3(0.04, 0.50, 0.56), uSulfurWater);
+            vec3 cWater = mix(cShallow, cDeep, smoothstep(0.0, 0.85, depthK)) * (0.28 + 0.76 * sunUp);
+            float cStreak = sin(vWorldPos.z * 0.55 + uTime * 1.05 + sin(vWorldPos.x * 0.14) * 1.1);
+            float cWave = smoothstep(0.76, 0.96, cStreak) * 0.36;
+            cWater += vec3(0.06, 0.13, 0.18) * cWave * sunUp;
+            float cShore = smoothstep(0.76, 0.96, vShore);
+            cWater = mix(cWater, vec3(0.84, 0.97, 1.0), cShore * 0.48);
+            float cFog = smoothstep(uFogStart, uFogEnd, vDist);
+            gl_FragColor = vec4(mix(cWater, uFogColor, clamp(cFog, 0.0, 1.0)), clamp(0.82 + vColDepth * 0.14, 0.82, 0.94));
+            return;
+          }
           bool isUltraW = (uQuality > 1.5);
           vec3 reflDir = reflect(-viewDir, n);
           vec3 nightSkyRefl = mix(vec3(0.04, 0.09, 0.20), vec3(0.015, 0.035, 0.095), pow(clamp(reflDir.y, 0.0, 1.0), 0.55));

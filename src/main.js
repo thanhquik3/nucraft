@@ -97,10 +97,11 @@
   function getPresetSharpness(preset) {
     const sharpOn = (typeof sodiumOpts === 'undefined' || sodiumOpts.sharpness !== false);
     if (!sharpOn) return 0.0;
-    return preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : 0.19));
+    return preset === 'dlss_ultra' ? 0.36 : (preset === 'eclipse' ? 0.28 : (preset === 'chill_sunset' ? 0.22 : (preset === 'cartoon_barebones' ? 0.16 : 0.19)));
   }
 
   function applyShaderPreset(preset, persist = false) {
+    if (window._cartoonAddonActive) preset = 'cartoon_barebones';
     shaderPreset = preset;
     document.querySelectorAll('#presetSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
     document.querySelectorAll('#lobbyShaderSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.lshader === preset));
@@ -108,6 +109,7 @@
     if (envUniforms.uChillMode) envUniforms.uChillMode.value = (preset === 'chill_sunset') ? 1.0 : 0.0;
     if (envUniforms.uDlssMode) envUniforms.uDlssMode.value = (preset === 'dlss_ultra') ? 1.0 : 0.0;
     if (envUniforms.uEclipseMode) envUniforms.uEclipseMode.value = (preset === 'eclipse') ? 1.0 : 0.0;
+    if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = (preset === 'cartoon_barebones' || window._cartoonAddonActive) ? 1.0 : 0.0;
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = getPresetSharpness(preset);
     if (preset === 'bsl') {
       envUniforms.uExposure.value = 0.94; envUniforms.uVibrance.value = 0.02; envUniforms.uWarmth.value = 0.07; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.46;
@@ -124,12 +126,48 @@
     } else if (preset === 'eclipse') {
       envUniforms.uExposure.value = 1.08; envUniforms.uVibrance.value = 0.06; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.0; envUniforms.uCloudCover.value = 0.56;
       if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 22.0 : 38.0;
+    } else if (preset === 'cartoon_barebones') {
+      envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.44;
     }
-    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.96 : 0.74;
+    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.96 : (preset === 'cartoon_barebones' ? 0.90 : 0.74);
     window._eclipseGrassDirty = true;
     if (typeof updateEclipseGrass === 'function') updateEclipseGrass(true);
-    if (persist && CFG.saveGfxPrefs) CFG.saveGfxPrefs({ shaderPreset: preset });
+    if (persist && CFG.saveGfxPrefs && preset !== 'cartoon_barebones') CFG.saveGfxPrefs({ shaderPreset: preset });
   }
+
+  function syncCartoonExclusiveShaderUI(isOn) {
+    const on = !!isOn;
+    window._cartoonAddonActive = on;
+    if (on && shaderPreset && shaderPreset !== 'cartoon_barebones') {
+      window._preCartoonShaderPreset = shaderPreset;
+    }
+    document.querySelectorAll('#lobbyShaderSeg .seg-btn').forEach(b => {
+      const isCar = b.dataset.lshader === 'cartoon_barebones';
+      b.classList.toggle('hidden', on ? !isCar : isCar);
+    });
+    document.querySelectorAll('#presetSeg .seg-btn').forEach(b => {
+      const isCar = b.dataset.preset === 'cartoon_barebones';
+      b.classList.toggle('hidden', on ? !isCar : isCar);
+    });
+    if (typeof terrainMat !== 'undefined' && terrainMat) {
+      if (terrainMat._savedBumpScale === undefined) terrainMat._savedBumpScale = terrainMat.bumpScale;
+      terrainMat.bumpScale = on ? 0.0 : terrainMat._savedBumpScale;
+    }
+    if (on) {
+      if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 1.0;
+      if (envUniforms.uRayTracing) envUniforms.uRayTracing.value = 0.0;
+      if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = 0.0;
+      applyShaderPreset('cartoon_barebones', false);
+    } else {
+      if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 0.0;
+      if (envUniforms.uRayTracing && typeof sodiumOpts !== 'undefined') envUniforms.uRayTracing.value = sodiumOpts.rayTracing ? 1.0 : 0.0;
+      const restorePreset = window._preCartoonShaderPreset || (CFG.loadGfxPrefs ? (CFG.loadGfxPrefs().shaderPreset || 'eclipse') : 'eclipse');
+      applyShaderPreset(restorePreset === 'cartoon_barebones' ? 'eclipse' : restorePreset, false);
+    }
+    window._postFxDirty = true;
+  }
+  window.syncCartoonExclusiveShaderUI = syncCartoonExclusiveShaderUI;
+  if (window._cartoonAddonActive) syncCartoonExclusiveShaderUI(true);
 
 
   /* ============================================================================
@@ -967,7 +1005,7 @@
       _tmpTop.lerp(_colEclipseTop, 0.48 * ecDay).lerp(_colEclipseNightTop, 0.55 * ecNight);
       _tmpHor.lerp(_colEclipseHor, 0.42 * ecDay).lerp(_colEclipseNightHor, 0.45 * ecNight);
     }
-    if (shaderPreset !== 'eclipse' && dayWeight > 0.05) {
+    if (shaderPreset !== 'eclipse' && shaderPreset !== 'cartoon_barebones' && dayWeight > 0.05) {
       const skyCalm = 1.0 - 0.10 * dayWeight;
       _tmpTop.multiplyScalar(skyCalm);
       _tmpHor.multiplyScalar(skyCalm);
@@ -999,9 +1037,9 @@
       _tmpHor.lerp(_colDarkForestFog, 0.45);
     }
     if (envUniforms.uSulfurWater) envUniforms.uSulfurWater.value = (typeof BIOMES.SULFUR_SPRINGS !== 'undefined' && curBiome === BIOMES.SULFUR_SPRINGS) ? 1.0 : 0.0;
-    if ((envUniforms.uCartoonMode?.value || 0) > 0.5 && dayWeight > 0.05 && rainIntensity < 0.3) {
-      _tmpTop.lerp(_colCartoonTop, 0.55 * dayWeight * (1 - rainIntensity));
-      _tmpHor.lerp(_colCartoonHor, 0.52 * dayWeight * (1 - rainIntensity));
+    if ((envUniforms.uCartoonMode?.value || 0) > 0.5 && dayWeight > 0.05 && rainIntensity < 0.35) {
+      _tmpTop.lerp(_colCartoonTop, 0.94 * dayWeight * (1 - rainIntensity));
+      _tmpHor.lerp(_colCartoonHor, 0.92 * dayWeight * (1 - rainIntensity));
     }
     if (lightningFlash > 0) { _tmpTop.lerp(colWhite, lightningFlash * 0.65); _tmpHor.lerp(colWhite, lightningFlash * 0.55); }
     envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
@@ -1135,12 +1173,16 @@
     }
     sunLight.target.position.set(snapX, snapY, snapZ);
     sunLight.position.set(snapX + lDir.x * 46, snapY + Math.max(10, lDir.y * 46), snapZ + lDir.z * 46);
+    const _isCartoon = (envUniforms.uCartoonMode?.value || 0) > 0.5;
     if (player.eyesInWater) {
       sunLight.color.copy(_colUwSunShallow).lerp(_colUwSunAbyss, abyssT);
       sunLight.intensity = (0.14 + dayWeight * 1.00) * surfaceFactor;
     } else if (isNightShadow) {
       sunLight.color.setHex(0x6da0f5);
       sunLight.intensity = (0.34 + lightningFlash * 1.1) * surfaceFactor;
+    } else if (_isCartoon) {
+      sunLight.color.setHex(0xfffbe8);
+      sunLight.intensity = ((0.34 + dayWeight * 0.94) * (1 - rainIntensity * 0.35) + lightningFlash * 0.85) * surfaceFactor;
     } else {
       const freshMul = (shaderPreset === 'eclipse') ? 0.96 : (shaderPreset === 'moonlit' ? 0.72 : (shaderPreset === 'verdant_fresh' ? 0.75 : (shaderPreset === 'bliss' ? 0.76 : (shaderPreset === 'bsl' ? 0.78 : 0.80))));
       sunLight.color.copy(envUniforms.uSunColor.value);
@@ -1152,6 +1194,10 @@
       hemiLight.color.copy(envUniforms.uFogColor.value).lerp(_colUwSunShallow, 0.30 * (1 - abyssT) * dayWeight);
       hemiLight.groundColor.copy(_colUwAbyss);
       hemiLight.intensity = Math.max(0.06, (0.16 + dayWeight * 0.44) * Math.exp(-diveDepth * 0.014));
+    } else if (_isCartoon) {
+      hemiLight.color.copy(_tmpTop).lerp(_colCartoonHor, 0.48);
+      hemiLight.groundColor.setHex(dayWeight > 0.2 ? 0x567b86 : 0x162442);
+      hemiLight.intensity = (0.40 + dayWeight * 0.36) * surfaceFactor;
     } else {
       // Soft warm-balanced sky/ground fill (natural depth + deep rich twilight/amber shadow contrast in Chill mode)
       hemiLight.color.copy(_tmpTop).lerp(shaderPreset === 'chill_sunset' ? _colChillHemiSky : _colSkyFillSoft, 0.36 * dayWeight);
@@ -1171,8 +1217,8 @@
     camera.getWorldDirection(camFwdRay);
     const sunAlign3D = camFwdRay.dot(activeLightVec);
     const _allowRays = player.eyesInWater ? (diveDepth < 65 && dayWeight > 0.15) : (player.y > -4);
-    const _rtRaysOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
-    if ((shaderQuality !== 'low' || _rtRaysOn) && _allowRays && sunAlign3D > 0.02 && (activeLightVec.y > -0.08 || isNightShadow)) {
+    const _rtRaysOn = !_isCartoon && !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+    if (!_isCartoon && (shaderQuality !== 'low' || _rtRaysOn) && _allowRays && sunAlign3D > 0.02 && (activeLightVec.y > -0.08 || isNightShadow)) {
       activeLightVec.multiplyScalar(120).add(camera.position).project(camera);
       if (activeLightVec.z < 1.0) {
         const u = activeLightVec.x * 0.5 + 0.5, v = activeLightVec.y * 0.5 + 0.5;
@@ -1201,7 +1247,7 @@
     }
 
     const _showClouds = (sodiumOpts.clouds !== false);
-    envUniforms.uVolumetricClouds.value = (_showClouds && volumetricClouds) ? 1.0 : 0.0;
+    envUniforms.uVolumetricClouds.value = (!_isCartoon && _showClouds && volumetricClouds) ? 1.0 : 0.0;
     const baseCov = shaderPreset === 'bliss' ? 0.54 : (shaderPreset === 'eclipse' ? 0.58 : (shaderPreset === 'chill_sunset' ? 0.58 : (shaderPreset === 'dlss_ultra' ? 0.52 : (shaderPreset === 'verdant_fresh' ? 0.50 : (shaderPreset === 'moonlit' ? 0.36 : 0.46)))));
     envUniforms.uCloudCover.value = activeWeatherKind === 'meteor' ? 0.16 : Math.min(0.85, baseCov + rainIntensity * 0.34);
 
@@ -1209,9 +1255,14 @@
     const baseCX = Math.round((player.x - cloudDrift) / CLOUD_PERIOD_W) * CLOUD_PERIOD_W + cloudDrift;
     const baseCZ = Math.round(player.z / CLOUD_PERIOD_W) * CLOUD_PERIOD_W;
     cloudMesh.position.set(baseCX, CLOUD_Y, baseCZ);
-    cloudMat.color.copy(_tmpHor).lerp(colWhite, 0.72 * dayWeight + 0.10);
-    if (sunsetWeight > 0.35 || shaderPreset === 'chill_sunset') cloudMat.color.lerp(envUniforms.uSunColor.value, 0.38);
-    cloudMesh.visible = (_showClouds && !volumetricClouds && player.y > -6);
+    if (_isCartoon) {
+      cloudMat.color.setHex(dayWeight > 0.18 ? 0xffffff : 0x7694bf);
+      cloudMesh.visible = (_showClouds && player.y > -6);
+    } else {
+      cloudMat.color.copy(_tmpHor).lerp(colWhite, 0.72 * dayWeight + 0.10);
+      if (sunsetWeight > 0.35 || shaderPreset === 'chill_sunset') cloudMat.color.lerp(envUniforms.uSunColor.value, 0.38);
+      cloudMesh.visible = (_showClouds && !volumetricClouds && player.y > -6);
+    }
 
     updateShootingStars(dt, sunY, true);
     const isNight = (sunY < 0.05), isAutumn = (curBiome === BIOMES.AUTUMN || curBiome === BIOMES.AUTUMN_GOLDEN || curBiome === BIOMES.AUTUMN_DEEP);
@@ -1327,7 +1378,7 @@
   const _REFL_CLIP_ARR = [reflClipPlane], _EMPTY_CLIP_ARR = [];
   function renderWaterReflectionPass(inLobby = false, rawDt = 0.016) {
     const _rtReflOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
-    if ((!sodiumOpts.waterRefl && !_rtReflOn) || _autoPerfLow || (shaderQuality === 'low' && !_rtReflOn) || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.eyesInLava || player.y < -4 || camera.rotation.x > 0.35) {
+    if ((envUniforms.uCartoonMode?.value || 0) > 0.5 || (!sodiumOpts.waterRefl && !_rtReflOn) || _autoPerfLow || (shaderQuality === 'low' && !_rtReflOn) || (currentDimension !== 'overworld' && currentDimension !== 'sift') || depthOffset > 0 || player.eyesInWater || player.eyesInLava || player.y < -4 || camera.rotation.x > 0.35) {
       envUniforms.uUsePlanarRefl.value = 0.0;
       _reflDoneOnce = false;
       return;
