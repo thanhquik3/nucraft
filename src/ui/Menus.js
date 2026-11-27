@@ -2048,7 +2048,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     const cName = document.getElementById('drCenterSkinName');
     if (cName) cName.textContent = displayName;
     const cStat = document.getElementById('drCurrentSkinStatus');
-    if (cStat) cStat.textContent = `Skin hiện tại: ${displayName}${skCur.pair ? ` • 💞 Cặp ${skCur.pair}` : ''}`;
+    if (cStat) cStat.textContent = `Skin hiện tại: ${displayName}${skCur.pair ? ` • Skin Đôi: ${skCur.pair}` : ''}`;
     const tName = document.getElementById('titleSkinName');
     if (tName) tName.textContent = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) ? getLockedPlayerUid() : displayName;
     document.querySelectorAll('#drSkinStrip .dr-skin-card').forEach(el => {
@@ -2079,7 +2079,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     const bAll = document.getElementById('btnDrFilterAll');
     const bCpl = document.getElementById('btnDrFilterCouples');
     if (bAll) bAll.textContent = `Tất cả (${PLAYER_SKINS.length})`;
-    if (bCpl) bCpl.textContent = `💞 Cặp Đôi (${pairGroups})`;
+    if (bCpl) bCpl.textContent = `Skin Đôi (${pairGroups})`;
   }
 
   function openDressingRoom() {
@@ -2187,7 +2187,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
           grp.dataset.pair = sk.pair;
           const tag = document.createElement('div');
           tag.className = 'dr-pair-tag';
-          tag.textContent = `💞 Cặp ${sk.pair}`;
+          tag.textContent = `Skin Đôi: ${sk.pair}`;
           const row = document.createElement('div');
           row.className = 'dr-pair-cards';
           const c1 = _createSkinCardEl(sk, 'dr-skin-card', (s) => selectPlayerSkin(s.id, false), i < 8 || sk.id === selectedSkinId);
