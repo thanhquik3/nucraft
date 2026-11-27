@@ -2193,7 +2193,7 @@
   const droppedItems = [], dropModelCache = new Map();
   const dropShadowGeo = new THREE.CircleGeometry(0.18, 12);
   dropShadowGeo.rotateX(-Math.PI * 0.5);
-  const dropShadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false });
+  const dropShadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   function getDropVisual(blockId) {
     let base = dropModelCache.get(blockId);
     if (!base || (base.userData && base.userData.iconReady === false)) {
@@ -2399,9 +2399,14 @@
           it._wasEncased = true;
         } else if (!isSettled) {
           if (it._wasEncased) { it._wasEncased = false; it.vy = Math.min(it.vy, 2.1); }
-          const inWater = (getBlockWorld(curBx, curBy, curBz) === B.WATER);
+          const bAtFeet = getBlockWorld(curBx, Math.floor(it.y), curBz);
+          const inWater = (getBlockWorld(curBx, curBy, curBz) === B.WATER || bAtFeet === B.WATER);
+          it.inWaterFloat = inWater;
           if (inWater) {
-            it.vy = Math.min(1.6, it.vy + (1.2 - it.vy) * Math.min(1, dt * 5.5));
+            let wyTop = Math.floor(it.y);
+            for (let up = 0; up < 8 && getBlockWorld(curBx, wyTop + 1, curBz) === B.WATER; up++) wyTop++;
+            const surfY = wyTop + 0.64;
+            it.vy = Math.max(-2.4, Math.min(2.2, it.vy + ((surfY - it.y) * 9.0 - it.vy * 4.8) * dt));
           } else {
             it.vy = Math.max(-24.0, it.vy - 17.5 * dt);
           }
@@ -2422,7 +2427,10 @@
             const gy = Math.floor(it.y - 0.04);
             if (isSolidAt(Math.floor(it.x), gy, Math.floor(it.z)) && it.vy <= 0) {
               it.y = gy + 1.0;
-              if (it.vy < -2.1) {
+              if (inWater) {
+                it.vy = Math.max(0.2, it.vy);
+                it.onGround = false;
+              } else if (it.vy < -2.1) {
                 it.vy = -it.vy * 0.26;
                 it.vx *= 0.72; it.vz *= 0.72;
                 it.onGround = false;
@@ -2536,7 +2544,7 @@
       }
       it.mesh.visible = true;
       if (it.shadow) {
-        it.shadow.visible = it.onGround && dist2 < 576.0;
+        it.shadow.visible = it.onGround && !it.inWaterFloat && dist2 < 576.0;
         if (it.shadow.visible) it.shadow.position.set(it.rx, it.ry + 0.03, it.rz);
       }
       if (useFastDrops && isSettled && dist2 > 225.0 && ((frameCounter + i) & 1) !== 0) continue;
@@ -2545,7 +2553,7 @@
       it.spinRate = 2.1 + ((it.spinRate || 2.1) - 2.1) * Math.exp(-(it.onGround ? 10.0 : 2.2) * dt);
       it.phase += it.spinRate * dt;
       const wave = Math.sin(it.age * 2.8 + it.phase * 0.35);
-      const hoverY = it.onGround ? (0.28 + wave * 0.075) : 0.24;
+      const hoverY = it.onGround ? (0.28 + wave * 0.075) : (it.inWaterFloat ? (0.20 + wave * 0.05) : 0.24);
       it.mesh.position.set(it.rx, it.ry + hoverY, it.rz);
       it.mesh.rotation.set(Math.sin(it.age * 9.0) * it.tumbleX, it.phase, Math.cos(it.age * 7.5) * it.tumbleX * 0.5);
       if (it.shadow && it.shadow.visible) {
@@ -2979,6 +2987,32 @@
   const MAX_PIXEL_FX = _isWeakDevice ? 40 : 80;
   const pixelFxList = [], pixelFxPool = [];
   function spawnPixelFx(kind, wx, wy, wz, opts = {}) {
+    if (kind === 'sulfur_steam') {
+      spawn3DSmoke(wx, wy, wz, {
+        style: 'steam',
+        count: Math.max(2, (opts.count || 1) * 2),
+        scale: (opts.scale ?? 0.95) * 0.95,
+        grow: opts.grow ?? 0.65,
+        vy: opts.vy ?? 1.05,
+        randV: opts.randV ?? 0.18,
+        spread: opts.spread ?? 0.24,
+        life: opts.life ?? 1.55
+      });
+      return;
+    }
+    if (kind === 'smoke_puff') {
+      spawn3DSmoke(wx, wy, wz, {
+        style: 'smoke',
+        count: Math.max(2, (opts.count || 1) * 2),
+        scale: (opts.scale ?? 0.85) * 0.88,
+        grow: opts.grow ?? 0.55,
+        vy: opts.vy ?? opts.riseV ?? 0.85,
+        randV: opts.randV ?? 0.26,
+        spread: opts.spread ?? 0.34,
+        life: opts.life ?? 0.95
+      });
+      return;
+    }
     const cnt = Math.min(opts.count || 1, _isWeakDevice ? 4 : 8);
     const sheet = getPixelFxSheet(kind);
     for (let i = 0; i < cnt; i++) {
@@ -2988,6 +3022,7 @@
       else {
         const sp = new THREE.Sprite(sheet.mats[0]);
         sp.frustumCulled = false;
+        sp.renderOrder = 5;
         scene.add(sp);
         fx = { sp, sheet, kind, life: 0.4, maxLife: 0.4, vx: 0, vy: 0, vz: 0, grav: 0, baseScale: 1, grow: 0.2, lastF: -1 };
       }
@@ -3430,11 +3465,112 @@
   const _partInstMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const _partInstMesh = new THREE.InstancedMesh(partGeo, _partInstMat, MAX_PARTICLES);
   _partInstMesh.frustumCulled = false;
-  _partInstMesh.count = 0;
   _partInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   _partInstMesh.setColorAt(0, _partColor);
   if (_partInstMesh.instanceColor) _partInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  _partInstMesh.count = 0;
   scene.add(_partInstMesh);
+
+  // BUILD v165: True 3D Minecraft-Style Voxel Smoke & Geothermal Steam Cubes (1 GPU draw call, facet-shaded opaque 3D boxes, zero 2D sprite billboard or water X-ray glitch)
+  const MAX_SMOKE_VOXELS = _isWeakDevice ? 140 : 320;
+  const smokeVoxels = [], smokeVoxelPool = [];
+  const _smokeGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44);
+  (() => {
+    const nAttr = _smokeGeo.getAttribute('normal');
+    const cArr = new Float32Array(nAttr.count * 3);
+    for (let i = 0; i < nAttr.count; i++) {
+      const nx = nAttr.getX(i), ny = nAttr.getY(i);
+      const shade = ny > 0.5 ? 1.00 : (ny < -0.5 ? 0.74 : (Math.abs(nx) > 0.5 ? 0.85 : 0.92));
+      cArr[i * 3] = shade; cArr[i * 3 + 1] = shade; cArr[i * 3 + 2] = shade;
+    }
+    _smokeGeo.setAttribute('color', new THREE.BufferAttribute(cArr, 3));
+  })();
+  const _smokeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, fog: true });
+  const _smokeInstMesh = new THREE.InstancedMesh(_smokeGeo, _smokeMat, MAX_SMOKE_VOXELS);
+  _smokeInstMesh.frustumCulled = false;
+  _smokeInstMesh.castShadow = false;
+  _smokeInstMesh.receiveShadow = false;
+  _smokeInstMesh.renderOrder = 3;
+  _smokeInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  _smokeInstMesh.setColorAt(0, _partColor);
+  if (_smokeInstMesh.instanceColor) _smokeInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  _smokeInstMesh.count = 0;
+  scene.add(_smokeInstMesh);
+  const _SMOKE_PALS = {
+    steam: [0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xfefce8],
+    smoke: [0xcbd5e1, 0x94a3b8, 0x64748b, 0xe2e8f0],
+    dark:  [0x64748b, 0x475569, 0x334155, 0x94a3b8]
+  };
+  function spawn3DSmoke(wx, wy, wz, opts = {}) {
+    if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
+    const pdx = wx - player.x, pdz = wz - player.z, pd2 = pdx * pdx + pdz * pdz;
+    if (pd2 > 9216.0) return; // Keep smoke/steam visible up to 96 blocks away
+    const pal = _SMOKE_PALS[opts.style] || _SMOKE_PALS.smoke;
+    const cnt = Math.min(opts.count || 2, _isWeakDevice ? 3 : 6);
+    const spr = opts.spread ?? 0.26;
+    const rv = opts.randV ?? 0.22;
+    const baseVy = opts.vy ?? 0.95;
+    const baseSc = opts.scale ?? 0.95;
+    const growK = opts.grow ?? 0.60;
+    const lifeBase = opts.life ?? 1.45;
+    for (let i = 0; i < cnt; i++) {
+      let s;
+      if (smokeVoxels.length >= MAX_SMOKE_VOXELS) s = smokeVoxels.shift();
+      else if (smokeVoxelPool.length > 0) s = smokeVoxelPool.pop();
+      else s = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rxS: 0, ryS: 0, rzS: 0, phase: 0, amp: 0, scale: 1, grow: 0.6, life: 1, maxLife: 1, color: new THREE.Color(0xffffff) };
+      s.color.setHex(pal[(Math.random() * pal.length) | 0]);
+      s.x = wx + (Math.random() - 0.5) * spr;
+      s.y = wy + i * 0.14 + (Math.random() - 0.5) * 0.14;
+      s.z = wz + (Math.random() - 0.5) * spr;
+      s.vx = opts.vx !== undefined ? opts.vx : (Math.random() - 0.5) * rv;
+      s.vy = baseVy * (0.84 + Math.random() * 0.34);
+      s.vz = opts.vz !== undefined ? opts.vz : (Math.random() - 0.5) * rv;
+      s.rx = Math.random() * 3.14; s.ry = Math.random() * 3.14; s.rz = Math.random() * 3.14;
+      s.rxS = (Math.random() - 0.5) * 1.4; s.ryS = (Math.random() - 0.5) * 1.8; s.rzS = (Math.random() - 0.5) * 1.2;
+      s.phase = Math.random() * Math.PI * 2;
+      s.amp = 0.24 + Math.random() * 0.22;
+      s.scale = baseSc * (0.85 + Math.random() * 0.30);
+      s.grow = growK;
+      s.life = s.maxLife = lifeBase * (0.86 + Math.random() * 0.28);
+      smokeVoxels.push(s);
+    }
+  }
+  function update3DSmoke(dt) {
+    let alive = 0;
+    for (let i = smokeVoxels.length - 1; i >= 0; i--) {
+      const s = smokeVoxels[i];
+      s.life -= dt;
+      if (s.life <= 0) {
+        smokeVoxelPool.push(s);
+        smokeVoxels[i] = smokeVoxels[smokeVoxels.length - 1];
+        smokeVoxels.pop();
+        continue;
+      }
+      const prog = 1.0 - s.life / s.maxLife;
+      const windX = Math.sin(s.phase + prog * 5.2) * s.amp;
+      const windZ = Math.cos(s.phase * 1.3 + prog * 4.6) * s.amp;
+      s.x += (s.vx + windX) * dt;
+      s.y += s.vy * dt;
+      s.z += (s.vz + windZ) * dt;
+      s.vy *= Math.exp(-0.18 * dt);
+      s.rx += s.rxS * dt; s.ry += s.ryS * dt; s.rz += s.rzS * dt;
+      // Swell rapidly into puffy 3D Minecraft smoke cubes, then taper smoothly to zero before despawn
+      const env = prog < 0.18 ? (0.62 + (prog / 0.18) * 0.38) : (prog > 0.70 ? Math.max(0.02, (1.0 - prog) / 0.30) : 1.0);
+      const sc = Math.max(0.02, s.scale * (0.85 + prog * s.grow) * env);
+      _partDummy.position.set(s.x, s.y, s.z);
+      _partDummy.rotation.set(s.rx, s.ry, s.rz);
+      _partDummy.scale.setScalar(sc);
+      _partDummy.updateMatrix();
+      _smokeInstMesh.setMatrixAt(alive, _partDummy.matrix);
+      _smokeInstMesh.setColorAt(alive, s.color);
+      alive++;
+    }
+    _smokeInstMesh.count = alive;
+    if (alive > 0) {
+      _smokeInstMesh.instanceMatrix.needsUpdate = true;
+      if (_smokeInstMesh.instanceColor) _smokeInstMesh.instanceColor.needsUpdate = true;
+    }
+  }
   function _spawnOneParticle(wx, wy, wz, colorHex, opts) {
     if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
     if (sodiumOpts.immFast) {
@@ -3498,7 +3634,8 @@
       spawnPixelFx('portal_vortex', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, n)), scale: 0.85, life: 0.50, riseV: 0.45, randV: 0.5, spread: 0.48 });
       return;
     } else if (kind === 'smoke') {
-      spawnPixelFx('smoke_puff', wx, wy + 0.10, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 4))), scale: 0.85, life: 0.56, riseV: 0.75, randV: 0.3, spread: 0.42 });
+      spawn3DSmoke(wx, wy + 0.12, wz, { style: 'dark', count: Math.max(2, Math.min(5, Math.ceil(n / 2))), scale: 0.92, grow: 0.55, vy: 0.95, randV: 0.28, spread: 0.38, life: 0.95 });
+      return;
     } else if (kind === 'spark' || kind === 'electric') {
       spawnPixelFx('lightning_arc', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 5))), scale: 1.15, life: 0.34, randV: 1.2, spread: 0.65 });
       spawnPixelFx('electric_coil', wx, wy + 0.10, wz, { count: Math.max(1, Math.min(2, Math.ceil(n / 7))), scale: 0.82, life: 0.36, randV: 1.5, spread: 0.72 });
@@ -3545,6 +3682,7 @@
   }
   function updateParticles(dt) {
     updatePixelFx(dt);
+    update3DSmoke(dt);
     updateSwordSlashes(dt);
     const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
     const _useWasmPart = !!(_wCore && _wCore.exports && _wCore.exports.step_particles_batch && _wCore.particleBuf && particles.length > 0 && particles.length <= 512);

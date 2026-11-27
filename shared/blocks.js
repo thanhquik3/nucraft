@@ -581,6 +581,11 @@
   B.SULFUR_SLIMEBALL  = _dynBlockId++;
   B.SULFUR_POWDER     = _dynBlockId++;
 
+  B.DRIPSTONE_STALACTITE = _dynBlockId++;
+  B.ICE_STALACTITE       = _dynBlockId++;
+  B.DEEPSLATE_STALACTITE = _dynBlockId++;
+  B.CINNABAR_STALACTITE  = _dynBlockId++;
+
   const V156_TILES = {
     sulfurBlock:       _nextTile++,
     sulfurOre:         _nextTile++,
@@ -593,10 +598,17 @@
     sulfurPowder:      _nextTile++
   };
 
+  const V165_TILES = {
+    dripstoneStalactite: _nextTile++,
+    iceStalactite:       _nextTile++,
+    deepslateStalactite: _nextTile++,
+    cinnabarStalactite:  _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

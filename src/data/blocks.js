@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -938,10 +938,14 @@ const {
   BLOCK_DEF[B.CINNABAR_STONE]   = { name: 'Đá Chu Sa Lưu Huỳnh',      nameEn: 'Cinnabar Sulfur Stone', hard: 1.4, solid: true, rock: true, customAtlasTex: true, drop: B.CINNABAR_STONE, tiles: [V156_TILES.cinnabarStone, V156_TILES.cinnabarStone, V156_TILES.cinnabarStone], mapColor: '#991b1b' };
   BLOCK_DEF[B.TRAVERTINE_STONE] = { name: 'Đá Vôi Khoáng Trắng',     nameEn: 'Travertine Stone',   hard: 1.2, solid: true, rock: true, customAtlasTex: true, drop: B.TRAVERTINE_STONE, tiles: [V156_TILES.travertineStone, V156_TILES.travertineStone, V156_TILES.travertineStone], mapColor: '#e7e5e4' };
   BLOCK_DEF[B.THERMAL_CRUST]    = { name: 'Vỏ Khoáng Địa Nhiệt Cam',   nameEn: 'Thermal Mineral Crust', hard: 1.0, solid: true, rock: true, customAtlasTex: true, drop: B.THERMAL_CRUST, tiles: [V156_TILES.thermalCrust, V156_TILES.thermalCrust, V156_TILES.thermalCrust], mapColor: '#ea580c' };
-  BLOCK_DEF[B.SULFUR_CRYSTAL]   = { name: 'Tinh Thể Lưu Huỳnh Phát Sáng', nameEn: 'Sulfur Crystal',  hard: 0.9, solid: true, rock: true, trans: true, crystalCluster: true, emissive: 0.55, light: 8, customAtlasTex: true, drop: B.SULFUR_POWDER, tiles: [V156_TILES.sulfurCrystal, V156_TILES.sulfurCrystal, V156_TILES.sulfurCrystal], mapColor: '#fde047' };
-  BLOCK_DEF[B.SULFUR_VENT]      = { name: 'Miệng Phun Hơi Lưu Huỳnh',  nameEn: 'Sulfur Steam Vent',  hard: 1.6, solid: true, rock: true, emissive: 0.42, light: 7, sulfurVent: true, customAtlasTex: true, drop: B.SULFUR_POWDER, tiles: [V156_TILES.sulfurVent, V156_TILES.sulfurVent, V156_TILES.sulfurVent], mapColor: '#f59e0b' };
-  BLOCK_DEF[B.SULFUR_SLIMEBALL] = { name: 'Nhớt Slime Lưu Huỳnh',      nameEn: 'Sulfur Slimeball',   hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [V156_TILES.sulfurSlimeball, V156_TILES.sulfurSlimeball, V156_TILES.sulfurSlimeball], mapColor: '#facc15' };
-  BLOCK_DEF[B.SULFUR_POWDER]    = { name: 'Bột Khoáng Lưu Huỳnh',      nameEn: 'Sulfur Powder',      hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [V156_TILES.sulfurPowder, V156_TILES.sulfurPowder, V156_TILES.sulfurPowder], mapColor: '#fde047' };
+  BLOCK_DEF[B.SULFUR_CRYSTAL]       = { name: 'Thạch Nhũ Lưu Huỳnh',      nameEn: 'Sulfur Stalactite',    hard: 1.0, solid: true, rock: true, wall: true, stalactite: true, trans: true, emissive: 0.35, light: 7, customAtlasTex: true, drop: B.SULFUR_POWDER, tiles: [V156_TILES.sulfurCrystal, V156_TILES.sulfurCrystal, V156_TILES.sulfurCrystal], mapColor: '#eab308' };
+  BLOCK_DEF[B.SULFUR_VENT]          = { name: 'Miệng Phun Hơi Lưu Huỳnh', nameEn: 'Sulfur Steam Vent',    hard: 1.6, solid: true, rock: true, emissive: 0.42, light: 7, sulfurVent: true, customAtlasTex: true, drop: B.SULFUR_POWDER, tiles: [V156_TILES.sulfurVent, V156_TILES.sulfurVent, V156_TILES.sulfurVent], mapColor: '#f59e0b' };
+  BLOCK_DEF[B.SULFUR_SLIMEBALL]     = { name: 'Nhớt Slime Lưu Huỳnh',     nameEn: 'Sulfur Slimeball',     hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [V156_TILES.sulfurSlimeball, V156_TILES.sulfurSlimeball, V156_TILES.sulfurSlimeball], mapColor: '#facc15' };
+  BLOCK_DEF[B.SULFUR_POWDER]        = { name: 'Bột Khoáng Lưu Huỳnh',     nameEn: 'Sulfur Powder',        hard: 0, solid: false, itemOnly: true, voxelItem: true, customAtlasTex: true, tiles: [V156_TILES.sulfurPowder, V156_TILES.sulfurPowder, V156_TILES.sulfurPowder], mapColor: '#fde047' };
+  BLOCK_DEF[B.DRIPSTONE_STALACTITE] = { name: 'Thạch Nhũ Đá',             nameEn: 'Dripstone Stalactite', hard: 1.25, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.DRIPSTONE_STALACTITE, tiles: [V165_TILES.dripstoneStalactite, V165_TILES.dripstoneStalactite, V165_TILES.dripstoneStalactite], mapColor: '#a68d6b' };
+  BLOCK_DEF[B.ICE_STALACTITE]       = { name: 'Thạch Nhũ Băng',           nameEn: 'Ice Stalactite',       hard: 0.65, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.ICE_STALACTITE,       tiles: [V165_TILES.iceStalactite,       V165_TILES.iceStalactite,       V165_TILES.iceStalactite],       mapColor: '#93c5fd' };
+  BLOCK_DEF[B.DEEPSLATE_STALACTITE] = { name: 'Thạch Nhũ Đá Phiến',       nameEn: 'Deepslate Stalactite', hard: 1.65, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.DEEPSLATE_STALACTITE, tiles: [V165_TILES.deepslateStalactite, V165_TILES.deepslateStalactite, V165_TILES.deepslateStalactite], mapColor: '#475569' };
+  BLOCK_DEF[B.CINNABAR_STALACTITE]  = { name: 'Thạch Nhũ Chu Sa',         nameEn: 'Cinnabar Stalactite',  hard: 1.35, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.CINNABAR_STALACTITE,  tiles: [V165_TILES.cinnabarStalactite,  V165_TILES.cinnabarStalactite,  V165_TILES.cinnabarStalactite],  mapColor: '#991b1b' };
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];

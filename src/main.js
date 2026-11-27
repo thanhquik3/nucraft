@@ -552,6 +552,7 @@
     slot.x = x; slot.y = y; slot.z = z; slot.col = col; slot.int = int; slot.dist = dist; slot.d2 = d2; slot.score = score;
   }
 
+  let _sulfurSteamAcc = 0;
   function updateWeatherAndLights(dt) {
     const inOverworld = (currentDimension === 'overworld');
     const biome = getPlayerBiome();
@@ -661,35 +662,47 @@
       }
     }
 
-    // BUILD v164: Billowing white geothermal steam plumes across ALL Sulfur Hot Springs pools, vents & Sulfur Caves
-    if (isPlaying && !isWorldLoading && (frameCounter % (shaderQuality === 'low' ? 5 : 3)) === 0) {
-      const pBio = getPlayerBiome();
-      const uBio = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z));
-      if (pBio === BIOMES.SULFUR_SPRINGS || uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
-        const probes = (shaderQuality === 'low') ? 3 : 6;
-        const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 7));
-        const minScan = Math.max(MIN_Y + 1, Math.min(Math.floor(player.y - 8), WATER_LEVEL - 2));
-        for (let k = 0; k < probes; k++) {
-          const sx = Math.floor(player.x + (Math.random() - 0.5) * 22);
-          const sz = Math.floor(player.z + (Math.random() - 0.5) * 22);
-          for (let by = startY; by >= minScan; by--) {
-            const bid = getBlockWorld(sx, by, sz);
-            if (bid === B.AIR) continue;
-            if (bid === B.SULFUR_VENT) {
-              spawnPixelFx('sulfur_steam', sx + 0.5, by + 1.15, sz + 0.5, {
-                count: 1, scale: 1.25, spread: 0.16, randV: 0.18, grow: 0.85, vy: 1.75, life: 1.85
-              });
-            } else if (bid === B.WATER && getBlockWorld(sx, by + 1, sz) === B.AIR && Math.random() < 0.82) {
-              spawnPixelFx('sulfur_steam', sx + 0.5, by + 0.96, sz + 0.5, {
-                count: 1, scale: 0.92 + Math.random() * 0.42, spread: 0.22, randV: 0.20, grow: 0.82,
-                vy: 0.92 + Math.random() * 0.42, life: 1.45 + Math.random() * 0.55
-              });
-            } else if (bid === B.SULFUR_CRYSTAL && Math.random() < 0.35) {
-              spawnPixelFx('sulfur_steam', sx + 0.5, by + 1.02, sz + 0.5, {
-                count: 1, scale: 0.65, spread: 0.12, randV: 0.14, grow: 0.55, vy: 0.85, life: 1.15
-              });
+    // BUILD v164/v165: Billowing 3D white geothermal steam plumes across ALL Sulfur Hot Springs pools, vents & Sulfur Caves
+    if (isPlaying && !isWorldLoading) {
+      _sulfurSteamAcc += dt;
+      const _steamStep = (shaderQuality === 'low') ? 0.16 : 0.10;
+      if (_sulfurSteamAcc >= _steamStep) {
+        _sulfurSteamAcc = 0;
+        const pBio = getPlayerBiome();
+        const uBio = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z));
+        if (pBio === BIOMES.SULFUR_SPRINGS || uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
+          const probes = (shaderQuality === 'low') ? 8 : 14;
+          const halfProbes = probes >> 1;
+          const fwdX = player.x - Math.sin(player.yaw) * 9.0;
+          const fwdZ = player.z - Math.cos(player.yaw) * 9.0;
+          const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 8));
+          const minScan = Math.max(MIN_Y + 1, Math.min(Math.floor(player.y - 10), WATER_LEVEL - 2));
+          for (let k = 0; k < probes; k++) {
+            const nearFocus = k < halfProbes;
+            const cxBase = nearFocus ? fwdX : player.x;
+            const czBase = nearFocus ? fwdZ : player.z;
+            const span = nearFocus ? 28.0 : 56.0;
+            const sx = Math.floor(cxBase + (Math.random() - 0.5) * span);
+            const sz = Math.floor(czBase + (Math.random() - 0.5) * span);
+            for (let by = startY; by >= minScan; by--) {
+              const bid = getBlockWorld(sx, by, sz);
+              if (bid === B.AIR) continue;
+              if (bid === B.SULFUR_VENT) {
+                spawn3DSmoke(sx + 0.5, by + 1.15, sz + 0.5, {
+                  style: 'steam', count: 3, scale: 1.15, spread: 0.28, randV: 0.22, grow: 0.75, vy: 1.45, life: 2.8
+                });
+              } else if (bid === B.WATER && getBlockWorld(sx, by + 1, sz) === B.AIR && Math.random() < 0.88) {
+                spawn3DSmoke(sx + 0.5, by + 1.02, sz + 0.5, {
+                  style: 'steam', count: 2, scale: 0.98 + Math.random() * 0.35, spread: 0.36, randV: 0.24, grow: 0.70,
+                  vy: 1.05 + Math.random() * 0.38, life: 2.3 + Math.random() * 0.7
+                });
+              } else if (bid === B.SULFUR_CRYSTAL && Math.random() < 0.30) {
+                spawn3DSmoke(sx + 0.5, by + 1.05, sz + 0.5, {
+                  style: 'steam', count: 1, scale: 0.78, spread: 0.18, randV: 0.16, grow: 0.55, vy: 0.90, life: 1.7
+                });
+              }
+              break;
             }
-            break;
           }
         }
       }
@@ -1437,6 +1450,7 @@
     const wasHighlightVis = (typeof highlightMesh !== 'undefined') ? highlightMesh.visible : false;
     const wasCrackVis = (typeof crackMesh !== 'undefined') ? crackMesh.visible : false;
     const wasPartVis = (typeof _partInstMesh !== 'undefined') ? _partInstMesh.visible : false;
+    const wasSmokeVis = (typeof _smokeInstMesh !== 'undefined') ? _smokeInstMesh.visible : false;
     const prevShadowEnabled = renderer.shadowMap.enabled;
     heldPivot.visible = false; weatherLines.visible = false; _motePoints.visible = false;
     if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = false;
@@ -1445,6 +1459,7 @@
     if (typeof highlightMesh !== 'undefined') highlightMesh.visible = false;
     if (typeof crackMesh !== 'undefined') crackMesh.visible = false;
     if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = false;
+    if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.visible = false;
     renderer.shadowMap.enabled = false;
     _reflHiddenChunks.length = 0;
     const reflMaxChunkDistSq = Math.max(25, (renderDistance + 2) * (renderDistance + 2));
@@ -1460,7 +1475,7 @@
       }
     }
     _reflHiddenMobs.length = 0;
-    const reflCutY = WATER_LEVEL + 0.72;
+    const reflCutY = WATER_LEVEL + 0.855;
     for (let mi = 0; mi < mobs.length; mi++) {
       const m = mobs[mi];
       if (m && m.group && m.group.visible) {
@@ -1475,16 +1490,30 @@
     if (typeof droppedItems !== 'undefined') {
       for (let di = 0; di < droppedItems.length; di++) {
         const d = droppedItems[di];
-        if (d && d.mesh && d.mesh.visible && (d.y || 0) < WATER_LEVEL + 0.65) {
+        if (!d) continue;
+        if (d.shadow && d.shadow.visible) {
+          d.shadow.visible = false;
+          _reflHiddenMobs.push(d.shadow);
+        }
+        if (d.mesh && d.mesh.visible && (d.y || 0) < WATER_LEVEL + 1.15) {
           d.mesh.visible = false;
           _reflHiddenMobs.push(d.mesh);
+        }
+      }
+    }
+    if (typeof pixelFxList !== 'undefined') {
+      for (let fi = 0; fi < pixelFxList.length; fi++) {
+        const fx = pixelFxList[fi];
+        if (fx && fx.sp && fx.sp.visible) {
+          fx.sp.visible = false;
+          _reflHiddenMobs.push(fx.sp);
         }
       }
     }
     if (typeof projectiles !== 'undefined') {
       for (let pi = 0; pi < projectiles.length; pi++) {
         const pr = projectiles[pi];
-        if (pr && pr.mesh && pr.mesh.visible && (pr.y || 0) < WATER_LEVEL + 0.65) {
+        if (pr && pr.mesh && pr.mesh.visible && (pr.y || 0) < WATER_LEVEL + 0.85) {
           pr.mesh.visible = false;
           _reflHiddenMobs.push(pr.mesh);
         }
@@ -1507,6 +1536,7 @@
     if (typeof highlightMesh !== 'undefined') highlightMesh.visible = wasHighlightVis;
     if (typeof crackMesh !== 'undefined') crackMesh.visible = wasCrackVis;
     if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = wasPartVis;
+    if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.visible = wasSmokeVis;
     heldPivot.visible = wasHeldVis; weatherLines.visible = wasWeatherVis; _motePoints.visible = wasMoteVis;
     if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = wasPortalMoteVis;
   }

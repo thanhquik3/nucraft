@@ -913,6 +913,8 @@
       if (key === 'particles' && !sodiumOpts.particles) {
         particles.length = 0;
         if (typeof _partInstMesh !== 'undefined') _partInstMesh.count = 0;
+        if (typeof smokeVoxels !== 'undefined') smokeVoxels.length = 0;
+        if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.count = 0;
       }
       if (key === 'clouds' || key === 'fog') {
         try { updateAtmosphere(0.016); } catch (_) {}

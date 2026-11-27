@@ -2234,7 +2234,7 @@
               }
               else id = rockH > 0.55 ? B.STONE : B.DEEPSLATE;
               if (trueY <= -760 && oreH > 0.84) id = B.NETHERRACK;
-              else if (uBio === UNDERGROUND_BIOMES.SULFUR_CAVE && oreH > 0.976) id = oreH > 0.988 ? B.SULFUR_CRYSTAL : B.SULFUR_ORE;
+              else if (uBio === UNDERGROUND_BIOMES.SULFUR_CAVE && oreH > 0.976) id = B.SULFUR_ORE;
               else if (oreH > 0.9982) id = B.DIAMOND_ORE;
               else if (oreH > 0.9970) id = (uBio === UNDERGROUND_BIOMES.MAGMA_CAVERN || uBio === UNDERGROUND_BIOMES.DEEP_DARK) ? B.RUBY_ORE : B.DEEPSLATE;
               else if (oreH > 0.9950) id = uBio === UNDERGROUND_BIOMES.CRYSTAL_CAVERN ? B.LAPIS_ORE : (uBio === UNDERGROUND_BIOMES.LUSH_CAVE ? B.EMERALD_ORE : B.GOLD_ORE);
@@ -2308,10 +2308,11 @@
             } else if (uId === UNDERGROUND_BIOMES.DRIPSTONE_CAVE.id) {
               if (fh > 0.90) {
                 const sLen = 1 + Math.floor(hash2i(wx, wz, seedMix.s1 + 431) * 3);
+                const tipBlk = (trueY < -35 && fh > 0.95) ? B.DEEPSLATE_STALACTITE : B.DRIPSTONE_STALACTITE;
                 for (let d = 0; d < sLen && (ly + d) <= decEnd; d++) {
                   const idxS = ((ly + d) << 8) | (lz << 4) | lx;
                   if (data[idxS] !== B.AIR) break;
-                  data[idxS] = d === sLen - 1 ? B.STONE_WALL : B.SMOOTH_STONE;
+                  data[idxS] = d === sLen - 1 ? tipBlk : B.SMOOTH_STONE;
                 }
               }
             } else if (uId === UNDERGROUND_BIOMES.GLOWSHROOM_GROTTO.id) {
@@ -2324,7 +2325,8 @@
             } else if (uId === UNDERGROUND_BIOMES.ICE_CAVERN.id) {
               if (fh > 0.55) data[below] = B.PACKED_ICE;
               else if (fh < 0.16) data[below] = B.SNOW;
-              if (fh > 0.94) data[i] = B.SEA_LANTERN;
+              if (fh > 0.945) data[i] = B.SEA_LANTERN;
+              else if (fh > 0.905) data[i] = B.ICE_STALACTITE;
             } else if (uId === UNDERGROUND_BIOMES.DEEP_DARK.id) {
               data[below] = B.SCULK;
               if (fh > 0.968) data[i] = B.SCULK_SHRIEKER;
@@ -2354,17 +2356,18 @@
               }
             } else if (uId === UNDERGROUND_BIOMES.DRIPSTONE_CAVE.id && ch > 0.87) {
               const sLen = 2 + Math.floor(hash2i(wx, wz, seedMix.s1 + 641) * 4);
+              const stalBlk = (trueY < -35 && ch > 0.93) ? B.DEEPSLATE_STALACTITE : B.DRIPSTONE_STALACTITE;
               for (let d = 0; d < sLen && (ly - d) >= decStart; d++) {
                 const idxS = ((ly - d) << 8) | (lz << 4) | lx;
                 if (data[idxS] !== B.AIR) break;
-                data[idxS] = d >= sLen - 2 ? B.STONE_WALL : B.STONE;
+                data[idxS] = d >= sLen - 2 ? stalBlk : B.STONE;
               }
             } else if (uId === UNDERGROUND_BIOMES.ICE_CAVERN.id && ch > 0.85) {
               const iLen = 2 + Math.floor(hash2i(wx, wz, seedMix.s1 + 647) * 4);
               for (let d = 0; d < iLen && (ly - d) >= decStart; d++) {
                 const idxI = ((ly - d) << 8) | (lz << 4) | lx;
                 if (data[idxI] !== B.AIR) break;
-                data[idxI] = B.ICE;
+                data[idxI] = d >= iLen - 2 ? B.ICE_STALACTITE : B.ICE;
               }
             } else if (uId === UNDERGROUND_BIOMES.MAGMA_CAVERN.id && ch > 0.94) {
               data[i] = B.SHROOMLIGHT;
@@ -3328,7 +3331,7 @@
               } else if (uBioCol === UNDERGROUND_BIOMES.DRIPSTONE_CAVE) {
                 if (lh > 0.91) {
                   data[i] = B.SMOOTH_STONE;
-                  if (ly + 1 < h - MIN_Y - 6 && data[above] === B.AIR) data[above] = B.STONE_WALL;
+                  if (ly + 1 < h - MIN_Y - 6 && data[above] === B.AIR) data[above] = (wy < -35 && lh > 0.96) ? B.DEEPSLATE_STALACTITE : B.DRIPSTONE_STALACTITE;
                 }
               } else if (uBioCol === UNDERGROUND_BIOMES.GLOWSHROOM_GROTTO) {
                 data[below] = B.MYCELIUM;
@@ -3339,19 +3342,21 @@
                 else if (lh > 0.942) {
                   const sh = 1 + ((hash2i(wx, wz, worldSeed + 7841) * 3) | 0);
                   let topD = -1;
+                  const useCin = lh > 0.968;
                   for (let d = 0; d < sh && (ly + d) < (h - MIN_Y - 4); d++) {
                     const idxC = ((ly + d) << 8) | (lz << 4) | lx;
                     if (data[idxC] !== B.AIR) break;
-                    data[idxC] = B.SULFUR_BLOCK;
+                    data[idxC] = useCin ? B.CINNABAR_STALACTITE : B.SULFUR_CRYSTAL;
                     topD = d;
                   }
-                  if (topD >= 0) data[((ly + topD) << 8) | (lz << 4) | lx] = B.SULFUR_CRYSTAL;
+                  if (topD >= 0 && !useCin) data[((ly + topD) << 8) | (lz << 4) | lx] = B.SULFUR_CRYSTAL;
                 } else if (lh < 0.14 && data[below] !== B.AIR) {
                   data[below] = B.WATER;
                 }
               } else if (uBioCol === UNDERGROUND_BIOMES.ICE_CAVERN) {
                 if (lh > 0.55) data[below] = B.PACKED_ICE;
-                if (lh > 0.95) data[i] = B.SEA_LANTERN;
+                if (lh > 0.955) data[i] = B.SEA_LANTERN;
+                else if (lh > 0.915) data[i] = B.ICE_STALACTITE;
               } else if (lh > 0.962) {
                 data[i] = B.MUSHROOM_GLOW;
               }
@@ -3373,28 +3378,27 @@
                 data[i] = B.GLOW_CRYSTAL;
               } else if (uBioCol === UNDERGROUND_BIOMES.DRIPSTONE_CAVE && vh > 0.88) {
                 const sLen = 2 + Math.floor(hash2i(wx, wz, seedMix.s1 + 641) * 3);
+                const stalB = (wy < -35 && vh > 0.94) ? B.DEEPSLATE_STALACTITE : B.DRIPSTONE_STALACTITE;
                 for (let d = 0; d < sLen && (ly - d) > 5; d++) {
                   const idxS = ((ly - d) << 8) | (lz << 4) | lx;
                   if (data[idxS] !== B.AIR) break;
-                  data[idxS] = d === sLen - 1 ? B.STONE_WALL : B.STONE;
+                  data[idxS] = d >= sLen - 2 ? stalB : B.STONE;
                 }
               } else if (uBioCol === UNDERGROUND_BIOMES.ICE_CAVERN && vh > 0.86) {
                 const iLen = 2 + Math.floor(hash2i(wx, wz, seedMix.s1 + 647) * 3);
                 for (let d = 0; d < iLen && (ly - d) > 5; d++) {
                   const idxI = ((ly - d) << 8) | (lz << 4) | lx;
                   if (data[idxI] !== B.AIR) break;
-                  data[idxI] = B.ICE;
+                  data[idxI] = d >= iLen - 2 ? B.ICE_STALACTITE : B.ICE;
                 }
               } else if (uBioCol === UNDERGROUND_BIOMES.SULFUR_CAVE && vh > 0.89) {
                 const sLen = 1 + Math.floor(hash2i(wx, wz, seedMix.s1 + 7853) * 3);
-                let botD = -1;
+                const hangCin = vh > 0.955;
                 for (let d = 0; d < sLen && (ly - d) > 5; d++) {
                   const idxS = ((ly - d) << 8) | (lz << 4) | lx;
                   if (data[idxS] !== B.AIR) break;
-                  data[idxS] = B.SULFUR_BLOCK;
-                  botD = d;
+                  data[idxS] = hangCin ? B.CINNABAR_STALACTITE : (d === 0 && sLen > 1 ? B.SULFUR_BLOCK : B.SULFUR_CRYSTAL);
                 }
-                if (botD >= 0) data[((ly - botD) << 8) | (lz << 4) | lx] = B.SULFUR_CRYSTAL;
               }
             }
           }
@@ -3640,7 +3644,11 @@
                 setLocalSafe(data, lx, h + 1, lz, B.SULFUR_VENT, true);
               } else {
                 const spH = 1 + ((hash2i(wx, wz, worldSeed + 7867) * 3) | 0);
-                for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, h + sy, lz, sy === spH ? B.SULFUR_CRYSTAL : B.SULFUR_BLOCK, false);
+                const useCin = rTree > 0.980;
+                for (let sy = 1; sy <= spH; sy++) {
+                  const sBlk = (sy === 1 && spH >= 3 && !useCin) ? B.SULFUR_BLOCK : (useCin ? B.CINNABAR_STALACTITE : B.SULFUR_CRYSTAL);
+                  setLocalSafe(data, lx, h + sy, lz, sBlk, false);
+                }
               }
               placed = true;
             }

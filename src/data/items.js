@@ -278,6 +278,12 @@
     { cat: 'misc',   is2x2: true, out: B.SULFUR_POWDER,     qty: 9, req: [{ id: B.SULFUR_BLOCK, qty: 1 }], grid: [B.SULFUR_BLOCK,0,0, 0,0,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.TORCH_BLOCK,       qty: 4, req: [{ id: B.SULFUR_POWDER, qty: 1 }, { id: B.STICK, qty: 1 }], grid: [0,B.SULFUR_POWDER,0, 0,B.STICK,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.SLIME_BLOCK,       qty: 1, req: [{ id: B.SULFUR_SLIMEBALL, qty: 4 }], grid: [B.SULFUR_SLIMEBALL,B.SULFUR_SLIMEBALL,0, B.SULFUR_SLIMEBALL,B.SULFUR_SLIMEBALL,0, 0,0,0] },
+    // v165 Cave & Sulfur Stalactites (Stone-Wall Pillar Model)
+    { cat: 'blocks', out: B.SULFUR_CRYSTAL,       qty: 4, req: [{ id: B.SULFUR_BLOCK,   qty: 3 }], grid: [0,B.SULFUR_BLOCK,0,   0,B.SULFUR_BLOCK,0,   0,B.SULFUR_BLOCK,0] },
+    { cat: 'blocks', out: B.DRIPSTONE_STALACTITE, qty: 4, req: [{ id: B.STONE,          qty: 3 }], grid: [0,B.STONE,0,          0,B.STONE,0,          0,B.STONE,0] },
+    { cat: 'blocks', out: B.ICE_STALACTITE,       qty: 4, req: [{ id: B.ICE,            qty: 3 }], grid: [0,B.ICE,0,            0,B.ICE,0,            0,B.ICE,0] },
+    { cat: 'blocks', out: B.DEEPSLATE_STALACTITE, qty: 4, req: [{ id: B.DEEPSLATE,      qty: 3 }], grid: [0,B.DEEPSLATE,0,      0,B.DEEPSLATE,0,      0,B.DEEPSLATE,0] },
+    { cat: 'blocks', out: B.CINNABAR_STALACTITE,  qty: 4, req: [{ id: B.CINNABAR_STONE, qty: 3 }], grid: [0,B.CINNABAR_STONE,0, 0,B.CINNABAR_STONE,0, 0,B.CINNABAR_STONE,0] },
     // v43 Ichor & Aetherium Tools & Armor (The Sift Endgame Tiers!)
     { cat: 'tools',  out: B.ICHOR_PICK,       qty: 1, req: [{ id: B.ICHOR_CRYSTAL, qty: 3 }, { id: B.STICK, qty: 2 }], grid: [B.ICHOR_CRYSTAL,B.ICHOR_CRYSTAL,B.ICHOR_CRYSTAL, 0,B.STICK,0, 0,B.STICK,0] },
     { cat: 'tools',  out: B.ICHOR_SWORD,      qty: 1, req: [{ id: B.ICHOR_CRYSTAL, qty: 2 }, { id: B.STICK, qty: 1 }], grid: [0,B.ICHOR_CRYSTAL,0, 0,B.ICHOR_CRYSTAL,0, 0,B.STICK,0] },
@@ -5316,13 +5322,31 @@
       paintNoiseBlock(V156_TILES.travertineStone, '#ebe7de', '#c7c0b4', '#f8fafc', '#d6d3d1', 49);
       paintNoiseBlock(V156_TILES.thermalCrust,    '#ea580c', '#9a3412', '#fb923c', '#facc15', 61);
       paintNoiseBlock(V156_TILES.sulfurVent,      '#a16207', '#451a03', '#f59e0b', '#fef9c3', 73);
-      tilePixels(V156_TILES.sulfurCrystal, (x, y, r) => {
-        if (y <= 2 || Math.abs(x - 7.5) + y < 5) return '#fefce8';
-        if (x <= 1 || x >= 14) return '#a16207';
-        if (y >= 14) return '#713f12';
-        if (Math.abs(x - y) <= 1 || Math.abs((15 - x) - y) <= 1) return '#fef08a';
-        return shade(((x + y) & 2) ? '#fde047' : '#eab308', (r - 0.5) * 18);
-      });
+      const paintStalactiteTile = (tile, baseHex, darkHex, hiHex, veinHex, seedSalt) => {
+        const pal = { b: baseHex, d: darkHex, h: hiHex, v: veinHex };
+        const rows = [];
+        for (let y = 0; y < 16; y++) {
+          let row = '';
+          for (let x = 0; x < 16; x++) {
+            const colH = (((x * 2654435761 + seedSalt * 97) >>> 0) % 10);
+            const pxH = (((x * 374761393 + y * 668265263 + seedSalt * 1442695041) ^ ((x + y) * 1274126177)) >>> 0) % 100;
+            const streak = ((y + colH) % 5 === 0) && pxH < 58;
+            if (veinHex && pxH > 88 && (x & 1) === (y & 1)) row += 'v';
+            else if (x === 0 || x === 15 || pxH < 20 || (streak && colH < 4)) row += 'd';
+            else if (x === 2 || pxH > 78 || (streak && colH >= 6)) row += 'h';
+            else row += 'b';
+          }
+          rows.push(row);
+        }
+        drawSpriteMap(tile, rows, pal);
+      };
+      paintStalactiteTile(V156_TILES.sulfurCrystal, '#eab308', '#a16207', '#fde047', '#b45309', 83);
+      if (typeof V165_TILES !== 'undefined') {
+        paintStalactiteTile(V165_TILES.dripstoneStalactite, '#a68d6b', '#6d583e', '#cbb694', '#574632', 101);
+        paintStalactiteTile(V165_TILES.iceStalactite,       '#93c5fd', '#4f86d9', '#e0f2fe', '#ffffff', 113);
+        paintStalactiteTile(V165_TILES.deepslateStalactite, '#4b5563', '#272f3b', '#64748b', '#1e293b', 127);
+        paintStalactiteTile(V165_TILES.cinnabarStalactite,  '#991b1b', '#5f1111', '#dc2626', '#d97706', 139);
+      }
       drawSpriteMap(V156_TILES.sulfurSlimeball, [
         '................',
         '......oooo......',

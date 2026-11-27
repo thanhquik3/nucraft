@@ -1924,21 +1924,22 @@
           }
           h.px(2, 3, 3, 10, 10, 0xfef08a);
         }, 0, 0.45, 0, { rough: 0.14, transparent: true, opacity: 0.64, emissive: 0xca8a04, emissiveIntensity: 0.28 });
-        if (outerMesh && outerMesh.material) { outerMesh.material.depthWrite = false; outerMesh.renderOrder = 2; }
+        if (outerMesh && outerMesh.material) { outerMesh.material.depthWrite = false; outerMesh.renderOrder = 4; }
         const skirtMesh = addArtBox(anim.torso, 1.00, 0.12, 1.00, 'fb_sulfur_slime_skirt_v2', (ctx, h) => {
           h.fillAll(0xeab308, 10, 'crystal', 12, -12);
           for (const t of [0, 1, 4, 5]) h.px(t, 1, 0, 14, 5, 0xfde047);
         }, 0, 0.06, 0, { rough: 0.18, transparent: true, opacity: 0.54, emissive: 0xb45309, emissiveIntensity: 0.22 });
-        if (skirtMesh && skirtMesh.material) { skirtMesh.material.depthWrite = false; skirtMesh.renderOrder = 1; }
+        if (skirtMesh && skirtMesh.material) { skirtMesh.material.depthWrite = false; skirtMesh.renderOrder = 3; }
         const bud1 = addBoxTo(anim.torso, 0.14, 0.18, 0.14, 0xfde047, 0.16, 0.91, -0.10, true);
         if (bud1) bud1.rotation.set(0.18, 0, -0.22);
         const bud2 = addBoxTo(anim.torso, 0.10, 0.13, 0.10, 0xfef08a, -0.18, 0.89, 0.12, true);
         if (bud2) bud2.rotation.set(-0.20, 0, 0.24);
       } else {
-        addArtBox(anim.torso, 0.90, 0.90, 0.90, 'fb_slime_outer', (ctx, h) => {
+        const slimeOuter = addArtBox(anim.torso, 0.90, 0.90, 0.90, 'fb_slime_outer', (ctx, h) => {
           h.fillAll(0x4ade80, 12, 'crystal', 18, -18);
           h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 2, eyeCol: 0x052e16, sparkle: true, noseY: 10, noseW: 2, noseH: 2, noseCol: 0x052e16 });
         }, 0, 0.45, 0, { rough: 0.22, transparent: true, opacity: 0.72, emissive: 0x064e3b, emissiveIntensity: 0.22 });
+        if (slimeOuter && slimeOuter.material) { slimeOuter.material.depthWrite = false; slimeOuter.renderOrder = 4; }
         addBoxTo(anim.torso, 0.56, 0.56, 0.56, 0x16a34a, 0, 0.45, 0, false, 0.40, 'crystal');
       }
     } else if (type === 'wither_knight') {

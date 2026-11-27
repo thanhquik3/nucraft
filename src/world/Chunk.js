@@ -1763,8 +1763,9 @@
       const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nx, ny, nz);
       const nwy = wy + face.dir[1];
       if (f === 0 && _isFluidMatch(nb, B.WATER, nwy)) continue;
-      if (f === 1 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1)) continue;
-      if (f >= 2 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1)) continue;
+      const nbGlass = !!(BLOCK_DEF_ARR[nb] && BLOCK_DEF_ARR[nb].glass);
+      if (f === 1 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
+      if (f >= 2 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
       if (f >= 2 && IS_SLAB[nb] > 0 && waterloggedBlocks.has(modKey(wx + face.dir[0], nwy, wz + face.dir[2]))) continue;
       const vc = st.wCount;
       if (vc + 4 > fBuf.cap) _growFluidBuf(fBuf, vc + 4);
@@ -1844,7 +1845,7 @@
   function _meshCrossPlantVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, maxLy, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st) {
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
     const isFlat = (id === B.SAKURA_PETALS || id === B.LILY_PAD || !!def.flatTrack);
-    const flatY = (id === B.LILY_PAD) ? -0.11 : (def.flatTrack ? 0.04 : 0.03);
+    const flatY = (id === B.LILY_PAD) ? -0.085 : (def.flatTrack ? 0.04 : 0.03);
     const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.MANGROVE_PROPAGULE || id === B.WEEPING_VINES);
     let stackBelow = 0, stackAbove = 0;
     if (!isFlat) {
@@ -2192,7 +2193,7 @@
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1))) { emitBox(0.4375, 0.75, 0.625, 0.5625, 0.9375, 1.0, tTop, tSide, tBot); emitBox(0.4375, 0.375, 0.625, 0.5625, 0.5625, 1.0, tTop, tSide, tBot); }
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1))) { emitBox(0.4375, 0.75, 0.0, 0.5625, 0.9375, 0.375, tTop, tSide, tBot); emitBox(0.4375, 0.375, 0.0, 0.5625, 0.5625, 0.375, tTop, tSide, tBot); }
     } else if (def.wall) {
-      const canW = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && (d.wall || d.fence || IS_OPAQUE[nb] === 1)); };
+      const canW = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && (def.stalactite ? d.stalactite : (d.wall || d.fence || IS_OPAQUE[nb] === 1))); };
       const cPX = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz)), cNX = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz));
       const cPZ = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1)), cNZ = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1));
       const above = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);

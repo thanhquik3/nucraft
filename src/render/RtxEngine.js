@@ -94,7 +94,7 @@
     { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false }
   );
   const reflCam = new THREE.PerspectiveCamera(72, 16 / 9, 0.1, 420);
-  const reflClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(WATER_LEVEL + 0.72));
+  const reflClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(WATER_LEVEL + 0.855));
 
   const { tex: atlasTex, bumpTex, canvas: atlasCanvas, getSolidTex: getAtlasSolidTex } = buildTextureAtlas();
   const atlasCtx = atlasCanvas.getContext('2d');
@@ -1529,6 +1529,13 @@
   // Authentic BSL/SEUS Crystal-Clear Water Shader (ZERO Shore Stripes • Smooth Per-Corner Shore Blend • Glassy Day & Moonlit Night Reflections)
   const waterMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendEquationAlpha: THREE.AddEquation,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneFactor,
     uniforms: {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir, uSunColor: envUniforms.uSunColor,
       uSkyTop: envUniforms.uSkyTop, uSkyHorizon: envUniforms.uSkyHorizon, uFogColor: envUniforms.uFogColor,
@@ -1754,7 +1761,7 @@
           bool hasPlanarW = (uUsePlanarRefl > 0.5 && highWater && abs(vWorldPos.y - 0.86) < 0.45);
           if (hasPlanarW) {
             vec2 ndc = (vReflClip.xy / max(0.001, vReflClip.w)) * 0.5 + 0.5;
-            float shoreCalm = 1.0 - smoothstep(0.0, 1.0, vShore) * 0.82;
+            float shoreCalm = 1.0 - smoothstep(0.0, 0.72, vShore) * 0.94;
             float distDamp = 1.0 / (1.0 + vDist * 0.032);
             vec2 reflUv = ndc + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(1.0, 0.92, uEclipseMode);
             float edgeMask = step(0.01, vReflClip.w) * smoothstep(0.0, 0.06, reflUv.x) * smoothstep(1.0, 0.94, reflUv.x)
