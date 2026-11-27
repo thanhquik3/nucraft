@@ -156,7 +156,7 @@
     { cat: 'tools',  out: B.SHIELD,          qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 6 }, { id: B.IRON_INGOT, qty: 1 }], grid: [B.PLANKS,B.IRON_INGOT,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS, 0,B.PLANKS,0] },
     { cat: 'tools',  is2x2: true, out: B.SHEARS, qty: 1, req: [{ id: B.IRON_INGOT, qty: 2 }], grid: [0,0,0, 0,B.IRON_INGOT,0, B.IRON_INGOT,0,0] },
     // Phôi quặng tinh luyện (quái rơi ra) -> nén lại thành khối quặng để dùng cho mọi công thức hiện có
-    { cat: 'tools',  out: B.FISHING_ROD,     qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.IRON_INGOT, qty: 1 }], grid: [0,0,B.STICK, 0,B.STICK,B.IRON_INGOT, B.STICK,0,0] },
+    { cat: 'tools',  out: B.FISHING_ROD,     qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.STRING, qty: 2 }], grid: [0,0,B.STICK, 0,B.STICK,B.STRING, B.STICK,0,B.STRING] },
     { cat: 'tools',  out: B.BOAT_ITEM,       qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 5 }], grid: [0,0,0, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
     { cat: 'tools',  out: B.WATER_BUCKET,    qty: 1, req: [{ id: B.BUCKET, qty: 1 }, { id: B.ICE, qty: 1 }], grid: [0,B.ICE,0, 0,B.BUCKET,0, 0,0,0] },
     { cat: 'tools',  out: B.LAVA_BUCKET,     qty: 1, req: [{ id: B.BUCKET, qty: 1 }, { id: B.MAGMA_CORE, qty: 1 }], grid: [0,B.MAGMA_CORE,0, 0,B.BUCKET,0, 0,0,0] },
@@ -420,7 +420,6 @@
     { cat: 'blocks',              out: B.BONE_BLOCK, qty: 1, req: [{ id: B.BONE_MEAL, qty: 9 }],  grid: [B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL] },
     // v153: Classic String Bow/Rod + End Dragon Realm Scale & Bone Gear (= Dream Prism Sift Tier)
     { cat: 'tools',  out: B.BOW,               qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.STRING, qty: 3 }], grid: [0,B.STICK,B.STRING, B.STICK,0,B.STRING, 0,B.STICK,B.STRING] },
-    { cat: 'tools',  out: B.FISHING_ROD,       qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.STRING, qty: 2 }], grid: [0,0,B.STICK, 0,B.STICK,B.STRING, B.STICK,0,B.STRING] },
     { cat: 'tools',  out: B.DRAGON_SADDLE,     qty: 1, req: [{ id: B.SADDLE, qty: 1 }, { id: B.DRAGON_CRYSTAL, qty: 2 }, { id: B.DRAGON_SCALE, qty: 2 }], grid: [B.DRAGON_SCALE,B.DRAGON_CRYSTAL,B.DRAGON_SCALE, 0,B.SADDLE,0, 0,B.DRAGON_CRYSTAL,0] },
     { cat: 'tools',  out: B.END_DRAGON_HELMET, qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 5 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, 0,0,0] },
     { cat: 'tools',  out: B.END_DRAGON_CHEST,  qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 8 }], grid: [B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE] },
@@ -1961,12 +1960,24 @@
       return null;
     });
     drawBucketTile(119, null); drawBucketTile(120, '#38bdf8'); drawBucketTile(121, '#f97316');
-    tilePixels(122, (x, y) => {
-      if (x >= 3 && x <= 11 && Math.abs((14 - x) - y) <= 0) return '#92400e';
-      if (x === 12 && y >= 3 && y <= 10) return '#e2e8f0';
-      if (x >= 11 && x <= 13 && y >= 11 && y <= 13) return y === 11 ? '#ef4444' : '#f8fafc';
-      return null;
-    });
+    drawSpriteMap(122, [
+      '................',
+      '...........ooo..',
+      '..........oMDo..',
+      '.........oLMoS..',
+      '........oWLoS...',
+      '.......oWLo.S...',
+      '......oBWo..S...',
+      '.....oBWo...S...',
+      '....oBWo....S...',
+      '...oBBo....S....',
+      '..oBBoMMMM.H....',
+      '..oBBoMMo.HHh...',
+      '.oBWo.oo..Hhh...',
+      '.ooo............',
+      '................',
+      '................'
+    ], { o: '#2b1b0e', B: '#6b471b', W: '#94682b', L: '#b38642', M: '#8b95a5', D: '#475569', S: '#64748b', H: '#cbd5e1', h: '#f8fafc' });
     tilePixels(123, (x, y, r) => {
       if (y >= 7 && y <= 12 && x >= 2 && x <= 13 && !(y >= 11 && (x <= 3 || x >= 12))) return shade(y === 8 ? '#78350f' : '#b45309', (r - 0.5) * 12);
       if (y >= 4 && y <= 7 && (x === 5 || x === 10)) return '#d97706';
@@ -4853,25 +4864,25 @@
 
     // v153 Tiles (696..734): Fishing rod cast + loot items, Ender egg, End Dragon Realm blocks, End Dragon Scale/Bone gear & Sovereign Knight Armor
     if (typeof V153_TILES !== 'undefined') {
-      // Cast Fishing Rod (bare rod without hanging line/bobber)
+      // Cast Fishing Rod (exact same oak/silver shaft silhouette without dangling line/hook)
       drawSpriteMap(V153_TILES.rodCast, [
         '................',
         '...........ooo..',
-        '..........oMMo..',
-        '.........oMMo...',
-        '........oMMo....',
-        '.......oWWo.....',
-        '......oWMo......',
-        '.....oWWo.......',
-        '....oWWo........',
+        '..........oMDo..',
+        '.........oLMo...',
+        '........oWLo....',
+        '.......oWLo.....',
+        '......oBWo......',
+        '.....oBWo.......',
+        '....oBWo........',
         '...oBBo.........',
         '..oBBo..........',
-        '.oBBo...........',
+        '..oBBo..........',
+        '.oBWo...........',
         '.ooo............',
         '................',
-        '................',
         '................'
-      ], { o: '#291a0d', B: '#854d0e', W: '#a16207', M: '#94a3b8' });
+      ], { o: '#2b1b0e', B: '#6b471b', W: '#94682b', L: '#b38642', M: '#8b95a5', D: '#475569' });
 
       // Tropical Fish & Pufferfish
       drawSpriteMap(V153_TILES.tropicalFish, [

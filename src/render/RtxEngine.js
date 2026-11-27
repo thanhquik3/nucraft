@@ -3695,6 +3695,12 @@
     }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData.iconReady = usedOfficialIcon || !_vIm;
+    if (def.tool === 'rod') {
+      const tipMarker = new THREE.Object3D();
+      tipMarker.name = 'rodTipMarker';
+      tipMarker.position.set(4.5 * px, 5.4 * px, 0);
+      mesh.add(tipMarker);
+    }
     // Authentic Minecraft First-Person Hand Poses (YXZ + positive ry points blade/pick/axe/bow tip FORWARD into -Z, handle in right hand!)
     mesh.rotation.order = 'YXZ';
     const isForwardShaft = (blockId === B.STICK || blockId === B.SPYGLASS || blockId === B.ARROW);
@@ -3718,7 +3724,12 @@
       // Authentic 3D extruded pixel-art Minecraft Bow: curved stave FORWARD (-Z), string facing player (+Z)!
       mesh.position.set(0.0, 0.01, -0.04);
       mesh.rotation.set(0.06, -1.42, 0.68);
-    } else if (def.tool === 'rod' || isForwardShaft) {
+    } else if (def.tool === 'rod') {
+      // Minecraft 1P Fishing Rod: handle bottom-right, shaft sloping UP-LEFT & FORWARD (-Z), dangling line/bobber facing OUTWARD (-X, -Z) away from player!
+      mesh.position.set(-0.04, 0.05, -0.05);
+      mesh.rotation.set(-0.14, Math.PI - 0.44, 0.10);
+      mesh.scale.setScalar(1.34);
+    } else if (isForwardShaft) {
       mesh.position.set(-0.01, 0.02, -0.06);
       mesh.rotation.set(-0.05, 1.84, 0.22);
     } else if (def.tool === 'shears') {
@@ -3871,7 +3882,7 @@
     const _defHeld = (blockId && BLOCK_DEF[blockId]) ? BLOCK_DEF[blockId] : null;
     const _isTrident = !!(B.TRIDENT && blockId === B.TRIDENT);
     const _toolType = _isTrident ? 'trident' : (_defHeld && _defHeld.tool ? _defHeld.tool : '');
-    const _showToolArm = !!(_toolType && _toolType !== 'bow' && _toolType !== 'flint_steel' && blockId !== B.SHIELD);
+    const _showToolArm = !!(_toolType && _toolType !== 'bow' && _toolType !== 'rod' && _toolType !== 'flint_steel' && blockId !== B.SHIELD);
     if (keyChanged) {
       player._lastHeldId = blockId || 0;
       player._lastHeldKey = _heldKey;

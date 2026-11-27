@@ -200,7 +200,7 @@ const {
     [B.BUCKET]:            { name: 'Xô Sắt (Múc Nước/Lava)',     hard: 0, solid: false, itemOnly: true, voxelItem: true, bucket: 'empty', tiles: [119, 119, 119], mapColor: '#cbd5e1' },
     [B.WATER_BUCKET]:      { name: 'Xô Nước (Đổ Chảy Lan)',      hard: 0, solid: false, itemOnly: true, voxelItem: true, bucket: 'water', tiles: [120, 120, 120], mapColor: '#38bdf8' },
     [B.LAVA_BUCKET]:       { name: 'Xô Dung Nham (Đổ Chảy Lan)', hard: 0, solid: false, itemOnly: true, voxelItem: true, bucket: 'lava',  tiles: [121, 121, 121], mapColor: '#f97316' },
-    [B.FISHING_ROD]:       { name: 'Cần Câu Cá Biển',            hard: 0, solid: false, tool: 'rod', voxelItem: true, dmg: 2, maxDur: 160, tiles: [122, 122, 122], mapColor: '#b45309' },
+    [B.FISHING_ROD]:       { name: 'Cần Câu Cá Biển',            hard: 0, solid: false, tool: 'rod', voxelItem: true, customAtlasTex: true, dmg: 2, maxDur: 160, tiles: [122, 122, 122], mapColor: '#b45309' },
     [B.BOAT_ITEM]:         { name: 'Thuyền Gỗ (Lướt Mặt Biển)',  hard: 0, solid: false, itemOnly: true, voxelItem: true, boat: true, tiles: [123, 123, 123], mapColor: '#92400e' },
     [B.SPYGLASS]:          { name: 'Ống Nhòm (Zoom 3x)',         hard: 0, solid: false, itemOnly: true, voxelItem: true, spyglass: true, tiles: [124, 124, 124], mapColor: '#f59e0b' },
     [B.RAW_FISH]:          { name: 'Cá Biển Tươi',               hard: 0, solid: false, food: true, voxelItem: true, heal: 2, feed: 3, tiles: [125, 125, 125], mapColor: '#38bdf8' },

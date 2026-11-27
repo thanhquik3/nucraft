@@ -1163,6 +1163,7 @@
     rig.heldItemKey = itemKey;
     while (rig.handHold.children.length) rig.handHold.remove(rig.handHold.children[0]);
     rig.bowGrip = null;
+    rig.rodTipMarker = null;
     rig.heldLanternPivot = null;
     if (!bid || !BLOCK_DEF[bid]) return;
     const def = BLOCK_DEF[bid];
@@ -1197,7 +1198,18 @@
       const initAimT = (meta && meta.bowStage > 0) ? Math.max(rig._bowAimT || 0, 1.0) : (rig._bowAimT || 0);
       _applyRigBowGripPose(grip, initAimT);
       rig.handHold.add(grip);
-    } else if (def.tool === 'pick' || def.tool === 'axe' || def.tool === 'shovel' || def.tool === 'hoe' || def.tool === 'rod' || def.tool === 'shears' || isForwardShaft) {
+    } else if (def.tool === 'rod') {
+      // Authentic Minecraft 3rd-person Fishing Rod Grip: shaft angled FORWARD (+Z) & UP (+Y), dangling line & bobber hanging OUTWARD in front!
+      const grip = new THREE.Group();
+      grip.rotation.order = 'YXZ';
+      grip.position.set(0.0, -0.02, 0.06);
+      grip.rotation.set(0.0, -Math.PI * 0.5, -0.18);
+      clone.scale.setScalar(1.24);
+      clone.position.set(0.18, 0.18, 0.0);
+      grip.add(clone);
+      rig.rodTipMarker = clone.getObjectByName('rodTipMarker') || null;
+      rig.handHold.add(grip);
+    } else if (def.tool === 'pick' || def.tool === 'axe' || def.tool === 'shovel' || def.tool === 'hoe' || def.tool === 'shears' || isForwardShaft) {
       // Authentic Minecraft 3rd-person Tool Grip: handle locked inside right fist, curved blade/head facing FORWARD (+Z)!
       const grip = new THREE.Group();
       grip.rotation.order = 'YXZ';
@@ -6555,15 +6567,19 @@
   }
   window._nucraftRollFishingLoot = rollFishingLoot;
 
-  const _FISH_LINE_PTS = 14;
+  const _FISH_LINE_PTS = 18;
   const _fishTipTmp = new THREE.Vector3();
+  const _fishCamToPt = new THREE.Vector3();
+  const _fishTan = new THREE.Vector3();
+  const _fishSide = new THREE.Vector3();
+  const _fishPts = new Float32Array(_FISH_LINE_PTS * 3);
   const fishingState = {
     active: false, mode: 'cast',
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
     waterY: 0, inWater: false, waitT: 0, biteT: 0, splashTick: 0,
     lureLvl: 0, luckLvl: 0, slotIdx: 0,
     bobberGrp: null, lineMesh: null,
-    lineArr: new Float32Array(_FISH_LINE_PTS * 3)
+    lineArr: new Float32Array(_FISH_LINE_PTS * 2 * 3)
   };
   function _ensureFishingMeshes() {
     if (fishingState.bobberGrp) return;
@@ -6587,7 +6603,13 @@
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(fishingState.lineArr, 3));
-    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x1f2937 }));
+    const indices = [];
+    for (let li = 0; li < _FISH_LINE_PTS - 1; li++) {
+      const a = li * 2, b = a + 1, c = a + 2, d = a + 3;
+      indices.push(a, b, c, b, d, c);
+    }
+    geo.setIndex(indices);
+    const line = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.DoubleSide, toneMapped: false }));
     line.visible = false;
     line.frustumCulled = false;
     scene.add(line);
@@ -6723,24 +6745,55 @@
       }
     }
     fishingState.bobberGrp.position.set(fishingState.x, fishingState.y, fishingState.z);
+    if (typeof camera !== 'undefined' && camera) camera.updateMatrixWorld(true);
     if (thirdPerson === 0 && typeof heldPivot !== 'undefined' && heldPivot.visible) {
-      _fishTipTmp.set(0.16, 0.28, -0.26);
-      heldPivot.localToWorld(_fishTipTmp);
-    } else if (typeof playerAvatar !== 'undefined' && playerAvatar.handHold) {
-      _fishTipTmp.set(0.16, 0.36, 0.26);
-      playerAvatar.handHold.localToWorld(_fishTipTmp);
+      const tipObj = (typeof activeHeldObj !== 'undefined' && activeHeldObj) ? activeHeldObj.getObjectByName('rodTipMarker') : null;
+      if (tipObj) {
+        tipObj.getWorldPosition(_fishTipTmp);
+      } else {
+        _fishTipTmp.set(0.06, 0.22, -0.22);
+        heldPivot.localToWorld(_fishTipTmp);
+      }
+    } else if (typeof playerAvatar !== 'undefined' && playerAvatar && (playerAvatar.rodTipMarker || playerAvatar.handHold)) {
+      playerAvatar.g.updateMatrixWorld(true);
+      if (playerAvatar.rodTipMarker) playerAvatar.rodTipMarker.getWorldPosition(_fishTipTmp);
+      else { _fishTipTmp.set(0.0, 0.34, 0.34); playerAvatar.handHold.localToWorld(_fishTipTmp); }
     } else {
       _fishTipTmp.set(player.x, player.y + 1.35, player.z);
     }
-    const arr = fishingState.lineArr;
-    const bx = fishingState.x, by = fishingState.y + 0.09, bz = fishingState.z;
+    const bx = fishingState.x, by = fishingState.y + 0.11, bz = fishingState.z;
     const ax = _fishTipTmp.x, ay = _fishTipTmp.y, az = _fishTipTmp.z;
-    const sag = fishingState.inWater ? 0.55 : 0.24;
+    const lineDist = Math.hypot(bx - ax, by - ay, bz - az);
+    const sag = fishingState.inWater ? Math.min(0.65, 0.16 + lineDist * 0.042) : 0.15;
     for (let li = 0; li < _FISH_LINE_PTS; li++) {
       const t = li / (_FISH_LINE_PTS - 1);
-      arr[li * 3]     = ax + (bx - ax) * t;
-      arr[li * 3 + 1] = ay + (by - ay) * t - sag * 4.0 * t * (1.0 - t);
-      arr[li * 3 + 2] = az + (bz - az) * t;
+      _fishPts[li * 3]     = ax + (bx - ax) * t;
+      _fishPts[li * 3 + 1] = ay + (by - ay) * t - sag * 4.0 * t * (1.0 - t);
+      _fishPts[li * 3 + 2] = az + (bz - az) * t;
+    }
+    const arr = fishingState.lineArr;
+    const camP = (typeof camera !== 'undefined' && camera) ? camera.position : _fishTipTmp;
+    for (let li = 0; li < _FISH_LINE_PTS; li++) {
+      const pi = li * 3;
+      const px0 = _fishPts[pi], py0 = _fishPts[pi + 1], pz0 = _fishPts[pi + 2];
+      const pPrev = Math.max(0, li - 1) * 3, pNext = Math.min(_FISH_LINE_PTS - 1, li + 1) * 3;
+      _fishTan.set(_fishPts[pNext] - _fishPts[pPrev], _fishPts[pNext + 1] - _fishPts[pPrev + 1], _fishPts[pNext + 2] - _fishPts[pPrev + 2]);
+      if (_fishTan.lengthSq() < 1e-8) _fishTan.set(0, -1, 0);
+      else _fishTan.normalize();
+      _fishCamToPt.set(px0 - camP.x, py0 - camP.y, pz0 - camP.z);
+      const distCam = _fishCamToPt.length() || 1;
+      _fishSide.crossVectors(_fishTan, _fishCamToPt);
+      if (_fishSide.lengthSq() < 1e-8) _fishSide.set(1, 0, 0);
+      else _fishSide.normalize();
+      const halfW = Math.max(0.0044, Math.min(0.022, distCam * 0.0032));
+      const vi = li * 6;
+      arr[vi]     = px0 + _fishSide.x * halfW;
+      arr[vi + 1] = py0 + _fishSide.y * halfW;
+      arr[vi + 2] = pz0 + _fishSide.z * halfW;
+      arr[vi + 3] = px0 - _fishSide.x * halfW;
+      arr[vi + 4] = py0 - _fishSide.y * halfW;
+      arr[vi + 5] = pz0 - _fishSide.z * halfW;
     }
     fishingState.lineMesh.geometry.attributes.position.needsUpdate = true;
+    fishingState.lineMesh.geometry.computeBoundingSphere();
   }
