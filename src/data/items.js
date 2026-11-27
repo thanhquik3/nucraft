@@ -1352,13 +1352,13 @@
     const dirtColor = (x, y, r) => {
       const ch = DIRT_MAP[y][x];
       if (ch === 'p') return shade('#91887e', (r - 0.5) * 8);
-      const pal = { a: '#946846', b: '#845b3c', c: '#a67752', d: '#69462d', e: '#ba8960' };
-      return shade(pal[ch] || '#946846', (r - 0.5) * 6);
+      const pal = { a: '#9c6632', b: '#8a5a2b', c: '#b77a3a', d: '#6d441f', e: '#c78946' };
+      return shade(pal[ch] || '#9c6632', (r - 0.5) * 6);
     };
     const grassTopColor = (x, y, r, extra = 0) => {
       const ch = GRASS_TOP_MAP[y][x];
-      const pal = { a: '#4ec428', b: '#40ad1e', c: '#5fd434', d: '#329616', e: '#72e644' };
-      return shade(pal[ch] || '#4ec428', extra + (r - 0.5) * 5);
+      const pal = { a: '#3fa55a', b: '#338f52', c: '#4db36a', d: '#25704a', e: '#5cc276' };
+      return shade(pal[ch] || '#3fa55a', extra + (r - 0.5) * 5);
     };
     const barkColor = (x, y, r, pal) => {
       const ch = OAK_BARK_MAP[y][x];
@@ -1650,7 +1650,7 @@
     tilePixels(11, (x, y, r) => (((x + y) % 7 === 0) ? '#d6f2ff' : shade('#84ccf5', (r - 0.5) * 18)));
     tilePixels(12, (x, y, r) => barkColor(x, y, r, { c: '#543a1f', a: '#3e2915', b: '#2f1e0e', d: '#211408' }));
     // Cây Thông (Spruce): dùng mask cụm dày lá thu nhuộm xanh thông đậm mượt mọi mức đồ họa!
-    drawFancyLeaf(13, { H: '#3f914e', M: '#286e39', S: '#1a4f28', D: '#11361b' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(13, { H: '#4a7a3c', M: '#2f5a32', S: '#234729', D: '#1c3a22' }, AUTUMN_LEAF_MASK);
     tilePixels(14, (x, y, r) => {
       // Authentic Minecraft Cherry Bark: deep purplish-mahogany bark with soft rose-brown horizontal lenticels
       const isLenticel = ((y === 2 && x >= 3 && x <= 7) || (y === 6 && x >= 10 && x <= 14) || (y === 10 && x >= 2 && x <= 6) || (y === 14 && x >= 8 && x <= 12));
@@ -2105,7 +2105,7 @@
     });
     tilePixels(148, (x, y, r) => shade((x + y * 3) % 5 === 0 ? '#8c748a' : '#735e70', (r - 0.5) * 16));
     tilePixels(149, (x, y, r) => y < 4 ? shade('#7a6578', (r - 0.5) * 12) : dirtColor(x, y, r));
-    tilePixels(150, (x, y, r) => (Math.hypot(x - 4, y - 4) < 2.2 || Math.hypot(x - 11, y - 10) < 2.4 || Math.hypot(x - 12, y - 3) < 1.8) ? '#f8fafc' : shade('#dc2626', (r - 0.5) * 18));
+    tilePixels(150, (x, y, r) => (Math.hypot(x - 4, y - 4) < 1.9 || Math.hypot(x - 11, y - 10) < 2.0 || Math.hypot(x - 12, y - 3) < 1.6 || Math.hypot(x - 4, y - 12) < 1.5) ? '#f2d6d6' : shade('#dc1a1a', (r - 0.5) * 14));
     tilePixels(151, (x, y, r) => shade(x % 4 === 0 ? '#d6cfc2' : '#eae4d8', (r - 0.5) * 10));
     tilePixels(152, (x, y, r) => (x % 4 === 0) ? '#1f2229' : shade('#3d424d', (r - 0.5) * 18));
     drawSpriteMap(153, POPPY_SPRITE, { R: '#a855f7', H: '#e9d5ff', G: '#3b8c26', g: '#5ec240', d: '#255c17' });
@@ -3817,8 +3817,8 @@
     // v104 Tiles 448..457: Blue-Tree Forest, Teal Grass, Wetland Cattails & Dark Slate Shingle Roof
     tilePixels(448, (x, y, r) => barkColor(x, y, r, { c: '#94a7be', a: '#788ba3', b: '#55657a', d: '#3e4b5c' }));
     tilePixels(449, (x, y, r) => logTopColor(x, y, r, '#3e4b5c', '#5c6e8a', '#dce6f4', '#b4c3d8', '#8ea0b8'));
-    drawFancyLeaf(450, { H: '#67c8ff', M: '#1e88f5', S: '#0f5bd1', D: '#09348f' }, BOTANICAL_LEAF_MASK);
-    drawFancyLeaf(451, { H: '#42a6ff', M: '#1565d8', S: '#0b40a3', D: '#062266' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(450, { H: '#3c7df0', M: '#1f57d6', S: '#1747b8', D: '#123c9e' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(451, { H: '#3270e6', M: '#1a4cc4', S: '#133b9e', D: '#0e2d7d' }, AUTUMN_LEAF_MASK);
     const azurePal = { d: '#2b4466', b: '#3c5e88', B: '#35547a', m: '#527bb0', M: '#496fa1', h: '#6795cc', H: '#7aa9e0' };
     tilePixels(452, (x, y, r) => shade(azurePal[OAK_PLANK_MAP[y][x]] || '#527bb0', (r - 0.5) * 6));
     const blueGrassTop = (x, y, r, extra = 0) => {
