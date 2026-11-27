@@ -5179,7 +5179,8 @@
   function spawnMobNearPlayer() {
     if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
     const coopTrim = Math.min(6, (typeof remotePlayers !== 'undefined' ? remotePlayers.size : 0) * 2);
-    const maxCap = Math.max(8, (_isWeakDevice ? 12 : 18) - coopTrim);
+    const isSiftDim = (currentDimension === 'sift');
+    const maxCap = Math.max(8, (isSiftDim ? (_isWeakDevice ? 18 : 28) : (_isWeakDevice ? 12 : 18)) - coopTrim);
     if (mobs.length >= maxCap) return;
     let hostileCnt = 0, passiveCnt = 0, aquaCnt = 0, skyCnt = 0, hasBoss = false;
     for (let mi = 0; mi < mobs.length; mi++) {
@@ -5191,39 +5192,81 @@
       if (mb.hostile) hostileCnt++;
       else if (!mb.tamed && !mb.villager) passiveCnt++;
     }
-    const hostileCap = _isWeakDevice ? 5 : 8;
-    const passiveCap = _isWeakDevice ? 5 : 8;
+    const hostileCap = isSiftDim ? (_isWeakDevice ? 7 : 11) : (_isWeakDevice ? 5 : 8);
+    const passiveCap = isSiftDim ? (_isWeakDevice ? 11 : 17) : (_isWeakDevice ? 5 : 8);
     const aquaCap = _isWeakDevice ? 3 : 5;
-    const skyCap = _isWeakDevice ? 2 : 4;
+    const skyCap = isSiftDim ? (_isWeakDevice ? 4 : 7) : (_isWeakDevice ? 2 : 4);
+
+    // === v188 THE SIFT HIGH-DENSITY BIOME + FLOATING-ISLAND + STRUCTURE MOB SPAWNER (fixes post-teleport empty spawns!) ===
+    if (isSiftDim) {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 10 + Math.random() * 24;
+        const wx = Math.floor(player.x + Math.cos(angle) * dist), wz = Math.floor(player.z + Math.sin(angle) * dist);
+        if (!chunks.has(chunkKey(wx >> 4, wz >> 4))) continue;
+        const biome = getBiomeAt(wx, wz);
+        // Scan actual solid blocks top-down (supports ground, hills, burrows, structures AND floating islands!)
+        const scanHigh = Math.min(MAX_Y - 3, Math.max(Math.floor(player.y) + 26, 72));
+        const scanLow = Math.max(MIN_Y + 4, Math.floor(player.y) - 18);
+        let sy = -999, hitWater = false;
+        for (let y = scanHigh; y >= scanLow; y--) {
+          const bAt = getBlockWorld(wx, y, wz);
+          if (bAt === B.AIR) continue;
+          if (bAt === B.WATER) { hitWater = true; break; }
+          if (bAt === B.LAVA) break;
+          if (IS_SOLID[bAt] === 1) {
+            const dFloor = BLOCK_DEF[bAt];
+            if (dFloor && !dFloor.foliage && !dFloor.isLog && getBlockWorld(wx, y + 1, wz) === B.AIR && getBlockWorld(wx, y + 2, wz) === B.AIR) {
+              sy = y; break;
+            }
+          }
+        }
+        if (hitWater) {
+          if (skyCnt < skyCap && Math.random() < 0.60) {
+            spawnMobOfType(Math.random() < 0.7 ? 'ichor_ray' : 'sky_manta', wx + 0.5, WATER_LEVEL + 2.4, wz + 0.5);
+            return;
+          }
+          continue;
+        }
+        if (sy < MIN_Y + 4) continue;
+        const onFloatingIsland = (sy >= 36);
+        let pool;
+        if (onFloatingIsland) {
+          pool = ['echo_golem', 'harmonizer', 'sky_manta', 'nightmare_stalker', 'singer'];
+        } else if (biome === BIOMES.SIFT_MEADOW) {
+          // Singer's Meadow pink plains: abundant small cute blue Blub creatures! (Ref 2/8)
+          pool = ['blub', 'blub', 'blub', 'blub', 'wobble', 'trill', 'nuzzle'];
+        } else if (biome === BIOMES.SIFT_HUSKLAND) {
+          pool = ['humbler', 'humbler', 'humbler', 'echo_golem', 'trill', 'ichor_ray'];
+        } else if (biome === BIOMES.SIFT_SPOREFIELDS) {
+          pool = ['roamroot', 'roamroot', 'roamroot', 'harmonizer', 'echo_golem', 'blub'];
+        } else if (biome === BIOMES.SIFT_LULLABY || biome === BIOMES.SIFT_LULLABY_TOP) {
+          const isNight = envUniforms.uSunDir.value.y < 0.02;
+          pool = isNight ? ['nightmare_stalker', 'harmonizer', 'nuzzle', 'blub', 'wobble'] : ['nuzzle', 'blub', 'wobble', 'trill', 'sky_manta'];
+        } else if (biome === BIOMES.SIFT_ICHOR_PONDS) {
+          pool = ['humbler', 'humbler', 'harmonizer', 'nightmare_stalker', 'blub'];
+        } else {
+          // Central The Sift canyon
+          pool = ['echo_golem', 'singer', 'blub', 'wobble', 'harmonizer', 'sky_manta', 'roamroot'];
+        }
+        const nearStruct = (typeof getSiftGroundStructureForChunk === 'function') ? getSiftGroundStructureForChunk(wx >> 4, wz >> 4) : null;
+        const wantMiniBoss = (!hasBoss && (onFloatingIsland || (nearStruct && (nearStruct.kind === 'castle' || nearStruct.kind === 'den'))) && Math.random() < 0.14);
+        const pick = wantMiniBoss ? 'dream_warden' : pool[(Math.random() * pool.length) | 0];
+        const stM = MOB_STATS[pick];
+        if (!stM) continue;
+        if ((stM.skyBird || stM.flying) && skyCnt >= skyCap) continue;
+        if (stM.hostile && hostileCnt >= hostileCap) continue;
+        if (!stM.hostile && passiveCnt >= passiveCap) continue;
+        spawnMobOfType(pick, wx + 0.5, sy + 1.15, wz + 0.5);
+        return;
+      }
+      return;
+    }
 
     const angle = Math.random() * Math.PI * 2, dist = 14 + Math.random() * 18;
     const wx = Math.floor(player.x + Math.cos(angle) * dist), wz = Math.floor(player.z + Math.sin(angle) * dist);
     if (!chunks.has(chunkKey(wx >> 4, wz >> 4))) return;
     const biome = getBiomeAt(wx, wz);
-
-    // === v43 THE SIFT EXCLUSIVE MOB SPAWNER (only cute Sift creatures spawn here!) ===
-    if (currentDimension === 'sift') {
-      const sy = getTerrainHeight(wx, wz, biome);
-      if (sy <= WATER_LEVEL) {
-        if (skyCnt < skyCap && Math.random() < 0.55) spawnMobOfType('ichor_ray', wx + 0.5, WATER_LEVEL + 2.2, wz + 0.5);
-        return;
-      }
-      let pool;
-      if (biome === BIOMES.SIFT_HUSKLAND) pool = ['humbler', 'humbler', 'trill', 'wobble'];
-      else if (biome === BIOMES.SIFT_SPOREFIELDS) pool = ['roamroot', 'roamroot', 'harmonizer', 'blub'];
-      else if (biome === BIOMES.SIFT_LULLABY || biome === BIOMES.SIFT_LULLABY_TOP) pool = ['blub', 'wobble', 'nuzzle', 'trill'];
-      else if (biome === BIOMES.SIFT_CHORAL_GLEN || biome === BIOMES.SIFT_GIANT_FOREST) pool = ['singer', 'trill', 'nuzzle', 'echo_golem', 'roamroot'];
-      else if (biome === BIOMES.SIFT_PLAINS) pool = ['blub', 'wobble', 'nuzzle', 'trill', 'singer'];
-      else if (biome === BIOMES.SIFT_SKY_ISLANDS || biome === BIOMES.SIFT_PEAKS) pool = ['sky_manta', 'ichor_ray', 'harmonizer', 'nightmare_stalker'];
-      else if (biome === BIOMES.SIFT_OCEAN) pool = ['ichor_ray', 'sky_manta', 'blub'];
-      else if (biome === BIOMES.SIFT_CANYON) pool = ['harmonizer', 'nightmare_stalker', 'humbler', 'ichor_ray'];
-      else pool = ['blub', 'wobble', 'nuzzle', 'trill', 'singer', 'echo_golem'];
-      const pick = (biome === BIOMES.SIFT_CANYON && Math.random() < 0.06 && !mobs.some(m => m && !m._dead && m.type === 'dream_warden'))
-        ? 'dream_warden' : pool[(Math.random() * pool.length) | 0];
-      if ((MOB_STATS[pick]?.skyBird || MOB_STATS[pick]?.flying) && skyCnt >= skyCap) return;
-      spawnMobOfType(pick, wx + 0.5, sy + 1.3, wz + 0.5);
-      return;
-    }
 
     // Aquatic Fish & Marine Life Spawner (rivers, lakes, shorelines & 700m deep ocean strata!)
     if (currentDimension === 'overworld') {
@@ -5324,13 +5367,17 @@
       else type = 'sculk_brute';
     } else if (currentDimension === 'dragon_realm') {
       if (hostileCnt >= hostileCap) return;
+      const nearDStruct = (typeof getDragonStructureForChunk === 'function') ? getDragonStructureForChunk(wx >> 4, wz >> 4) : null;
       const wildEndDrgCnt = mobs.filter(mb => mb && !mb._dead && !mb.tamed && _END_FIERCE_DRAGONS.has(mb.type)).length;
-      if (wildEndDrgCnt < 3 && r > 0.76) {
+      if (wildEndDrgCnt < 4 && (r > 0.72 || (nearDStruct && nearDStruct.kind === 'nest' && r > 0.45))) {
         const pool = ['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon'];
         type = pool[Math.floor(Math.random() * pool.length)];
         spawnY = _getSafeDragonSkyY(wx + 0.5, wz + 0.5, 16);
-      } else if (r < 0.48) type = 'void_stalker';
-      else if (r < 0.76) type = 'shulker';
+      } else if (nearDStruct && (nearDStruct.kind === 'vault' || nearDStruct.kind === 'altar')) {
+        type = r < 0.55 ? 'void_golem' : 'shulker';
+      } else if (r < 0.38) type = 'void_stalker';
+      else if (r < 0.64) type = 'shulker';
+      else if (r < 0.84) type = 'void_golem';
       else { type = 'end_phantom'; spawnY += 6.0; }
     } else if (biome === BIOMES.GRAND_RUINS) {
       const dC = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
@@ -7447,7 +7494,12 @@
     _culledEntitiesCount = 0;
     const _mobSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
     if (_mobSimAuth) {
-      mobSpawnTimer -= dt; if (mobSpawnTimer <= 0) { mobSpawnTimer = _isWeakDevice ? 7.0 : 5.5; spawnMobNearPlayer(); }
+      mobSpawnTimer -= dt;
+      if (mobSpawnTimer <= 0) {
+        const isSiftFast = (currentDimension === 'sift' || currentDimension === 'dragon_realm');
+        mobSpawnTimer = isSiftFast ? (_isWeakDevice ? 2.6 : 1.8) : (_isWeakDevice ? 7.0 : 5.5);
+        spawnMobNearPlayer();
+      }
     }
     if (lastTargetMobTimer > 0) { lastTargetMobTimer -= dt; if (lastTargetMobTimer <= 0) lastTargetMob = null; }
     if (isPlaying && (frameCounter % 3) === 0) {

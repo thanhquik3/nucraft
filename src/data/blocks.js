@@ -1024,6 +1024,42 @@ const {
     tiles: [V186_TILES.siftCyanCrystal, V186_TILES.siftCyanCrystal, V186_TILES.siftCyanCrystal],
     mapColor: '#38f2ff'
   };
+  BLOCK_DEF[B.SIFT_CRIMSON_GRASS] = {
+    name: 'Cỏ Đỏ Thẫm Hang Burrows', nameEn: 'Burrows Crimson Turf',
+    hard: 0.60, solid: true, dirt: true, customAtlasTex: true, drop: B.SIFT_CRIMSON_GRASS,
+    tiles: [V186_TILES.siftCrimsonTop, V186_TILES.siftCrimsonSide, 294],
+    mapColor: '#a61c3c'
+  };
+  BLOCK_DEF[B.SIFT_PINK_SAND] = {
+    name: 'Cát Hồng Hang Ichor', nameEn: 'Burrows Pink Sand',
+    hard: 0.50, solid: true, sand: true, customAtlasTex: true, drop: B.SIFT_PINK_SAND,
+    tiles: [V186_TILES.siftPinkSand, V186_TILES.siftPinkSand, V186_TILES.siftPinkSand],
+    mapColor: '#f2b89b'
+  };
+  BLOCK_DEF[B.SIFT_PALE_GRASS] = {
+    name: 'Cỏ Xanh Nhạt Huskland', nameEn: 'Huskland Pale Grass',
+    hard: 0.55, solid: true, dirt: true, customAtlasTex: true, drop: B.SIFT_PALE_GRASS,
+    tiles: [V186_TILES.siftPaleGrassTop, V186_TILES.siftPaleGrassSide, 18],
+    mapColor: '#90c49e'
+  };
+  BLOCK_DEF[B.SIFT_PALE_STONE] = {
+    name: 'Đá Lam Nhạt Huskland', nameEn: 'Huskland Pale Blue Stone',
+    hard: 1.50, solid: true, rock: true, customAtlasTex: true, drop: B.SIFT_PALE_STONE,
+    tiles: [V186_TILES.siftPaleStone, V186_TILES.siftPaleStone, V186_TILES.siftPaleStone],
+    mapColor: '#b9e2dc'
+  };
+  BLOCK_DEF[B.SIFT_SPORE_CAP] = {
+    name: 'Mũ Nấm Tím Hồng Khổng Lồ', nameEn: 'Giant Violet Spore Cap',
+    hard: 0.45, solid: true, wood: true, emissive: 0.25, light: 7, customAtlasTex: true, drop: B.SPORE_SHROOM,
+    tiles: [V186_TILES.siftSporeCap, V186_TILES.siftSporeCap, V186_TILES.siftSporeCap],
+    mapColor: '#c048c8'
+  };
+  BLOCK_DEF[B.SIFT_BLUE_CAP] = {
+    name: 'Mũ Nấm Lam Phát Sáng Khổng Lồ', nameEn: 'Giant Cyan Spore Cap',
+    hard: 0.45, solid: true, wood: true, emissive: 0.42, light: 10, customAtlasTex: true, drop: B.SPORE_SHROOM,
+    tiles: [V186_TILES.siftBlueCap, V186_TILES.siftBlueCap, V186_TILES.siftBlueCap],
+    mapColor: '#38bdf8'
+  };
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];

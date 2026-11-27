@@ -258,11 +258,11 @@
     },
     palettes: {
       dream: {
-        surfaceGrass: ['SIFT_GRASS', 'LULLABY_GRASS', 'SPORE_TURF'],
-        terracotta: ['TERRACOTTA', 'TERRACOTTA_RED', 'TERRACOTTA_ORANGE', 'TERRACOTTA_WHITE', 'HUSK_SOIL'],
+        surfaceGrass: ['SIFT_GRASS', 'LULLABY_GRASS', 'SPORE_TURF', 'SIFT_CRIMSON_GRASS', 'SIFT_PALE_GRASS'],
+        terracotta: ['TERRACOTTA', 'TERRACOTTA_RED', 'TERRACOTTA_ORANGE', 'TERRACOTTA_WHITE', 'HUSK_SOIL', 'SIFT_PINK_SAND', 'SIFT_PALE_STONE'],
         deepStone: 'SIFT_STONE',
         crystal: 'SIFT_CYAN_CRYSTAL',
-        trees: ['SIFT_LOG', 'SIFT_LEAVES', 'LULLABY_LEAVES'],
+        trees: ['SIFT_LOG', 'SIFT_LEAVES', 'LULLABY_LEAVES', 'SIFT_SPORE_CAP', 'SIFT_BLUE_CAP'],
         flora: ['SIFT_VINE', 'CORAL_BLUE', 'TEAL_FERN', 'SIFT_FLOWER', 'SIFT_BERRY_BUSH', 'SPORE_SHROOM', 'MUSHROOM_GLOW'],
         fluid: 'WATER'
       },

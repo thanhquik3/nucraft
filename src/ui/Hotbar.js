@@ -3987,6 +3987,30 @@
       }
       return;
     }
+    // v188: Dedicated Sift (Dream Zone) & Dragon World unique chest loot tables
+    const CUSTOM_LOOT_POOLS = {
+      sift_common:    { n: 5, items: [B.DREAM_FRUIT, B.MOONSTONE_GEM, B.SIFT_LOG, B.SIFT_CYAN_CRYSTAL, B.IRON_INGOT, B.GOLD_APPLE, B.ARROW, B.TORCH_BLOCK, B.SIFT_FLOWER, B.COOKED_BEEF] },
+      sift_rare:      { n: 6, items: [B.ICHOR_CRYSTAL, B.AETHERIUM_INGOT, B.NEBULA_INGOT, B.ECHO_SHARD, B.DIAMOND, B.GOLD_APPLE, B.DIAMOND_SWORD, B.DIAMOND_PICK, B.TRIM_WAYFINDER, B.TRIM_COAST, B.ENCHANTED_BOOK] },
+      sift_floating:  { n: 6, items: [B.AETHERIUM_INGOT, B.DREAM_PRISM_GEM, B.ICHOR_CRYSTAL, B.VOID_PEARL, B.GOLD_APPLE, B.ELYTRA, B.DIAMOND_CHEST, B.DREAM_PRISM_PICK, B.TRIM_SPIRE, B.ENCHANTED_BOOK] },
+      sift_lake:      { n: 5, items: [B.ICHOR_CRYSTAL, B.MOONSTONE_GEM, B.DREAM_FRUIT, B.NAUTILUS_SHELL, B.WATER_BREATH_POTION, B.DIAMOND, B.GOLD_INGOT, B.SIFT_CYAN_CRYSTAL] },
+      sift_boss:      { n: 7, items: [B.DREAM_PRISM_GEM, B.AETHERIUM_INGOT, B.ICHOR_SWORD, B.ICHOR_PICK, B.ICHOR_HELMET, B.DREAM_PRISM_SWORD, B.TOTEM_UNDYING, B.ENCHANTED_BOOK, B.GOLD_APPLE, B.TRIM_SILENCE] },
+      dragon_nest:    { n: 6, items: [B.DRAGON_CRYSTAL, B.END_DRAGON_SCALE, B.END_DRAGON_BONE, B.DRAGON_SCALE, B.GOLD_APPLE, B.DIAMOND, B.BONE_BLOCK, B.DRAGON_SADDLE] },
+      dragon_vault:   { n: 7, items: [B.END_DRAGON_SCALE, B.END_DRAGON_BONE, B.DRAGON_CRYSTAL, B.DIAMOND, B.TOTEM_UNDYING, B.ELYTRA, B.END_DRAGON_SWORD, B.END_DRAGON_HELMET, B.GOLD_APPLE, B.TRIM_SPIRE] },
+      dragon_lab:     { n: 6, items: [B.DRAGON_MINT_CRYSTAL, B.DRAGON_CRYSTAL, B.VOID_PEARL, B.END_CRYSTAL_BLOCK, B.ENCHANTED_BOOK, B.WATER_BREATH_POTION, B.END_DRAGON_SCALE, B.END_ROD] },
+      dragon_altar:   { n: 6, items: [B.END_CRYSTAL_BLOCK, B.END_DRAGON_BONE, B.VOID_PEARL, B.TOTEM_UNDYING, B.GOLD_APPLE, B.END_DRAGON_BOW, B.DRAGON_CRYSTAL, B.TRIM_EYE] },
+      dragon_library: { n: 7, items: [B.ENCHANTED_BOOK, B.ENCHANTED_BOOK, B.END_DRAGON_SCALE, B.VOID_PEARL, B.DRAGON_CRYSTAL, B.DIAMOND, B.TRIM_WARD, B.END_ROD, B.GOLD_APPLE] }
+    };
+    const customTbl = CUSTOM_LOOT_POOLS[tag];
+    if (customTbl) {
+      const validPool = customTbl.items.filter(id => id && BLOCK_DEF[id]);
+      for (let i = 0; i < customTbl.n && validPool.length > 0; i++) {
+        const lid = validPool[(rng() * validPool.length) | 0], d = BLOCK_DEF[lid];
+        const isGear = !!(d.tool || d.armorSlot || d.enchantedBook || lid === B.ELYTRA || lid === B.TOTEM_UNDYING || lid === B.DRAGON_SADDLE);
+        const slotIdx = Math.min(arr.length - 1, (i * 3 + 1 + ((rng() * 2) | 0)) % arr.length);
+        arr[slotIdx] = { id: lid, count: isGear ? 1 : (2 + ((rng() * 5) | 0)), dur: d.maxDur || 0, maxDur: d.maxDur || 0, ench: !!(d.tool || d.armorSlot), trim: null };
+      }
+      return;
+    }
     const isHighTier = (blockId === B.GOLD_CHEST || blockId === B.DIAMOND_CHEST || blockId === B.NETHERITE_CHEST);
     const lootPool = isHighTier
       ? [B.GOLD_INGOT, B.IRON_INGOT, B.COAL, B.REDSTONE, B.EMERALD, B.RUBY, B.GOLD_APPLE, B.GOLDEN_CARROT, B.VOID_PEARL, B.GLOW_CRYSTAL, B.COOKED_BEEF, B.COOKED_PORK, B.TORCH_BLOCK, B.TNT]

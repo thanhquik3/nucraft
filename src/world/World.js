@@ -1295,6 +1295,10 @@
       const cMid = getEndCityForRegion(Math.floor((wx0 + 8) / 128), Math.floor((wz0 + 8) / 128));
       if (cMid && cMid !== END_CITY_HERO) maxLy = stampEndCityInChunk(data, wx0, wz0, cMid, maxLy);
     }
+    // v188: Dragon Nests, Ancient Ruins, Laboratories, Ritual Altars, Libraries & Sky Bridges across outer End islands!
+    if (Math.hypot(wx0 + 8, wz0 + 8) >= 96 && typeof stampDragonWorldStructureInChunk === 'function') {
+      maxLy = stampDragonWorldStructureInChunk(data, cx, cz, wx0, wz0, maxLy, true);
+    }
     maxLy = applyChunkMods(cx, cz, data, maxLy);
     const chE = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chE);
@@ -1442,8 +1446,514 @@
     return topMax;
   }
 
+  // b) Singer's Meadow dark-teal thick-trunk flat-canopy edge trees (Ref 2/8)
+  function placeMeadowFlatTree(data, lx, baseWy, lz, wx, wz) {
+    const r0 = hash2i(wx, wz, worldSeed + 5201);
+    const th = 7 + Math.floor(r0 * 4);
+    for (let dy = -1; dy < th; dy++) {
+      setLocalSafe(data, lx, baseWy + dy, lz, B.SIFT_LOG, true);
+      setLocalSafe(data, lx + 1, baseWy + dy, lz, B.SIFT_LOG, true);
+      setLocalSafe(data, lx, baseWy + dy, lz + 1, B.SIFT_LOG, true);
+      setLocalSafe(data, lx + 1, baseWy + dy, lz + 1, B.SIFT_LOG, true);
+    }
+    // Broad flat-topped dark teal umbrella canopy (Ref 2/8)
+    const cy = baseWy + th;
+    for (let dy = 0; dy <= 2; dy++) {
+      const rad = dy === 2 ? 2.8 : (dy === 1 ? 4.1 : 3.6);
+      const rc = Math.ceil(rad);
+      for (let dx = -rc; dx <= rc + 1; dx++) for (let dz = -rc; dz <= rc + 1; dz++) {
+        if (Math.hypot(dx - 0.5, dz - 0.5) > rad) continue;
+        setLocalSafe(data, lx + dx, cy + dy, lz + dz, (dy === 2 && hash2i(wx + dx, wz + dz, worldSeed + 5209) > 0.72) ? B.LULLABY_LEAVES : B.SIFT_LEAVES, false);
+      }
+    }
+    return cy + 3;
+  }
+
+  // c) Lullaby Hills dense blocky ice-blue & white frosted hillside trees (Refs 4/6 & 7/3)
+  function placeIceBlockTree(data, lx, baseWy, lz, wx, wz) {
+    const r0 = hash2i(wx, wz, worldSeed + 5231);
+    const th = 6 + Math.floor(r0 * 5);
+    for (let dy = -1; dy < th; dy++) setLocalSafe(data, lx, baseWy + dy, lz, B.SIFT_LOG, true);
+    // Blocky cubic frosted canopy draping down around trunk (exact Image 4/6 silhouette!)
+    const topY = baseWy + th + 2;
+    const rad = r0 > 0.55 ? 2 : 1;
+    for (let dy = -Math.max(2, th - 3); dy <= 2; dy++) {
+      const rLayer = (dy === 2) ? rad : (rad + (dy <= 0 ? 1 : 0));
+      for (let dx = -rLayer; dx <= rLayer; dx++) for (let dz = -rLayer; dz <= rLayer; dz++) {
+        if (Math.abs(dx) === rLayer && Math.abs(dz) === rLayer && dy >= 1) continue;
+        const fh = hash3i(wx + dx, baseWy + th + dy, wz + dz, worldSeed + 5237);
+        if (dy < -1 && Math.abs(dx) < rLayer && Math.abs(dz) < rLayer) continue; // hollow inner skirt around trunk
+        if (dy < -2 && fh < 0.36) continue;
+        const bid = (dy === 2 && fh > 0.58) ? B.SNOW : (fh > 0.28 ? B.LULLABY_LEAVES : B.SIFT_LEAVES);
+        setLocalSafe(data, lx + dx, baseWy + th + dy, lz + dz, bid, false);
+      }
+    }
+    return topY + 1;
+  }
+
+  // f) Fungal Sporefields towering multi-colored giant mushrooms (violet-magenta & glowing cyan-blue)
+  function placeGiantSiftMushroom(data, lx, baseWy, lz, wx, wz) {
+    const r0 = hash2i(wx, wz, worldSeed + 5261);
+    const r1 = hash2i(wx + 17, wz - 11, worldSeed + 5273);
+    const h = 7 + Math.floor(r0 * 7);
+    const isBlue = (r1 > 0.52);
+    const capId = isBlue ? B.SIFT_BLUE_CAP : B.SIFT_SPORE_CAP;
+    const leanX = r1 < 0.33 ? -1 : (r1 > 0.66 ? 1 : 0);
+    let sx = lx, sz = lz;
+    for (let dy = -1; dy < h; dy++) {
+      if (dy === Math.floor(h * 0.55) && leanX !== 0) sx = Math.max(2, Math.min(13, sx + leanX));
+      setLocalSafe(data, sx, baseWy + dy, sz, B.MUSHROOM_STEM, true);
+      if (h >= 11 && dy < Math.floor(h * 0.45)) setLocalSafe(data, sx + 1, baseWy + dy, sz, B.MUSHROOM_STEM, true);
+    }
+    const rad = h >= 11 ? 3 : 2;
+    const cy = baseWy + h;
+    for (let dy = -1; dy <= 2; dy++) {
+      const rL = dy === 2 ? Math.max(1, rad - 1) : (dy === -1 ? rad : rad);
+      for (let dx = -rL; dx <= rL; dx++) for (let dz = -rL; dz <= rL; dz++) {
+        const d = Math.hypot(dx, dz);
+        if (dy === -1 && (d < rL - 0.8 || d > rL + 0.35)) continue;
+        if (d > rL + 0.35) continue;
+        setLocalSafe(data, sx + dx, cy + dy, sz + dz, capId, true);
+        if (dy === -1 && hash2i(wx + dx * 5, wz + dz * 7, worldSeed + 5281) > 0.80) {
+          setLocalSafe(data, sx + dx, cy - 2, sz + dz, B.SIFT_VINE, false);
+        }
+      }
+    }
+    setLocalSafe(data, sx, cy - 1, sz, B.SIFT_CYAN_CRYSTAL, false);
+    return cy + 3;
+  }
+
+  // e) Humbler Huskland pale blue-mint stone formations (Ref 1/9)
+  function placePaleStoneCluster(data, lx, baseWy, lz, wx, wz) {
+    const r0 = hash2i(wx, wz, worldSeed + 5297);
+    const h = 3 + Math.floor(r0 * 4);
+    for (let dy = -1; dy < h; dy++) {
+      setLocalSafe(data, lx, baseWy + dy, lz, B.SIFT_PALE_STONE, true);
+      if (dy < h - 1) setLocalSafe(data, lx + 1, baseWy + dy, lz, B.SIFT_PALE_STONE, true);
+      if (dy < Math.max(1, h - 2)) setLocalSafe(data, lx, baseWy + dy, lz + 1, B.SIFT_PALE_STONE, true);
+      if (dy === 0 && r0 > 0.45) setLocalSafe(data, lx - 1, baseWy, lz, B.SIFT_PALE_STONE, true);
+    }
+    return baseWy + h;
+  }
+
+  // Biome-matched structural block palettes for all 6 Sift biomes
+  function getSiftStructPalette(bio) {
+    if (bio === BIOMES.SIFT_MEADOW)     return { wall: B.SIFT_LOG, accent: B.LULLABY_GRASS, roof: B.SIFT_LEAVES, floor: B.HUSK_SOIL, glow: B.SIFT_CYAN_CRYSTAL, grass: B.LULLABY_GRASS };
+    if (bio === BIOMES.SIFT_LULLABY)    return { wall: B.SIFT_PALE_STONE, accent: B.SIFT_LOG, roof: B.LULLABY_LEAVES, floor: B.TERRACOTTA, glow: B.SIFT_CYAN_CRYSTAL, grass: B.SIFT_GRASS };
+    if (bio === BIOMES.SIFT_ICHOR_PONDS)return { wall: B.TERRACOTTA_RED, accent: B.SIFT_PINK_SAND, roof: B.TERRACOTTA, floor: B.SIFT_STONE, glow: B.MUSHROOM_GLOW, grass: B.SIFT_CRIMSON_GRASS };
+    if (bio === BIOMES.SIFT_HUSKLAND)   return { wall: B.TERRACOTTA, accent: B.SIFT_PALE_STONE, roof: B.TERRACOTTA_RED, floor: B.HUSK_SOIL, glow: B.SIFT_CYAN_CRYSTAL, grass: B.SIFT_PALE_GRASS };
+    if (bio === BIOMES.SIFT_SPOREFIELDS)return { wall: B.SIFT_STONE, accent: B.SIFT_SPORE_CAP, roof: B.SIFT_BLUE_CAP, floor: B.SPORE_TURF, glow: B.SPORE_SHROOM, grass: B.SPORE_TURF };
+    return { wall: B.TERRACOTTA_RED, accent: B.TERRACOTTA_WHITE, roof: B.SIFT_LEAVES, floor: B.TERRACOTTA, glow: B.SIFT_CYAN_CRYSTAL, grass: B.SIFT_GRASS };
+  }
+
+  // Deterministic Sift Ground Structure regional selector (1 structure per 3x3 chunk region -> players discover landmarks every ~30s!)
+  function getSiftGroundStructureForChunk(cx, cz) {
+    const reg = 3;
+    const rx = Math.floor(cx / reg), rz = Math.floor(cz / reg);
+    const ox = Math.floor(hash2i(rx, rz, worldSeed + 5401) * reg);
+    const oz = Math.floor(hash2i(rx, rz, worldSeed + 5413) * reg);
+    const targetCx = rx * reg + ox, targetCz = rz * reg + oz;
+    if (Math.abs(targetCx) <= 1 && Math.abs(targetCz) <= 1) return null; // keep central canyon portal at (0,0) clear
+    if (cx !== targetCx || cz !== targetCz) return null;
+    const roll = hash2i(rx * 7 + 3, rz * 7 - 5, worldSeed + 5419);
+    if (roll > 0.72) return null; // ~72% of 48x48 regions host a biome-matched landmark!
+    const kindRoll = hash2i(rx * 11 - 7, rz * 11 + 13, worldSeed + 5431);
+    const kind = kindRoll < 0.24 ? 'castle' : (kindRoll < 0.52 ? 'village' : (kindRoll < 0.78 ? 'ruin' : 'den'));
+    return { cx: targetCx, cz: targetCz, wx: targetCx * 16 + 8, wz: targetCz * 16 + 8, kind };
+  }
+
+  function stampSiftGroundStructureInChunk(data, cx, cz, wx0, wz0, midH, b, maxLy, forceKind = null) {
+    const spec = forceKind ? { cx, cz, wx: wx0 + 8, wz: wz0 + 8, kind: forceKind } : getSiftGroundStructureForChunk(cx, cz);
+    if (!spec) return maxLy;
+    if (!forceKind && midH < WATER_LEVEL + 1) return maxLy;
+    const pal = getSiftStructPalette(b);
+    const baseY = Math.max(WATER_LEVEL + 1, midH);
+    const putChest = (lx, wy, lz, chestId, tag) => {
+      setLocalSafe(data, lx, wy, lz, chestId, true);
+      naturalChestTags.set(modKey(wx0 + lx, wy, wz0 + lz), tag);
+    };
+
+    if (spec.kind === 'castle') {
+      // 1) Biome-Matched Fortress / Castle with boss courtyard, twin battlements, vault & mini-boss guardian
+      for (let dz = 1; dz <= 14; dz++) for (let dx = 1; dx <= 14; dx++) {
+        const rim = (dx === 1 || dx === 14 || dz === 1 || dz === 14);
+        const corner = (dx <= 2 || dx >= 13) && (dz <= 2 || dz >= 13);
+        const gate = (dz === 14 && dx >= 6 && dx <= 9);
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, py === baseY ? pal.floor : pal.wall, true);
+        for (let wy = 1; wy <= 11; wy++) setLocalSafe(data, dx, baseY + wy, dz, B.AIR, true);
+        if (corner) {
+          for (let wy = 1; wy <= 10; wy++) setLocalSafe(data, dx, baseY + wy, dz, (wy % 3 === 0) ? pal.accent : pal.wall, true);
+          if ((dx === 1 || dx === 14) && (dz === 1 || dz === 14)) setLocalSafe(data, dx, baseY + 11, dz, pal.glow, true);
+        } else if (rim && !gate) {
+          for (let wy = 1; wy <= 6; wy++) setLocalSafe(data, dx, baseY + wy, dz, (wy === 6 && ((dx + dz) & 1)) ? B.AIR : ((wy === 3 && (dx === 7 || dx === 8 || dz === 7 || dz === 8)) ? B.GLASS : pal.wall), true);
+        } else if (gate) {
+          setLocalSafe(data, dx, baseY + 5, dz, pal.accent, true);
+          setLocalSafe(data, dx, baseY + 6, dz, pal.wall, true);
+        }
+      }
+      // Inner sanctuary dais + boss treasure vault chest
+      for (let dz = 5; dz <= 10; dz++) for (let dx = 5; dx <= 10; dx++) {
+        setLocalSafe(data, dx, baseY + 1, dz, pal.accent, true);
+      }
+      putChest(7, baseY + 2, 7, B.DREAM_BOX_CHEST || B.GOLD_CHEST, 'sift_boss');
+      putChest(8, baseY + 2, 7, B.GOLD_CHEST, 'sift_rare');
+      setLocalSafe(data, 6, baseY + 2, 6, pal.glow, true);
+      setLocalSafe(data, 9, baseY + 2, 6, pal.glow, true);
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 13 - MIN_Y));
+    }
+
+    if (spec.kind === 'village') {
+      // 2) Biome-Matched Small Village / Explorer Camp (twin cozy houses + glowing well/campfire + common chests)
+      const buildHut = (ox, oz, w, d, h) => {
+        for (let dz = 0; dz < d; dz++) for (let dx = 0; dx < w; dx++) {
+          const lx = ox + dx, lz = oz + dz;
+          const rim = (dx === 0 || dx === w - 1 || dz === 0 || dz === d - 1);
+          const door = (dz === d - 1 && dx === Math.floor(w / 2));
+          for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, lx, py, lz, py === baseY ? pal.floor : pal.wall, true);
+          for (let wy = 1; wy <= h + 2; wy++) setLocalSafe(data, lx, baseY + wy, lz, B.AIR, true);
+          if (rim && !(door && true)) {
+            for (let wy = 1; wy <= h; wy++) {
+              const isWin = (wy === 2 && (dx === Math.floor(w / 2) || dz === Math.floor(d / 2)) && !door);
+              setLocalSafe(data, lx, baseY + wy, lz, isWin ? B.GLASS : ((dx === 0 || dx === w - 1) && (dz === 0 || dz === d - 1) ? pal.accent : pal.wall), true);
+            }
+          }
+          setLocalSafe(data, lx, baseY + h + 1, lz, pal.roof, true);
+          if (dx > 0 && dx < w - 1 && dz > 0 && dz < d - 1) setLocalSafe(data, lx, baseY + h + 2, lz, pal.roof, true);
+        }
+        setLocalSafe(data, ox + Math.floor(w / 2), baseY + 1, oz + d - 1, B.AIR, true);
+        setLocalSafe(data, ox + Math.floor(w / 2), baseY + 2, oz + d - 1, B.AIR, true);
+        setLocalSafe(data, ox + Math.floor(w / 2), baseY + h, oz + Math.floor(d / 2), B.LANTERN, true);
+        putChest(ox + 1, baseY + 1, oz + 1, B.CHEST, 'sift_common');
+      };
+      buildHut(1, 2, 6, 6, 4);
+      buildHut(9, 7, 6, 6, 4);
+      // Center path + glowing village well
+      for (let dz = 8; dz <= 11; dz++) for (let dx = 3; dx <= 6; dx++) {
+        setLocalSafe(data, dx, baseY, dz, pal.accent, true);
+        setLocalSafe(data, dx, baseY + 1, dz, (dx >= 4 && dx <= 5 && dz >= 9 && dz <= 10) ? B.WATER : pal.wall, true);
+      }
+      setLocalSafe(data, 3, baseY + 2, 8, pal.glow, true);
+      setLocalSafe(data, 6, baseY + 2, 11, pal.glow, true);
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 8 - MIN_Y));
+    }
+
+    if (spec.kind === 'ruin') {
+      // 3) Ancient Temple / Watchtower Ruin with weathered pillars, broken arch, hanging vines & rare chest
+      for (let dz = 3; dz <= 12; dz++) for (let dx = 3; dx <= 12; dx++) {
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, py === baseY ? pal.floor : pal.wall, true);
+        for (let wy = 1; wy <= 10; wy++) setLocalSafe(data, dx, baseY + wy, dz, B.AIR, true);
+      }
+      for (const [px, pz, ph] of [[3, 3, 9], [12, 3, 7], [3, 12, 8], [12, 12, 10]]) {
+        for (let wy = 1; wy <= ph; wy++) setLocalSafe(data, px, baseY + wy, pz, (wy % 3 === 0) ? pal.accent : pal.wall, true);
+        setLocalSafe(data, px, baseY + ph + 1, pz, pal.glow, true);
+      }
+      for (let dx = 3; dx <= 12; dx++) {
+        if (dx !== 7) setLocalSafe(data, dx, baseY + 7, 3, pal.accent, true); // weathered broken lintel
+        if (dx > 4 && dx < 11 && (dx & 1) === 0) setLocalSafe(data, dx, baseY + 6, 3, B.SIFT_VINE, false);
+      }
+      for (let dx = 6; dx <= 9; dx++) for (let dz = 6; dz <= 9; dz++) setLocalSafe(data, dx, baseY + 1, dz, pal.accent, true);
+      putChest(7, baseY + 2, 7, B.GOLD_CHEST, 'sift_rare');
+      setLocalSafe(data, 8, baseY + 2, 8, pal.glow, true);
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 12 - MIN_Y));
+    }
+
+    // 4) Monster Den / Sunken Crypt & Underground Trap Maze
+    for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+      const rim = (dx === 2 || dx === 13 || dz === 2 || dz === 13);
+      for (let dy = -6; dy <= 0; dy++) {
+        const wy = baseY + dy;
+        const isWall = rim || dy === -6 || (dy === 0 && !(dx >= 6 && dx <= 9 && dz >= 10 && dz <= 12));
+        const isMaze = (!rim && dy > -6 && dy < 0 && ((dx === 6 && dz < 10) || (dx === 9 && dz > 5)));
+        setLocalSafe(data, dx, wy, dz, (isWall || isMaze) ? ((dy === -6) ? pal.accent : pal.wall) : B.AIR, true);
+      }
+    }
+    // Stone entry staircase descending into the den
+    for (let s = 0; s < 5; s++) {
+      setLocalSafe(data, 7, baseY - s, 12 - s, pal.accent, true);
+      setLocalSafe(data, 8, baseY - s, 12 - s, pal.accent, true);
+      for (let cy = 1; cy <= 3; cy++) { setLocalSafe(data, 7, baseY - s + cy, 12 - s, B.AIR, true); setLocalSafe(data, 8, baseY - s + cy, 12 - s, B.AIR, true); }
+    }
+    // Entrance arch + glowing crystal beacons + trap corridor loot vault
+    for (let wy = 1; wy <= 4; wy++) { setLocalSafe(data, 5, baseY + wy, 13, pal.wall, true); setLocalSafe(data, 10, baseY + wy, 13, pal.wall, true); }
+    for (let dx = 5; dx <= 10; dx++) setLocalSafe(data, dx, baseY + 5, 13, pal.accent, true);
+    setLocalSafe(data, 5, baseY + 6, 13, pal.glow, true);
+    setLocalSafe(data, 10, baseY + 6, 13, pal.glow, true);
+    setLocalSafe(data, 4, baseY - 5, 4, pal.glow, true);
+    setLocalSafe(data, 11, baseY - 5, 4, pal.glow, true);
+    putChest(4, baseY - 5, 6, B.GOLD_CHEST, 'sift_rare');
+    putChest(11, baseY - 5, 4, B.DIAMOND_CHEST || B.GOLD_CHEST, 'sift_boss');
+    return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 7 - MIN_Y));
+  }
+
+  // Stamp Floating Islands across ALL 6 Sift biomes (waterfalls, bridges, towers, temples, cottages, boss vaults, ways up!)
+  function stampSiftFloatingIslandsInChunk(data, wx0, wz0, maxLy) {
+    const visited = new Set();
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      const wz = wz0 + lz;
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx;
+        const isl = sampleSiftFloatingIslandAt(wx, wz);
+        if (!isl) continue;
+        const d = isl.dist;
+        const rEdge = isl.rad + (valueNoise2D(wx * 0.25, wz * 0.25, worldSeed + 5189) - 0.5) * 1.6;
+        if (d > rEdge) continue;
+        const pal = getSiftStructPalette(isl.bio);
+        const normD = Math.min(1, d / Math.max(1, rEdge));
+        const depth = Math.max(2, Math.round((1.0 - normD * normD) * (3.5 + isl.rad * 0.65)));
+        for (let dy = -depth; dy <= 0; dy++) {
+          const wy = isl.topY + dy;
+          const bid = (dy === 0) ? pal.grass : (dy >= -2 ? pal.wall : ((dy === -depth && hash2i(wx, wz, worldSeed + 5197) > 0.72) ? pal.glow : B.SIFT_STONE));
+          setLocalSafe(data, lx, wy, lz, bid, true);
+        }
+        // Hanging climbable cyan vines on outer rim (ways up + silhouette!)
+        if (normD > 0.78 && hash2i(wx * 3, wz * 5, worldSeed + 5207) > 0.78) {
+          const vLen = 5 + Math.floor(hash2i(wx, wz, worldSeed + 5211) * 18);
+          for (let vy = 1; vy <= vLen; vy++) setLocalSafe(data, lx, isl.topY - depth - vy, lz, B.SIFT_VINE, false);
+        }
+        // Cascading waterfall pouring off one side of the floating island!
+        if (isl.hasWaterfall && wx === isl.ix + Math.floor(isl.rad * 0.65) && Math.abs(wz - isl.iz) <= 1) {
+          setLocalSafe(data, lx, isl.topY, lz, B.WATER, true);
+          for (let wy = isl.topY - 1; wy >= Math.max(WATER_LEVEL + 1, isl.topY - 38); wy--) {
+            if (getBlockWorld && false) break;
+            const cLy = wy - MIN_Y;
+            if (cLy <= 1) break;
+            const ci = (lz << 4) | lx;
+            if (data[(cLy << 8) | ci] === B.AIR) data[(cLy << 8) | ci] = B.WATER;
+            else break;
+          }
+        }
+        // Floating stepping-stone spiral access leading UP to the island!
+        if (isl.hasStepSpiral) {
+          const keyS = isl.gx + ',' + isl.gz;
+          if (!visited.has(keyS)) {
+            visited.add(keyS);
+            for (let step = 1; step <= 14; step++) {
+              const ang = step * 0.55;
+              const sr = isl.rad + 1.5;
+              const sx = Math.round(isl.ix + Math.cos(ang) * sr) - wx0;
+              const sz = Math.round(isl.iz + Math.sin(ang) * sr) - wz0;
+              const sy = isl.topY - step * 2;
+              if (sy <= WATER_LEVEL + 2) break;
+              setLocalSafe(data, sx, sy, sz, pal.accent, true);
+              setLocalSafe(data, sx + 1, sy, sz, pal.wall, true);
+            }
+          }
+        }
+        // Stamp island landmark centered at (isl.ix, isl.iz) when it falls inside this chunk!
+        if (wx === isl.ix && wz === isl.iz) {
+          const topY = isl.topY;
+          const putIslChest = (cxL, wy, czL, cid, tag) => {
+            setLocalSafe(data, cxL, wy, czL, cid, true);
+            naturalChestTags.set(modKey(wx0 + cxL, wy, wz0 + czL), tag);
+          };
+          if (isl.kind === 'boss_vault') {
+            for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+              const edge = (Math.abs(dx) === 3 || Math.abs(dz) === 3);
+              setLocalSafe(data, lx + dx, topY + 1, lz + dz, pal.accent, true);
+              if (edge && (Math.abs(dx) === 3 && Math.abs(dz) === 3)) {
+                for (let wy = 2; wy <= 7; wy++) setLocalSafe(data, lx + dx, topY + wy, lz + dz, pal.wall, true);
+                setLocalSafe(data, lx + dx, topY + 8, lz + dz, pal.glow, true);
+              }
+              if (Math.hypot(dx, dz) <= 3.2) setLocalSafe(data, lx + dx, topY + 7, lz + dz, pal.roof, true);
+            }
+            putIslChest(lx, topY + 2, lz, B.DREAM_BOX_CHEST || B.DIAMOND_CHEST, 'sift_boss');
+            putIslChest(lx + 1, topY + 2, lz, B.GOLD_CHEST, 'sift_floating');
+            setLocalSafe(data, lx, topY + 8, lz, B.END_CRYSTAL_BLOCK, true);
+          } else if (isl.kind === 'temple') {
+            for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+              setLocalSafe(data, lx + dx, topY + 1, lz + dz, pal.accent, true);
+              if (Math.abs(dx) === 2 && Math.abs(dz) === 2) {
+                for (let wy = 2; wy <= 5; wy++) setLocalSafe(data, lx + dx, topY + wy, lz + dz, pal.wall, true);
+              }
+              setLocalSafe(data, lx + dx, topY + 6, lz + dz, pal.roof, true);
+            }
+            putIslChest(lx, topY + 2, lz, B.GOLD_CHEST, 'sift_floating');
+            setLocalSafe(data, lx, topY + 7, lz, pal.glow, true);
+          } else if (isl.kind === 'tower') {
+            for (let wy = 1; wy <= 9; wy++) {
+              for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+                const rim = (Math.abs(dx) === 1 || Math.abs(dz) === 1);
+                setLocalSafe(data, lx + dx, topY + wy, lz + dz, rim ? ((wy % 3 === 0) ? pal.accent : pal.wall) : B.AIR, true);
+              }
+            }
+            setLocalSafe(data, lx, topY + 10, lz, pal.glow, true);
+            putIslChest(lx, topY + 1, lz, B.GOLD_CHEST, 'sift_floating');
+          } else if (isl.kind === 'cottage') {
+            for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+              const rim = (Math.abs(dx) === 2 || Math.abs(dz) === 2);
+              for (let wy = 1; wy <= 3; wy++) {
+                const door = (dz === 2 && dx === 0 && wy <= 2);
+                setLocalSafe(data, lx + dx, topY + wy, lz + dz, (rim && !door) ? pal.wall : B.AIR, true);
+              }
+              setLocalSafe(data, lx + dx, topY + 4, lz + dz, pal.roof, true);
+            }
+            setLocalSafe(data, lx, topY + 3, lz, B.LANTERN, true);
+            putIslChest(lx - 1, topY + 1, lz - 1, B.CHEST, 'sift_floating');
+          } else {
+            // Glowing crystal tree or giant mushroom island + reward chest
+            if (isl.bio === BIOMES.SIFT_SPOREFIELDS) placeGiantSiftMushroom(data, lx, topY + 1, lz, wx, wz);
+            else placeDreamCrystalTree(data, lx, topY + 1, lz, wx, wz, 'medium');
+            putIslChest(lx + 2, topY + 1, lz, B.CHEST, 'sift_floating');
+          }
+          maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topY + 14 - MIN_Y));
+        }
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, isl.topY + 2 - MIN_Y));
+      }
+    }
+    return maxLy;
+  }
+
+  // v188: Dragon World (Dragon Realm & Outer End) Rich Structures: Dragon Nests, Vaults, Labs, Ritual Altars, Ancient Libraries & Sky Bridges!
+  function getDragonStructureForChunk(cx, cz) {
+    const reg = 3;
+    const rx = Math.floor(cx / reg), rz = Math.floor(cz / reg);
+    if (Math.abs(rx) <= 0 && Math.abs(rz) <= 0) return null;
+    const ox = Math.floor(hash2i(rx, rz, worldSeed + 9103) * reg);
+    const oz = Math.floor(hash2i(rx, rz, worldSeed + 9109) * reg);
+    const targetCx = rx * reg + ox, targetCz = rz * reg + oz;
+    if (cx !== targetCx || cz !== targetCz) return null;
+    const roll = hash2i(rx * 13 + 5, rz * 13 - 7, worldSeed + 9127);
+    if (roll > 0.68) return null;
+    const kR = hash2i(rx * 5 - 11, rz * 5 + 17, worldSeed + 9133);
+    const kind = kR < 0.28 ? 'nest' : (kR < 0.48 ? 'vault' : (kR < 0.66 ? 'lab' : (kR < 0.84 ? 'altar' : 'library')));
+    return { cx: targetCx, cz: targetCz, wx: targetCx * 16 + 8, wz: targetCz * 16 + 8, kind };
+  }
+
+  function stampDragonWorldStructureInChunk(data, cx, cz, wx0, wz0, maxLy, isEndDim = false, forceKind = null) {
+    const spec = forceKind ? { cx, cz, wx: wx0 + 8, wz: wz0 + 8, kind: forceKind } : getDragonStructureForChunk(cx, cz);
+    if (!spec) return maxLy;
+    const midWx = wx0 + 8, midWz = wz0 + 8;
+    if (!forceKind && !isEndDim && (Math.hypot(midWx, midWz) < 28 || Math.hypot(midWx, midWz - 136) < 34)) return maxLy;
+    const rawH = getTerrainHeight(midWx, midWz, getBiomeAt(midWx, midWz));
+    if (!forceKind && isEndDim && rawH < -20) return maxLy; // skip void gaps in End
+    const baseY = Math.max(isEndDim ? 6 : 14, rawH);
+    const stoneA = isEndDim ? B.END_STONE_BRICKS : B.DRAGON_RED_STONE;
+    const stoneB = isEndDim ? B.PURPUR_BLOCK : B.OBSIDIAN;
+    const accent = isEndDim ? B.PURPUR_PILLAR : B.DRAGON_MINT_CRYSTAL;
+    const putDChest = (lx, wy, lz, cid, tag) => {
+      setLocalSafe(data, lx, wy, lz, cid, true);
+      naturalChestTags.set(modKey(wx0 + lx, wy, wz0 + lz), tag);
+    };
+
+    if (spec.kind === 'nest') {
+      // 1) Dragon Nest: spiked rock ring, curved dragon bones, glowing dragon egg centerpiece & treasure chest!
+      for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+        const d = Math.hypot(dx - 7.5, dz - 7.5);
+        if (d > 5.8) continue;
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, py === baseY ? (d > 4.2 ? B.OBSIDIAN : stoneA) : stoneA, true);
+        for (let wy = 1; wy <= 8; wy++) setLocalSafe(data, dx, baseY + wy, dz, B.AIR, true);
+        if (d >= 4.2 && d <= 5.5) {
+          const spikeH = 2 + (((dx * 7 + dz * 11) & 3) === 0 ? 3 : (((dx + dz) & 1) ? 1 : 0));
+          for (let wy = 1; wy <= spikeH; wy++) setLocalSafe(data, dx, baseY + wy, dz, (wy === spikeH && spikeH >= 4) ? accent : B.OBSIDIAN, true);
+        }
+      }
+      // Rib-like Dragon Bone arches curving over the nest
+      for (let i = 0; i < 4; i++) {
+        const dy = 1 + Math.min(3, i);
+        setLocalSafe(data, 4 + i, baseY + dy, 4, B.BONE_BLOCK, true);
+        setLocalSafe(data, 11 - i, baseY + dy, 11, B.BONE_BLOCK, true);
+      }
+      const eggs = [B.DRAGON_EGG_FIRE, B.DRAGON_EGG_ICE, B.DRAGON_EGG_WATER, B.DRAGON_EGG_LEAF, B.DRAGON_EGG_EARTH, B.ENDER_DRAGON_EGG];
+      const eggId = eggs[Math.floor(hash2i(cx, cz, worldSeed + 9151) * eggs.length)] || B.ENDER_DRAGON_EGG;
+      setLocalSafe(data, 7, baseY + 1, 7, B.OBSIDIAN, true);
+      setLocalSafe(data, 7, baseY + 2, 7, eggId, true);
+      putDChest(9, baseY + 1, 7, B.GOLD_CHEST, 'dragon_nest');
+      putDChest(6, baseY + 1, 9, B.CHEST, 'dragon_nest');
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 8 - MIN_Y));
+    }
+
+    if (spec.kind === 'vault') {
+      // 2) Fortified Dragon Treasure Vault (Obsidian + Purpur + End Stone unusual monolith)
+      for (let dz = 3; dz <= 12; dz++) for (let dx = 3; dx <= 12; dx++) {
+        const rim = (dx === 3 || dx === 12 || dz === 3 || dz === 12);
+        const door = (dz === 12 && (dx === 7 || dx === 8));
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, B.OBSIDIAN, true);
+        for (let wy = 1; wy <= 8; wy++) {
+          const ceil = (wy === 8);
+          const wall = rim && !(door && wy <= 3);
+          setLocalSafe(data, dx, baseY + wy, dz, (wall || ceil) ? ((wy % 2 === 0) ? B.PURPUR_BLOCK : B.OBSIDIAN) : B.AIR, true);
+        }
+      }
+      setLocalSafe(data, 3, baseY + 9, 3, accent, true);
+      setLocalSafe(data, 12, baseY + 9, 3, accent, true);
+      setLocalSafe(data, 3, baseY + 9, 12, accent, true);
+      setLocalSafe(data, 12, baseY + 9, 12, accent, true);
+      setLocalSafe(data, 7, baseY + 1, 5, B.END_ROD, true);
+      setLocalSafe(data, 8, baseY + 1, 5, B.END_ROD, true);
+      putDChest(7, baseY + 1, 6, B.DIAMOND_CHEST || B.GOLD_CHEST, 'dragon_vault');
+      putDChest(8, baseY + 1, 6, B.GOLD_CHEST, 'dragon_vault');
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 10 - MIN_Y));
+    }
+
+    if (spec.kind === 'lab') {
+      // 3) Ancient Dragon Laboratory (crystal containment tubes, enchanting bench, glowing rods & lab chest)
+      for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+        const rim = (dx === 2 || dx === 13 || dz === 2 || dz === 13);
+        const door = (dz === 13 && (dx === 7 || dx === 8));
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, B.END_STONE_BRICKS, true);
+        for (let wy = 1; wy <= 7; wy++) {
+          const isWin = rim && wy >= 2 && wy <= 4 && (dx === 5 || dx === 10 || dz === 5 || dz === 10);
+          setLocalSafe(data, dx, baseY + wy, dz, (wy === 7 || (rim && !(door && wy <= 3))) ? (isWin ? B.GLASS : ((wy === 7) ? stoneB : B.PURPUR_PILLAR)) : B.AIR, true);
+        }
+      }
+      // Twin crystal containment vats
+      for (const [vx, vz] of [[5, 5], [10, 5]]) {
+        for (let wy = 1; wy <= 5; wy++) setLocalSafe(data, vx, baseY + wy, vz, (wy === 1 || wy === 5) ? B.OBSIDIAN : accent, true);
+      }
+      setLocalSafe(data, 7, baseY + 1, 8, B.ENCHANT_TABLE, true);
+      setLocalSafe(data, 8, baseY + 6, 8, B.END_ROD, true);
+      putDChest(10, baseY + 1, 10, B.GOLD_CHEST, 'dragon_lab');
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 9 - MIN_Y));
+    }
+
+    if (spec.kind === 'altar') {
+      // 4) Ritual Altar + Broken Obsidian-Purpur Sky Bridge / Temple
+      for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+        const d = Math.hypot(dx - 7.5, dz - 7.5);
+        if (d > 6.0) continue;
+        for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, py === baseY ? (d > 4.6 ? B.OBSIDIAN : B.PURPUR_BLOCK) : stoneA, true);
+        for (let wy = 1; wy <= 9; wy++) setLocalSafe(data, dx, baseY + wy, dz, B.AIR, true);
+        if (d <= 2.6) setLocalSafe(data, dx, baseY + 1, dz, B.END_STONE_BRICKS, true);
+      }
+      for (const [px, pz] of [[3, 3], [12, 3], [3, 12], [12, 12]]) {
+        for (let wy = 1; wy <= 7; wy++) setLocalSafe(data, px, baseY + wy, pz, (wy % 2 === 0) ? B.PURPUR_PILLAR : B.OBSIDIAN, true);
+        setLocalSafe(data, px, baseY + 8, pz, accent, true);
+      }
+      // Elevated obsidian-purpur bridge span across the altar
+      for (let dx = 1; dx <= 14; dx++) {
+        setLocalSafe(data, dx, baseY + 7, 7, B.PURPUR_BLOCK, true);
+        setLocalSafe(data, dx, baseY + 7, 8, B.OBSIDIAN, true);
+      }
+      setLocalSafe(data, 7, baseY + 2, 7, B.END_CRYSTAL_BLOCK, true);
+      putDChest(8, baseY + 2, 8, B.GOLD_CHEST, 'dragon_altar');
+      return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 10 - MIN_Y));
+    }
+
+    // 5) Ancient Dragon Library (obsidian-framed bookshelf halls, enchanting table, end rods, library loot chest)
+    for (let dz = 2; dz <= 13; dz++) for (let dx = 2; dx <= 13; dx++) {
+      const rim = (dx === 2 || dx === 13 || dz === 2 || dz === 13);
+      const door = (dz === 13 && (dx === 7 || dx === 8));
+      for (let py = baseY - 3; py <= baseY; py++) setLocalSafe(data, dx, py, dz, B.PURPUR_BLOCK, true);
+      for (let wy = 1; wy <= 8; wy++) {
+        setLocalSafe(data, dx, baseY + wy, dz, (wy === 8 || (rim && !(door && wy <= 3))) ? ((wy === 1 || wy === 8) ? B.OBSIDIAN : B.END_STONE_BRICKS) : B.AIR, true);
+      }
+    }
+    for (let wy = 1; wy <= 5; wy++) {
+      for (let dz = 4; dz <= 10; dz += 2) {
+        setLocalSafe(data, 4, baseY + wy, dz, B.BOOKSHELF, true);
+        setLocalSafe(data, 11, baseY + wy, dz, B.BOOKSHELF, true);
+      }
+      for (let dx = 5; dx <= 10; dx++) setLocalSafe(data, dx, baseY + wy, 3, B.BOOKSHELF, true);
+    }
+    setLocalSafe(data, 7, baseY + 1, 7, B.ENCHANT_TABLE, true);
+    setLocalSafe(data, 7, baseY + 7, 7, B.END_ROD, true);
+    setLocalSafe(data, 8, baseY + 7, 7, B.END_ROD, true);
+    putDChest(8, baseY + 1, 5, B.GOLD_CHEST, 'dragon_library');
+    return Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 10 - MIN_Y));
+  }
+
   // Shared procedural chunk builder for BOTH Dream Biome ('sift') and Dragon Realm ('dragon_realm')
-  // Terrain SHAPE & BUILD METHOD are identical; block palettes are 100% strictly separated per realm!
+  // Terrain SHAPE & BUILD METHOD are shared; each biome has its own distinct palette, vegetation, floating islands & ground structures!
   function _buildLayeredRealmChunk(cx, cz, wx0, wz0, data, realmKind) {
     const isDream = (realmKind === 'sift');
     const cfg = (typeof getRealmGenCfg === 'function') ? getRealmGenCfg() : null;
@@ -1453,11 +1963,13 @@
     let maxLy = 0;
     if (!chunkWorkerPool.take(wx0, wz0, 0)) fillCoarseCaveGrid(wx0, wz0);
 
-    // Pre-sample column base info for crisp cliff-edge overhang detection & fast 3D column fills
     const baseHeights = new Int16Array(256);
     const colIsMesa = new Uint8Array(256);
     const colIsPond = new Uint8Array(256);
     const colIsStep = new Uint8Array(256);
+    const colIsTrench = new Uint8Array(256);
+    const colIsIchor = new Uint8Array(256);
+    const colEdgeF = new Float32Array(256);
     const colBioArr = new Array(256);
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz;
@@ -1479,6 +1991,9 @@
         colIsMesa[ci] = baseSample.isMesaPlateau ? 1 : 0;
         colIsPond[ci] = baseSample.isPondBasin ? 1 : 0;
         colIsStep[ci] = baseSample.isSteppingStone ? 1 : 0;
+        colIsTrench[ci] = baseSample.isTrench ? 1 : 0;
+        colIsIchor[ci] = baseSample.isIchorPit ? 1 : 0;
+        colEdgeF[ci] = baseSample.edgeFactor || 0;
       }
     }
 
@@ -1487,14 +2002,15 @@
       const warp = Math.floor(valueNoise2D(wx * 0.04, wz * 0.04, worldSeed + sOff + 911) * 3.0);
       const band = ((wy + warp) % 9 + 9) % 9;
       if (isDream) {
-        // Dream Biome palette ONLY: striped pink/red terracotta + husk soil + occasional light cream stripe
+        if (isSandAccent) return B.SIFT_PINK_SAND;
+        if (b === BIOMES.SIFT_SPOREFIELDS) return (band === 0 || band === 4) ? B.SIFT_STONE : B.HUSK_SOIL;
+        if (b === BIOMES.SIFT_ICHOR_PONDS) return (band === 3 && !isSpire) ? B.SIFT_PINK_SAND : (band === 0 || band === 5 ? B.TERRACOTTA_RED : B.TERRACOTTA);
         if (band === 0 || band === 5) return B.TERRACOTTA_RED;
         if (band === 2) return B.HUSK_SOIL;
         if (band === 4 && (isSpire || b === BIOMES.SIFT_CANYON || b === BIOMES.SIFT_HUSKLAND)) return B.TERRACOTTA_WHITE;
         if (band === 7) return B.TERRACOTTA_ORANGE;
         return B.TERRACOTTA;
       }
-      // Dragon Realm palette ONLY: red stone + rose terracotta + light sand spire accents + rare obsidian peak cap
       if (isVolcanicCap) return B.OBSIDIAN;
       if (isSandAccent) return B.DRAGON_SAND_STONE;
       if (band === 1 || band === 4 || band === 7) return B.DRAGON_RED_TERRACOTTA;
@@ -1512,53 +2028,66 @@
         const isMesa = colIsMesa[ci] === 1;
         const isPond = colIsPond[ci] === 1;
         const isStep = colIsStep[ci] === 1;
+        const isTrench = colIsTrench[ci] === 1;
+        const isIchor = colIsIchor[ci] === 1;
+        const edgeF = colEdgeF[ci];
         const dHub = Math.hypot(wx, wz);
         const dArena = !isDream ? Math.hypot(wx, wz - 136) : 9999;
         const sp = sampleSharedSpireAt(wx, wz, realmKind);
         const sandSlopeN = !isDream ? fbm2D(wx * 0.022 + 31.1, wz * 0.022 - 17.9, 2, 0.5, 2.0, worldSeed + sOff + 937) : 0;
         const isSandSlope = (!isDream && sandSlopeN > rc.sandAccentThreshold);
 
-        // Determine max Y to iterate for this column (base terrain + water + spire + arch)
         let colTopY = isDream ? Math.max(WATER_LEVEL, baseH) : baseH;
         if (sp && sp.topY > colTopY) colTopY = sp.topY;
         const archScanTop = Math.min(MAX_Y - 2, Math.max(colTopY, baseH + 16));
         const maxFillLy = Math.min(WORLD_H - 1, colTopY - MIN_Y);
         if (maxFillLy > maxLy) maxLy = maxFillLy;
 
-        // Detect plateau cliff edge for true 3D overhanging mesa ledges (Refs 1, 2, 7)
         let isCliffEdge = false;
-        if (isMesa && baseH >= (isDream ? WATER_LEVEL + 7 : rc.baseMinY + 7)) {
-          const hN = lz > 0 ? baseHeights[ci - 16] : sampleSharedMesaBase(wx, wz - 1, realmKind, b).baseH;
-          const hS = lz < 15 ? baseHeights[ci + 16] : sampleSharedMesaBase(wx, wz + 1, realmKind, b).baseH;
-          const hW = lx > 0 ? baseHeights[ci - 1] : sampleSharedMesaBase(wx - 1, wz, realmKind, b).baseH;
-          const hE = lx < 15 ? baseHeights[ci + 1] : sampleSharedMesaBase(wx + 1, wz, realmKind, b).baseH;
-          if (baseH - Math.min(hN, hS, hW, hE) >= 3) isCliffEdge = true;
+        let maxDrop = 0;
+        if (baseH >= (isDream ? WATER_LEVEL + 4 : rc.baseMinY + 7)) {
+          const hN = lz > 0 ? baseHeights[ci - 16] : sampleSharedMesaBase(wx, wz - 1, realmKind, b, true).baseH;
+          const hS = lz < 15 ? baseHeights[ci + 16] : sampleSharedMesaBase(wx, wz + 1, realmKind, b, true).baseH;
+          const hW = lx > 0 ? baseHeights[ci - 1] : sampleSharedMesaBase(wx - 1, wz, realmKind, b, true).baseH;
+          const hE = lx < 15 ? baseHeights[ci + 1] : sampleSharedMesaBase(wx + 1, wz, realmKind, b, true).baseH;
+          maxDrop = baseH - Math.min(hN, hS, hW, hE);
+          if (isMesa && maxDrop >= 3) isCliffEdge = true;
         }
         const overhangN = isCliffEdge ? valueNoise2D(wx * sh.overhangScale, wz * sh.overhangScale, worldSeed + sOff + 947) : 0;
         const carveUndercut = isCliffEdge && overhangN > sh.overhangThreshold;
 
-        // Surface block selection (strictly per-realm palette)
+        // Per-biome surface block selection (6 completely unmistakable Sift biomes!)
         let baseTopBlock;
         if (isDream) {
-          const sandyRiverN = valueNoise2D(wx * 0.065, wz * 0.065, worldSeed + 4951);
-          if (baseH < WATER_LEVEL) {
-            baseTopBlock = (b === BIOMES.SIFT_OCEAN && hash2i(wx, wz, worldSeed + 4511) > 0.92) ? B.SIFT_CYAN_CRYSTAL : B.HUSK_SOIL;
+          if (isIchor) {
+            baseTopBlock = B.SIFT_PINK_SAND;
+          } else if (isTrench) {
+            baseTopBlock = B.SIFT_PINK_SAND; // Exposed pink sand in Burrows & Ichor trenches (Refs 5 & 10!)
+          } else if (baseH < WATER_LEVEL) {
+            baseTopBlock = (hash2i(wx, wz, worldSeed + 4511) > 0.92) ? B.SIFT_CYAN_CRYSTAL : B.HUSK_SOIL;
           } else if (isStep) {
-            baseTopBlock = (hash2i(wx, wz, worldSeed + 4517) > 0.42) ? B.SIFT_GRASS : B.TERRACOTTA;
-          } else if (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) {
+            baseTopBlock = (b === BIOMES.SIFT_HUSKLAND) ? B.SIFT_PALE_GRASS : ((b === BIOMES.SIFT_MEADOW) ? B.LULLABY_GRASS : B.SIFT_GRASS);
+          } else if (b === BIOMES.SIFT_MEADOW) {
+            // b) Singer's Meadow: pure soft pink grass plains (Ref 2/8)
             baseTopBlock = B.LULLABY_GRASS;
+          } else if (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) {
+            // c) Lullaby Hills: teal-green grass on hills, exposed red mountain rock on steep slopes & peaks (Refs 4/6 & 7/3)
+            baseTopBlock = (maxDrop >= 2 || baseH >= WATER_LEVEL + 24) ? B.TERRACOTTA_RED : B.SIFT_GRASS;
+          } else if (b === BIOMES.SIFT_ICHOR_PONDS) {
+            // d) Burrows & Ichor: deep crimson grass with pink sand along edges (Refs 5 & 10)
+            baseTopBlock = (maxDrop >= 3) ? B.TERRACOTTA_RED : B.SIFT_CRIMSON_GRASS;
+          } else if (b === BIOMES.SIFT_HUSKLAND) {
+            // e) Humbler Huskland: pale sage-green grass mixed with red soil & red mountain peaks (Ref 1/9)
+            const redPatch = valueNoise2D(wx * 0.08, wz * 0.08, worldSeed + 4523);
+            baseTopBlock = (baseH >= WATER_LEVEL + 14 || maxDrop >= 2 || redPatch > 0.74) ? B.TERRACOTTA_RED : B.SIFT_PALE_GRASS;
           } else if (b === BIOMES.SIFT_SPOREFIELDS) {
+            // f) Fungal Sporefields: spongy purple-violet fungal carpet
             baseTopBlock = B.SPORE_TURF;
-          } else if (b === BIOMES.SIFT_HUSKLAND || b === BIOMES.SIFT_CANYON) {
-            baseTopBlock = (sandyRiverN > 0.74 && baseH <= WATER_LEVEL + 4) ? B.TERRACOTTA_WHITE : (isMesa && hash2i(wx, wz, worldSeed + 4523) > 0.55 ? B.SIFT_GRASS : B.TERRACOTTA_RED);
-          } else if (b === BIOMES.SIFT_PEAKS) {
-            baseTopBlock = baseH >= WATER_LEVEL + 26 ? B.TERRACOTTA_WHITE : B.TERRACOTTA;
           } else {
-            // Singer's Meadow & Choral Glen: vivid cyan-teal grass with exposed pink-red terracotta slopes (Refs 1, 3, 7)
-            baseTopBlock = (isCliffEdge && hash2i(wx, wz, worldSeed + 4529) > 0.62) ? B.TERRACOTTA_RED : B.SIFT_GRASS;
+            // a) The Sift (Central Canyon): red-pink terracotta cliffs & vivid teal grass ledges (Refs 1, 2, 7)
+            baseTopBlock = (isCliffEdge || maxDrop >= 3) ? B.TERRACOTTA_RED : B.SIFT_GRASS;
           }
         } else {
-          // Dragon Realm surface palette ONLY (Refs 9, 10, 11)
           if (dArena < 20) {
             baseTopBlock = (dArena > 17.5) ? B.OBSIDIAN : (((Math.abs(wx) + Math.abs(wz - 136)) % 4 === 0) ? B.DRAGON_RED_TERRACOTTA : B.DRAGON_RED_STONE);
           } else if (isSandSlope && !isCliffEdge) {
@@ -1572,7 +2101,6 @@
           }
         }
 
-        // Fill vertical column from MIN_Y up to baseH (plus Dream water up to WATER_LEVEL)
         let highestSolidY = MIN_Y;
         for (let ly = 0; ly <= maxFillLy; ly++) {
           const wy = MIN_Y + ly;
@@ -1580,17 +2108,21 @@
           if (wy === MIN_Y) { data[idx] = B.BEDROCK; continue; }
 
           if (wy <= baseH) {
-            // Overhanging stepped cliff undercut beneath top 2-block plateau lip
             if (carveUndercut && wy <= baseH - 2 && wy >= baseH - (1 + sh.overhangCarveDepth)) {
-              data[idx] = (isDream && wy <= WATER_LEVEL) ? B.WATER : B.AIR;
+              data[idx] = (isDream && wy <= WATER_LEVEL && !isTrench) ? B.WATER : B.AIR;
               continue;
             }
-            // Underground caves
-            const caveThresh = (!isDream && b === BIOMES.DR_CAVERNS) ? 0.64 : 0.75;
-            if (wy < baseH - 3 && wy > MIN_Y + 4 && dArena >= 24 && sampleCaveFast(lx, ly, lz) > caveThresh) {
+            // Burrow cave tunnels (Burrows & Ichor) + mushroom caves (Fungal Sporefields)
+            const caveThresh = isDream
+              ? (b === BIOMES.SIFT_ICHOR_PONDS ? 0.58 : (b === BIOMES.SIFT_SPOREFIELDS ? 0.62 : 0.75))
+              : (b === BIOMES.DR_CAVERNS ? 0.64 : 0.75);
+            if (wy < baseH - 2 && wy > MIN_Y + 4 && dArena >= 24 && sampleCaveFast(lx, ly, lz) > caveThresh) {
               const cH = hash3i(wx, wy, wz, worldSeed + sOff + 777);
               if (isDream) {
-                data[idx] = (wy === MIN_Y + 5 && cH > 0.90) ? B.SPORE_SHROOM : ((cH > 0.992 && wy < baseH - 6) ? B.SIFT_CYAN_CRYSTAL : B.AIR);
+                if (b === BIOMES.SIFT_ICHOR_PONDS && wy <= WATER_LEVEL - 4) data[idx] = B.LAVA; // glowing crimson ichor in deep burrow caves!
+                else if (wy === MIN_Y + 5 && cH > 0.88) data[idx] = B.SPORE_SHROOM;
+                else if (cH > 0.990 && wy < baseH - 5) data[idx] = B.SIFT_CYAN_CRYSTAL;
+                else data[idx] = B.AIR;
               } else {
                 data[idx] = (wy === MIN_Y + 5 && cH > 0.92) ? B.DRAGON_MINT_CRYSTAL : B.AIR;
               }
@@ -1599,7 +2131,7 @@
             if (wy === baseH) {
               data[idx] = baseTopBlock;
             } else if (wy >= baseH - 10) {
-              data[idx] = pickStrataBlock(wx, wy, wz, b, false, isSandSlope, false);
+              data[idx] = pickStrataBlock(wx, wy, wz, b, false, isSandSlope || isTrench, false);
             } else {
               const oh = hash3i(wx, wy, wz, worldSeed + sOff);
               if (isDream) {
@@ -1616,11 +2148,13 @@
             }
             if (wy > highestSolidY) highestSolidY = wy;
           } else if (isDream && wy <= WATER_LEVEL) {
-            data[idx] = B.WATER;
+            // Deep Burrows & Ichor pits fill with red glowing ichor (B.LAVA); lakes in all other biomes fill with 7-color Dream Water!
+            if (isIchor && wy <= WATER_LEVEL - 2) data[idx] = B.LAVA;
+            else if (!isTrench) data[idx] = B.WATER;
           }
         }
 
-        // 2) Tall stacked spire pillars with flared flat overhanging grass-topped caps (Refs 1, 3, 6, 9, 10, 11)
+        // 2) Tall stacked spire pillars with flared flat overhanging grass-topped caps (per-biome customized!)
         let spireTopHitY = -9999;
         if (sp) {
           const yStart = Math.max(MIN_Y + 2, sp.anchorY - 3);
@@ -1636,7 +2170,10 @@
               let sBid;
               if (wy === sp.topY && !sp.isSandSpire) {
                 if (sp.hasVolcanicCap) sBid = B.OBSIDIAN;
-                else sBid = isDream ? B.SIFT_GRASS : B.DRAGON_CAP_GRASS;
+                else if (!isDream) sBid = B.DRAGON_CAP_GRASS;
+                else if (sp.isHuskland) sBid = B.SIFT_PALE_GRASS;
+                else if (sp.isBurrows) sBid = B.SIFT_CRIMSON_GRASS;
+                else sBid = B.SIFT_GRASS;
               } else if (sp.hasVolcanicCap && wy >= sp.topY - 2) {
                 sBid = B.OBSIDIAN;
               } else {
@@ -1649,26 +2186,35 @@
             }
           }
           if (spireTopHitY > colHeights[ci]) colHeights[ci] = spireTopHitY;
+          // In Central The Sift, place glowing mushrooms & crystal trees ON TOP of huge rock pillars (Ref 1/9!)
+          if (isDream && sp.isCentralSift && wx === Math.round(sp.sx + sp.leanX * sp.height) && wz === Math.round(sp.sz + sp.leanZ * sp.height) && spireTopHitY === sp.topY) {
+            const topTr = (sp.seedH > 0.45)
+              ? placeDreamCrystalTree(data, lx, sp.topY + 1, lz, wx, wz, 'medium')
+              : placeGiantSiftMushroom(data, lx, sp.topY + 1, lz, wx, wz);
+            maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topTr - MIN_Y));
+          }
         }
 
-        // 3) Natural voxel rock arches spanning canyons/valleys (Refs 1, 10, 11)
-        for (let wy = Math.max(MIN_Y + 3, baseH - 1); wy <= archScanTop; wy++) {
-          const arch = sampleSharedArchAt(wx, wy, wz, realmKind);
-          if (arch && arch.hit) {
-            const ly = wy - MIN_Y;
-            const idx = (ly << 8) | ci;
-            if (data[idx] === B.AIR || data[idx] === B.WATER) {
-              data[idx] = arch.isTop
-                ? (isDream ? B.SIFT_GRASS : B.DRAGON_CAP_GRASS)
-                : pickStrataBlock(wx, wy, wz, b, true, false, false);
-              if (ly > maxLy) maxLy = ly;
-              if (wy > highestSolidY) highestSolidY = wy;
+        // 3) Natural voxel rock arches / stone bridges spanning canyons & valleys (Refs 1, 10, 11)
+        if (!isDream || b === BIOMES.SIFT_CANYON || b === BIOMES.SIFT_HUSKLAND || b === BIOMES.SIFT_ICHOR_PONDS) {
+          for (let wy = Math.max(MIN_Y + 3, baseH - 1); wy <= archScanTop; wy++) {
+            const arch = sampleSharedArchAt(wx, wy, wz, realmKind);
+            if (arch && arch.hit) {
+              const ly = wy - MIN_Y;
+              const idx = (ly << 8) | ci;
+              if (data[idx] === B.AIR || data[idx] === B.WATER) {
+                data[idx] = arch.isTop
+                  ? (isDream ? (b === BIOMES.SIFT_HUSKLAND ? B.SIFT_PALE_GRASS : (b === BIOMES.SIFT_ICHOR_PONDS ? B.SIFT_CRIMSON_GRASS : B.SIFT_GRASS)) : B.DRAGON_CAP_GRASS)
+                  : pickStrataBlock(wx, wy, wz, b, true, false, false);
+                if (ly > maxLy) maxLy = ly;
+                if (wy > highestSolidY) highestSolidY = wy;
+              }
             }
           }
         }
 
         // 4) Hanging cyan vines along overhanging mesa cliff & spire rims in Dream Biome (Ref 7)
-        if (isDream && (carveUndercut || spireTopHitY >= baseH + 8)) {
+        if (isDream && (carveUndercut || spireTopHitY >= baseH + 8) && b !== BIOMES.SIFT_MEADOW) {
           const vh = hash2i(wx * 5 + 3, wz * 5 - 11, worldSeed + 4931);
           if (vh > 0.80) {
             const vineTopY = (spireTopHitY >= baseH + 8) ? (spireTopHitY - 1) : (baseH - 2);
@@ -1677,89 +2223,122 @@
               const targetY = vineTopY - vy;
               if (targetY <= WATER_LEVEL + 1) break;
               const tLy = targetY - MIN_Y;
-              if (tLy > 1 && data[(tLy << 8) | ci] === B.AIR) {
-                data[(tLy << 8) | ci] = B.SIFT_VINE;
-              }
+              if (tLy > 1 && data[(tLy << 8) | ci] === B.AIR) data[(tLy << 8) | ci] = B.SIFT_VINE;
             }
           }
         }
 
-        // 5) Flora, Dream Crystal Trees & Dragon Mint Crystal Formations (strictly per-realm palettes!)
+        // 5) Biome-specific trees, giant mushrooms, pale stone clusters & flora (100% distinct per biome!)
         const surfaceY = highestSolidY;
-        const nearSpawnClear = isDream ? (Math.abs(wx) <= 10 && wz >= -17 && wz <= 8) : (dHub < 15 || dArena < 23);
+        const nearSpawnClear = isDream ? (Math.abs(wx) <= 11 && wz >= -17 && wz <= 9) : (dHub < 15 || dArena < 23);
         const surfaceBid = (surfaceY >= MIN_Y && surfaceY <= MAX_Y) ? data[((surfaceY - MIN_Y) << 8) | ci] : B.AIR;
         const aboveClear = (surfaceY + 1 <= MAX_Y) && data[((surfaceY + 1 - MIN_Y) << 8) | ci] === B.AIR;
 
-        if (!nearSpawnClear && aboveClear && surfaceBid !== B.AIR && surfaceBid !== B.WATER) {
+        if (!nearSpawnClear && aboveClear && surfaceBid !== B.AIR && surfaceBid !== B.WATER && surfaceBid !== B.LAVA) {
           const fh = hash2i(wx * 3 + 17, wz * 3 - 29, worldSeed + sOff + 967);
+          const fl = hash2i(wx * 7 + 5, wz * 7 - 13, worldSeed + sOff + 973);
+          const onSpireCap = (spireTopHitY === surfaceY);
           if (isDream) {
             if (surfaceY >= WATER_LEVEL) {
-              const onSpireCap = (spireTopHitY === surfaceY);
-              const isGiantBio = (b === BIOMES.SIFT_GIANT_FOREST);
-              const treeCut = 1.0 - (isGiantBio ? rc.treeChance * 1.45 : (b === BIOMES.SIFT_LULLABY ? rc.treeChance * 0.72 : rc.treeChance));
-              if (!onSpireCap && !isStep && b !== BIOMES.SIFT_PEAKS && fh > treeCut && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
-                const vRoll = hash2i(wx - 7, wz + 13, worldSeed + 4969);
-                const variant = (isGiantBio && vRoll > 0.45) ? 'giant' : (vRoll > 0.36 ? 'tall' : 'medium');
-                const topTr = placeDreamCrystalTree(data, lx, surfaceY + 1, lz, wx, wz, variant);
-                const topTrLy = Math.min(WORLD_H - 1, topTr - MIN_Y);
-                if (topTrLy > maxLy) maxLy = topTrLy;
+              if (b === BIOMES.SIFT_MEADOW) {
+                // b) Singer's Meadow: dark-teal thick-trunk flat-canopy forests ONLY along edges (Ref 2/8!), open pink plains inside!
+                const edgeForestBand = (edgeF > 0.0 || valueNoise2D(wx * 0.026, wz * 0.026, worldSeed + 5501) > 0.78);
+                if (edgeForestBand && !isStep && fh > 0.945 && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
+                  const topT = placeMeadowFlatTree(data, lx, surfaceY + 1, lz, wx, wz);
+                  maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topT - MIN_Y));
+                } else if (fl > 0.64) {
+                  setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_FLOWER, false); // lush pink grass tufts (Ref 2/8)
+                }
+              } else if (b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) {
+                // c) Lullaby Hills: dense blocky ice-blue & white frosted hillside trees (Refs 4/6 & 7/3)
+                if (!onSpireCap && surfaceBid === B.SIFT_GRASS && fh > 0.942 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
+                  const topT = placeIceBlockTree(data, lx, surfaceY + 1, lz, wx, wz);
+                  maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topT - MIN_Y));
+                } else if (surfaceBid === B.SIFT_GRASS && fl > 0.76) {
+                  setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.94 ? B.SPORE_SHROOM : B.TEAL_FERN, false);
+                }
+              } else if (b === BIOMES.SIFT_ICHOR_PONDS) {
+                // d) Burrows & Ichor: sparse turquoise cliff corals & glowing yellow-cyan cave flora (Refs 5 & 10)
+                if (fl > 0.962) setLocalSafe(data, lx, surfaceY + 1, lz, B.CORAL_BLUE, false);
+                else if (fl > 0.928) setLocalSafe(data, lx, surfaceY + 1, lz, B.MUSHROOM_GLOW, false);
+                else if (fl > 0.88 && surfaceBid === B.SIFT_CRIMSON_GRASS) setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_FLOWER, false);
+              } else if (b === BIOMES.SIFT_HUSKLAND) {
+                // e) Humbler Huskland: scattered pale blue stone clusters + pale ferns/flowers (Ref 1/9)
+                if (!onSpireCap && !isStep && surfaceBid === B.SIFT_PALE_GRASS && fh > 0.968 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
+                  const topP = placePaleStoneCluster(data, lx, surfaceY + 1, lz, wx, wz);
+                  maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topP - MIN_Y));
+                } else if (surfaceBid === B.SIFT_PALE_GRASS && fl > 0.74) {
+                  setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.95 ? B.SIFT_BERRY_BUSH : B.TEAL_FERN, false);
+                }
+              } else if (b === BIOMES.SIFT_SPOREFIELDS) {
+                // f) Fungal Sporefields: dense giant multi-colored mushrooms + mystic glowing spore carpet!
+                if (fh > 0.948 && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
+                  const topM = placeGiantSiftMushroom(data, lx, surfaceY + 1, lz, wx, wz);
+                  maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topM - MIN_Y));
+                } else if (fl > 0.68) {
+                  setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.86 ? B.SPORE_SHROOM : (fl > 0.78 ? B.MUSHROOM_GLOW : B.SIFT_FLOWER), false);
+                }
               } else {
-                // Dream-specific flora: cyan coral-like plants, teal ferns, pink dream grass, glowing spores & crystals (Refs 1, 4, 7, 8)
-                const fl = hash2i(wx * 7 + 5, wz * 7 - 13, worldSeed + 4973);
-                if ((b === BIOMES.SIFT_LULLABY || b === BIOMES.SIFT_LULLABY_TOP) && fl > 0.62) {
-                  setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_FLOWER, false);
-                } else if (fl > 0.962) {
+                // a) The Sift (Central Canyon): sculpted teal-trunk crystal trees + bioluminescent flora (Refs 1, 2, 7)
+                if (!onSpireCap && !isStep && fh > (1.0 - rc.treeChance) && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
+                  const vRoll = hash2i(wx - 7, wz + 13, worldSeed + 4969);
+                  const topTr = placeDreamCrystalTree(data, lx, surfaceY + 1, lz, wx, wz, vRoll > 0.72 ? 'giant' : (vRoll > 0.34 ? 'tall' : 'medium'));
+                  maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, topTr - MIN_Y));
+                } else if (fl > 0.960) {
                   setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_CYAN_CRYSTAL, false);
-                } else if (fl > 0.920) {
+                } else if (fl > 0.915) {
                   setLocalSafe(data, lx, surfaceY + 1, lz, B.CORAL_BLUE, false);
-                } else if (fl > 0.875) {
+                } else if (fl > 0.870) {
                   setLocalSafe(data, lx, surfaceY + 1, lz, B.SPORE_SHROOM, false);
-                } else if (fl > 0.835) {
-                  setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_BERRY_BUSH, false);
-                } else if (fl > 0.745 && (surfaceBid === B.SIFT_GRASS || isStep)) {
+                } else if (fl > 0.760 && surfaceBid === B.SIFT_GRASS) {
                   setLocalSafe(data, lx, surfaceY + 1, lz, B.TEAL_FERN, false);
-                } else if (fl > 0.715 && !onSpireCap) {
-                  setLocalSafe(data, lx, surfaceY + 1, lz, B.SIFT_FLOWER, false);
                 }
               }
             }
           } else {
-            // Dragon Realm ONLY: Pale mint crystal clusters + scattered Dragon ferns & small Dragon mushrooms (Refs 9, 10, 11)
-            const onSpireCap = (spireTopHitY === surfaceY);
+            // Dragon Realm ONLY: Pale mint crystal clusters + scattered Dragon ferns & small Dragon mushrooms
             const clusterN = fbm2D(wx * 0.042 + 13.7, wz * 0.042 - 9.3, 2, 0.5, 2.0, worldSeed + 8941);
             const crystalCut = 1.0 - (clusterN > 0.54 ? rc.mintCrystalChance * 1.8 : rc.mintCrystalChance * 0.45);
             if (!onSpireCap && !isSandSlope && fh > crystalCut && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
               const cTop = placeDragonMintCrystalCluster(data, lx, surfaceY + 1, lz, wx, wz);
-              const cTopLy = Math.min(WORLD_H - 1, cTop - MIN_Y);
-              if (cTopLy > maxLy) maxLy = cTopLy;
-            } else {
-              const fl = hash2i(wx * 7 + 11, wz * 7 - 19, worldSeed + 8951);
-              if (surfaceBid === B.DRAGON_CAP_GRASS && fl > 0.74) {
-                setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.945 ? B.DRAGON_MUSHROOM : B.DRAGON_FERN, false);
-              } else if ((surfaceBid === B.DRAGON_RED_TERRACOTTA || surfaceBid === B.DRAGON_RED_STONE) && fl > 0.915) {
-                setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.955 ? B.DRAGON_MUSHROOM : B.DRAGON_FERN, false);
-              }
+              maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, cTop - MIN_Y));
+            } else if (surfaceBid === B.DRAGON_CAP_GRASS && fl > 0.74) {
+              setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.945 ? B.DRAGON_MUSHROOM : B.DRAGON_FERN, false);
+            } else if ((surfaceBid === B.DRAGON_RED_TERRACOTTA || surfaceBid === B.DRAGON_RED_STONE) && fl > 0.915) {
+              setLocalSafe(data, lx, surfaceY + 1, lz, fl > 0.955 ? B.DRAGON_MUSHROOM : B.DRAGON_FERN, false);
             }
           }
         }
 
-        // Dream underwater glowing accents in deep ponds
-        if (isDream && baseH <= WATER_LEVEL - 3) {
+        // 7-color lake bed treasures (sift_lake chest + glowing crystals & corals)
+        if (isDream && baseH <= WATER_LEVEL - 3 && !isTrench) {
           const shU = hash2i(wx, wz, worldSeed + 4611);
-          if (shU > 0.972) setLocalSafe(data, lx, baseH + 1, lz, B.SIFT_CYAN_CRYSTAL, false);
+          if (lx === 8 && lz === 8 && shU > 0.86) {
+            setLocalSafe(data, lx, baseH + 1, lz, B.GOLD_CHEST, true);
+            naturalChestTags.set(modKey(wx, baseH + 1, wz), 'sift_lake');
+          } else if (shU > 0.972) setLocalSafe(data, lx, baseH + 1, lz, B.SIFT_CYAN_CRYSTAL, false);
           else if (shU > 0.90) setLocalSafe(data, lx, baseH + 1, lz, B.CORAL_BLUE, false);
         }
 
-        // Dragon Realm Sovereign Boss arena corner obelisks at (0, 136) so boss gameplay remains intact
+        // Dragon Realm Sovereign Boss arena corner obelisks at (0, 136)
         if (!isDream && Math.abs(Math.abs(wx) - 14) <= 1 && Math.abs(Math.abs(wz - 136) - 14) <= 1) {
           for (let py = baseH + 1; py <= baseH + 12; py++) {
             const isTopCrys = (wx === 14 || wx === -14) && (wz === 150 || wz === 122) && py === baseH + 12;
             setLocalSafe(data, lx, py, lz, isTopCrys ? B.END_CRYSTAL_BLOCK : ((py % 3 === 0) ? B.DRAGON_RED_STONE : B.OBSIDIAN), true);
           }
-          const aTop = Math.min(WORLD_H - 1, baseH + 13 - MIN_Y);
-          if (aTop > maxLy) maxLy = aTop;
+          maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, baseH + 13 - MIN_Y));
         }
       }
+    }
+
+    // 6) Biome-matched Ground Structures + Mandatory Floating Islands (The Sift) / Dragon World Structures (Dragon Realm)
+    const midBio = colBioArr[(8 << 4) | 8];
+    const midH = baseHeights[(8 << 4) | 8];
+    if (isDream) {
+      maxLy = stampSiftGroundStructureInChunk(data, cx, cz, wx0, wz0, midH, midBio, maxLy);
+      maxLy = stampSiftFloatingIslandsInChunk(data, wx0, wz0, maxLy);
+    } else {
+      maxLy = stampDragonWorldStructureInChunk(data, cx, cz, wx0, wz0, maxLy, false);
     }
 
     // Clean any floating glow crystals
@@ -1774,6 +2353,88 @@
     registerChunk(chunkKey(cx, cz), ch);
     markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
     return ch;
+  }
+
+  // Worldgen locator & live structure placer helpers for /locate biome, /locate structure, /place commands
+  function locateNearestSiftBiome(targetBio, originX = player.x, originZ = player.z) {
+    const prevDim = currentDimension;
+    currentDimension = 'sift';
+    const ox = Math.floor(originX), oz = Math.floor(originZ);
+    const isInterior = (x, z) => (
+      getBiomeAt(x, z) === targetBio &&
+      getBiomeAt(x + 20, z) === targetBio && getBiomeAt(x - 20, z) === targetBio &&
+      getBiomeAt(x, z + 20) === targetBio && getBiomeAt(x, z - 20) === targetBio
+    );
+    if (isInterior(ox, oz)) {
+      currentDimension = prevDim;
+      return { x: ox, z: oz, dist: 0 };
+    }
+    let fallback = (getBiomeAt(ox, oz) === targetBio) ? { x: ox, z: oz, dist: 0 } : null;
+    for (let r = 16; r <= 640; r += 16) {
+      for (let dz = -r; dz <= r; dz += 16) {
+        for (let dx = -r; dx <= r; dx += 16) {
+          if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+          const tx = ox + dx, tz = oz + dz;
+          if (getBiomeAt(tx, tz) === targetBio) {
+            if (isInterior(tx, tz)) {
+              currentDimension = prevDim;
+              return { x: tx, z: tz, dist: Math.round(Math.hypot(dx, dz)) };
+            }
+            if (!fallback) fallback = { x: tx, z: tz, dist: Math.round(Math.hypot(dx, dz)) };
+          }
+        }
+      }
+    }
+    currentDimension = prevDim;
+    return fallback;
+  }
+
+  function locateNearestRealmStructure(kind, originX = player.x, originZ = player.z) {
+    const ocx = Math.floor(originX) >> 4, ocz = Math.floor(originZ) >> 4;
+    if (kind === 'island' && currentDimension === 'sift') {
+      let best = null;
+      for (let dz = -180; dz <= 180; dz += 12) for (let dx = -180; dx <= 180; dx += 12) {
+        const isl = sampleSiftFloatingIslandAt(Math.floor(originX) + dx, Math.floor(originZ) + dz);
+        if (!isl) continue;
+        const d = Math.hypot(isl.ix - originX, isl.iz - originZ);
+        if (!best || d < best.dist) best = { x: isl.ix, y: isl.topY + 2, z: isl.iz, dist: Math.round(d), kind: isl.kind };
+      }
+      return best;
+    }
+    const isDragonKind = (kind === 'nest' || kind === 'vault' || kind === 'lab' || kind === 'altar' || kind === 'library');
+    let best = null;
+    for (let r = 0; r <= 24; r++) {
+      for (let dcz = -r; dcz <= r; dcz++) for (let dcx = -r; dcx <= r; dcx++) {
+        if (Math.abs(dcx) !== r && Math.abs(dcz) !== r) continue;
+        const spec = isDragonKind ? getDragonStructureForChunk(ocx + dcx, ocz + dcz) : getSiftGroundStructureForChunk(ocx + dcx, ocz + dcz);
+        if (!spec || (kind !== 'any' && spec.kind !== kind)) continue;
+        const d = Math.hypot(spec.wx - originX, spec.wz - originZ);
+        if (!best || d < best.dist) best = { x: spec.wx, y: getTerrainHeight(spec.wx, spec.wz, getBiomeAt(spec.wx, spec.wz)) + 2, z: spec.wz, dist: Math.round(d), kind: spec.kind };
+      }
+      if (best) break;
+    }
+    return best;
+  }
+
+  function placeStructureAtPlayer(kind) {
+    const fx = Math.floor(player.x - Math.sin(player.yaw) * 14);
+    const fz = Math.floor(player.z - Math.cos(player.yaw) * 14);
+    const tcx = fx >> 4, tcz = fz >> 4;
+    let ch = chunks.get(chunkKey(tcx, tcz));
+    if (!ch) ch = generateChunk(tcx, tcz);
+    const wx0 = tcx * 16, wz0 = tcz * 16;
+    const midBio = getBiomeAt(wx0 + 8, wz0 + 8);
+    const midH = Math.max(WATER_LEVEL + 1, getTerrainHeight(wx0 + 8, wz0 + 8, midBio));
+    if (kind === 'nest' || kind === 'vault' || kind === 'lab' || kind === 'altar' || kind === 'library') {
+      ch.maxLy = stampDragonWorldStructureInChunk(ch.data, tcx, tcz, wx0, wz0, ch.maxLy, currentDimension === 'end', kind);
+    } else if (kind === 'castle' || kind === 'village' || kind === 'ruin' || kind === 'den') {
+      ch.maxLy = stampSiftGroundStructureInChunk(ch.data, tcx, tcz, wx0, wz0, midH, midBio, ch.maxLy, kind);
+    } else {
+      return null;
+    }
+    ch.dirty = true;
+    rebuildChunkMesh(ch);
+    return { x: wx0 + 8, y: midH + 2, z: wz0 + 8, kind };
   }
 
   function _genDragonRealmChunk(cx, cz, wx0, wz0, data) {
@@ -9031,41 +9692,75 @@
     };
 
     if (targetDim === 'sift') {
-      // v60: Đồng bộ chuẩn như Nether/End + khung cảnh Singer's Portal thoáng đẹp, mob Sift dễ thương đứng ngay tầm mắt!
-      const sx0 = (portalOpts && typeof portalOpts.spawnX === 'number') ? Math.floor(portalOpts.spawnX) : 0;
-      const sz0 = (portalOpts && typeof portalOpts.spawnZ === 'number') ? Math.floor(portalOpts.spawnZ) : 0;
-      const targetBio = (portalOpts && portalOpts.targetBio) || BIOMES.SIFT_MEADOW;
+      // v188: Central canyon portal landmark at (0,0) OR clean biome arrival + immediate 10-mob biome-specific pack!
+      const isSubBiomeTp = !!(portalOpts && typeof portalOpts.spawnX === 'number');
+      const sx0 = isSubBiomeTp ? Math.floor(portalOpts.spawnX) : 0;
+      const sz0 = isSubBiomeTp ? Math.floor(portalOpts.spawnZ) : 0;
+      const targetBio = (portalOpts && portalOpts.targetBio) || BIOMES.SIFT_CANYON;
       const scx = sx0 >> 4, scz = sz0 >> 4;
-      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      const ly = Math.max(WATER_LEVEL + 5, getTerrainHeight(sx0, sz0, targetBio) + 2);
-      // Raised stepped terracotta-and-cyan-grass plateau leading up to the glowing cyan Dream Portal (Ref 2 & 7)
-      for (let dz = -15; dz <= 6; dz++) for (let dx = -8; dx <= 8; dx++) {
-        const edgeRim = (Math.abs(dx) === 8 || dz === 6 || dz === -15);
-        const stepTier = (dz <= -8 && Math.abs(dx) <= 5) ? 2 : ((dz <= -5 && Math.abs(dx) <= 6) ? 1 : 0);
-        const topY = ly + stepTier;
-        for (let by = ly - 5; by <= topY; by++) {
-          const bid = by === topY
-            ? (edgeRim ? B.SIFT_GRASS : (stepTier > 0 && Math.abs(dx) <= 4 ? B.HUSK_SOIL : B.SIFT_GRASS))
-            : (((by & 3) === 0) ? B.TERRACOTTA_RED : B.TERRACOTTA);
-          setBlockWorld(sx0 + dx, by, sz0 + dz, bid, true);
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) generateChunk(scx + dx, scz + dz);
+      const rawLy = getTerrainHeight(sx0, sz0, getBiomeAt(sx0, sz0));
+      const ly = isSubBiomeTp ? Math.max(WATER_LEVEL + 2, rawLy) : Math.max(WATER_LEVEL + 5, rawLy + 2);
+      if (!isSubBiomeTp) {
+        // Signature Landmark: Giant glowing Dream Portal on grand stone steps in the middle of The Sift canyon (Refs 1, 2, 7)
+        for (let dz = -15; dz <= 6; dz++) for (let dx = -8; dx <= 8; dx++) {
+          const edgeRim = (Math.abs(dx) === 8 || dz === 6 || dz === -15);
+          const stepTier = (dz <= -8 && Math.abs(dx) <= 5) ? 2 : ((dz <= -5 && Math.abs(dx) <= 6) ? 1 : 0);
+          const topY = ly + stepTier;
+          for (let by = ly - 5; by <= topY; by++) {
+            const bid = by === topY
+              ? (edgeRim ? B.SIFT_GRASS : (stepTier > 0 && Math.abs(dx) <= 4 ? B.HUSK_SOIL : B.SIFT_GRASS))
+              : (((by & 3) === 0) ? B.TERRACOTTA_RED : B.TERRACOTTA);
+            setBlockWorld(sx0 + dx, by, sz0 + dz, bid, true);
+          }
+          for (let hy = 1; hy <= 15; hy++) setBlockWorld(sx0 + dx, topY + hy, sz0 + dz, B.AIR, true);
         }
-        for (let hy = 1; hy <= 15; hy++) setBlockWorld(sx0 + dx, topY + hy, sz0 + dz, B.AIR, true);
+        startRisingDreamPortal(sx0, ly + 2, sz0 - 10, true);
+      } else {
+        // Sub-biome teleport: preserve natural biome terrain/pillars/lakes; only ensure dry 5x5 footing!
+        const pal = getSiftStructPalette(targetBio);
+        for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+          const curH = getTerrainHeight(sx0 + dx, sz0 + dz, getBiomeAt(sx0 + dx, sz0 + dz));
+          if (curH < WATER_LEVEL + 1) setBlockWorld(sx0 + dx, ly, sz0 + dz, pal.grass, true);
+          for (let hy = 1; hy <= 5; hy++) setBlockWorld(sx0 + dx, ly + hy, sz0 + dz, B.AIR, true);
+        }
       }
       const pcz = (sz0 - 10) >> 4;
-      startRisingDreamPortal(sx0, ly + 2, sz0 - 10, true);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(scx, scz, scx, pcz);
-      player.x = sx0 + 0.5; player.y = ly + 1.3; player.z = sz0 + 3.5; player.yaw = 0.0; player.pitch = 0.04;
+      player.x = sx0 + 0.5; player.y = ly + 1.3; player.z = sz0 + (isSubBiomeTp ? 0.5 : 3.5); player.yaw = 0.0; player.pitch = 0.04;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-      // Spawn 5 mob Sift voxel dễ thương ngay bãi đáp trước cổng (0 GLB overhead!)
-      spawnMobOfType('blub', sx0 - 2.3, ly + 1.3, sz0 - 1.2);
-      spawnMobOfType('wobble', sx0 + 2.3, ly + 1.3, sz0 - 1.2);
-      spawnMobOfType('humbler', sx0 - 3.6, ly + 1.3, sz0 - 4.2);
-      spawnMobOfType('echo_golem', sx0 + 3.8, ly + 1.3, sz0 - 5.2);
-      spawnMobOfType('roamroot', sx0 + 0.4, ly + 1.3, sz0 - 4.5);
-      mobSpawnTimer = 1.2;
+      // Immediately populate 10 biome-specific Dream Zone mobs on verified solid ground around arrival (fixes post-teleport empty mobs!)
+      const packByBio = (targetBio === BIOMES.SIFT_MEADOW)
+        ? ['blub', 'blub', 'blub', 'blub', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'nuzzle']
+        : (targetBio === BIOMES.SIFT_HUSKLAND)
+        ? ['humbler', 'humbler', 'humbler', 'humbler', 'echo_golem', 'trill', 'wobble', 'ichor_ray', 'ichor_ray', 'blub']
+        : (targetBio === BIOMES.SIFT_SPOREFIELDS)
+        ? ['roamroot', 'roamroot', 'roamroot', 'roamroot', 'harmonizer', 'harmonizer', 'echo_golem', 'blub', 'wobble', 'trill']
+        : (targetBio === BIOMES.SIFT_ICHOR_PONDS)
+        ? ['humbler', 'humbler', 'humbler', 'harmonizer', 'harmonizer', 'nightmare_stalker', 'blub', 'blub', 'wobble', 'echo_golem']
+        : (targetBio === BIOMES.SIFT_LULLABY || targetBio === BIOMES.SIFT_LULLABY_TOP)
+        ? ['nuzzle', 'nuzzle', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'trill', 'sky_manta', 'singer']
+        : ['blub', 'blub', 'wobble', 'humbler', 'echo_golem', 'roamroot', 'singer', 'trill', 'sky_manta', 'harmonizer'];
+      for (let mi = 0; mi < packByBio.length; mi++) {
+        const ang = (mi / packByBio.length) * Math.PI * 2 + 0.3;
+        const rad = 5.5 + (mi % 3) * 4.5;
+        const mx = Math.floor(sx0 + Math.cos(ang) * rad), mz = Math.floor(sz0 + Math.sin(ang) * rad);
+        const mType = packByBio[mi];
+        const isFly = !!(MOB_STATS[mType] && (MOB_STATS[mType].skyBird || MOB_STATS[mType].flying));
+        let my = Math.max(WATER_LEVEL + 1, getTerrainHeight(mx, mz, getBiomeAt(mx, mz))) + 1.25;
+        if (isFly) my = Math.max(my + 3.0, ly + 4.0);
+        else {
+          for (let scanY = Math.min(MAX_Y - 3, ly + 12); scanY >= Math.max(WATER_LEVEL, ly - 10); scanY--) {
+            const bF = getBlockWorld(mx, scanY, mz);
+            if (IS_SOLID[bF] === 1 && getBlockWorld(mx, scanY + 1, mz) === B.AIR && getBlockWorld(mx, scanY + 2, mz) === B.AIR) { my = scanY + 1.15; break; }
+          }
+        }
+        spawnMobOfType(mType, mx + 0.5, my, mz + 0.5);
+      }
+      mobSpawnTimer = 1.0;
       playSfx('roar');
-      showToast(reasonToast || "🌈 CHÀO MỪNG TỚI THE SIFT (KHU GIẤC MƠ)! Khám phá nước cầu vồng Ichor & quặng Aetherium!");
+      showToast(reasonToast || "🌈 CHÀO MỪNG TỚI THE SIFT (KHU GIẤC MƠ)! Khám phá 6 quần xã, đảo bay & hồ 7 màu!");
     } else if (targetDim === 'nether') {
       if (portalOpts && portalOpts.castleHero) {
         const scx = 64 >> 4, scz = -48 >> 4;

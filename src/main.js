@@ -969,38 +969,70 @@
       return;
     }
 
-    // ===================== DIMENSION 4: THE SIFT (PASTEL AURORA SKY & DREAM WATER — REFS 1-8, 12) =====================
+    // ===================== DIMENSION 4: THE SIFT (6 DISTINCT BIOME SKIES, AURORA, CLOUDS & DREAMY NIGHT!) =====================
     if (currentDimension === 'sift') {
       const inDreamUw = !!(player && player.eyesInWater);
-      _tmpTop.setHex(inDreamUw ? 0x4db6d6 : (_isNcr2 ? 0x3098b2 : 0x26829c));
-      _tmpHor.setHex(inDreamUw ? 0xc48cd6 : (_isNcr2 ? 0xe0a6cc : 0xd092bc));
-      _tmpFog.setHex(inDreamUw ? 0x86c8de : (_isNcr2 ? 0x968cb2 : 0x847a9e));
+      const sBio = getPlayerBiome();
+      const sNight = Math.max(0, Math.min(1, 0.5 - 0.5 * Math.sin(dayTime * Math.PI * 2.0)));
+      const isSiftMeadow = (sBio === BIOMES.SIFT_MEADOW);
+      const isSiftLullaby = (sBio === BIOMES.SIFT_LULLABY || sBio === BIOMES.SIFT_LULLABY_TOP);
+      const isSiftBurrows = (sBio === BIOMES.SIFT_ICHOR_PONDS);
+      const isSiftHusk = (sBio === BIOMES.SIFT_HUSKLAND);
+      const isSiftFungal = (sBio === BIOMES.SIFT_SPOREFIELDS);
+
+      if (inDreamUw) {
+        _tmpTop.setHex(0x4db6d6); _tmpHor.setHex(0xc48cd6); _tmpFog.setHex(0x86c8de);
+      } else if (isSiftMeadow) {
+        // Singer's Meadow: bright blue-cyan sky with white clouds (Ref 2/8)
+        _tmpTop.setHex(0x4cb8f0); _tmpHor.setHex(0x7ef2dc); _tmpFog.setHex(0x8beae2);
+      } else if (isSiftLullaby) {
+        // Lullaby Hills: crisp cyan-pastel by day, dreamy deep blue at night (Refs 4/6 & 7/3)
+        _tmpTop.setHex(sNight > 0.55 ? 0x0b2a52 : 0x52c4db);
+        _tmpHor.setHex(sNight > 0.55 ? 0x165e84 : 0xe4c6e8);
+        _tmpFog.setHex(sNight > 0.55 ? 0x12496d : 0xc0d8e6);
+      } else if (isSiftBurrows) {
+        // Burrows & Ichor: warm dusty rose-pink sky (Refs 5 & 10)
+        _tmpTop.setHex(0x98c6e4); _tmpHor.setHex(0xf2b8dc); _tmpFog.setHex(0xdcb4cc);
+      } else if (isSiftHusk) {
+        // Humbler Huskland: light hazy pink sky (Ref 1/9)
+        _tmpTop.setHex(0xdcc2c8); _tmpHor.setHex(0xf2d9d8); _tmpFog.setHex(0xe8cccd);
+      } else if (isSiftFungal) {
+        // Fungal Sporefields: darker mystical violet-indigo twilight & light mystic fog
+        _tmpTop.setHex(0x1b1238); _tmpHor.setHex(0x4c2b72); _tmpFog.setHex(0x3a2458);
+      } else {
+        // Central The Sift: pastel cyan-to-rose aurora sky (Refs 1, 2, 7)
+        _tmpTop.setHex(_isNcr2 ? 0x3098b2 : 0x26829c);
+        _tmpHor.setHex(_isNcr2 ? 0xe0a6cc : 0xd092bc);
+        _tmpFog.setHex(_isNcr2 ? 0x968cb2 : 0x847a9e);
+      }
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
       const _sfEnd = inDreamUw ? Math.min(loadedEdge, 34.0) : loadedEdge;
-      const _sfStart = inDreamUw ? 6.0 : Math.min(34.0, _sfEnd * 0.46);
+      const _sfStart = inDreamUw ? 6.0 : (isSiftFungal ? Math.min(20.0, _sfEnd * 0.30) : (isSiftHusk ? Math.min(24.0, _sfEnd * 0.36) : Math.min(34.0, _sfEnd * 0.46)));
       scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
       envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(_isNcr2 ? 0xffe8de : 0xffd8cc);
-      sunLight.intensity = _isNcr2 ? 1.02 : 0.98;
-      hemiLight.color.setHex(_isNcr2 ? 0x8ef2f6 : 0x76e2ea);
-      hemiLight.groundColor.setHex(_isNcr2 ? 0x5c3e5e : 0x4c3050);
-      hemiLight.intensity = _isNcr2 ? 0.64 : 0.56;
-      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffe8de : 0xffd8cc);
+      sunLight.color.setHex(isSiftFungal ? 0xd4b8ff : (isSiftLullaby && sNight > 0.55 ? 0x67d8f8 : (isSiftHusk ? 0xffe8dc : 0xffe2d6)));
+      sunLight.intensity = isSiftFungal ? 0.72 : (isSiftLullaby && sNight > 0.55 ? 0.64 : (_isNcr2 ? 1.04 : 0.98));
+      hemiLight.color.setHex(isSiftFungal ? 0x9868e8 : (isSiftHusk ? 0xf2d0d4 : (isSiftMeadow ? 0xa4f4f8 : 0x76e2ea)));
+      hemiLight.groundColor.setHex(isSiftFungal ? 0x2a1844 : (isSiftBurrows ? 0x6b2232 : 0x4c3050));
+      hemiLight.intensity = isSiftFungal ? 0.54 : 0.62;
+      envUniforms.uSunColor.value.copy(sunLight.color);
       envUniforms.uSunDir.value.set(0.35, 0.82, 0.42).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
       sunLight.target.updateMatrixWorld();
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.92;
-      envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = isSiftFungal ? 0.65 : 0.92;
+      envUniforms.uMoonBoost.value = (isSiftLullaby && sNight > 0.55) ? 0.55 : 0.0;
+      envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       envUniforms.uUnderwater.value = inDreamUw ? 1.0 : 0.0;
-      cloudMesh.visible = false;
-      updateShootingStars(dt, 1, false);
-      updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');
+      // Show crisp white Minecraft clouds in Singer's Meadow (Ref 2/8); keep aurora open in Central Sift!
+      cloudMesh.visible = isSiftMeadow && !inDreamUw;
+      updateShootingStars(dt, isSiftMeadow ? 0 : 1, false);
+      updateAirMotesBatch(dt, shaderQuality !== 'low', isSiftFungal ? 'end' : 'sift');
       applyLavaAtmo();
       return;
     }

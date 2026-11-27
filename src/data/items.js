@@ -5552,6 +5552,41 @@
           const streak = ((x + y) % 5 === 0);
           return shade(streak ? '#d6feff' : (r > 0.65 ? '#5ef2ff' : (r > 0.25 ? '#22d3ee' : '#0891b2')), (r - 0.5) * 14);
         });
+        // v188: Per-biome Sift blocks matching Ref 1-10
+        tilePixels(V186_TILES.siftCrimsonTop, (x, y, r) => {
+          return shade(r > 0.78 ? '#c92e4e' : (r > 0.42 ? '#a81e3b' : (r > 0.16 ? '#8f1530' : '#731026')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftCrimsonSide, (x, y, r) => {
+          const lip = 3 + (((x * 9 + 5) ^ (x * 13)) & 1);
+          if (y < lip) return shade(r > 0.5 ? '#b82544' : '#941832', (r - 0.5) * 10);
+          return shade((y % 4 === 0) ? '#7a1c28' : (r > 0.5 ? '#962230' : '#6e1622'), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftPinkSand, (x, y, r) => {
+          const ripple = ((y + ((x >> 2) & 1)) % 5 === 0);
+          return shade(ripple ? '#e5a484' : (r > 0.72 ? '#fbd0b8' : (r > 0.28 ? '#f0b89a' : '#dda183')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftPaleGrassTop, (x, y, r) => {
+          return shade(r > 0.78 ? '#b3dbb8' : (r > 0.44 ? '#93c49d' : (r > 0.18 ? '#7bae87' : '#669672')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftPaleGrassSide, (x, y, r) => {
+          const lip = 3 + (((x * 7 + 1) ^ (x * 11)) & 1);
+          if (y < lip) return shade(r > 0.5 ? '#9bc9a3' : '#7eb08a', (r - 0.5) * 10);
+          return shade((y % 4 === 0) ? '#9e3b2e' : (r > 0.5 ? '#bf4e3e' : '#a84234'), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftPaleStone, (x, y, r) => {
+          const seam = (x === 0 || y === 0 || (x === 8 && y < 8) || (y === 8));
+          return shade(seam ? '#96c4be' : (r > 0.74 ? '#daf3ee' : (r > 0.34 ? '#bedfd9' : '#a4cec7')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.siftSporeCap, (x, y, r) => {
+          const spot = (Math.hypot(x - 4, y - 4) < 2.2) || (Math.hypot(x - 11, y - 10) < 2.4) || (Math.hypot(x - 12, y - 3) < 1.6);
+          if (spot) return shade('#fbcfe8', (r - 0.5) * 10);
+          return shade(r > 0.65 ? '#c84ad8' : (r > 0.25 ? '#9b2db8' : '#781d96'), (r - 0.5) * 14);
+        });
+        tilePixels(V186_TILES.siftBlueCap, (x, y, r) => {
+          const spot = (Math.hypot(x - 5, y - 5) < 2.3) || (Math.hypot(x - 11, y - 11) < 2.2) || (Math.hypot(x - 3, y - 12) < 1.6);
+          if (spot) return shade('#e0faff', (r - 0.5) * 10);
+          return shade(r > 0.65 ? '#38d8f8' : (r > 0.25 ? '#0e9ad0' : '#0b6ea6'), (r - 0.5) * 14);
+        });
       }
       drawSpriteMap(V156_TILES.sulfurSlimeball, [
         '................',

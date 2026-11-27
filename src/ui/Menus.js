@@ -103,29 +103,14 @@
     if (targetKey === 'dim_sift') { _wrapDimLoad('Đang tải The Sift', 'Đang dệt vùng đất Giấc Mơ & ao Ichor cầu vồng...', 'THE SIFT', () => switchDimension('sift')); return; }
     if (targetKey === 'sift_meadow' || targetKey === 'sift_huskland' || targetKey === 'sift_lullaby' || targetKey === 'sift_fungal' || targetKey === 'sift_burrows') {
       const siftMeta = {
-        sift_meadow:   { bio: BIOMES.SIFT_MEADOW,      label: "🌸 The Sift • Singer's Meadow (Echo Golem & Ao Ichor)!" },
-        sift_huskland: { bio: BIOMES.SIFT_HUSKLAND,    label: "🏜️ The Sift • Humbler Huskland!" },
-        sift_lullaby:  { bio: BIOMES.SIFT_LULLABY,     label: "🎶 The Sift • Lullaby Hills!" },
-        sift_fungal:   { bio: BIOMES.SIFT_SPOREFIELDS, label: "🍄 The Sift • Fungal Sporefields!" },
-        sift_burrows:  { bio: BIOMES.SIFT_ICHOR_PONDS, label: "🔮 The Sift • Burrows & Ichor Ponds!" }
+        sift_meadow:   { bio: BIOMES.SIFT_MEADOW,      label: "🌸 The Sift • Singer's Meadow (Đồng Cỏ Hồng & Hồ 7 Màu)!" },
+        sift_huskland: { bio: BIOMES.SIFT_HUSKLAND,    label: "🏜️ The Sift • Humbler Huskland (Trụ Đá Đỏ & Đại Hồ 7 Màu)!" },
+        sift_lullaby:  { bio: BIOMES.SIFT_LULLABY,     label: "🎶 The Sift • Lullaby Hills (Đồi Ngọc Lam & Rừng Băng Xanh)!" },
+        sift_fungal:   { bio: BIOMES.SIFT_SPOREFIELDS, label: "🍄 The Sift • Fungal Sporefields (Rừng Nấm Khổng Lồ)!" },
+        sift_burrows:  { bio: BIOMES.SIFT_ICHOR_PONDS, label: "🔮 The Sift • Burrows & Ichor (Đất Đỏ Thẫm, Cát Hồng & Hang Hố)!" }
       }[targetKey];
-      const prevDim = currentDimension;
-      currentDimension = 'sift';
-      const _siftOx = (((Math.imul(worldSeed ^ 0x517cc1b7, 0x27d4eb2f) >>> 0) % 800) - 400);
-      const _siftOz = (((Math.imul(worldSeed ^ 0x2545f491, 0x85ebca6b) >>> 0) % 800) - 400);
-      let fx = _siftOx, fz = _siftOz, foundSift = false;
-      for (let r = 0; r <= 216 && !foundSift; r += 24) {
-        for (let dz = -r; dz <= r && !foundSift; dz += 24) {
-          for (let dx = -r; dx <= r && !foundSift; dx += 24) {
-            if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
-            const b = getBiomeAt(_siftOx + dx, _siftOz + dz);
-            if (b === siftMeta.bio || (targetKey === 'sift_lullaby' && b === BIOMES.SIFT_LULLABY_TOP)) {
-              fx = _siftOx + dx; fz = _siftOz + dz; foundSift = true;
-            }
-          }
-        }
-      }
-      currentDimension = prevDim;
+      const loc = (typeof locateNearestSiftBiome === 'function') ? locateNearestSiftBiome(siftMeta.bio, 0, 0) : null;
+      const fx = loc ? loc.x : 140, fz = loc ? loc.z : 140;
       _wrapDimLoad('Đang tải The Sift', siftMeta.label, 'THE SIFT', () => switchDimension('sift', siftMeta.label, { spawnX: fx, spawnZ: fz, targetBio: siftMeta.bio }));
       return;
     }

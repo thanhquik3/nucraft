@@ -2085,14 +2085,20 @@
           float swirlA = sin((ip.x + qx * 0.75) * 1.08 - (ip.y - qy * 0.70) * 0.92 + tW * 0.55);
           float swirlB = cos((ip.x - qy * 0.65) * 0.88 + (ip.y + qx * 0.68) * 1.18 - tW * 0.62);
           float lightPatch = smoothstep(0.46, 0.95, 0.5 + 0.5 * sin((ip.x * 0.92 + ip.y * 0.78) * 1.35 + qx * 1.15 + tW * 0.45));
-          vec3 cCyan    = vec3(0.08, 0.98, 0.99);
-          vec3 cPink    = vec3(1.00, 0.38, 0.84);
-          vec3 cMagenta = vec3(0.98, 0.14, 0.74);
-          vec3 cPurple  = vec3(0.66, 0.38, 1.00);
-          vec3 cCream   = vec3(1.00, 0.95, 0.80);
+          vec3 cCyan    = vec3(0.08, 0.98, 0.96);
+          vec3 cMint    = vec3(0.24, 0.96, 0.72);
+          vec3 cPink    = vec3(1.00, 0.36, 0.84);
+          vec3 cMagenta = vec3(0.98, 0.14, 0.72);
+          vec3 cPurple  = vec3(0.62, 0.36, 1.00);
+          vec3 cOrange  = vec3(1.00, 0.56, 0.24);
+          vec3 cCream   = vec3(1.00, 0.94, 0.68);
+          // 7-color swirling blotches matching Image 1/9 (teal, mint, pink, magenta, purple, orange, gold-cream)
           vec3 dCol = mix(cCyan, cPink, smoothstep(-0.70, 0.70, swirlA));
-          dCol = mix(dCol, cMagenta, smoothstep(0.08, 0.84, swirlB * 0.5 + 0.5) * 0.62);
+          dCol = mix(dCol, cMint, smoothstep(0.15, 0.92, -swirlA * 0.6 + swirlB * 0.5) * 0.45);
+          dCol = mix(dCol, cMagenta, smoothstep(0.08, 0.84, swirlB * 0.5 + 0.5) * 0.58);
           dCol = mix(dCol, cPurple, smoothstep(-0.18, 0.82, qx * qy) * 0.48);
+          float orangeRing = smoothstep(0.32, 0.86, sin((ip.x * 0.75 - ip.y * 0.88) * 1.6 + swirlB * 1.4));
+          dCol = mix(dCol, cOrange, orangeRing * 0.42);
           dCol = mix(dCol, cCream, lightPatch * 0.44);
           // Crisp animated twinkling sparkle flecks across the fluid surface
           vec2 spCell = floor(vWorldPos.xz * 2.4 + vec2(uTime * 0.22, -uTime * 0.16));

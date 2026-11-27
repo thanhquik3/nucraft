@@ -206,6 +206,57 @@
       teleportToScenicBiome('dragon_nest');
       return;
     }
+    // v188: /locate biome, /locate structure, /place & /tp verification commands for all 6 Sift biomes & Dragon World structures!
+    if (low.startsWith('/locate biome ')) {
+      const arg = low.slice('/locate biome '.length).trim();
+      const mapBio = {
+        sift: BIOMES.SIFT_CANYON, canyon: BIOMES.SIFT_CANYON, the_sift: BIOMES.SIFT_CANYON,
+        meadow: BIOMES.SIFT_MEADOW, singers_meadow: BIOMES.SIFT_MEADOW,
+        lullaby: BIOMES.SIFT_LULLABY, lullaby_hills: BIOMES.SIFT_LULLABY,
+        burrows: BIOMES.SIFT_ICHOR_PONDS, ichor: BIOMES.SIFT_ICHOR_PONDS,
+        huskland: BIOMES.SIFT_HUSKLAND, humbler_huskland: BIOMES.SIFT_HUSKLAND,
+        sporefields: BIOMES.SIFT_SPOREFIELDS, fungal: BIOMES.SIFT_SPOREFIELDS
+      };
+      const targetB = mapBio[arg];
+      if (!targetB) {
+        appendChatLine('HỆ THỐNG', 'Biome hợp lệ: sift, meadow, lullaby, burrows, huskland, sporefields', false);
+        return;
+      }
+      const loc = (typeof locateNearestSiftBiome === 'function') ? locateNearestSiftBiome(targetB, player.x, player.z) : null;
+      if (loc) appendChatLine('HỆ THỐNG', `🧭 [${targetB.name}] gần nhất tại X=${loc.x}, Z=${loc.z} (${loc.dist}m). Gõ "/tp ${loc.x} 20 ${loc.z}" để tới!`, false);
+      else appendChatLine('HỆ THỐNG', `Không tìm thấy biome ${arg} trong phạm vi 640m.`, false);
+      return;
+    }
+    if (low.startsWith('/locate structure ')) {
+      const kind = low.slice('/locate structure '.length).trim();
+      const loc = (typeof locateNearestRealmStructure === 'function') ? locateNearestRealmStructure(kind || 'any', player.x, player.z) : null;
+      if (loc) appendChatLine('HỆ THỐNG', `🏰 Công trình [${loc.kind}] gần nhất tại X=${loc.x}, Y=${loc.y}, Z=${loc.z} (${loc.dist}m). Gõ "/tp ${loc.x} ${loc.y} ${loc.z}"!`, false);
+      else appendChatLine('HỆ THỐNG', 'Không tìm thấy công trình! Thử: castle, village, ruin, den, island, nest, vault, lab, altar, library.', false);
+      return;
+    }
+    if (low.startsWith('/place ')) {
+      if (!isAdminUnlocked && gameMode !== 'creative') {
+        appendChatLine('HỆ THỐNG', '🔒 Cần /admintq hoặc Creative để dùng /place!', false);
+        return;
+      }
+      const kind = low.slice('/place '.length).trim();
+      const placed = (typeof placeStructureAtPlayer === 'function') ? placeStructureAtPlayer(kind) : null;
+      if (placed) appendChatLine('HỆ THỐNG', `🏗️ Đã đặt công trình [${placed.kind}] tại X=${placed.x}, Y=${placed.y}, Z=${placed.z}!`, false);
+      else appendChatLine('HỆ THỐNG', 'Tên hợp lệ: castle, village, ruin, den, nest, vault, lab, altar, library.', false);
+      return;
+    }
+    if (low.startsWith('/tp ')) {
+      const parts = low.slice(4).trim().split(/\s+/);
+      if (parts.length === 3 && parts.every(p => !isNaN(Number(p)))) {
+        const tx = Number(parts[0]), ty = Number(parts[1]), tz = Number(parts[2]);
+        player.x = tx; player.y = ty; player.z = tz; player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = ty;
+        const scx = Math.floor(tx) >> 4, scz = Math.floor(tz) >> 4;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (!chunks.has(chunkKey(scx + dx, scz + dz))) generateChunk(scx + dx, scz + dz);
+        flushUrgentChunks(32, true);
+        appendChatLine('HỆ THỐNG', `✨ Đã dịch chuyển tới (${tx}, ${ty}, ${tz})!`, false);
+        return;
+      }
+    }
     if ((low === '/summon warden' || low === '/warden') && (gameMode === 'creative' || isAdminUnlocked)) {
       if (typeof spawnWardenEmerging === 'function') {
         spawnWardenEmerging(Math.floor(player.x + 6), Math.floor(player.y), Math.floor(player.z));

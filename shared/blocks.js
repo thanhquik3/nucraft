@@ -606,6 +606,13 @@
   // v186: Dream Biome cyan vines & cyan crystal clusters (matching Ref 1, 2, 7)
   B.SIFT_VINE             = _dynBlockId++;
   B.SIFT_CYAN_CRYSTAL     = _dynBlockId++;
+  // v188: Dedicated per-biome Sift blocks (Burrows crimson grass & pink sand, Huskland pale grass & blue stone, Sporefields giant caps)
+  B.SIFT_CRIMSON_GRASS    = _dynBlockId++;
+  B.SIFT_PINK_SAND        = _dynBlockId++;
+  B.SIFT_PALE_GRASS       = _dynBlockId++;
+  B.SIFT_PALE_STONE       = _dynBlockId++;
+  B.SIFT_SPORE_CAP        = _dynBlockId++;
+  B.SIFT_BLUE_CAP         = _dynBlockId++;
 
   const V156_TILES = {
     sulfurBlock:       _nextTile++,
@@ -647,7 +654,15 @@
     dragonFern:          _nextTile++,
     dragonMushroom:      _nextTile++,
     siftVine:            _nextTile++,
-    siftCyanCrystal:     _nextTile++
+    siftCyanCrystal:     _nextTile++,
+    siftCrimsonTop:      _nextTile++,
+    siftCrimsonSide:     _nextTile++,
+    siftPinkSand:        _nextTile++,
+    siftPaleGrassTop:    _nextTile++,
+    siftPaleGrassSide:   _nextTile++,
+    siftPaleStone:       _nextTile++,
+    siftSporeCap:        _nextTile++,
+    siftBlueCap:         _nextTile++
   };
 
   const exported = {
