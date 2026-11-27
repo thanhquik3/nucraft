@@ -84,7 +84,7 @@
     terrainMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
     leavesMat.bumpScale = 0.0;
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-    renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.94 : (shaderPreset === 'cartoon_barebones' ? 0.90 : 0.88);
+    renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.98 : (shaderPreset === 'cartoon_barebones' ? 0.90 : 0.96);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(val)));
     if (persist && CFG.saveGfxPrefs) {
       CFG.saveGfxPrefs({ shaderQuality: val });
@@ -112,24 +112,24 @@
     if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = (preset === 'cartoon_barebones' || window._cartoonAddonActive) ? 1.0 : 0.0;
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = getPresetSharpness(preset);
     if (preset === 'bsl') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.06; envUniforms.uWarmth.value = 0.20; envUniforms.uContrast.value = 0.10; envUniforms.uCloudCover.value = 0.46;
+      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.03; envUniforms.uWarmth.value = 0.06; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.46;
     } else if (preset === 'bliss') {
-      envUniforms.uExposure.value = 1.01; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.24; envUniforms.uContrast.value = 0.09; envUniforms.uCloudCover.value = 0.52;
+      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.04; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'moonlit') {
-      envUniforms.uExposure.value = 0.98; envUniforms.uVibrance.value = 0.03; envUniforms.uWarmth.value = -0.04; envUniforms.uContrast.value = 0.10; envUniforms.uCloudCover.value = 0.34;
+      envUniforms.uExposure.value = 1.00; envUniforms.uVibrance.value = 0.02; envUniforms.uWarmth.value = -0.04; envUniforms.uContrast.value = 0.025; envUniforms.uCloudCover.value = 0.34;
     } else if (preset === 'chill_sunset') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.10; envUniforms.uWarmth.value = 0.28; envUniforms.uContrast.value = 0.11; envUniforms.uCloudCover.value = 0.54;
+      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.05; envUniforms.uWarmth.value = 0.14; envUniforms.uContrast.value = 0.025; envUniforms.uCloudCover.value = 0.54;
     } else if (preset === 'verdant_fresh') {
-      envUniforms.uExposure.value = 1.00; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.14; envUniforms.uContrast.value = 0.10; envUniforms.uCloudCover.value = 0.50;
+      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.04; envUniforms.uWarmth.value = 0.05; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.50;
     } else if (preset === 'dlss_ultra') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.07; envUniforms.uWarmth.value = 0.18; envUniforms.uContrast.value = 0.10; envUniforms.uCloudCover.value = 0.52;
+      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.03; envUniforms.uWarmth.value = 0.06; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.52;
     } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 1.06; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.22; envUniforms.uContrast.value = 0.11; envUniforms.uCloudCover.value = 0.56;
+      envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.04; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.025; envUniforms.uCloudCover.value = 0.56;
       if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 22.0 : 38.0;
     } else if (preset === 'cartoon_barebones') {
       envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.44;
     }
-    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.94 : (preset === 'cartoon_barebones' ? 0.90 : 0.88);
+    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.98 : (preset === 'cartoon_barebones' ? 0.90 : 0.96);
     window._eclipseGrassDirty = true;
     if (typeof updateEclipseGrass === 'function') updateEclipseGrass(true);
     if (persist && CFG.saveGfxPrefs && preset !== 'cartoon_barebones') CFG.saveGfxPrefs({ shaderPreset: preset });
@@ -163,11 +163,6 @@
       if (envUniforms.uRayTracing && typeof sodiumOpts !== 'undefined') envUniforms.uRayTracing.value = sodiumOpts.rayTracing ? 1.0 : 0.0;
       const restorePreset = window._preCartoonShaderPreset || (CFG.loadGfxPrefs ? (CFG.loadGfxPrefs().shaderPreset || 'eclipse') : 'eclipse');
       applyShaderPreset(restorePreset === 'cartoon_barebones' ? 'eclipse' : restorePreset, false);
-    }
-    if (typeof chunks !== 'undefined' && chunks) {
-      for (const ch of chunks.values()) {
-        if (ch && ch.leavesCrossMesh) ch.leavesCrossMesh.visible = !on;
-      }
     }
     window._postFxDirty = true;
   }
@@ -1154,7 +1149,7 @@
     } else if (sunsetWeight > 0.18) {
       envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.10));
     } else {
-      envUniforms.uSunColor.value.setHex(0xffe7b8);
+      envUniforms.uSunColor.value.setHex(0xfff1d8);
     }
 
     const surfaceFactor = player.eyesInWater
@@ -1191,9 +1186,9 @@
       sunLight.color.setHex(0xfffbe8);
       sunLight.intensity = ((0.34 + dayWeight * 0.94) * (1 - rainIntensity * 0.35) + lightningFlash * 0.85) * surfaceFactor;
     } else {
-      const freshMul = (shaderPreset === 'eclipse') ? 1.06 : (shaderPreset === 'moonlit' ? 0.88 : ((shaderPreset === 'bliss' || shaderPreset === 'verdant_fresh') ? 0.96 : 0.98));
+      const freshMul = (shaderPreset === 'eclipse') ? 0.88 : (shaderPreset === 'moonlit' ? 0.80 : 0.86);
       sunLight.color.copy(envUniforms.uSunColor.value);
-      sunLight.intensity = ((0.20 + dayWeight * 0.90) * noonSoft * albedoDamp * freshMul * (1 - rainIntensity * 0.42) + lightningFlash * 0.95) * surfaceFactor;
+      sunLight.intensity = ((0.24 + dayWeight * 0.78) * noonSoft * albedoDamp * freshMul * (1 - rainIntensity * 0.25) + lightningFlash * 0.95) * surfaceFactor;
     }
     envUniforms.uMoonBoost.value = isNightShadow ? 1.0 : 0.0;
 
@@ -1206,11 +1201,11 @@
       hemiLight.groundColor.setHex(dayWeight > 0.2 ? 0x567b86 : 0x162442);
       hemiLight.intensity = (0.40 + dayWeight * 0.36) * surfaceFactor;
     } else {
-      // Balanced earthy shadow floor + luminous azure sky fill across all normal shaders
-      hemiLight.color.copy(_tmpTop).lerp(shaderPreset === 'chill_sunset' ? _colChillHemiSky : _colSkyFillSoft, 0.32 * dayWeight);
-      hemiLight.groundColor.setHex(shaderPreset === 'chill_sunset' ? 0x3d2416 : (shaderPreset === 'verdant_fresh' ? (dayWeight > 0.2 ? 0x2a3824 : 0x101a2e) : (sunsetWeight > 0.35 ? 0x452d1c : (dayWeight > 0.2 ? 0x352e22 : 0x101a2e))));
-      const hemiBoost = (shaderPreset === 'eclipse') ? 0.92 : 0.86;
-      hemiLight.intensity = (0.28 + dayWeight * 0.28) * hemiBoost * surfaceFactor;
+      // Soft readable ambient shadow fill + bright ground bounce so trunks & undersides match Jungle/Autumn refs (zero dark crush)
+      hemiLight.color.copy(_tmpTop).lerp(shaderPreset === 'chill_sunset' ? _colChillHemiSky : _colSkyFillSoft, 0.38 * dayWeight);
+      hemiLight.groundColor.setHex(shaderPreset === 'chill_sunset' ? 0x785a46 : (shaderPreset === 'verdant_fresh' ? (dayWeight > 0.2 ? 0x6c8068 : 0x1d2d4a) : (sunsetWeight > 0.35 ? 0x7d6854 : (dayWeight > 0.2 ? 0x7c8276 : 0x1d2d4a))));
+      const hemiBoost = (shaderPreset === 'eclipse') ? 1.06 : 1.02;
+      hemiLight.intensity = (0.44 + dayWeight * 0.42) * hemiBoost * surfaceFactor;
     }
     if ((player._nightVisionT || 0) > 0) {
       hemiLight.intensity = Math.max(hemiLight.intensity, 1.38);

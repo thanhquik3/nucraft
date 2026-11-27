@@ -285,38 +285,51 @@
     const numTiles = Math.min(1024, cols * rows);
     const tileModes = new Uint8Array(numTiles);
     if (typeof BLOCK_DEF !== 'undefined') {
-      for (let id = 1; id < BLOCK_DEF.length; id++) {
-        const d = BLOCK_DEF[id];
-        if (!d || d.itemOnly || d.tool || d.armorSlot || d.food || d.bow || d.spawnEgg || d.id === 'water') continue;
+      const modePrio = [0, 1, 5, 2, 3, 4]; // Priority: leaf(2) > ore(5) > glass(4) > plant/cutout(3) > solid(1)
+      for (const [idStr, d] of Object.entries(BLOCK_DEF)) {
+        const id = Number(idStr);
+        if (!id || !d || d.itemOnly || d.tool || d.armorSlot || d.food || d.bow || d.spawnEgg || d.voxelItem || d.liquid || d.portal) continue;
         let mode = 1;
         if (d.solid && d.foliage && !d.cross && !d.glass) mode = 2;
         else if (d.oreBlock) mode = 5;
         else if (d.glass) mode = 4;
-        else if (!d.solid || d.cross || d.torch || d.bamboo || d.rootCage) mode = 3;
+        else if (!d.solid || d.cross || d.torch || d.bamboo || d.rootCage || d.door || d.trapdoor || d.subBlock || (d.trans && !d.isLog && !d.isPlanks && !d.stairs && !d.slab && !d.fence)) mode = 3;
         const addTile = (t) => {
-          if (typeof t === 'number' && t >= 0 && t < numTiles && tileModes[t] === 0) tileModes[t] = mode;
+          if (typeof t === 'number' && t >= 0 && t < numTiles && modePrio[mode] > modePrio[tileModes[t]]) {
+            tileModes[t] = mode;
+          }
         };
         if (Array.isArray(d.tiles)) for (const t of d.tiles) addTile(t);
         addTile(d.frontTile);
         addTile(d.bedBlanketTile);
         addTile(d.bedSideTile);
       }
-      if (typeof B !== 'undefined' && B.WATER && BLOCK_DEF[B.WATER] && Array.isArray(BLOCK_DEF[B.WATER].tiles)) {
-        for (const wt of BLOCK_DEF[B.WATER].tiles) if (wt >= 0 && wt < numTiles) tileModes[wt] = 0;
-      }
     }
     let painted = 0;
+    const shiftHex = (hex, amt) => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+      if (!m) return '#888888';
+      const n = parseInt(m[1], 16);
+      const ch = (v) => {
+        const out = amt >= 0 ? Math.round(v + (255 - v) * amt) : Math.round(v * (1 + amt));
+        return Math.max(0, Math.min(255, out)).toString(16).padStart(2, '0');
+      };
+      return '#' + ch((n >> 16) & 255) + ch((n >> 8) & 255) + ch(n & 255);
+    };
     const fillRectTile = (tIdx, col) => {
+      if (tIdx < 0 || tIdx >= numTiles) return;
       const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
       atlasCtx.fillStyle = col;
       atlasCtx.fillRect(tx, ty, px, px);
     };
     const pxTile = (tIdx, x, y, w, h, col) => {
+      if (tIdx < 0 || tIdx >= numTiles) return;
       const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
       atlasCtx.fillStyle = col;
       atlasCtx.fillRect(tx + x, ty + y, w, h);
     };
     const drawMapTile = (tIdx, rowsMap, pal) => {
+      if (tIdx < 0 || tIdx >= numTiles) return;
       const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
       for (let y = 0; y < Math.min(px, rowsMap.length); y++) {
         const rStr = rowsMap[y];
@@ -403,18 +416,69 @@
     }
     atlasCtx.putImageData(img, 0, 0);
 
-    // 2. Signature Bare Bones Trailer Hero Overlays (matching Reference Images 3 & 4!)
-    // Rich Vibrant Grass Top & Sides + Caramel Dirt
-    fillRectTile(0, '#4ad420');
-    pxTile(0, 2, 2, 4, 4, '#5ce22e'); pxTile(0, 10, 8, 4, 4, '#5ce22e'); pxTile(0, 4, 11, 3, 2, '#3ac016');
-    fillRectTile(1, '#c47c34');
-    pxTile(1, 0, 0, 16, 4, '#4ad420');
-    pxTile(1, 0, 4, 4, 2, '#4ad420'); pxTile(1, 8, 4, 4, 2, '#4ad420'); pxTile(1, 14, 4, 2, 1, '#4ad420');
-    pxTile(1, 0, 4, 16, 1, '#2f9e13');
-    pxTile(1, 2, 9, 4, 3, '#ab6724'); pxTile(1, 10, 11, 4, 3, '#d68f45');
+    // 2. Signature Bare Bones Trailer Hero Overlays across ALL trees (incl. Autumn), logs, planks, turf, stone & ores
+    const paintTurf = (topTile, sideTile, topCol, dirtCol, skipTop = false) => {
+      const hiTop = shiftHex(topCol, 0.14), shTop = shiftHex(topCol, -0.22);
+      const shDirt = shiftHex(dirtCol, -0.14), hiDirt = shiftHex(dirtCol, 0.16);
+      if (!skipTop && topTile >= 0) {
+        fillRectTile(topTile, topCol);
+        pxTile(topTile, 2, 2, 4, 4, hiTop); pxTile(topTile, 10, 8, 4, 4, hiTop); pxTile(topTile, 4, 11, 3, 2, shTop);
+      }
+      if (sideTile >= 0) {
+        fillRectTile(sideTile, dirtCol);
+        pxTile(sideTile, 0, 0, 16, 4, topCol);
+        pxTile(sideTile, 0, 4, 4, 2, topCol); pxTile(sideTile, 8, 4, 4, 2, topCol); pxTile(sideTile, 14, 4, 2, 1, topCol);
+        pxTile(sideTile, 0, 4, 16, 1, shTop);
+        pxTile(sideTile, 2, 9, 4, 3, shDirt); pxTile(sideTile, 10, 11, 4, 3, hiDirt);
+      }
+    };
+    const paintLogTop = (tIdx, barkCol, heartCol) => {
+      fillRectTile(tIdx, heartCol);
+      pxTile(tIdx, 0, 0, 16, 2, barkCol); pxTile(tIdx, 0, 14, 16, 2, barkCol);
+      pxTile(tIdx, 0, 0, 2, 16, barkCol); pxTile(tIdx, 14, 0, 2, 16, barkCol);
+      pxTile(tIdx, 5, 5, 6, 6, shiftHex(heartCol, -0.14));
+    };
+    const paintLogSide = (tIdx, barkCol, isStripped = false) => {
+      const shCol = shiftHex(barkCol, -0.20), hiCol = shiftHex(barkCol, 0.16);
+      fillRectTile(tIdx, barkCol);
+      if (isStripped) {
+        pxTile(tIdx, 2, 0, 2, 16, shCol); pxTile(tIdx, 11, 0, 2, 16, shCol);
+        pxTile(tIdx, 6, 2, 3, 12, hiCol);
+      } else {
+        pxTile(tIdx, 2, 0, 3, 16, shCol); pxTile(tIdx, 9, 0, 3, 16, shCol); pxTile(tIdx, 6, 0, 2, 16, hiCol);
+      }
+    };
+    const paintPlanks = (tIdx, baseCol) => {
+      const seamCol = shiftHex(baseCol, -0.26), hiCol = shiftHex(baseCol, 0.15);
+      fillRectTile(tIdx, baseCol);
+      for (const yRow of [0, 4, 8, 12]) pxTile(tIdx, 0, yRow + 3, 16, 1, seamCol);
+      pxTile(tIdx, 2, 1, 6, 2, hiCol); pxTile(tIdx, 9, 9, 5, 2, hiCol);
+    };
+    const paintLeaf = (tIdx, baseCol, hiCol = shiftHex(baseCol, 0.16), shCol = shiftHex(baseCol, -0.20)) => {
+      fillRectTile(tIdx, baseCol);
+      pxTile(tIdx, 0, 0, 4, 4, hiCol); pxTile(tIdx, 8, 4, 4, 4, hiCol); pxTile(tIdx, 12, 12, 4, 4, hiCol);
+      pxTile(tIdx, 4, 10, 4, 4, shCol); pxTile(tIdx, 12, 0, 4, 4, shCol);
+    };
+
+    // Grass, Dirt, Autumn Podzol & Biome Turfs
+    paintTurf(0, 1, '#4ad420', '#c47c34');
     fillRectTile(2, '#c47c34');
     pxTile(2, 2, 2, 5, 4, '#ab6724'); pxTile(2, 9, 9, 5, 4, '#ab6724'); pxTile(2, 11, 3, 3, 3, '#d68f45');
-    // Clean Blue-Gray Stone, Deepslate & Stone Bricks
+    paintTurf(9, 10, '#f2f8ff', '#c47c34');
+    if (typeof V142_TILES !== 'undefined') paintTurf(9, V142_TILES.snowyDirtSide, '#f2f8ff', '#c47c34', true);
+    paintTurf(218, 219, '#d26a22', '#ab6724'); // B.AUTUMN_PODZOL
+    paintTurf(197, -1, '#4db824', '#4db824');  // B.MOSS_BLOCK
+    paintTurf(290, 291, '#34d399', '#947656'); // B.SIFT_GRASS
+    paintTurf(292, 293, '#f472b6', '#947656'); // B.LULLABY_GRASS
+    paintTurf(295, -1, '#8b5cf6', '#8b5cf6');  // B.SPORE_TURF
+    paintTurf(453, 454, '#24b5a6', '#a8703c'); // B.BLUE_GRASS
+    paintTurf(73, 74, '#b8252f', '#822828');   // B.CRIMSON_NYLIUM
+    paintTurf(75, 76, '#18a697', '#822828');   // B.WARPED_NYLIUM
+    paintTurf(533, -1, '#8d97a4', '#8d97a4');  // B.PALE_MOSS
+    paintTurf(536, -1, '#381c45', '#381c45');  // B.NIGHTMARE_MOSS
+    if (typeof V153_TILES !== 'undefined') paintTurf(V153_TILES.endMossTop, V153_TILES.endMossSide, '#7c3aed', '#34136e');
+
+    // Clean Blue-Gray Stone, Deepslate, Stone Bricks, Cactus & Giant Mushroom
     fillRectTile(3, '#838d9c');
     pxTile(3, 1, 2, 6, 4, '#727c8b'); pxTile(3, 8, 8, 6, 5, '#727c8b'); pxTile(3, 9, 2, 4, 3, '#959fae');
     fillRectTile(22, '#4b5260');
@@ -422,22 +486,91 @@
     fillRectTile(33, '#8a94a3');
     pxTile(33, 0, 7, 16, 1, '#6b7585'); pxTile(33, 0, 15, 16, 1, '#6b7585');
     pxTile(33, 7, 0, 1, 7, '#6b7585'); pxTile(33, 15, 8, 1, 7, '#6b7585');
-    // Warm Cartoon Logs, Planks & Crafting Table (Image 4!)
-    fillRectTile(4, '#dfb46e');
-    pxTile(4, 0, 0, 16, 2, '#6b4120'); pxTile(4, 0, 14, 16, 2, '#6b4120');
-    pxTile(4, 0, 0, 2, 16, '#6b4120'); pxTile(4, 14, 0, 2, 16, '#6b4120');
-    pxTile(4, 5, 5, 6, 6, '#c7974f');
-    fillRectTile(5, '#6b4120');
-    pxTile(5, 2, 0, 3, 16, '#563216'); pxTile(5, 9, 0, 3, 16, '#563216'); pxTile(5, 6, 0, 2, 16, '#7f502a');
-    fillRectTile(12, '#4a2f1a');
-    pxTile(12, 2, 0, 3, 16, '#382212'); pxTile(12, 10, 0, 3, 16, '#382212'); pxTile(12, 6, 0, 2, 16, '#5b3c23');
+    // Cactus (184 top, 17 side)
+    fillRectTile(184, '#43a82c'); pxTile(184, 3, 3, 10, 10, '#58c43e');
+    fillRectTile(17, '#43a82c');
+    for (const cxC of [0, 4, 8, 12]) { pxTile(17, cxC, 0, 1, 16, '#297a19'); pxTile(17, cxC + 2, 0, 1, 16, '#5cd142'); }
+    // Giant Red Mushroom Cap (150) & Stem (151) + Nether Wart Caps (79, 80)
+    fillRectTile(150, '#df3131');
+    pxTile(150, 2, 2, 4, 3, '#f7efe3'); pxTile(150, 10, 5, 3, 4, '#f7efe3'); pxTile(150, 4, 10, 4, 3, '#f7efe3');
+    fillRectTile(151, '#eae3d3'); pxTile(151, 3, 3, 4, 4, '#dad0bd'); pxTile(151, 9, 10, 5, 3, '#dad0bd');
+    paintLeaf(79, '#b51d2d');
+    paintLeaf(80, '#16b3a3');
+
+    // ALL Logs & Stripped Logs (every tree family including Autumn Acacia 29, Oak 4/5, Spruce 12, Sakura 14, Birch 16, Jungle, Dark Oak, Pale, Nightmare, Sculk, Void, etc.)
+    const LEAF_PAL_OVERRIDES = {
+      6:   ['#3ab520', '#4dc92c', '#2d9916'],
+      13:  ['#237830', '#2e8f3c', '#1a6124'],
+      30:  ['#f06a1a', '#ff8e38', '#c7480a'], // Autumn Acacia / Red-Orange
+      31:  ['#54c428', '#68d63a', '#41a81c'],
+      92:  ['#43ba22', '#58cf32', '#319c16'],
+      96:  ['#328c22', '#42a62e', '#247017'],
+      199: ['#dc2626', '#f24b4b', '#9e1717'], // Crimson Maple
+      299: ['#35c9b5', '#5eead4', '#229688'], // Sift
+      300: ['#9ee3dc', '#c6f4ef', '#6cbdb7'], // Lullaby
+      450: ['#2b96f6', '#60b8ff', '#1668bd'], // Azure
+      451: ['#1b6be0', '#428ef5', '#0f47a1'], // Cobalt
+      526: ['#f0b814', '#ffd845', '#bd8708'], // Golden Maple
+      527: ['#eb6414', '#ff8838', '#b84208'], // Orange Maple
+      532: ['#9fa8b4', '#bdc5d0', '#79828f'], // Pale Oak
+      535: ['#7c2444', '#a1385e', '#54142b'], // Nightmare
+      551: ['#159bb5', '#29c4de', '#0c6d80']  // Sculk
+    };
+    if (typeof JUNGLE_LOG_TILES !== 'undefined') LEAF_PAL_OVERRIDES[JUNGLE_LOG_TILES.leaves] = ['#3ec21e', '#52d62e', '#2ea314'];
+    if (typeof DARK_OAK_LOG_TILES !== 'undefined') LEAF_PAL_OVERRIDES[DARK_OAK_LOG_TILES.leaves] = ['#297d19', '#379424', '#1d6110'];
+    if (typeof V153_TILES !== 'undefined') LEAF_PAL_OVERRIDES[V153_TILES.voidLeaves] = ['#a855f7', '#d88aff', '#7626bd'];
+
+    const LOG_BARK_OVERRIDES = {
+      5: '#6b4120', 12: '#4a2f1a', 29: '#6e655b', 77: '#7d2240', 78: '#246175',
+      91: '#9c7853', 94: '#5c342e', 298: '#9eaec2', 448: '#4a6285', 530: '#8a9199',
+      534: '#32193d', 549: '#173f4e'
+    };
+    if (typeof JUNGLE_LOG_TILES !== 'undefined') LOG_BARK_OVERRIDES[JUNGLE_LOG_TILES.side] = '#5e4c29';
+    if (typeof DARK_OAK_LOG_TILES !== 'undefined') LOG_BARK_OVERRIDES[DARK_OAK_LOG_TILES.side] = '#3b2615';
+    if (typeof V153_TILES !== 'undefined') LOG_BARK_OVERRIDES[V153_TILES.voidLogSide] = '#4c1d95';
+
+    // Shared Oak ring top (4) + bespoke Sakura bark (14/90) & Birch bark (16) & Bamboo block (189/190)
+    paintLogTop(4, '#6b4120', '#dfb46e');
+    paintLogTop(90, '#4a2335', '#f2b8cf');
     fillRectTile(14, '#4a2335');
     pxTile(14, 3, 2, 5, 2, '#7d445d'); pxTile(14, 9, 7, 5, 2, '#7d445d'); pxTile(14, 2, 12, 6, 2, '#361726');
     fillRectTile(16, '#f2ede2');
     pxTile(16, 2, 3, 5, 2, '#3d4147'); pxTile(16, 10, 7, 4, 2, '#3d4147'); pxTile(16, 3, 12, 6, 2, '#3d4147');
-    fillRectTile(8, '#d49b52');
-    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#b07834');
-    pxTile(8, 2, 1, 6, 2, '#e3ad65'); pxTile(8, 9, 9, 5, 2, '#e3ad65');
+    paintLogTop(189, '#4c8022', '#70ad34');
+    fillRectTile(190, '#6aa62e'); pxTile(190, 0, 4, 16, 1, '#4c8022'); pxTile(190, 0, 12, 16, 1, '#4c8022');
+
+    if (typeof BLOCK_DEF !== 'undefined') {
+      for (const [idStr, d] of Object.entries(BLOCK_DEF)) {
+        const id = Number(idStr);
+        if (!id || !d || !Array.isArray(d.tiles)) continue;
+        if (d.solid && d.foliage && !d.cross && !d.glass) {
+          const lt = d.tiles[0];
+          if (lt === 15) continue; // Sakura keeps blossom map below
+          const ov = LEAF_PAL_OVERRIDES[lt];
+          if (ov) paintLeaf(lt, ov[0], ov[1], ov[2]);
+          else paintLeaf(lt, d.mapColor || '#3ab520');
+        } else if (d.isLog) {
+          const tTop = d.tiles[0], tSide = d.tiles[1];
+          if (tTop !== 4 && tTop !== 90 && tTop !== 189 && tTop !== tSide) {
+            paintLogTop(tTop, LOG_BARK_OVERRIDES[tSide] || d.mapColor || '#6b4120', shiftHex(d.mapColor || '#dfb46e', 0.34));
+          }
+          if (tSide !== 14 && tSide !== 16 && tSide !== 190) {
+            paintLogSide(tSide, LOG_BARK_OVERRIDES[tSide] || d.mapColor || '#6b4120', !!d.isStripped);
+          }
+        } else if (d.isPlanks) {
+          paintPlanks(d.tiles[0], d.mapColor || '#d49b52');
+        }
+      }
+    }
+    paintPlanks(8, '#d49b52'); // Oak Planks signature warm tone
+    if (typeof WOOD_FAMILIES !== 'undefined') {
+      for (const wf of WOOD_FAMILIES) {
+        if (wf && wf.tPlank > 0 && wf.key !== 'oak') paintPlanks(wf.tPlank, wf.mapColor || '#c99352');
+        if (wf && wf.tStripSide > 0) paintLogSide(wf.tStripSide, wf.mapColor || '#c99352', true);
+        if (wf && wf.tStripTop > 0) paintLogTop(wf.tStripTop, wf.mapColor || '#b58045', shiftHex(wf.mapColor || '#c99352', 0.25));
+      }
+    }
+
     // Crafting Table (34 top, 35 & 442 side)
     fillRectTile(34, '#6b4120'); pxTile(34, 1, 1, 14, 14, '#d49b52');
     for (const o of [4, 9]) { pxTile(34, o, 2, 1, 12, '#855228'); pxTile(34, 2, o, 12, 1, '#855228'); }
@@ -445,20 +578,6 @@
     pxTile(35, 3, 4, 4, 4, '#7f8998'); pxTile(35, 5, 8, 2, 4, '#6b4120'); pxTile(35, 9, 5, 4, 3, '#949eab'); pxTile(35, 10, 8, 2, 4, '#6b4120');
     fillRectTile(442, '#d49b52'); pxTile(442, 0, 0, 16, 2, '#6b4120'); pxTile(442, 0, 14, 16, 2, '#6b4120');
     pxTile(442, 3, 5, 4, 7, '#6b4120'); pxTile(442, 9, 5, 4, 7, '#6b4120');
-
-    // Vibrant Bare Bones Leaves (Oak, Spruce, Birch, Palm, Mangrove, Jungle, Dark Oak + EXACT Image 4 Sakura Blossoms!)
-    const paintLeaf = (tIdx, baseCol, hiCol, shCol) => {
-      fillRectTile(tIdx, baseCol);
-      pxTile(tIdx, 0, 0, 4, 4, hiCol); pxTile(tIdx, 8, 4, 4, 4, hiCol); pxTile(tIdx, 12, 12, 4, 4, hiCol);
-      pxTile(tIdx, 4, 10, 4, 4, shCol); pxTile(tIdx, 12, 0, 4, 4, shCol);
-    };
-    paintLeaf(6,  '#3ab520', '#4dc92c', '#2d9916');
-    paintLeaf(13, '#237830', '#2e8f3c', '#1a6124');
-    paintLeaf(31, '#54c428', '#68d63a', '#41a81c');
-    paintLeaf(92, '#43ba22', '#58cf32', '#319c16');
-    paintLeaf(96, '#328c22', '#42a62e', '#247017');
-    if (typeof JUNGLE_LOG_TILES !== 'undefined') paintLeaf(JUNGLE_LOG_TILES.leaves, '#3ec21e', '#52d62e', '#2ea314');
-    if (typeof DARK_OAK_LOG_TILES !== 'undefined') paintLeaf(DARK_OAK_LOG_TILES.leaves, '#297d19', '#379424', '#1d6110');
 
     // Exact Image 4 Sakura Cherry Blossom Leaves: soft pastel pink base + crisp 4-petal white/blush blossoms + rose accents
     drawMapTile(15, [
@@ -481,7 +600,6 @@
     ], { '.': '#f58ac0', L: '#ffb4da', H: '#ffd6ec', W: '#fff0f8', D: '#dd5a9a' });
 
     fillRectTile(7, '#f4de82'); pxTile(7, 3, 3, 5, 3, '#e5cb6a'); pxTile(7, 9, 10, 5, 3, '#e5cb6a');
-    fillRectTile(9, '#f2f8ff'); pxTile(9, 2, 3, 5, 3, '#d8ebff'); pxTile(9, 10, 10, 4, 3, '#d8ebff');
     const drawOre = (tIdx, gemMain, gemHi, stoneHex = '#7f8998') => {
       fillRectTile(tIdx, stoneHex);
       pxTile(tIdx, 3, 3, 3, 3, gemMain); pxTile(tIdx, 3, 3, 2, 1, gemHi);
@@ -497,7 +615,10 @@
     drawOre(159, '#cbd5e1', '#f1f5f9');
     drawOre(160, '#1ce05e', '#82ffaa');
     drawOre(161, '#f43f5e', '#fda4af');
+    drawOre(224, '#2563eb', '#60a5fa');
+    drawOre(447, '#dc2626', '#fca5a5');
     if (typeof V156_TILES !== 'undefined') drawOre(V156_TILES.sulfurOre, '#facc15', '#fef08a', '#7e7668');
+    if (typeof window !== 'undefined') window._cartoonLastPainted = painted;
     return painted;
   }
 
