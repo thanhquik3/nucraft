@@ -2273,16 +2273,19 @@
     }
   }
 
+  const _LEAF_CUBE_MASK = BLK_FOLIAGE | BLK_SOLID | BLK_GLASS | BLK_SUB;
+  const _LEAF_CUBE_VAL = BLK_FOLIAGE | BLK_SOLID;
+
   function _meshFoliageVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, computeAO, sliceLen, st) {
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
     const isSakura = !!def.sakuraLeaf, isBlue = !!def.blueLeaf, isNeutral = !!def.neutralLeaf, isGlass = !!def.glass;
-    const cullSame = (sodiumOpts.moreCulling || shaderQuality !== 'ultra' || isGlass);
-    if (cullSame && lx > 0 && lx < 15 && lz > 0 && lz < 15 && ly > 0 && ly < WORLD_H - 1) {
+    const isLeafCullNb = (nb) => isGlass ? (nb === id) : ((BLOCK_FLAGS[nb] & _LEAF_CUBE_MASK) === _LEAF_CUBE_VAL);
+    if (lx > 0 && lx < 15 && lz > 0 && lz < 15 && ly > 0 && ly < WORLD_H - 1) {
       const cIdx = (ly << 8) | (lz << 4) | lx;
       const n0 = data[cIdx + 1], n1 = data[cIdx - 1], n2 = data[cIdx + 256], n3 = data[cIdx - 256], n4 = data[cIdx + 16], n5 = data[cIdx - 16];
-      if ((IS_OPAQUE[n0] === 1 || n0 === id) && (IS_OPAQUE[n1] === 1 || n1 === id) &&
-          (IS_OPAQUE[n2] === 1 || n2 === id) && (IS_OPAQUE[n3] === 1 || n3 === id) &&
-          (IS_OPAQUE[n4] === 1 || n4 === id) && (IS_OPAQUE[n5] === 1 || n5 === id)) return;
+      if ((IS_OPAQUE[n0] === 1 || isLeafCullNb(n0)) && (IS_OPAQUE[n1] === 1 || isLeafCullNb(n1)) &&
+          (IS_OPAQUE[n2] === 1 || isLeafCullNb(n2)) && (IS_OPAQUE[n3] === 1 || isLeafCullNb(n3)) &&
+          (IS_OPAQUE[n4] === 1 || isLeafCullNb(n4)) && (IS_OPAQUE[n5] === 1 || isLeafCullNb(n5))) return;
     }
     const tint = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
       ? (0.96 + ((wx * 13 + wy * 7 + wz * 17) & 7) * 0.008)
@@ -2295,10 +2298,10 @@
       const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
       const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
       const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx, nly, nlz);
-      if (IS_OPAQUE[nb] === 1 || (cullSame && nb === id)) continue;
+      if (IS_OPAQUE[nb] === 1 || isLeafCullNb(nb)) continue;
       if (IS_SOLID[nb] === 0) anyExposed = true;
       if (st.lCount + 4 > _lCap) _growLeafScratch(st.lCount + 4);
-      const isInner = (nb === id);
+      const isInner = false;
       const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
         ? ((f === 0 ? 1.04 : (f === 1 ? 0.90 : 0.97)) * (isInner ? 0.96 : 1.0))
         : ((f === 0 ? 1.04 : (f === 1 ? 0.88 : 0.96)) * (isInner ? 0.95 : 1.0)));

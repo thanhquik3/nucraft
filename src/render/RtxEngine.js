@@ -744,7 +744,7 @@
     map: atlasTex,
     alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.74, metalness: 0.02, vertexColors: true
   });
-  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v41';
+  leavesMat.customProgramCacheKey = () => 'luanti_leaves_bsl_v42';
   leavesMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uWindStrength: envUniforms.uWindStrength,
@@ -768,7 +768,8 @@
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
-        vec3 vNormL = normalize(vNormal);
+        float faceDirL = gl_FrontFacing ? 1.0 : -1.0;
+        vec3 vNormL = normalize(vNormal) * faceDirL;
         if (uCartoonMode > 0.5) {
           normal = vNormL;
         } else {
@@ -791,7 +792,8 @@
       .replace('#include <opaque_fragment>', `
         vec3 vDirL = normalize(vWPos - cameraPosition);
         vec3 sDirL = normalize(uSunDir);
-        vec3 nDirL = normalize(vWNormL);
+        float backFaceL = gl_FrontFacing ? 1.0 : 0.78;
+        vec3 nDirL = normalize(vWNormL) * (gl_FrontFacing ? 1.0 : -1.0);
         bool isUltraL = (uQuality > 1.5);
         float sUp = smoothstep(-0.10, 0.24, sDirL.y);
         float rtFadeL = 0.0;
@@ -813,7 +815,7 @@
         float canopyWrap = clamp(dot(nDirL, sDirL) * 0.5 + 0.5, 0.0, 1.0);
         float toonLeafWrap = mix(canopyWrap, smoothstep(0.28, 0.58, canopyWrap) * 0.34 + 0.66, step(0.5, uCartoonMode));
         float normalCanopy = mix(0.64, 1.02, smoothstep(0.08, 0.92, canopyWrap));
-        outgoingLight *= mix(mix(0.46, normalCanopy, sUp), mix(0.62, mix(0.90, 1.04, toonLeafWrap), sUp), step(0.5, uCartoonMode));
+        outgoingLight *= mix(mix(0.46, normalCanopy, sUp), mix(0.62, mix(0.90, 1.04, toonLeafWrap), sUp), step(0.5, uCartoonMode)) * backFaceL;
         outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.12 + vec3(0.38), 0.42, 1.0), rtFadeL * 0.80);
         vec3 leafShBase = mix(vec3(0.84, 0.91, 1.03), mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55)), step(0.5, uCartoonMode));
         outgoingLight = mix(outgoingLight, outgoingLight * leafShBase, (1.0 - canopyWrap) * mix(0.18, 0.10, step(0.5, uCartoonMode)) * sUp);
