@@ -149,6 +149,7 @@
     uChillMode: { value: shaderPreset === 'chill_sunset' ? 1.0 : 0.0 },
     uDlssMode: { value: shaderPreset === 'dlss_ultra' ? 1.0 : 0.0 },
     uEclipseMode: { value: shaderPreset === 'eclipse' ? 1.0 : 0.0 },
+    uNcr2Mode: { value: shaderPreset === 'ncr2' ? 1.0 : 0.0 },
     uPlayerPos: { value: new THREE.Vector3() },
     uWakePts: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -999, 0)) },
     uGrassRadius: { value: _isMobilePerf ? 18.0 : 32.0 },
@@ -539,7 +540,7 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
-      uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
+      uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uPlayerPos: envUniforms.uPlayerPos, uGrassRadius: envUniforms.uGrassRadius,
       uGrassSoilRadius: envUniforms.uGrassSoilRadius, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
       uCartoonMode: envUniforms.uCartoonMode
@@ -549,7 +550,7 @@
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNorm = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode;
+        uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
         bool isGreedyUv(vec2 uv) {
@@ -684,17 +685,18 @@
         bool isUltraQ = (uQuality > 1.5);
         bool isLowQ = (uQuality < 0.5);
         float albLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-        float whiteDamp = 1.0 - smoothstep(0.58, 0.94, albLum) * 0.30 * sunUpB;
+        float whiteDamp = 1.0 - smoothstep(mix(0.58, 0.44, uNcr2Mode), mix(0.94, 0.86, uNcr2Mode), albLum) * mix(0.30, 0.54, uNcr2Mode) * sunUpB;
         float shadeCool = pow(1.0 - dirWrap, 1.35) * mix(0.08 + 0.11 * sunUpB, 0.06 + 0.11 * sunUpB, uCartoonMode);
         vec3 baseShTint = isUltraQ ? vec3(0.80, 0.87, 1.00) : vec3(0.82, 0.88, 1.00);
         vec3 calmRegShTint = isUltraQ ? vec3(0.78, 0.86, 1.04) : vec3(0.80, 0.88, 1.04);
         vec3 shadowTint = mix(mix(calmRegShTint, baseShTint, uEclipseMode), vec3(0.74, 0.81, 1.05), uChillMode);
         shadowTint = mix(shadowTint, vec3(0.78, 0.86, 1.06), uDlssMode * 0.60);
         shadowTint = mix(shadowTint, vec3(0.77, 0.84, 0.96), uEclipseMode * 0.68);
-        outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.16 : 1.04) * (1.0 + uDlssMode * 0.10 + uEclipseMode * 0.10));
+        shadowTint = mix(shadowTint, vec3(0.75, 0.85, 1.10), uNcr2Mode * 0.85);
+        outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.16 : 1.04) * (1.0 + uDlssMode * 0.10 + uEclipseMode * 0.10 + uNcr2Mode * 0.14));
         float extSun = sunUpB * clamp(uSurfaceLight, 0.0, 1.0);
         float skyHemi = clamp(nrmW.y * 0.5 + 0.5, 0.0, 1.0);
-        vec3 bounceGnd = mix(vec3(0.56, 0.39, 0.24), vec3(0.64, 0.40, 0.21), max(uChillMode, uEclipseMode * 0.85));
+        vec3 bounceGnd = mix(mix(vec3(0.56, 0.39, 0.24), vec3(0.64, 0.40, 0.21), max(uChillMode, uEclipseMode * 0.85)), vec3(0.48, 0.50, 0.42), uNcr2Mode);
         float rtFade = 0.0;
         vec4 rtGiOut = vec4(0.0, 0.0, 0.0, 1.0);
         vec3 rtShCol = vec3(1.0);
@@ -763,35 +765,41 @@
             }
           }
         }
-        // Murky Marine Depth Absorption (Eclipse Water_Absorb + underwater caustics)
+        // Murky Marine Depth Absorption (NCR1 Eclipse Water_Absorb) vs Crystal-Clear Lake Floor Visibility (NCR2)
         if (uDimension < 0.5 && vWPos.y < 0.86 && (uUnderwater > 0.5 || vWPos.y > -18.0)) {
           float wDepth = max(0.0, 0.86 - vWPos.y);
-          vec3 absorbK = uEclipseMode > 0.5
-            ? (uUnderwater > 0.5 ? vec3(0.392389, 0.108329, 0.0660636) * 0.28 : vec3(0.392389, 0.108329, 0.0660636))
-            : (uUnderwater > 0.5 ? vec3(0.11, 0.032, 0.028) : vec3(0.40, 0.22, 0.15));
+          vec3 absorbK = uNcr2Mode > 0.5
+            ? (uUnderwater > 0.5 ? vec3(0.09, 0.032, 0.018) : vec3(0.18, 0.062, 0.030))
+            : (uEclipseMode > 0.5
+              ? (uUnderwater > 0.5 ? vec3(0.392389, 0.108329, 0.0660636) * 0.28 : vec3(0.392389, 0.108329, 0.0660636))
+              : (uUnderwater > 0.5 ? vec3(0.11, 0.032, 0.028) : vec3(0.40, 0.22, 0.15)));
           vec3 waterAbsorb = exp(-wDepth * absorbK);
-          outgoingLight *= mix(vec3(1.0), waterAbsorb, 0.94);
-          float subMurk = 1.0 - exp(-wDepth * (uUnderwater > 0.5 ? 0.04 : 0.28));
-          vec3 deepSeaTint = mix(vec3(0.012, 0.11, 0.22), vec3(0.008, 0.072, 0.14), clamp(wDepth * 0.12, 0.0, 1.0)) * (0.18 + 0.82 * sunUpB);
-          outgoingLight = mix(outgoingLight, deepSeaTint, clamp(subMurk, 0.0, 0.88));
-          if (!isLowQ && uUnderwater > 0.5 && sunUpB > 0.05 && wDepth < 20.0) {
+          outgoingLight *= mix(vec3(1.0), waterAbsorb, mix(0.94, 0.82, uNcr2Mode));
+          float subMurk = 1.0 - exp(-wDepth * (uUnderwater > 0.5 ? 0.04 : mix(0.28, 0.10, uNcr2Mode)));
+          vec3 deepSeaTint = mix(
+            mix(vec3(0.012, 0.11, 0.22), vec3(0.008, 0.072, 0.14), clamp(wDepth * 0.12, 0.0, 1.0)),
+            mix(vec3(0.08, 0.34, 0.62), vec3(0.03, 0.18, 0.42), clamp(wDepth * 0.12, 0.0, 1.0)),
+            uNcr2Mode
+          ) * (0.18 + 0.82 * sunUpB);
+          outgoingLight = mix(outgoingLight, deepSeaTint, clamp(subMurk, 0.0, mix(0.88, 0.68, uNcr2Mode)));
+          if (!isLowQ && (uUnderwater > 0.5 || (uNcr2Mode > 0.5 && wDepth < 8.0)) && sunUpB > 0.05 && wDepth < 20.0) {
             float sideFace = 0.55 + 0.45 * clamp(vWNorm.y, 0.0, 1.0);
-            float caust = waterCaustics(vWPos, uTime) * exp(-wDepth * 0.11) * sunUpB * sideFace * mix(1.0, 1.38, uRayTracing);
-            outgoingLight += (diffuseColor.rgb * 0.45 + vec3(0.10, 0.24, 0.28)) * vec3(0.36, 0.78, 0.82) * caust * 0.36 * waterAbsorb;
+            float caust = waterCaustics(vWPos, uTime) * exp(-wDepth * mix(0.11, 0.16, uNcr2Mode * (1.0 - uUnderwater))) * sunUpB * sideFace * mix(1.0, 1.38, uRayTracing);
+            outgoingLight += (diffuseColor.rgb * 0.45 + vec3(0.10, 0.24, 0.28)) * mix(vec3(0.36, 0.78, 0.82), vec3(0.46, 0.84, 0.98), uNcr2Mode) * caust * mix(0.36, 0.26, uNcr2Mode * (1.0 - uUnderwater)) * waterAbsorb;
           }
         }
         float surfLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float blockLightGain = mix(1.90, (uUnderwater > 0.5 ? 1.18 : 0.76), smoothstep(0.08, 0.60, surfLuma) * (0.25 + 0.75 * sunUpB * clamp(uSurfaceLight, 0.0, 1.0))) * mix(1.0, 1.24, uRayTracing);
         vec3 blockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.055)) * blockLightGain;
         outgoingLight += blockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 1.10 + blockAdd * 0.52);
-        // Pre-RT sub-unity highlight shoulder keeps bricks & lamps vivid without channel clipping or yellow washout
+        // Pre-RT sub-unity highlight shoulder keeps grass, sand, birch logs & lamps crisp with ZERO noon blowout
         float outPeak = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLum = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
-        float hiMetric = mix(outLum, outPeak, 0.55);
-        float hiCapT = mix(mix(0.86, 0.96, uRayTracing), 0.74, uCartoonMode);
+        float hiMetric = mix(outLum, outPeak, mix(0.55, 0.62, uNcr2Mode));
+        float hiCapT = mix(mix(mix(0.86, 0.78, uNcr2Mode), 0.96, uRayTracing), 0.74, uCartoonMode);
         if (hiMetric > hiCapT) {
           float overH = hiMetric - hiCapT;
-          float compLum = hiCapT + overH / (1.0 + overH * mix(1.55, 1.15, uRayTracing));
+          float compLum = hiCapT + overH / (1.0 + overH * mix(mix(1.55, 1.95, uNcr2Mode), 1.15, uRayTracing));
           outgoingLight *= (compLum / max(hiMetric, 0.0001));
         }
         #include <opaque_fragment>`)
@@ -843,7 +851,7 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
       uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode
     });
@@ -857,7 +865,7 @@
         transformed.z += (uWindVec.y * 0.85 + leafPhase * 0.028) * wMul;`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormL = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         float faceDirL = gl_FrontFacing ? 1.0 : -1.0;
         vec3 vNormL = normalize(vNormal) * faceDirL;
@@ -908,13 +916,13 @@
         float normalCanopy = mix(0.64, 1.02, smoothstep(0.08, 0.92, canopyWrap));
         outgoingLight *= mix(mix(0.46, normalCanopy, sUp), mix(0.62, mix(0.90, 1.04, toonLeafWrap), sUp), step(0.5, uCartoonMode)) * backFaceL;
         outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.12 + vec3(0.38), 0.42, 1.0), rtFadeL * 0.80);
-        vec3 leafShBase = mix(vec3(0.84, 0.91, 1.03), mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55)), step(0.5, uCartoonMode));
-        outgoingLight = mix(outgoingLight, outgoingLight * leafShBase, (1.0 - canopyWrap) * mix(0.18, 0.10, step(0.5, uCartoonMode)) * sUp);
+        vec3 leafShBase = mix(mix(vec3(0.84, 0.91, 1.03), vec3(0.78, 0.87, 1.08), uNcr2Mode), mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55)), step(0.5, uCartoonMode));
+        outgoingLight = mix(outgoingLight, outgoingLight * leafShBase, (1.0 - canopyWrap) * mix(0.18 + uNcr2Mode * 0.06, 0.10, step(0.5, uCartoonMode)) * sUp);
         float leafRim = pow(1.0 - abs(dot(nDirL, vDirL)), 2.2) * 0.08 * canopyWrap * sUp * (1.0 - step(0.5, uCartoonMode));
         float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.30 + 0.70 * rtShLumL, rtFadeL);
         float leafLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float leafLightGain = mix(1.58, 0.58, smoothstep(0.10, 0.65, leafLuma) * sUpG);
-        float chillLeafSss = mix(isUltraL ? 0.18 : 0.12, isUltraL ? 0.26 : 0.19, uChillMode) + uDlssMode * 0.08 + uEclipseMode * 0.10 + rtFadeL * 0.34;
+        float chillLeafSss = mix(isUltraL ? 0.18 : 0.12, isUltraL ? 0.26 : 0.19, uChillMode) + uDlssMode * 0.08 + uEclipseMode * 0.10 + uNcr2Mode * 0.14 + rtFadeL * 0.34;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * leafLightGain;
         vec3 leafSunBal = mix(uSunColor, vec3(1.02, 0.99, 0.92), mix(0.42, 0.72, max(uCartoonMode, rtFadeL * 0.90)));
         vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * mix(0.064 + 0.015 * uEclipseMode, 0.13, uCartoonMode);
@@ -1003,7 +1011,7 @@
       uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd,
       uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uQuality: envUniforms.uQuality, uChillMode: envUniforms.uChillMode, uRainWetness: envUniforms.uRainWetness,
-      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
+      uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uPlayerPos: envUniforms.uPlayerPos, uSurfaceLight: envUniforms.uSurfaceLight, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
       uWindVec: envUniforms.uWindVec, uWindGust: envUniforms.uWindGust, uCartoonMode: envUniforms.uCartoonMode
     });
@@ -1024,7 +1032,7 @@
         transformed.y -= dot(pMoveXZ, pMoveXZ) * 0.45;`)
       .replace('#include <project_vertex>', '#include <project_vertex>\nvBlockLight = aBlockLight;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPlantTip = clamp(aPlantSway, 0.0, 1.0);\nvSkyShade = aSkyShade;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
+      .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // Prevent DoubleSide backfaces from flipping upward (0,1,0) normals downward into black!
         normal = normalize( vNormal );
@@ -1069,14 +1077,14 @@
         float tipRimP = pow(1.0 - abs(vDirP.y), 2.2) * smoothstep(0.24, 1.0, vPlantTip) * (0.05 + 0.12 * uChillMode + 0.08 * uDlssMode + 0.16 * uEclipseMode + rtFadeP * 0.10) * sUpP * mix(1.0, rtShLumP, rtFadeP * 0.90);
         outgoingLight *= mix(0.46, mix(mix(0.88, 1.02, uEclipseMode), 0.84, uChillMode), sUpP);
         outgoingLight *= mix(vec3(1.0), clamp(rtShP * 1.15 + vec3(0.32), 0.34, 1.0), rtFadeP * 0.85);
-        vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.78, 0.83, 0.94), max(uChillMode, uEclipseMode * 0.55));
+        vec3 plantShTint = mix(mix(vec3(0.92, 0.96, 1.03), vec3(0.78, 0.86, 1.08), uNcr2Mode), vec3(0.78, 0.83, 0.94), max(uChillMode, uEclipseMode * 0.55));
         outgoingLight = mix(outgoingLight * plantShTint, outgoingLight, vSkyShade);
-        vec3 plantSunBal = mix(uSunColor, vec3(1.04, 0.97, 0.82), mix(0.38, 0.52, uEclipseMode));
+        vec3 plantSunBal = mix(uSunColor, vec3(1.04, 0.97, 0.82), mix(0.38, 0.52, max(uEclipseMode, uNcr2Mode * 0.45)));
         outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) + diffuseColor.rgb * uSunColor * (0.08 * rtShLumP * rtFadeP * sUpP) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
         if (uDimension < 0.5 && vWPos.y < 0.86) {
           float wDepthP = max(0.0, 0.86 - vWPos.y);
-          vec3 wAbsorbP = exp(-wDepthP * vec3(0.115, 0.050, 0.025));
-          outgoingLight *= mix(vec3(1.0), wAbsorbP, 0.92);
+          vec3 wAbsorbP = exp(-wDepthP * mix(vec3(0.115, 0.050, 0.025), vec3(0.075, 0.032, 0.015), uNcr2Mode));
+          outgoingLight *= mix(vec3(1.0), wAbsorbP, mix(0.92, 0.82, uNcr2Mode));
         }
         float sUpPG = sUpP * clamp(uSurfaceLight, 0.0, 1.0);
         float plantLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
@@ -1368,13 +1376,13 @@
       uSunColor: envUniforms.uSunColor, uTime: envUniforms.uTime,
       uCloudCover: envUniforms.uCloudCover, uVolumetricClouds: envUniforms.uVolumetricClouds,
       uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth,
-      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uCartoonMode: envUniforms.uCartoonMode
+      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uCartoonMode: envUniforms.uCartoonMode
     },
     vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * (modelViewMatrix * vec4(position, 1.0)); }`,
     fragmentShader: `
       precision mediump float;
       uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor, uFogColor;
-      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode, uCartoonMode;
+      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uCartoonMode;
       varying vec3 vDir;
       float cHash(vec2 p) { return fract(sin(dot(mod(p, 289.0), vec2(127.1, 311.7))) * 43758.5453); }
       float cNoise(vec2 p) {
@@ -1606,8 +1614,16 @@
           float horFade = smoothstep(0.015, 0.16, d.y);
           vec3 cAccum = vec3(0.0);
           float cTrans = 1.0;
-          vec3 litDayC = mix(vec3(0.955, 0.945, 0.940), uSunColor * 1.02, 0.24 + sunsetK * 0.40 + uEclipseMode * 0.14);
-          vec3 shDayC  = mix(vec3(0.710, 0.728, 0.820), mix(vec3(0.56, 0.46, 0.58), uSkyHorizon * 0.88, 0.45), max(uChillMode * 0.65, max(sunsetK * 0.62, uEclipseMode * 0.40)));
+          vec3 litDayC = mix(
+            mix(vec3(0.955, 0.945, 0.940), uSunColor * 1.02, 0.24 + sunsetK * 0.40 + uEclipseMode * 0.14),
+            mix(vec3(0.990, 0.994, 1.000), uSunColor * 1.02, 0.10 + sunsetK * 0.36),
+            uNcr2Mode
+          );
+          vec3 shDayC  = mix(
+            mix(vec3(0.710, 0.728, 0.820), mix(vec3(0.56, 0.46, 0.58), uSkyHorizon * 0.88, 0.45), max(uChillMode * 0.65, max(sunsetK * 0.62, uEclipseMode * 0.40))),
+            mix(vec3(0.680, 0.770, 0.900), uSkyHorizon * 0.86, sunsetK * 0.52),
+            uNcr2Mode
+          );
           vec3 litNightC = vec3(0.20, 0.29, 0.44);
           vec3 shNightC  = vec3(0.06, 0.10, 0.18);
           vec3 baseLitC = mix(litNightC, litDayC, sunUp);
@@ -1722,7 +1738,7 @@
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
       uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
-      uEclipseMode: envUniforms.uEclipseMode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing,
+      uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
       uCartoonMode: envUniforms.uCartoonMode, uSulfurWater: envUniforms.uSulfurWater
     },
@@ -1742,7 +1758,7 @@
         vReflClip = uReflMatrix * vec4(wp.x, wp.y, wp.z, 1.0);
       }`,
     fragmentShader: `
-      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uInLava, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uRayTracing, uCartoonMode, uSulfurWater;
+      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uInLava, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uRayTracing, uCartoonMode, uSulfurWater;
       uniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor, uPlayerPos;
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
@@ -1829,7 +1845,7 @@
         bool highWater = (uQuality > 0.5 && uWaterQuality > 0.5);
         float waveH = 0.0, wakeFoam = 0.0;
         if (vIsTop > 0.5) {
-          float waveAmp = mix(1.38, 0.42, smoothstep(0.0, 1.0, vShore));
+          float waveAmp = mix(1.38, 0.42, smoothstep(0.0, 1.0, vShore)) * mix(1.0, 0.72, uNcr2Mode);
           vec2 wSamplePos = (uEclipseMode > 0.5 && highWater)
             ? getEclipseParallaxPos(vWorldPos.xz, viewDir, uTime, vDist, vShore)
             : vWorldPos.xz;
@@ -1837,8 +1853,8 @@
           waveH = wg.x;
           float ecWaveMul = mix(1.0, 1.18, uEclipseMode);
           n = normalize(vec3(-wg.y * waveAmp * ecWaveMul, 1.0, -wg.z * waveAmp * ecWaveMul));
-          // Eclipse Player / Boat Wake Expanding Ripples (uWakePts[8])
-          if (uEclipseMode > 0.5 && vDist < 42.0) {
+          // Player / Boat Wake Expanding Ripples (uWakePts[8]) for NCR1 & NCR2
+          if ((uEclipseMode > 0.5 || uNcr2Mode > 0.5) && vDist < 42.0) {
             for (int wi = 0; wi < 8; wi++) {
               vec4 wpW = uWakePts[wi];
               float strW = wpW.w;
@@ -1876,11 +1892,11 @@
         float sunUp = smoothstep(-0.14, 0.24, sunD.y);
         float nightK = 1.0 - sunUp;
 
-        // Semi-Opaque Depth-Turbid Marine Ocean Water (all shaders: shallow coastal teal -> deep opaque ocean blue!)
+        // Semi-Opaque Depth-Turbid Marine Water vs NCR2 Crystal-Clear Vivid Cerulean Lake Water (visible shallows + deep azure!)
         float depthK = clamp(vColDepth * 1.15 + (1.0 - vShore) * 0.14, 0.0, 1.0);
         float turbid = 1.0 - exp(-(0.80 + vColDepth * 5.2));
-        vec3 shallowDay = mix(vec3(0.095, 0.36, 0.42), vec3(0.085, 0.38, 0.44), uEclipseMode);
-        vec3 deepDay = mix(vec3(0.020, 0.13, 0.24), vec3(0.018, 0.14, 0.25), uEclipseMode);
+        vec3 shallowDay = mix(mix(vec3(0.095, 0.36, 0.42), vec3(0.085, 0.38, 0.44), uEclipseMode), vec3(0.22, 0.62, 0.94), uNcr2Mode);
+        vec3 deepDay = mix(mix(vec3(0.020, 0.13, 0.24), vec3(0.018, 0.14, 0.25), uEclipseMode), vec3(0.09, 0.38, 0.78), uNcr2Mode);
         shallowDay = mix(shallowDay, vec3(0.14, 0.72, 0.94), uCartoonMode * 0.85);
         deepDay = mix(deepDay, vec3(0.04, 0.42, 0.78), uCartoonMode * 0.85);
         shallowDay = mix(shallowDay, vec3(0.10, 0.74, 0.70), uSulfurWater);
@@ -1945,12 +1961,12 @@
             vec2 ndc = (vReflClip.xy / max(0.001, vReflClip.w)) * 0.5 + 0.5;
             float shoreCalm = 1.0 - smoothstep(0.0, 0.72, vShore) * 0.94;
             float distDamp = 1.0 / (1.0 + vDist * 0.032);
-            vec2 reflUv = ndc + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(1.0, 0.92, uEclipseMode);
+            vec2 reflUv = ndc + n.xz * vec2(0.022, 0.036) * shoreCalm * distDamp * mix(mix(1.0, 0.92, uEclipseMode), 0.72, uNcr2Mode);
             float edgeMask = step(0.01, vReflClip.w) * smoothstep(0.0, 0.06, reflUv.x) * smoothstep(1.0, 0.94, reflUv.x)
                            * smoothstep(0.0, 0.08, reflUv.y) * smoothstep(1.0, 0.92, reflUv.y);
             vec3 mapSample = texture2D(uReflMap, clamp(reflUv, 0.004, 0.996)).rgb;
             mapSample = mix(mapSample, max(mapSample, baseWater * 0.72), isUltraW ? 0.22 : 0.30);
-            reflCol = mix(reflFallback, mapSample, edgeMask * ((isUltraW ? 0.90 : 0.84) - vShore * (isUltraW ? 0.16 : 0.20)));
+            reflCol = mix(reflFallback, mapSample, edgeMask * ((isUltraW ? 0.90 : 0.84) + uNcr2Mode * 0.05 - vShore * (isUltraW ? 0.16 : 0.20)));
           }
           if (uRayTracing > 0.5 && vDist < 44.0) {
             float rtFadeW = rtInVol(vWorldPos) * (1.0 - smoothstep(32.0, 44.0, vDist));
@@ -1988,9 +2004,14 @@
           float wFloor = mix(0.62, 0.98, uRayTracing);
           if (wMetric > wFloor) col *= (wFloor + (wMetric - wFloor) / (1.0 + (wMetric - wFloor) * mix(2.85, 1.25, uRayTracing))) / max(wMetric, 0.0001);
 
-          float baseAlpha = mix(0.78, 0.985, clamp(turbid * 0.86 + depthK * 0.24, 0.0, 1.0));
-          alpha = clamp(mix(baseAlpha, 0.99, clamp(fresnel * 0.88, 0.0, 1.0)), 0.76, 0.992);
-          if (uEclipseMode > 0.5) alpha = max(alpha, clamp(wakeFoam * 0.62, 0.0, 0.95));
+          float baseAlpha = mix(
+            mix(0.78, 0.985, clamp(turbid * 0.86 + depthK * 0.24, 0.0, 1.0)),
+            mix(0.42, 0.88, clamp(depthK * 0.88 + turbid * 0.22, 0.0, 1.0)),
+            uNcr2Mode
+          );
+          float shoreFeather = uNcr2Mode > 0.5 ? (1.0 - smoothstep(0.74, 1.0, vShore) * 0.28) : 1.0;
+          alpha = clamp(mix(baseAlpha * shoreFeather, mix(0.99, 0.92, uNcr2Mode), clamp(fresnel * mix(0.88, 0.78, uNcr2Mode), 0.0, 1.0)), mix(0.76, 0.36, uNcr2Mode), 0.992);
+          if (uEclipseMode > 0.5 || uNcr2Mode > 0.5) alpha = max(alpha, clamp(wakeFoam * 0.58, 0.0, 0.95));
         }
 
         // v59 THE SIFT: Vivid Swirling Rainbow Ichor Water (matches ref pond: cyan/magenta/pink/gold iridescence!)
@@ -2311,14 +2332,14 @@
       uSharpness: envUniforms.uSharpness, uTexelSize: envUniforms.uTexelSize,
       uMoonBoost: envUniforms.uMoonBoost, uDimension: envUniforms.uDimension,
       uHasGodRays: envUniforms.uHasGodRays, uQuality: envUniforms.uQuality,
-      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode,
+      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode,
       uLightScreen: envUniforms.uLightScreenPos, uSunVis: envUniforms.uSunVis, uRayTracing: envUniforms.uRayTracing, uCartoonMode: envUniforms.uCartoonMode
     },
     depthTest: false, depthWrite: false,
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
     fragmentShader: `
       uniform sampler2D tScene, tBloom, tBloomWide, tGodRays;
-      uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uSunVis, uRayTracing, uCartoonMode;
+      uniform float uUnderwater, uInLava, uWaterDepth, uTime, uVibrance, uWarmth, uExposure, uContrast, uSharpness, uMoonBoost, uDimension, uHasGodRays, uQuality, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uSunVis, uRayTracing, uCartoonMode;
       uniform vec2 uTexelSize, uLightScreen;
       varying vec2 vUv;
       // Authentic Merlin1809 Eclipse-Shader AgX Minimal Tonemap & Vignette (color_transforms.glsl / final.fsh)
@@ -2501,7 +2522,7 @@
           col = mix(col, vec3(hiLum) * vec3(1.01, 0.99, 0.96), hiDesat);
           if (uCartoonMode < 0.5) {
             float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-            vec3 baseCool = mix(vec3(0.90, 0.95, 1.05), vec3(0.86, 0.92, 1.06), uMoonBoost * 0.72);
+            vec3 baseCool = mix(mix(vec3(0.90, 0.95, 1.05), vec3(0.90, 0.95, 1.07), uNcr2Mode), vec3(0.86, 0.92, 1.06), uMoonBoost * 0.72);
             vec3 coolShadows = mix(baseCool, vec3(0.88, 0.93, 1.06), uChillMode * (1.0 - uUnderwater));
             coolShadows = mix(coolShadows, vec3(0.90, 0.95, 1.05), uDlssMode * (1.0 - uUnderwater) * 0.72);
             if (uDimension > 3.5) coolShadows = vec3(0.76, 0.96, 1.04);
@@ -2513,7 +2534,7 @@
             if (uDimension > 3.5) warmHigh = vec3(0.92, 1.04, 1.08);
             else if (uDimension > 2.5) warmHigh = vec3(1.05, 0.97, 0.99);
             else if (uDimension > 1.5) warmHigh = vec3(1.06, 0.95, 1.12);
-            float warmMask = smoothstep(0.24, 0.82, lum) * (1.0 - smoothstep(0.84, 0.98, lum) * 0.55);
+            float warmMask = smoothstep(0.24, 0.82, lum) * (1.0 - smoothstep(0.84, 0.98, lum) * mix(0.55, 0.78, uNcr2Mode));
             col = mix(col, col * warmHigh, warmMask * (1.0 - uUnderwater * 0.88));
             vec3 sCurve = col * col * (3.0 - 2.0 * col);
             col = mix(col, sCurve, uContrast * (1.0 - uUnderwater * 0.45));

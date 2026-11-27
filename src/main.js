@@ -114,10 +114,13 @@
     if (envUniforms.uChillMode) envUniforms.uChillMode.value = (preset === 'chill_sunset') ? 1.0 : 0.0;
     if (envUniforms.uDlssMode) envUniforms.uDlssMode.value = (preset === 'dlss_ultra') ? 1.0 : 0.0;
     if (envUniforms.uEclipseMode) envUniforms.uEclipseMode.value = (preset === 'eclipse') ? 1.0 : 0.0;
+    if (envUniforms.uNcr2Mode) envUniforms.uNcr2Mode.value = (preset === 'ncr2') ? 1.0 : 0.0;
     if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = (preset === 'cartoon_barebones' || window._cartoonAddonActive) ? 1.0 : 0.0;
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = getPresetSharpness(preset);
     if (preset === 'bsl') {
       envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.48;
+    } else if (preset === 'ncr2') {
+      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.12; envUniforms.uWarmth.value = 0.05; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.50;
     } else if (preset === 'bliss') {
       envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.06; envUniforms.uCloudCover.value = 0.50;
     } else if (preset === 'moonlit') {
@@ -333,10 +336,17 @@
   const _colEclipseNightTop = new THREE.Color(0x050914), _colEclipseNightHor = new THREE.Color(0x111d33);
   const _colEclipseSun = new THREE.Color(0xffd088);
   const _colEclipseNoonSun = new THREE.Color(0xfff0d2);
+  // NCR2 crisp vivid daylight palette (matching 6 reference screenshots: azure sky, pale blue horizon, warm non-blown-out sun, readable soft-blue night)
+  const _colNcr2Top = new THREE.Color(0x2f7be4), _colNcr2Hor = new THREE.Color(0xb6dbf8);
+  const _colNcr2SunsetTop = new THREE.Color(0x3a528a), _colNcr2SunsetHor = new THREE.Color(0xf2a474);
+  const _colNcr2NightTop = new THREE.Color(0x0a162e), _colNcr2NightHor = new THREE.Color(0x1a3056);
+  const _colNcr2Sun = new THREE.Color(0xfff1d4), _colNcr2SunsetSun = new THREE.Color(0xffb470);
+  const _colNcr2Fog = new THREE.Color(0xb9dbf6);
 
   let _wakeIdx = 0, _wakeCooldown = 0, _wasInWaterWake = false, _lastWakeX = 1e9, _lastWakeZ = 1e9;
   function updateWaterWakes(dt) {
-    if (!envUniforms.uWakePts || !envUniforms.uEclipseMode || envUniforms.uEclipseMode.value < 0.5) return;
+    const _wakesOn = (envUniforms.uEclipseMode && envUniforms.uEclipseMode.value > 0.5) || (envUniforms.uNcr2Mode && envUniforms.uNcr2Mode.value > 0.5);
+    if (!envUniforms.uWakePts || !_wakesOn) return;
     if (currentDimension === 'nether' || currentDimension === 'end' || depthOffset > 0) return;
     if (_wakeCooldown > -1.0) _wakeCooldown -= dt;
     const atSurfY = (player.y >= WATER_LEVEL - 2.6 && player.y <= WATER_LEVEL + 2.2);
@@ -866,10 +876,11 @@
     };
 
     // ===================== DIMENSION 5: WARDEN REALM ATMOSPHERE =====================
+    const _isNcr2 = (shaderPreset === 'ncr2');
     if (currentDimension === 'warden') {
-      _tmpTop.setHex(0x030b14);
-      _tmpHor.setHex(0x082635);
-      _tmpFog.setHex(0x071d29);
+      _tmpTop.setHex(_isNcr2 ? 0x061322 : 0x030b14);
+      _tmpHor.setHex(_isNcr2 ? 0x0f3246 : 0x082635);
+      _tmpFog.setHex(_isNcr2 ? 0x0b2535 : 0x071d29);
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
@@ -879,12 +890,12 @@
       scene.fog.near = _wStart; scene.fog.far = _wEnd;
       envUniforms.uFogStart.value = _wStart; envUniforms.uFogEnd.value = _wEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(0x67e8f9);
-      sunLight.intensity = 0.78;
-      hemiLight.color.setHex(0x22d3ee);
-      hemiLight.groundColor.setHex(0x06131c);
-      hemiLight.intensity = 0.56;
-      envUniforms.uSunColor.value.setHex(0x67e8f9);
+      sunLight.color.setHex(_isNcr2 ? 0x7ef0ff : 0x67e8f9);
+      sunLight.intensity = _isNcr2 ? 0.86 : 0.78;
+      hemiLight.color.setHex(_isNcr2 ? 0x38d9f0 : 0x22d3ee);
+      hemiLight.groundColor.setHex(_isNcr2 ? 0x0b1d2a : 0x06131c);
+      hemiLight.intensity = _isNcr2 ? 0.66 : 0.56;
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0x7ef0ff : 0x67e8f9);
       envUniforms.uSunDir.value.set(0.32, 0.86, 0.36).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
@@ -902,9 +913,9 @@
 
     // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE =====================
     if (currentDimension === 'dragon_realm') {
-      _tmpTop.setHex(0x09041c);
-      _tmpHor.setHex(0x341159);
-      _tmpFog.setHex(0x1f0c3a);
+      _tmpTop.setHex(_isNcr2 ? 0x130b2e : 0x09041c);
+      _tmpHor.setHex(_isNcr2 ? 0x452072 : 0x341159);
+      _tmpFog.setHex(_isNcr2 ? 0x29154c : 0x1f0c3a);
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
@@ -914,12 +925,12 @@
       scene.fog.near = _drStart; scene.fog.far = _drEnd;
       envUniforms.uFogStart.value = _drStart; envUniforms.uFogEnd.value = _drEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(0xe9d5ff);
-      sunLight.intensity = 1.02;
-      hemiLight.color.setHex(0xa855f7);
-      hemiLight.groundColor.setHex(0x1a0b2e);
-      hemiLight.intensity = 0.56;
-      envUniforms.uSunColor.value.setHex(0xe9d5ff);
+      sunLight.color.setHex(_isNcr2 ? 0xf0e0ff : 0xe9d5ff);
+      sunLight.intensity = _isNcr2 ? 1.06 : 1.02;
+      hemiLight.color.setHex(_isNcr2 ? 0xb87cfa : 0xa855f7);
+      hemiLight.groundColor.setHex(_isNcr2 ? 0x22103b : 0x1a0b2e);
+      hemiLight.intensity = _isNcr2 ? 0.68 : 0.56;
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xf0e0ff : 0xe9d5ff);
       envUniforms.uSunDir.value.set(0.36, 0.84, 0.40).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
@@ -937,9 +948,9 @@
 
     // ===================== DIMENSION 4: THE SIFT (MOODY TWILIGHT AURORA ATMOSPHERE — MATCHING REF) =====================
     if (currentDimension === 'sift') {
-      _tmpTop.setHex(0x1c6878);
-      _tmpHor.setHex(0x9c5d7c);
-      _tmpFog.setHex(0x52526d);
+      _tmpTop.setHex(_isNcr2 ? 0x247c94 : 0x1c6878);
+      _tmpHor.setHex(_isNcr2 ? 0xb684a8 : 0x9c5d7c);
+      _tmpFog.setHex(_isNcr2 ? 0x626685 : 0x52526d);
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
@@ -949,12 +960,12 @@
       scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
       envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(0xffccb8);
-      sunLight.intensity = 0.94;
-      hemiLight.color.setHex(0x64ced8);
-      hemiLight.groundColor.setHex(0x3b2540);
-      hemiLight.intensity = 0.42;
-      envUniforms.uSunColor.value.setHex(0xffccb8);
+      sunLight.color.setHex(_isNcr2 ? 0xffe0cc : 0xffccb8);
+      sunLight.intensity = _isNcr2 ? 0.98 : 0.94;
+      hemiLight.color.setHex(_isNcr2 ? 0x7ae2ea : 0x64ced8);
+      hemiLight.groundColor.setHex(_isNcr2 ? 0x45314d : 0x3b2540);
+      hemiLight.intensity = _isNcr2 ? 0.56 : 0.42;
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffe0cc : 0xffccb8);
       envUniforms.uSunDir.value.set(0.35, 0.82, 0.42).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
@@ -976,24 +987,24 @@
       const isWarped = (curB === BIOMES.NETHER_WARPED);
       const isBasalt = (curB === BIOMES.NETHER_BASALT_DELTAS);
       const isSoulV  = (curB === BIOMES.NETHER_SOUL_VALLEY);
-      _tmpTop.setHex(isBasalt ? 0x241d2e : (isSoulV ? 0x0b1c24 : (isWarped ? 0x0e1c28 : 0x26080b)));
-      _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : 0x451216)));
+      _tmpTop.setHex(isBasalt ? 0x241d2e : (isSoulV ? 0x0b1c24 : (isWarped ? 0x0e1c28 : (_isNcr2 ? 0x320d0e : 0x26080b))));
+      _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : (_isNcr2 ? 0x581b18 : 0x451216))));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
       const _nEnd = Math.min(loadedEdge, isBasalt ? renderDistance * 14.0 : loadedEdge);
-      envUniforms.uFogStart.value = Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.52);
+      envUniforms.uFogStart.value = Math.min(isBasalt ? 11.0 : (_isNcr2 ? 18.0 : 14.0), _nEnd * 0.52);
       envUniforms.uFogEnd.value = _nEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
-      envUniforms.uSunColor.value.setHex(isBasalt ? 0xd8c4e8 : (isSoulV ? 0x67e8f9 : (isWarped ? 0x5eead4 : 0xff9b54)));
+      envUniforms.uSunColor.value.setHex(isBasalt ? 0xd8c4e8 : (isSoulV ? 0x67e8f9 : (isWarped ? 0x5eead4 : (_isNcr2 ? 0xffab64 : 0xff9b54))));
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 16, snapY + 34, snapZ + 14);
-      sunLight.color.setHex(isBasalt ? 0xd6c7e3 : (isSoulV ? 0x7dd3fc : (isWarped ? 0x99f6e4 : 0xffa66b)));
-      sunLight.intensity = isBasalt ? 0.64 : 0.68;
-      hemiLight.color.setHex(isBasalt ? 0x7c6f8a : (isSoulV ? 0x38bdf8 : (isWarped ? 0x2dd4bf : 0xc2412d)));
-      hemiLight.groundColor.setHex(isBasalt ? 0x221b2b : (isSoulV ? 0x132732 : 0x3a110d));
-      hemiLight.intensity = 0.62;
+      sunLight.color.setHex(isBasalt ? 0xd6c7e3 : (isSoulV ? 0x7dd3fc : (isWarped ? 0x99f6e4 : (_isNcr2 ? 0xffb370 : 0xffa66b))));
+      sunLight.intensity = (isBasalt ? 0.64 : 0.68) * (_isNcr2 ? 1.12 : 1.0);
+      hemiLight.color.setHex(isBasalt ? 0x7c6f8a : (isSoulV ? 0x38bdf8 : (isWarped ? 0x2dd4bf : (_isNcr2 ? 0xd95838 : 0xc2412d))));
+      hemiLight.groundColor.setHex(isBasalt ? 0x221b2b : (isSoulV ? 0x132732 : (_isNcr2 ? 0x471711 : 0x3a110d)));
+      hemiLight.intensity = _isNcr2 ? 0.72 : 0.62;
       if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.0;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
@@ -1005,7 +1016,7 @@
 
     // ===================== DIMENSION 3: THE END ATMOSPHERE =====================
     if (currentDimension === 'end') {
-      _tmpTop.setHex(0x090414); _tmpHor.setHex(0x1b0e2e);
+      _tmpTop.setHex(_isNcr2 ? 0x0e0a24 : 0x090414); _tmpHor.setHex(_isNcr2 ? 0x261d48 : 0x1b0e2e);
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
       const _eEnd = loadedEdge;
@@ -1013,12 +1024,12 @@
       envUniforms.uFogEnd.value = _eEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.45, 0.80, 0.38).normalize();
-      envUniforms.uSunColor.value.setHex(0xe9d5ff);
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xdfd8ff : 0xe9d5ff);
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 20, snapY + 38, snapZ + 18);
-      sunLight.color.setHex(0xddd6fe); sunLight.intensity = 0.86;
-      hemiLight.color.setHex(0xa855f7); hemiLight.groundColor.setHex(0x1e132b); hemiLight.intensity = 0.58;
+      sunLight.color.setHex(_isNcr2 ? 0xe4dcff : 0xddd6fe); sunLight.intensity = _isNcr2 ? 0.92 : 0.86;
+      hemiLight.color.setHex(_isNcr2 ? 0x9b87f5 : 0xa855f7); hemiLight.groundColor.setHex(_isNcr2 ? 0x241a3d : 0x1e132b); hemiLight.intensity = _isNcr2 ? 0.68 : 0.58;
       if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.32;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
@@ -1067,6 +1078,14 @@
       const ecGold = Math.min(1.0, 0.35 + sunsetWeight * 0.85);
       _tmpTop.lerp(_colEclipseNoonTop, 0.42 * ecDay).lerp(_colEclipseTop, 0.52 * ecDay * ecGold).lerp(_colEclipseNightTop, 0.55 * ecNight);
       _tmpHor.lerp(_colEclipseNoonHor, 0.32 * ecDay).lerp(_colEclipseHor, 0.68 * ecDay * ecGold).lerp(_colEclipseNightHor, 0.45 * ecNight);
+    } else if (shaderPreset === 'ncr2') {
+      // Smooth continuous time-of-day sky blend: crisp azure day, gentle coral-peach sunrise/sunset, readable soft-blue night
+      const n2Clear = 1 - rainIntensity * 0.72;
+      const n2Day = dayWeight * n2Clear;
+      const n2Night = (1.0 - dayWeight) * (1 - rainIntensity * 0.45);
+      const n2Sun = sunsetWeight * n2Clear;
+      _tmpTop.lerp(_colNcr2Top, 0.72 * n2Day).lerp(_colNcr2SunsetTop, 0.42 * n2Sun).lerp(_colNcr2NightTop, 0.68 * n2Night);
+      _tmpHor.lerp(_colNcr2Hor, 0.78 * n2Day).lerp(_colNcr2SunsetHor, 0.54 * n2Sun).lerp(_colNcr2NightHor, 0.64 * n2Night);
     }
     if (activeWeatherKind === 'blizzard') {
       _tmpTop.lerp(_colBlizzHor, 0.78 * rainIntensity);
@@ -1125,14 +1144,14 @@
       envUniforms.uFogColor.value.setHex(depthOffset >= 750 ? 0x260b0b : (ugBioFog ? ugBioFog.fogHex : 0x090d17));
       envUniforms.uFogStart.value = 12.0; envUniforms.uFogEnd.value = 34.0;
     } else {
-      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.36 * dayWeight * (1 - rainIntensity * 0.5));
+      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_isNcr2 ? _colNcr2Fog : _colAerialMist, (_isNcr2 ? 0.42 : 0.36) * dayWeight * (1 - rainIntensity * 0.5));
       if (activeWeatherKind === 'sandstorm') envUniforms.uFogColor.value.lerp(_colSandFog, 0.85 * rainIntensity);
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);
       else if (activeWeatherKind === 'fog') envUniforms.uFogColor.value.lerp(_colDenseFog, 0.74 * rainIntensity);
       else if (activeWeatherKind === 'ashfall') envUniforms.uFogColor.value.lerp(_colAshFog, 0.74 * rainIntensity);
       const isEcMode = (shaderPreset === 'eclipse');
       const fogEnd = Math.max(14.5, loadedEdge * (1.0 - rainIntensity * 0.22));
-      const fogStartRatio = (isEcMode ? 0.44 : 0.48) - rainIntensity * 0.14;
+      const fogStartRatio = (isEcMode ? 0.44 : (_isNcr2 ? 0.50 : 0.48)) - rainIntensity * 0.14;
       envUniforms.uFogStart.value = Math.max(8.0, Math.min(fogEnd * 0.70, fogEnd * fogStartRatio));
       envUniforms.uFogEnd.value   = fogEnd;
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
@@ -1201,6 +1220,8 @@
     } else if (shaderPreset === 'eclipse') {
       const noonAmt = Math.max(0, Math.min(1, (sunY - 0.38) / 0.48));
       envUniforms.uSunColor.value.copy(_colEclipseSun).lerp(_colEclipseNoonSun, noonAmt * 0.65).lerp(_colSunsetSun, Math.min(0.72, sunsetWeight * 0.85));
+    } else if (shaderPreset === 'ncr2') {
+      envUniforms.uSunColor.value.copy(_colNcr2Sun).lerp(_colNcr2SunsetSun, Math.min(0.75, sunsetWeight * 0.85));
     } else if (sunsetWeight > 0.16) {
       envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.15));
     } else {
@@ -1235,15 +1256,16 @@
       sunLight.color.copy(_colUwSunShallow).lerp(_colUwSunAbyss, abyssT);
       sunLight.intensity = (0.14 + dayWeight * 1.00) * surfaceFactor;
     } else if (isNightShadow) {
-      sunLight.color.setHex(0x6da0f5);
-      sunLight.intensity = (0.34 + lightningFlash * 1.1) * surfaceFactor;
+      sunLight.color.setHex(_isNcr2 ? 0x7cb0f8 : 0x6da0f5);
+      sunLight.intensity = ((_isNcr2 ? 0.42 : 0.34) + lightningFlash * 1.1) * surfaceFactor;
     } else if (_isCartoon) {
       sunLight.color.setHex(0xfffbe8);
       sunLight.intensity = ((0.34 + dayWeight * 0.94) * (1 - rainIntensity * 0.35) + lightningFlash * 0.85) * surfaceFactor;
     } else {
-      const freshMul = (shaderPreset === 'eclipse') ? 1.02 : (shaderPreset === 'moonlit' ? 0.86 : 0.98);
+      const freshMul = (shaderPreset === 'eclipse') ? 1.02 : (shaderPreset === 'ncr2' ? 0.94 : (shaderPreset === 'moonlit' ? 0.86 : 0.98));
+      const ncr2NoonSoft = _isNcr2 ? (1.0 - 0.30 * Math.max(0, (sunY - 0.42) / 0.58)) : noonSoft;
       sunLight.color.copy(envUniforms.uSunColor.value);
-      sunLight.intensity = ((0.22 + dayWeight * 1.00) * noonSoft * albedoDamp * freshMul * (1 - rainIntensity * 0.34) + lightningFlash * 0.95) * surfaceFactor;
+      sunLight.intensity = ((0.22 + dayWeight * 1.00) * ncr2NoonSoft * albedoDamp * freshMul * (1 - rainIntensity * 0.34) + lightningFlash * 0.95) * surfaceFactor;
     }
     envUniforms.uMoonBoost.value = isNightShadow ? 1.0 : 0.0;
 
@@ -1257,9 +1279,9 @@
       hemiLight.intensity = (0.40 + dayWeight * 0.36) * surfaceFactor;
     } else {
       // Cool sky-blue ambient above + warm earthy ground bounce below (clear light/shade separation matching refs)
-      hemiLight.color.copy(_tmpTop).lerp(shaderPreset === 'chill_sunset' ? _colChillHemiSky : _colSkyFillSoft, 0.45 * dayWeight);
-      hemiLight.groundColor.setHex(shaderPreset === 'chill_sunset' ? 0x765844 : (dayWeight > 0.2 ? 0x6b5d4a : 0x1b2b48));
-      const hemiBoost = (shaderPreset === 'eclipse') ? 0.96 : 0.94;
+      hemiLight.color.copy(_tmpTop).lerp(shaderPreset === 'chill_sunset' ? _colChillHemiSky : _colSkyFillSoft, (_isNcr2 ? 0.54 : 0.45) * dayWeight);
+      hemiLight.groundColor.setHex(shaderPreset === 'chill_sunset' ? 0x765844 : (dayWeight > 0.2 ? (_isNcr2 ? 0x5c6a58 : 0x6b5d4a) : (_isNcr2 ? 0x243b5e : 0x1b2b48)));
+      const hemiBoost = (shaderPreset === 'eclipse') ? 0.96 : (_isNcr2 ? 1.04 : 0.94);
       hemiLight.intensity = (0.36 + dayWeight * 0.34) * hemiBoost * surfaceFactor;
     }
     if ((player._nightVisionT || 0) > 0) {

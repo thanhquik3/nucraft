@@ -123,7 +123,7 @@
         if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 1 && raw.renderDistance <= 8) {
           base.renderDistance = raw.renderDistance | 0;
         }
-        if (raw.shaderPreset === 'eclipse' || raw.shaderPreset === 'bsl' || raw.shaderPreset === 'bliss' || raw.shaderPreset === 'moonlit' || raw.shaderPreset === 'chill_sunset' || raw.shaderPreset === 'verdant_fresh' || raw.shaderPreset === 'dlss_ultra') {
+        if (raw.shaderPreset === 'eclipse' || raw.shaderPreset === 'ncr2' || raw.shaderPreset === 'bsl' || raw.shaderPreset === 'bliss' || raw.shaderPreset === 'moonlit' || raw.shaderPreset === 'chill_sunset' || raw.shaderPreset === 'verdant_fresh' || raw.shaderPreset === 'dlss_ultra') {
           base.shaderPreset = raw.shaderPreset;
         }
         if (!raw.eclipseMaxMigrated) {

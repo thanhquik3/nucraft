@@ -153,7 +153,7 @@
           for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch);
           _teleportWarmupFrames = 24;
         }
-        if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('moonlit');
+        if (shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('moonlit');
         if (!isWorldLoading) startPlaying();
         showToast('👁️ Thành Phố Cổ! Nhấn Shift đi lén tránh Sculk Shrieker đánh thức Warden!');
       };
@@ -185,7 +185,7 @@
           spawnedDragonNests.add(nr.idx);
           spawnMobOfType(nr.el + '_dragon', nr.x + 0.5, nr.y + 8.5, nr.z - 4.0);
         }
-        if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+        if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
         dayTime = 0.34;
         if (!isWorldLoading) startPlaying();
         showToast('🌋 Đã tới Tổ Rồng Nguyên Tố! Khai thác Quặng Tinh Thể Rồng bằng Cúp Sắt+ & nhặt Trứng Rồng!');
@@ -212,7 +212,7 @@
       player.yaw = 0.0; player.pitch = 0.08;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = 15.2;
       lastPlayerCx = 99999; lastPlayerCz = 99999;
-      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.30;
       if (!isWorldLoading) startPlaying();
       showToast('🏛️ Chào mừng tới Khu Tàn Tích Cổ Đại 1000×1000 & Đền Cổng The End! Đặt đủ 12 Mắt Ender để mở cổng!');
@@ -239,7 +239,7 @@
       lastPlayerCx = 99999; lastPlayerCz = 99999;
       spawnMobOfType('ruin_stalker', tx + 5.5, 3.2, tz - 10.5);
       spawnMobOfType('gargoyle', tx - 4.0, 14.5, tz - 14.0);
-      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
+      if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.31;
       if (!isWorldLoading) startPlaying();
       return;
@@ -613,7 +613,7 @@
     player.yaw = clean.yaw; player.pitch = cfg.pitch;
     player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = clean.y;
     lastPlayerCx = 99999; lastPlayerCz = 99999;
-    if (shaderPreset !== 'eclipse' && !(opts && opts.preserveShader)) applyShaderPreset(cfg.preset);
+    if (shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset(cfg.preset);
     dayTime = cfg.time;
     document.querySelectorAll('#timeSeg .seg-btn').forEach(b => b.classList.toggle('active', Math.abs(parseFloat(b.dataset.time) - cfg.time) < 0.03));
     if (!isWorldLoading) startPlaying();
@@ -1242,6 +1242,7 @@
     'Đêm Trăng': 'Moonlit Silver',
     '✨ DLSS Siêu Thực': '✨ DLSS Ultra',
     'Shader: NCR1': 'Shader: NCR1',
+    'Shader: NCR2': 'Shader: NCR2',
     'Mây 3D': '3D Clouds',
     '☁️ Mây Volumetric': '☁️ Volumetric Clouds',
     '🧊 Mây Khối Luanti': '🧊 Luanti Block Clouds',
@@ -1956,7 +1957,7 @@ function renderSavedWorldsList() {
     }
     mobSpawnTimer = 2.0;
     if (!isWorldLoading) { for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch); }
-    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse')));
+    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (currentWorldMeta.preset || shaderPreset || 'eclipse'));
     renderHotbar(); renderStatusBars(); renderXpBar(); renderEquipmentUI();
       document.getElementById('lobbyScreen').classList.add('hidden');
       if (!isWorldLoading) startPlaying();
@@ -2019,7 +2020,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     resetWorld(seedNum, { deferSpawnChunks: true });
     document.getElementById('lobbyScreen').classList.add('hidden');
     document.body.classList.remove('in-lobby');
-    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse')));
+    applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (currentWorldMeta.preset || shaderPreset || 'eclipse'));
     try { teleportToScenicBiome(chosenBiome, { preserveShader: true }); } catch (err) { console.error('Biome teleport error:', err); }
     window._worldSpawnPos = { x: player.x, y: player.y, z: player.z, yaw: player.yaw };
     if (currentDimension === 'overworld') {
