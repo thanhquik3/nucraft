@@ -276,12 +276,27 @@
       .catch(() => {});
   }
 
-  function ensureRemotePeer(peerId, name, color = '#38bdf8', isBuddy = false, skinId = null, playerKey = '') {
+  function _resolveRemoteSkinKey(peerId, skinId, customSkin) {
+    if (customSkin && typeof customSkin.dataUrl === 'string' && typeof registerRemoteCustomSkin === 'function') {
+      const k = registerRemoteCustomSkin(peerId, customSkin);
+      if (k) return k;
+    }
+    return skinId || null;
+  }
+
+  function broadcastSkinSync() {
+    if (!activeRoomId) return;
+    const cs = (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null;
+    sendCoopMsg({ type: 'skin_sync', skinId: selectedSkinId, customSkin: cs });
+  }
+
+  function ensureRemotePeer(peerId, name, color = '#38bdf8', isBuddy = false, skinId = null, playerKey = '', customSkin = null) {
+    const resolvedSkin = _resolveRemoteSkinKey(peerId, skinId, customSkin);
     let rp = remotePlayers.get(peerId);
     if (rp) {
       if (name) rp.name = name;
       if (playerKey) rp.playerKey = String(playerKey);
-      if (skinId && rp.skinId !== skinId) { rp.skinId = skinId; applySkinToRig(rp.rig, skinId); }
+      if (resolvedSkin && rp.skinId !== resolvedSkin) { rp.skinId = resolvedSkin; applySkinToRig(rp.rig, resolvedSkin); }
       rp._lastPktAt = rp._lastPktAt || performance.now();
       return rp;
     }
@@ -295,7 +310,7 @@
     }
     const skinList = PLAYER_SKINS.map(s => s.id);
     const hashC = peerId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    const chosenSkin = skinId || skinList[hashC % skinList.length];
+    const chosenSkin = resolvedSkin || skinList[hashC % skinList.length];
     const rig = createPlayerRig(chosenSkin, null, null, name, color);
     rig.g.position.set(player.x + 3, player.y, player.z + 3);
     scene.add(rig.g);
@@ -613,7 +628,7 @@
     const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
     const peerSnap = [{
       peerId: localPeerId, name: localPlayerName, color: '#38bdf8',
-      skinId: selectedSkinId, equip: player.equip,
+      skinId: selectedSkinId, customSkin: (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null, equip: player.equip,
       state: { dim: currentDimension, depthOffset: depthOffset || 0, x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z }
     }];
     for (const [pid, pr] of remotePlayers.entries()) {
@@ -753,7 +768,7 @@
       }
       if (m.type === 'p2p_hello') {
         if (senderConn) senderConn._ncPeerId = fromId;
-        const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '');
+        const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
         if (m.equip) applyArmorToPlayerRig(rp.rig, m.equip);
         const hItem = (m.state && m.state.held !== undefined) ? m.state.held : (m.held !== undefined ? m.held : undefined);
         if (hItem !== undefined) setRigHeldItem(rp.rig, hItem);
@@ -783,8 +798,10 @@
       applyModsChunkList(m.mods);
       return;
     }
-    if (m.type === 'state' && m.state) {
-      const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '');
+    if (m.type === 'skin_sync') {
+      ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId || null, m.playerKey || '', m.customSkin || null);
+    } else if (m.type === 'state' && m.state) {
+      const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
       applyRemotePeerState(rp, m.state, m.equip);
     } else if (m.type === 'block') {
       const bDim = m.dim || 'overworld';
@@ -992,7 +1009,7 @@
         if (Array.isArray(peers)) {
           for (const p of peers) {
             if (!p || p.peerId === localPeerId || p.peerId === wsSelfPeerId) continue;
-            const rp = ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null);
+            const rp = ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null, p.playerKey || '', p.customSkin || null);
             if (p.equip) applyArmorToPlayerRig(rp.rig, p.equip);
             if (p.state) applyRemotePeerState(rp, p.state, p.equip);
           }
@@ -1062,7 +1079,7 @@
               if (Array.isArray(msg.peers)) {
                 for (const p of msg.peers) {
                   if (!p || p.peerId === localPeerId || p.peerId === wsSelfPeerId) continue;
-                  const rp = ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null, p.playerKey || '');
+                  const rp = ensureRemotePeer(p.peerId, p.name, p.color || '#38bdf8', false, p.skinId || null, p.playerKey || '', p.customSkin || null);
                   if (p.equip) applyArmorToPlayerRig(rp.rig, p.equip);
                   if (p.state) applyRemotePeerState(rp, p.state, p.equip);
                 }
@@ -1114,8 +1131,13 @@
         } else if (msg.type === 'peer_join') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
-            ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '');
+            ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '', msg.customSkin || null);
             showToast(`👥 ${msg.name} đã tham gia phòng ${activeRoomId}!`);
+          }
+        } else if (msg.type === 'skin_sync') {
+          if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
+          if (msg.peerId && msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
+            ensureRemotePeer(msg.peerId, null, '#f472b6', false, msg.skinId || null, '', msg.customSkin || null);
           }
         } else if (msg.type === 'peer_leave') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
@@ -1126,7 +1148,7 @@
         } else if (msg.type === 'peer_state' && msg.state) {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId) return;
-          const rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '');
+          const rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '', msg.customSkin || null);
           applyRemotePeerState(rp, msg.state, msg.equip);
           if (p2pIsHost) {
             const relay = { type: 'state', _from: msg.peerId, _relayBy: localPeerId, name: msg.name, skinId: msg.skinId || null, equip: msg.equip || null, state: msg.state };
@@ -1294,7 +1316,7 @@
         wsConn.send(JSON.stringify({
           type: 'create_room', roomId: id, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(),
           fresh: isFreshCreate,
-          name: localPlayerName, skinId: selectedSkinId,
+          name: localPlayerName, skinId: selectedSkinId, customSkin: (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null,
           seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
           preset: shaderPreset, dayTime, weatherMode,
           ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ,
@@ -1484,7 +1506,7 @@
     }
     connectCoopSocket((online) => {
       if (online && !joinedOk && !closedOut && wsConn && wsConn.readyState === 1) {
-        wsConn.send(JSON.stringify({ type: 'join_room', roomId, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(), name: localPlayerName, skinId: selectedSkinId }));
+        wsConn.send(JSON.stringify({ type: 'join_room', roomId, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(), name: localPlayerName, skinId: selectedSkinId, customSkin: (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null }));
       } else if (!online && !remoteStarted) {
         startRemoteTransports();
       }

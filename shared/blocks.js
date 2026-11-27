@@ -489,10 +489,92 @@
     diamondHead: _nextTile++, diamondNeck: _nextTile++, diamondBody: _nextTile++, diamondTail: _nextTile++
   };
 
+  // v153: Fishing Rod overhaul loot/cast tiles, End Dragon Realm blocks, End Dragon Scale/Bone gear & Sovereign Knight Armor
+  B.TROPICAL_FISH        = _dynBlockId++;
+  B.PUFFERFISH           = _dynBlockId++;
+  B.ENCHANTED_BOOK       = _dynBlockId++;
+  B.NAME_TAG             = _dynBlockId++;
+  B.NAUTILUS_SHELL       = _dynBlockId++;
+  B.SADDLE               = _dynBlockId++;
+  B.BOWL                 = _dynBlockId++;
+  B.LEATHER              = _dynBlockId++;
+  B.ROTTEN_FLESH         = _dynBlockId++;
+  B.STRING               = _dynBlockId++;
+  B.WATER_BOTTLE         = _dynBlockId++;
+  B.INK_SAC              = _dynBlockId++;
+  B.TRIPWIRE_HOOK        = _dynBlockId++;
+  B.COCOA_BEANS          = _dynBlockId++;
+
+  B.DRAGON_REALM_PORTAL  = _dynBlockId++;
+  B.END_MOSS             = _dynBlockId++;
+  B.END_CRYSTAL_STONE    = _dynBlockId++;
+  B.VOID_LOG             = _dynBlockId++;
+  B.VOID_LEAVES          = _dynBlockId++;
+
+  B.END_DRAGON_SCALE     = _dynBlockId++;
+  B.END_DRAGON_BONE      = _dynBlockId++;
+  B.END_DRAGON_HELMET    = _dynBlockId++;
+  B.END_DRAGON_CHEST     = _dynBlockId++;
+  B.END_DRAGON_LEGS      = _dynBlockId++;
+  B.END_DRAGON_BOOTS     = _dynBlockId++;
+  B.END_DRAGON_SWORD     = _dynBlockId++;
+  B.END_DRAGON_PICK      = _dynBlockId++;
+  B.END_DRAGON_AXE       = _dynBlockId++;
+  B.END_DRAGON_SHOVEL    = _dynBlockId++;
+  B.END_DRAGON_HOE       = _dynBlockId++;
+  B.END_DRAGON_BOW       = _dynBlockId++;
+
+  B.SOVEREIGN_KNIGHT_HELMET = _dynBlockId++;
+  B.SOVEREIGN_KNIGHT_CHEST  = _dynBlockId++;
+  B.SOVEREIGN_KNIGHT_LEGS   = _dynBlockId++;
+  B.SOVEREIGN_KNIGHT_BOOTS  = _dynBlockId++;
+
+  const V153_TILES = {
+    rodCast:           _nextTile++,
+    tropicalFish:      _nextTile++,
+    pufferfish:        _nextTile++,
+    enchantedBook:     _nextTile++,
+    nameTag:           _nextTile++,
+    nautilusShell:     _nextTile++,
+    saddle:            _nextTile++,
+    bowl:              _nextTile++,
+    leather:           _nextTile++,
+    rottenFlesh:       _nextTile++,
+    string:            _nextTile++,
+    waterBottle:       _nextTile++,
+    inkSac:            _nextTile++,
+    tripwireHook:      _nextTile++,
+    cocoaBeans:        _nextTile++,
+    enderDragonEgg:    _nextTile++,
+    dragonRealmPortal: _nextTile++,
+    endMossTop:        _nextTile++,
+    endMossSide:       _nextTile++,
+    endCrystalStone:   _nextTile++,
+    voidLogTop:        _nextTile++,
+    voidLogSide:       _nextTile++,
+    voidLeaves:        _nextTile++,
+    endDragonScale:    _nextTile++,
+    endDragonBone:     _nextTile++,
+    endDragonHelmet:   _nextTile++,
+    endDragonChest:    _nextTile++,
+    endDragonLegs:     _nextTile++,
+    endDragonBoots:    _nextTile++,
+    endDragonSword:    _nextTile++,
+    endDragonPick:     _nextTile++,
+    endDragonAxe:      _nextTile++,
+    endDragonShovel:   _nextTile++,
+    endDragonHoe:      _nextTile++,
+    endDragonBow:      _nextTile++,
+    sovereignHelmet:   _nextTile++,
+    sovereignChest:    _nextTile++,
+    sovereignLegs:     _nextTile++,
+    sovereignBoots:    _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

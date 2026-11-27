@@ -419,6 +419,18 @@
       if (n1 > 0.52 && n1 < 0.64 && n2 > 0.45) return BIOMES.SIFT_WILD;
       return BIOMES.SIFT_MEADOW;
     }
+    if (currentDimension === 'dragon_realm') {
+      const dC = Math.hypot(wx, wz);
+      const dB = Math.hypot(wx, wz - 136);
+      if (dC < 30 || dB < 30) return BIOMES.DR_PLAINS;
+      const n1 = fbm2D(wx * 0.0042, wz * 0.0042, 2, 0.5, 2.0, worldSeed + 8101);
+      const n2 = fbm2D(wx * 0.0050 + 23.1, wz * 0.0050 - 11.7, 2, 0.5, 2.0, worldSeed + 8209);
+      if (n1 > 0.65) return BIOMES.DR_PEAKS;
+      if (n2 > 0.64) return BIOMES.DR_JUNGLE;
+      if (n1 < 0.35) return BIOMES.DR_CAVERNS;
+      if (n2 < 0.38) return BIOMES.DR_PLATEAU;
+      return BIOMES.DR_PLAINS;
+    }
     if (currentDimension === 'end') return BIOMES.THE_END;
     if (currentDimension === 'nether') {
       if (Math.hypot(wx - 64, wz + 72) < 42) return BIOMES.NETHER_BASALT_DELTAS;
@@ -654,6 +666,25 @@
       // Singer's Meadow: thung lũng cỏ xanh ngọc xen kẽ trụ đá Terracotta nổi bật quanh tầm nhìn
       if (mesa > 0.72 && Math.hypot(wx, wz) > 16) return Math.floor(WATER_LEVEL + 11 + Math.floor((mesa - 0.72) * 26));
       return Math.floor(WATER_LEVEL + 2 + Math.floor(base * 3) * 2 + det * 1.5);
+    }
+    if (currentDimension === 'dragon_realm') {
+      const dC = Math.hypot(wx, wz);
+      const dB = Math.hypot(wx, wz - 136);
+      if (dC < 26) return 18;
+      if (dB < 26) return 20;
+      const base = fbm2D(wx * 0.014, wz * 0.014, 3, 0.5, 2.0, worldSeed + 8311);
+      const det  = valueNoise2D(wx * 0.055, wz * 0.055, worldSeed + 8423);
+      if (biome === BIOMES.DR_PEAKS) {
+        const ridge = Math.max(0, 1.0 - Math.abs(base - 0.5) * 3.4);
+        return Math.floor(24 + ridge * 32 + base * 12 + det * 3);
+      }
+      if (biome === BIOMES.DR_PLATEAU) {
+        const step = Math.floor(base * 4.5) * 5;
+        return Math.floor(18 + step + det * 1.5);
+      }
+      if (biome === BIOMES.DR_JUNGLE) return Math.floor(15 + base * 9 + det * 2.5);
+      if (biome === BIOMES.DR_CAVERNS) return Math.floor(20 + base * 10 + det * 2);
+      return Math.floor(16 + base * 6 + det * 1.8);
     }
     if (currentDimension === 'end') {
       const d0 = Math.hypot(wx, wz);
@@ -1119,6 +1150,7 @@
     if (typeof sodiumOpts !== 'undefined' && sodiumOpts.ferriteRam && _chunkDataPool.length > 0) {
       const buf = _chunkDataPool.pop();
       buf.fill(0);
+      window._ferritePoolHits = (window._ferritePoolHits || 0) + 1;
       return buf;
     }
     return new Uint16Array(CHUNK_W * WORLD_H * CHUNK_W);
@@ -1226,6 +1258,7 @@
   // Sodium + Sodium Extra + Lithium + ImmediatelyFast + Entity Culling + More Culling + FerriteCore + ModernFix + ScalableLux Config
   const SODIUM_OPTS_KEY = 'nucraft_sodium_opts_v85';
   const sodiumOpts = Object.assign({
+    sodium: true,         // Sodium Core: direct fast render path, adaptive shadow cadence & tight chunk budget
     entityCulling: true,  // Entity Culling: skip rendering & skeletal animation for frustum/voxel-occluded mobs
     moreCulling: true,    // More Culling: smart interior leaf culling, bottom bedrock culling & sub-model culling
     fastLight: true,      // ScalableLux: cache chunk emitters, AABB slice bounds & squared-distance light solver
@@ -1240,6 +1273,7 @@
     sharpness: true,      // Post-FX clarity unsharp sharpening
     modernFix: true,      // ModernFix: incremental/on-demand audio decode, throttled minimap & dirty-checked HUD
     quickPack: true,      // Quick Pack: fast cache-first bundle loading & texture reuse
+    fpsTarget: 0,         // Target FPS cap (0 = MAX unlocked, 60 / 120 / 240)
     weatherFx: true,      // Sodium Extra: rain/snow weather particle toggle
     clouds: true,         // Sodium Extra: volumetric / voxel clouds toggle
     fog: true,            // Sodium Extra: atmospheric & deep sea fog toggle

@@ -1098,7 +1098,7 @@
         if (typeof quickFireBow === 'function') quickFireBow(tapX, tapY);
         else attackTargetMob(tapX, tapY);
       } else if (selDef && !selDef.food && (!selDef.tool || selDef.tool === 'rod' || selDef.tool === 'flint_steel' || selDef.shield)) {
-        if (hit || selDef.spyglass || selDef.waterBreath || selDef.pearl || (slot && (slot.id === B.ENDER_EYE || slot.id === B.NIGHT_VISION_POTION || slot.id === B.SWIFT_SNEAK_BOOK || slot.id === B.SNOWBALL || slot.id === B.MUSIC_DISC_5 || slot.id === B.MUSIC_DISC_OTHERSIDE)) || selDef.armorSlot || selDef.shield || selDef.boat) {
+        if (hit || selDef.tool === 'rod' || selDef.spyglass || selDef.waterBreath || selDef.pearl || selDef.enchantedBook || (slot && (slot.id === B.ENDER_EYE || slot.id === B.NIGHT_VISION_POTION || slot.id === B.SWIFT_SNEAK_BOOK || slot.id === B.SNOWBALL || slot.id === B.MUSIC_DISC_5 || slot.id === B.MUSIC_DISC_OTHERSIDE)) || selDef.armorSlot || selDef.shield || selDef.boat) {
           handlePlaceOrEat(tapX, tapY);
         } else {
           attackTargetMob(tapX, tapY);
@@ -2205,12 +2205,17 @@
   function _isSpecialGlintItem(blockId) {
     const def = BLOCK_DEF[blockId];
     if (def && def.rainbow) return true;
-    return blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE ||
+    return blockId === B.FIRE_SWORD || blockId === B.ENCHANTED_BOOK ||
+      blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE ||
       blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD ||
       blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW ||
       blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE ||
       blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK ||
-      blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW;
+      blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW ||
+      blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_PICK || blockId === B.END_DRAGON_AXE ||
+      blockId === B.END_DRAGON_SHOVEL || blockId === B.END_DRAGON_HOE || blockId === B.END_DRAGON_BOW ||
+      blockId === B.SOVEREIGN_KNIGHT_HELMET || blockId === B.SOVEREIGN_KNIGHT_CHEST ||
+      blockId === B.SOVEREIGN_KNIGHT_LEGS || blockId === B.SOVEREIGN_KNIGHT_BOOTS;
   }
   function _apply2DEnchantSheen(c2d, W, H, isEnch, isSpecial) {
     if (!isEnch && !isSpecial) return;
@@ -2510,12 +2515,16 @@
       if (_lblEl) _lblEl.textContent = def ? (((typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(sel.id) : def.name) + (sel && sel.ench ? ' ✦' : '')) : '';
       player.itemLabelT = 2.0;
     }
-    updateHeldViewModel(sel && sel.count > 0 ? sel.id : B.AIR, sel && sel.count > 0 ? sel : null);
+    const _vmMeta = (sel && sel.count > 0)
+      ? ((sel.id === B.FISHING_ROD && typeof isFishingRodCast === 'function' && isFishingRodCast()) ? { ...sel, rodCast: true } : sel)
+      : null;
+    updateHeldViewModel(sel && sel.count > 0 ? sel.id : B.AIR, _vmMeta);
   }
   function selectHotbarSlot(idx) {
     if (idx < 0 || idx > 8) return;
     const prev = player.selectedSlot;
     if (prev !== idx) {
+      if (typeof cancelFishingCast === 'function' && inventory[idx]?.id !== B.FISHING_ROD) cancelFishingCast(true);
       player.selectedSlot = idx;
       if (slotIcons[prev]?.slot) slotIcons[prev].slot.classList.remove('active');
       if (slotIcons[idx]?.slot) slotIcons[idx].slot.classList.add('active');
@@ -2525,10 +2534,13 @@
   }
 
   const _EQ_EMPTY_TIP = { helmet: 'Mũ', chest: 'Áo', legs: 'Quần', boots: 'Giày', offhand: 'Tay trái' };
+  const _ROMAN_LV = ['', 'I', 'II', 'III'];
   function shortItemTip(id, meta = null) {
     const raw = BLOCK_DEF[id]?.name || '';
     let base = raw.replace(/\s*\((?!\+\d+|Cấp \d+|\d+ Ô|\d+s\))[^)]*\)/g, '').trim();
     if (meta && meta.trim) base += ` [Trim: ${meta.trim.pattern}/${meta.trim.label}]`;
+    if (meta && meta.luck > 0) base += ` [May Mắn ${_ROMAN_LV[meta.luck] || meta.luck}]`;
+    if (meta && meta.lure > 0) base += ` [Nhử Mồi ${_ROMAN_LV[meta.lure] || meta.lure}]`;
     if (meta && meta.ench) base += ' ✦';
     return base;
   }
@@ -3476,11 +3488,16 @@
     const elG = document.getElementById('dstatGender');
     const elS = document.getElementById('dstatSpeed');
     const elD = document.getElementById('dstatDmg');
-    if (elN) elN.textContent = `${locName} • ${stNames[stg] || stNames[0]} (${Math.round(m.growth || 0)}%)`;
+    const elPct = document.getElementById('dstatGrowthPct');
+    const elFill = document.getElementById('dstatGrowthFill');
+    const gPct = Math.max(0, Math.min(100, Number(m.growth) || 0));
+    if (elN) elN.textContent = `${locName} • ${stNames[stg] || stNames[0]} (${Math.round(gPct)}%)`;
     if (elH) elH.textContent = tr(`Máu: ${Math.ceil(m.hp)} / ${m.maxHp}`, `Health: ${Math.ceil(m.hp)} / ${m.maxHp}`);
     if (elG) elG.textContent = tr(`Giới tính: ${m.gender === 'F' ? 'Cái ♀' : 'Đực ♂'}`, `Gender: ${m.gender === 'F' ? 'Female ♀' : 'Male ♂'}`);
     if (elS) elS.textContent = tr(`Tốc độ: Đi 3.6 • Bay ${flySpd}`, `Speed: Walk 3.6 • Fly ${flySpd}`);
     if (elD) elD.textContent = tr(`Sát thương: ${m.dmg} • Giáp: ${armPts}/20`, `Damage: ${m.dmg} • Armor: ${armPts}/20`);
+    if (elPct) elPct.textContent = `${Math.round(gPct)}%` + (gPct >= 100 ? tr(' (Tối đa)', ' (Max)') : '');
+    if (elFill) elFill.style.width = `${gPct.toFixed(1)}%`;
     if (!_dragonEqSlotEls) {
       _dragonEqSlotEls = Array.from(_elDragonModal.querySelectorAll('.dragon-eq-slot'));
       for (const el of _dragonEqSlotEls) {

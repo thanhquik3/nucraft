@@ -40,7 +40,8 @@
     [B.PALM_LOG]:       { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.MANGROVE_LOG]:   { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
     [B.AZURE_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
-    [B.SCULK_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 }
+    [B.SCULK_LOG]:      { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 },
+    [B.VOID_LOG]:       { out: B.CHARCOAL,        kind: 'misc', xp: 2,  cookTime: 10.0 }
   };
   for (const wf of WOOD_FAMILIES) {
     if (wf.fuel > 0) {
@@ -416,7 +417,21 @@
     }),
     { cat: 'misc',   is2x2: true, out: B.BONE_MEAL,  qty: 3, req: [{ id: B.BONE, qty: 1 }],       grid: [0,0,0, 0,B.BONE,0, 0,0,0] },
     { cat: 'misc',   is2x2: true, out: B.BONE_MEAL,  qty: 9, req: [{ id: B.BONE_BLOCK, qty: 1 }], grid: [0,0,0, 0,B.BONE_BLOCK,0, 0,0,0] },
-    { cat: 'blocks',              out: B.BONE_BLOCK, qty: 1, req: [{ id: B.BONE_MEAL, qty: 9 }],  grid: [B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL] }
+    { cat: 'blocks',              out: B.BONE_BLOCK, qty: 1, req: [{ id: B.BONE_MEAL, qty: 9 }],  grid: [B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL, B.BONE_MEAL,B.BONE_MEAL,B.BONE_MEAL] },
+    // v153: Classic String Bow/Rod + End Dragon Realm Scale & Bone Gear (= Dream Prism Sift Tier)
+    { cat: 'tools',  out: B.BOW,               qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.STRING, qty: 3 }], grid: [0,B.STICK,B.STRING, B.STICK,0,B.STRING, 0,B.STICK,B.STRING] },
+    { cat: 'tools',  out: B.FISHING_ROD,       qty: 1, req: [{ id: B.STICK, qty: 3 }, { id: B.STRING, qty: 2 }], grid: [0,0,B.STICK, 0,B.STICK,B.STRING, B.STICK,0,B.STRING] },
+    { cat: 'tools',  out: B.DRAGON_SADDLE,     qty: 1, req: [{ id: B.SADDLE, qty: 1 }, { id: B.DRAGON_CRYSTAL, qty: 2 }, { id: B.DRAGON_SCALE, qty: 2 }], grid: [B.DRAGON_SCALE,B.DRAGON_CRYSTAL,B.DRAGON_SCALE, 0,B.SADDLE,0, 0,B.DRAGON_CRYSTAL,0] },
+    { cat: 'tools',  out: B.END_DRAGON_HELMET, qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 5 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, 0,0,0] },
+    { cat: 'tools',  out: B.END_DRAGON_CHEST,  qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 8 }], grid: [B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE] },
+    { cat: 'tools',  out: B.END_DRAGON_LEGS,   qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 7 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE] },
+    { cat: 'tools',  out: B.END_DRAGON_BOOTS,  qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 4 }], grid: [0,0,0, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE, B.END_DRAGON_SCALE,0,B.END_DRAGON_SCALE] },
+    { cat: 'tools',  out: B.END_DRAGON_SWORD,  qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 2 }, { id: B.END_DRAGON_BONE, qty: 1 }], grid: [0,B.END_DRAGON_SCALE,0, 0,B.END_DRAGON_SCALE,0, 0,B.END_DRAGON_BONE,0] },
+    { cat: 'tools',  out: B.END_DRAGON_PICK,   qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 3 }, { id: B.END_DRAGON_BONE, qty: 2 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,B.END_DRAGON_SCALE, 0,B.END_DRAGON_BONE,0, 0,B.END_DRAGON_BONE,0] },
+    { cat: 'tools',  out: B.END_DRAGON_AXE,    qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 3 }, { id: B.END_DRAGON_BONE, qty: 2 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,0, B.END_DRAGON_SCALE,B.END_DRAGON_BONE,0, 0,B.END_DRAGON_BONE,0] },
+    { cat: 'tools',  out: B.END_DRAGON_SHOVEL, qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 1 }, { id: B.END_DRAGON_BONE, qty: 2 }], grid: [0,B.END_DRAGON_SCALE,0, 0,B.END_DRAGON_BONE,0, 0,B.END_DRAGON_BONE,0] },
+    { cat: 'tools',  out: B.END_DRAGON_HOE,    qty: 1, req: [{ id: B.END_DRAGON_SCALE, qty: 2 }, { id: B.END_DRAGON_BONE, qty: 2 }], grid: [B.END_DRAGON_SCALE,B.END_DRAGON_SCALE,0, 0,B.END_DRAGON_BONE,0, 0,B.END_DRAGON_BONE,0] },
+    { cat: 'tools',  out: B.END_DRAGON_BOW,    qty: 1, req: [{ id: B.END_DRAGON_BONE, qty: 3 }, { id: B.END_DRAGON_SCALE, qty: 2 }], grid: [0,B.END_DRAGON_BONE,B.END_DRAGON_SCALE, B.END_DRAGON_BONE,0,B.END_DRAGON_SCALE, 0,B.END_DRAGON_BONE,0] }
   ];
 
   const BIOMES = {
@@ -492,7 +507,12 @@
     SNOWY_PLAINS:         { id: 69, name: 'Đồng Bằng Tuyết' },
     NETHER_BASALT_DELTAS: { id: 70, name: 'Địa Ngục • Đồng Bằng Đá Bazan' },
     NETHER_SOUL_VALLEY:   { id: 71, name: 'Địa Ngục • Thung Lũng Cát Linh Hồn' },
-    GRAND_RUINS:          { id: 72, name: 'Khu Tàn Tích Cổ Đại 1000×1000' }
+    GRAND_RUINS:          { id: 72, name: 'Khu Tàn Tích Cổ Đại 1000×1000' },
+    DR_JUNGLE:            { id: 73, name: 'Thế Giới Rồng • Rừng Rậm Hư Không' },
+    DR_PLATEAU:           { id: 74, name: 'Thế Giới Rồng • Cao Nguyên Tử Tinh' },
+    DR_PEAKS:             { id: 75, name: 'Thế Giới Rồng • Núi Cao Rồng Cổ' },
+    DR_PLAINS:            { id: 76, name: 'Thế Giới Rồng • Đồng Bằng Hư Không' },
+    DR_CAVERNS:           { id: 77, name: 'Thế Giới Rồng • Hang Động Tinh Thể' }
   };
   const BIOME_LIST = [];
   for (const _b of Object.values(BIOMES)) BIOME_LIST[_b.id] = _b;
@@ -533,7 +553,9 @@
     dream_prism:   { main: '#38e8e1', hi: '#ffffff', dark: '#3b0764', glint: '#ffffff', trim: '#f8fafc', hex: 0x69b8ff, rough: 0.16, metal: 0.68, emit: 0.28, rainbow: true, waterSeed: 5.1, style: 'prism' },
     warden_chitin:     { main: '#0f5c6e', hi: '#22d3ee', dark: '#071b24', glint: '#a5f3fc', trim: '#14b8a6', hex: 0x0e7490, rough: 0.32, metal: 0.45, emit: 0.18 },
     warden_resonant:   { main: '#0891b2', hi: '#a5f3fc', dark: '#082633', glint: '#ecfeff', trim: '#38bdf8', hex: 0x22d3ee, rough: 0.24, metal: 0.52, emit: 0.26 },
-    warden_soulforged: { main: '#1d4ed8', hi: '#67e8f9', dark: '#0f0c29', glint: '#f5d0fe', trim: '#c084fc', hex: 0x38bdf8, rough: 0.20, metal: 0.60, emit: 0.34 }
+    warden_soulforged: { main: '#1d4ed8', hi: '#67e8f9', dark: '#0f0c29', glint: '#f5d0fe', trim: '#c084fc', hex: 0x38bdf8, rough: 0.20, metal: 0.60, emit: 0.34 },
+    end_dragon:        { main: '#6b21a8', hi: '#d8b4fe', dark: '#1e0b36', glint: '#f5d0fe', trim: '#c084fc', hex: 0x9333ea, rough: 0.22, metal: 0.58, emit: 0.26 },
+    sovereign_knight:  { main: '#9aa8b8', hi: '#dbeafe', dark: '#273043', glint: '#67e8f9', trim: '#2dd4bf', hex: 0x67e8f9, rough: 0.20, metal: 0.72, emit: 0.22 }
   };
   const TRIM_MATERIALS = {
     [B.QUARTZ_ORE]:      { id: 'quartz',    label: 'Thạch Anh',  hex: '#e3d4c4', hi: '#fff8f0', dark: '#b4a595' },
@@ -1034,13 +1056,15 @@
     dragon_bone_bow:   { D: '#450a0a', W: '#e7e5e4', M: '#b8322e', g: '#d6d3d1', G: '#fef3c7', H: '#fef08a', S: '#d6d3d1', A: '#94a3b8', a: '#b8322e', f: '#fde68a' },
     sculk_echo_bow:    { D: '#041c24', W: '#155e75', M: '#0e7490', g: '#14b8a6', G: '#67e8f9', H: '#cffafe', S: '#a5f3fc', A: '#0891b2', a: '#0c4a6e', f: '#e0f2fe' },
     deep_sonic_bow:    { D: '#082f49', W: '#38bdf8', M: '#0284c7', g: '#7dd3fc', G: '#e0f2fe', H: '#f8fafc', S: '#bae6fd', A: '#0369a1', a: '#0e7490', f: '#f0f9ff' },
-    soul_harbinger_bow:{ D: '#161136', W: '#6d5bd0', M: '#4338ca', g: '#7dd3fc', G: '#e9d5ff', H: '#f5f3ff', S: '#c4b5fd', A: '#4c1d95', a: '#312e81', f: '#e9d5ff' }
+    soul_harbinger_bow:{ D: '#161136', W: '#6d5bd0', M: '#4338ca', g: '#7dd3fc', G: '#e9d5ff', H: '#f5f3ff', S: '#c4b5fd', A: '#4c1d95', a: '#312e81', f: '#e9d5ff' },
+    end_dragon_bow:    { D: '#1f0b36', W: '#7e22ce', M: '#a855f7', g: '#c084fc', G: '#f3e8ff', H: '#fdf4ff', S: '#e9d5ff', A: '#581c87', a: '#4c1d95', f: '#f5d0fe' }
   };
   const _BOW_PAL_BY_ID = {
     [B.DRAGON_BONE_BOW]:    BOW_PALETTES.dragon_bone_bow,
     [B.SCULK_ECHO_BOW]:     BOW_PALETTES.sculk_echo_bow,
     [B.DEEP_SONIC_BOW]:     BOW_PALETTES.deep_sonic_bow,
-    [B.SOUL_HARBINGER_BOW]: BOW_PALETTES.soul_harbinger_bow
+    [B.SOUL_HARBINGER_BOW]: BOW_PALETTES.soul_harbinger_bow,
+    [B.END_DRAGON_BOW]:     BOW_PALETTES.end_dragon_bow
   };
   function getBowStageSprite(blockId, stage = 0) {
     const st = Math.max(0, Math.min(3, stage | 0));
@@ -4825,6 +4849,417 @@
           if (ti !== undefined) drawSpriteMap(ti, daSprites[sk], pal);
         }
       }
+    }
+
+    // v153 Tiles (696..734): Fishing rod cast + loot items, Ender egg, End Dragon Realm blocks, End Dragon Scale/Bone gear & Sovereign Knight Armor
+    if (typeof V153_TILES !== 'undefined') {
+      // Cast Fishing Rod (bare rod without hanging line/bobber)
+      drawSpriteMap(V153_TILES.rodCast, [
+        '................',
+        '...........ooo..',
+        '..........oMMo..',
+        '.........oMMo...',
+        '........oMMo....',
+        '.......oWWo.....',
+        '......oWMo......',
+        '.....oWWo.......',
+        '....oWWo........',
+        '...oBBo.........',
+        '..oBBo..........',
+        '.oBBo...........',
+        '.ooo............',
+        '................',
+        '................',
+        '................'
+      ], { o: '#291a0d', B: '#854d0e', W: '#a16207', M: '#94a3b8' });
+
+      // Tropical Fish & Pufferfish
+      drawSpriteMap(V153_TILES.tropicalFish, [
+        '................',
+        '................',
+        '................',
+        '.......oooo.....',
+        '.....ooOOWWo....',
+        '...ooOOWWooOo...',
+        '..oOOOWWOoOeOo..',
+        '.oOooOOWWOOOOOo.',
+        '.oOOoOOWWOOOOo..',
+        '..oo.ooOOoooo...',
+        '......oooo......',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#431407', O: '#f97316', W: '#fff7ed', e: '#020617' });
+      drawSpriteMap(V153_TILES.pufferfish, [
+        '................',
+        '.....s....s.....',
+        '....sYYYYYYs....',
+        '..soYYHHHHYYos..',
+        '..oYYHHHHHHYYo..',
+        '.soYeHWWWWHeYos.',
+        '.oYYWWWWWWWWYYo.',
+        'sYYYYCCCCCCYYYYs',
+        '.oYYCCCCCCCCYYo.',
+        '..sYYCCCCCCYYs..',
+        '...ooYYYYYYoo...',
+        '....s.oooo.s....',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#713f12', s: '#fef08a', Y: '#facc15', H: '#fde047', W: '#fef9c3', C: '#e2e8f0', e: '#0f172a' });
+
+      // Treasure items: Enchanted Book, Name Tag, Nautilus Shell, Horse Saddle
+      drawSpriteMap(V153_TILES.enchantedBook, [
+        '................',
+        '.....oooooooo...',
+        '....oPPPPPPPPo..',
+        '...oPPHGGGGPPo..',
+        '...oPPPRRRGPPo..',
+        '..oPPPPGRRPPPo..',
+        '..oPPGGGGPPPWo..',
+        '.oPPPPPPPPWWWWo.',
+        '.oPDDDDPPWWWWoo.',
+        '.oDDDDDPWWWWo...',
+        '..ooooRPWWWoo...',
+        '......oRWWoo....',
+        '.......oooo.....',
+        '................',
+        '................',
+        '................'
+      ], { o: '#2e1065', P: '#9333ea', H: '#f0abfc', D: '#581c87', G: '#fbbf24', R: '#ef4444', W: '#f1f5f9' });
+      drawSpriteMap(V153_TILES.nameTag, [
+        '................',
+        '................',
+        '.........oooo...',
+        '........oMMMMo..',
+        '.......oMoooMMo.',
+        '......oMMooooMo.',
+        '.....oMMWWWWMMo.',
+        '....oMMWWooWMMo.',
+        '...oMMWWWWMMo...',
+        '..oMMWWooMMo....',
+        '..oMMWWMMoo.....',
+        '..oMMMMoo.......',
+        '...oooo.........',
+        '................',
+        '................',
+        '................'
+      ], { o: '#3f3f46', M: '#d6c7a9', W: '#f8fafc' });
+      drawSpriteMap(V153_TILES.nautilusShell, [
+        '................',
+        '.....oooooo.....',
+        '...ooWWWWWWoo...',
+        '..oWWPPPPPPWWo..',
+        '.oWWPooooooPWWo.',
+        '.oWPoWWPPPPoWWo.',
+        '.oWPoWPoPPoPWWo.',
+        '.oWPoWPPooPWWo..',
+        '..oWWPPPPWWoo...',
+        '...ooWWWWoo.....',
+        '....oDDDDoo.....',
+        '.....ooooo......',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#5c3a31', W: '#f5ede4', P: '#e8a898', D: '#c27b6b' });
+      drawSpriteMap(V153_TILES.saddle, [
+        '................',
+        '................',
+        '....ooooooo.....',
+        '...oRRRRRRRo....',
+        '..oRHHHHHHHRo...',
+        '..oRDDDDDDDRo...',
+        '..oRRoGGGGGoRo..',
+        '...ooRRRRRRoo...',
+        '...oRoo..ooRo...',
+        '...oGo....oGo...',
+        '...oo......oo...',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#450a0a', R: '#b45309', H: '#ea580c', D: '#7c2d12', G: '#64748b' });
+
+      // Junk items: Bowl, Leather, Rotten Flesh, String, Water Bottle, Ink Sac, Tripwire Hook, Cocoa Beans
+      drawSpriteMap(V153_TILES.bowl, [
+        '................',
+        '................',
+        '................',
+        '................',
+        '..oooooooooooo..',
+        '.oHHHHHHHHHHHHo.',
+        '.oMMMMMMMMMMMMo.',
+        '..oMMDDDDDDMMo..',
+        '...oDDDDDDDDo...',
+        '....oooooooo....',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#3f2310', H: '#b47a44', M: '#8c5a2b', D: '#5c3919' });
+      drawSpriteMap(V153_TILES.leather, [
+        '................',
+        '...ooo....ooo...',
+        '..oHHHo..oHHHo..',
+        '..oHMMooooMMHo..',
+        '..oHMMMMMMMMHo..',
+        '..oMMMMMMMMMDo..',
+        '..oMMMMDDMMMDo..',
+        '...oMMDDDDMDo...',
+        '...oMDDDDDDo....',
+        '..oHHDDDDDDo....',
+        '..oHHoo..ooo....',
+        '...oo...........',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#451a03', H: '#d97706', M: '#b45309', D: '#78350f' });
+      drawSpriteMap(V153_TILES.rottenFlesh, [
+        '................',
+        '....ooo.........',
+        '..ooGGGoo.......',
+        '.oGGMMGGGo......',
+        '.oGMMMMMRRo.....',
+        '..oMMMRRRRo.....',
+        '..oMMGMRRRRo....',
+        '...oMMGGRRRo....',
+        '....ooMMRRo.....',
+        '......oooo......',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#365314', G: '#65a30d', M: '#991b1b', R: '#b91c1c' });
+      drawSpriteMap(V153_TILES.string, [
+        '................',
+        '.......oooo.....',
+        '.....ooWWWoo....',
+        '....oWWoooWWo...',
+        '....oWo..oWWo...',
+        '...oWWo.oWWo....',
+        '...oWWooWWo.....',
+        '....ooWWoo......',
+        '.....oWWo.......',
+        '....oWWo........',
+        '...oWWo.........',
+        '..oWWo..........',
+        '..ooo...........',
+        '................',
+        '................',
+        '................'
+      ], { o: '#94a3b8', W: '#f8fafc' });
+      drawSpriteMap(V153_TILES.waterBottle, [
+        '................',
+        '......oooo......',
+        '......oCCo......',
+        '.....oGGGGoo....',
+        '.....oGWWGGo....',
+        '....oGWWWWGo....',
+        '...oGBBBBBWGo...',
+        '...oGBBBBBWGo...',
+        '...oGBBHHBWGo...',
+        '...oGBBBBBWGo...',
+        '...oGWWWWWWGo...',
+        '....oooooooo....',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#1e293b', C: '#a16207', G: '#cbd5e1', W: '#e0f2fe', B: '#0284c7', H: '#38bdf8' });
+      drawSpriteMap(V153_TILES.inkSac, [
+        '................',
+        '.......oo.......',
+        '......oMMo......',
+        '.....oDDMMo.....',
+        '....oDDDDDDo....',
+        '...oDDHHDDDDo...',
+        '...oDDHDDDDDo...',
+        '...oDDDDDDDDo...',
+        '....oDDDDDDo....',
+        '.....oooooo.....',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#020617', D: '#0f172a', M: '#1e293b', H: '#334155' });
+      drawSpriteMap(V153_TILES.tripwireHook, [
+        '................',
+        '......oooo......',
+        '.....oBBBBoo....',
+        '.....oBBBBWo....',
+        '.....oBMMMWo....',
+        '.....oBMMo......',
+        '.....oBBMo......',
+        '......oMMMo.....',
+        '.......oMMMo....',
+        '........oMo.....',
+        '.......oMo......',
+        '.......oo.......',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#1f2937', B: '#854d0e', W: '#e2e8f0', M: '#94a3b8' });
+      drawSpriteMap(V153_TILES.cocoaBeans, [
+        '................',
+        '.....oooo.......',
+        '....oHHHDo......',
+        '...oHHMDDDo.....',
+        '..oHMMMDDDDo....',
+        '..oHMMDDDDDo....',
+        '..oMMDDDDDDo....',
+        '...oDDDDDDo.....',
+        '....oooooo......',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], { o: '#271206', H: '#b45309', M: '#92400e', D: '#5c2810' });
+
+      // Fix Ender Dragon Egg sprite (obsidian + purple spots)
+      drawDragonEggTile(V153_TILES.enderDragonEgg, '#05030a', '#0f071a', '#26103d', '#9333ea', '#f0abfc');
+
+      // End Dragon Realm Blocks
+      tilePixels(V153_TILES.dragonRealmPortal, (x, y, r) => {
+        const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy);
+        const sw = Math.sin(d * 0.85 - Math.atan2(dy, dx) * 3.0);
+        if (d < 3.4) return sw > 0 ? '#f0abfc' : '#67e8f9';
+        if (sw > 0.25) return r > 0.5 ? '#c084fc' : '#9333ea';
+        return r > 0.6 ? '#2e1065' : '#090514';
+      });
+      tilePixels(V153_TILES.endMossTop, (x, y, r) => {
+        if ((x * 5 + y * 7) % 13 === 0) return '#a855f7';
+        if ((x * 3 + y * 2) % 17 === 0) return '#22d3ee';
+        return shade(((x ^ y) & 1) ? '#4c1d95' : '#3b0764', (r - 0.5) * 14);
+      });
+      tilePixels(V153_TILES.endMossSide, (x, y, r) => {
+        if (y <= 3 || (y === 4 && ((x + y) & 1))) return shade(((x ^ y) & 1) ? '#5b21b6' : '#4c1d95', (r - 0.5) * 12);
+        return shade(((x + y) & 1) ? '#1f0b36' : '#2e1065', (r - 0.5) * 10);
+      });
+      tilePixels(V153_TILES.endCrystalStone, (x, y, r) => {
+        if ((x + y * 3) % 11 === 0) return r > 0.5 ? '#9333ea' : '#581c87';
+        return shade(((x ^ y) & 1) ? '#1e0b36' : '#2a124a', (r - 0.5) * 10);
+      });
+      tilePixels(V153_TILES.voidLogTop, (x, y, r) => logTopColor(x, y, r, '#1a0830', '#4c1d95', '#3b0764', '#6b21a8', '#c084fc'));
+      tilePixels(V153_TILES.voidLogSide, (x, y, r) => barkColor(x, y, r, { c: '#6b21a8', a: '#3b0764', b: '#24083d', d: '#140424' }));
+      drawFancyLeaf(V153_TILES.voidLeaves, { H: '#e879f9', M: '#a855f7', S: '#6b21a8', D: '#3b0764' }, BOTANICAL_LEAF_MASK);
+
+      // End Dragon Scale & Bone + Armor/Tools (strict canonical Rule #6 for all tools & bow!)
+      drawScaleTile(V153_TILES.endDragonScale, '#160726', '#f5d0fe', '#a855f7', '#581c87');
+      drawSpriteMap(V153_TILES.endDragonBone, [
+        '................','..........oo....','.........oHHo...','........oHHPPo..','........oPMMoo..','.......oPMMo....','......oPMMo.....','.....oPMMo......','....oPMMo.......','...oPMMo........','..oHHPo.........','.oHHPPo.........','.oPPoo..........','..oo............','................','................'
+      ], { o: '#2e1065', H: '#faf5ff', P: '#d8b4fe', M: '#9333ea' });
+      const palEndDrgArmor = { o: '#160726', H: '#f0abfc', M: '#9333ea', D: '#3b0764', G: '#67e8f9' };
+      drawSpriteMap(V153_TILES.endDragonHelmet, [
+        '................','....G......G....','...oGo....oGo...','...oHooooooHo...','..oHHHHHHHHHHo..','..oHMMGGGGMMHo..','..oHMDDDDDDMHo..','..oHDo....oDHo..','..ooo......ooo..','................','................','................','................','................','................','................'
+      ], palEndDrgArmor);
+      drawSpriteMap(V153_TILES.endDragonChest, [
+        '................','..ooo......ooo..','.oHHHoo..ooHHHo.','.oHMMMoGGooMMHo.','.oHMGGGGGGGMHHo.','..ooMMMMMMMMoo..','...oMMDDDDMMo...','...oMDGGGGDMo...','...oMMMMMMMMo...','...oDDDDDDDDo...','....oooooooo....','................','................','................','................','................'
+      ], palEndDrgArmor);
+      drawSpriteMap(V153_TILES.endDragonLegs, [
+        '................','..oooooooooooo..','..oGGGGGGGGGGoo.','..oHHHHHHHHHHo..','..oMMMMooMMMMo..','..oMMDo..oDMMo..','..oMMDo..oDMMo..','..oMDDo..oDDMo..','..oMDDo..oDDMo..','..oDDDo..oDDDo..','..oooo....oooo..','................','................','................','................','................'
+      ], palEndDrgArmor);
+      drawSpriteMap(V153_TILES.endDragonBoots, [
+        '................','................','................','................','..oooo....oooo..','..oHHo....oHHo..','..oMMo....oMMo..','..oGGo....oGGo..','.oHMMo....oMMHo.','.oDDDo....oDDDo.','oooooo....oooooo','................','................','................','................','................'
+      ], palEndDrgArmor);
+
+      const palEndDrgTool = { D: '#1f0b36', W: '#7e22ce', M: '#a855f7', H: '#f5d0fe', G: '#67e8f9', s: '#c084fc', S: '#f3e8ff', w: '#3b0764' };
+      drawCanonicalTool(V153_TILES.endDragonSword,  'sword',  palEndDrgTool);
+      drawCanonicalTool(V153_TILES.endDragonPick,   'pick',   palEndDrgTool);
+      drawCanonicalTool(V153_TILES.endDragonAxe,    'axe',    palEndDrgTool);
+      drawCanonicalTool(V153_TILES.endDragonShovel, 'shovel', palEndDrgTool);
+      drawCanonicalTool(V153_TILES.endDragonHoe,    'hoe',    palEndDrgTool);
+      { const edBow0 = getBowStageSprite(B.END_DRAGON_BOW, 0); drawSpriteMap(V153_TILES.endDragonBow, edBow0.rows, edBow0.pal); }
+
+      // Sovereign Dragon Knight Boss Armor Icons (matching media_1795730359016_36734bde.png)
+      const palSovIcon = { o: '#1f2937', D: '#475569', M: '#7c8b9e', H: '#dbeafe', T: '#2dd4bf', C: '#67e8f9', Q: '#0f766e', W: '#ffffff' };
+      drawSpriteMap(V153_TILES.sovereignHelmet, [
+        '.....TTTT.......',
+        '....oTTTTToo....',
+        '...oTTQQQHHo....',
+        '.CCoTTTQHHCHo...',
+        '.CCQoTTTTCCHMo..',
+        '..oQooMMMMMMMMo.',
+        '...oQMoHHHMCoMo.',
+        '...ooMMMMMMooMo.',
+        '....oDDDDDDoDDo.',
+        '....oDDoDoDoDDo.',
+        '.....oo.oooo.o..',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], palSovIcon);
+      drawSpriteMap(V153_TILES.sovereignChest, [
+        '................',
+        '..ooo......ooo..',
+        '.oHHMo....oMHHo.',
+        '.oHMMoTTTTToMHo.',
+        '.oHMMMHCCCHMMHo.',
+        '..ooMMMMMMMoMoo.',
+        '...oMMHHHMMMo...',
+        '...oMMMDMMMMo...',
+        '...oMMMMMMMMo...',
+        '...oHHHHHHHHo...',
+        '....oooooooo....',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], palSovIcon);
+      drawSpriteMap(V153_TILES.sovereignLegs, [
+        '................',
+        '..oooooooooooo..',
+        '..oMMMMMMMMMMo..',
+        '..oMMMCCHCMMMo..',
+        '..oMMMMooMMMMo..',
+        '..oMMMo..oMMMo..',
+        '..oHMo....oMHo..',
+        '..oHMo....oMHo..',
+        '..oMDDo..oDDMo..',
+        '..oDDDo..oDDDo..',
+        '..oooo....oooo..',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], palSovIcon);
+      drawSpriteMap(V153_TILES.sovereignBoots, [
+        '................',
+        '................',
+        '................',
+        '................',
+        '..oooo....oooo..',
+        '..oMMo....oMMo..',
+        '..oHMo....oMHo..',
+        '..oTTo....oTTo..',
+        '.oHHMo....oMHHo.',
+        '.oDDDo....oDDDo.',
+        'oooooo....oooooo',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................'
+      ], palSovIcon);
     }
 
     // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)

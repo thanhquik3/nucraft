@@ -98,6 +98,7 @@
     if (targetKey === 'dim_nether') { _wrapDimLoad('Đang tải Địa Ngục', 'Đang kiến tạo dung nham & thành trì The Nether...', 'THE NETHER', () => switchDimension('nether')); return; }
     if (targetKey === 'nether_castle') { _wrapDimLoad('Đang tải Lâu Đài Địa Ngục', 'Đang dựng Lâu Đài Gothic Địa Ngục & cầu đá đen trên biển dung nham...', 'NETHER CASTLE', () => switchDimension('nether', '🏰 Đã tới Lâu Đài Địa Ngục! Khám phá tòa thành tháp ngọc lam giữa biển dung nham!', { castleHero: true })); return; }
     if (targetKey === 'dim_end') { _wrapDimLoad('Đang tải Khu Kết Thúc', 'Đang dựng đảo Ender & Đấu Trường Rồng...', 'THE END', () => switchDimension('end')); return; }
+    if (targetKey === 'dim_dragon_realm') { _wrapDimLoad('Đang tải Thế Giới Rồng The End', 'Đang kiến tạo Thành Cổ Purpur, Hẻm Hang Pha Lê & Boss 50 Skill...', 'DRAGON REALM', () => switchDimension('dragon_realm')); return; }
     if (targetKey === 'dim_warden') { _wrapDimLoad('Đang tải Thế Giới Warden', 'Đang dựng Cổ Thành Sculk, Rừng Linh Hồn & Quặng Tier 6...', 'WARDEN REALM', () => switchDimension('warden')); return; }
     if (targetKey === 'dim_sift') { _wrapDimLoad('Đang tải The Sift', 'Đang dệt vùng đất Giấc Mơ & ao Ichor cầu vồng...', 'THE SIFT', () => switchDimension('sift')); return; }
     if (targetKey === 'sift_meadow' || targetKey === 'sift_huskland' || targetKey === 'sift_lullaby' || targetKey === 'sift_fungal' || targetKey === 'sift_burrows') {
@@ -908,11 +909,25 @@
       if (key === 'clouds' || key === 'fog') {
         try { updateAtmosphere(0.016); } catch (_) {}
       }
+      if (key === 'sodium') {
+        if (typeof _postFxDirty !== 'undefined') _postFxDirty = true;
+        if (renderer) renderer.toneMapping = (typeof _useDirectRender === 'function' && _useDirectRender()) ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+        if (renderer && renderer.shadowMap) renderer.shadowMap.needsUpdate = true;
+      }
       if (key === 'modernFix') {
-        sodiumOpts.quickPack = !!sodiumOpts.modernFix;
-        saveSodiumOpts();
+        window._hudTxtChanged = true;
       }
       showToast(`${btn.textContent.trim()}: ${sodiumOpts[key] ? 'ĐÃ BẬT' : 'ĐÃ TẮT'}`);
+    });
+  });
+  document.querySelectorAll('[data-fpstarget]').forEach(btn => {
+    const tVal = Number(btn.dataset.fpstarget) || 0;
+    btn.classList.toggle('active', (Number(sodiumOpts.fpsTarget) || 0) === tVal);
+    btn.addEventListener('click', () => {
+      sodiumOpts.fpsTarget = tVal;
+      saveSodiumOpts();
+      document.querySelectorAll('[data-fpstarget]').forEach(b => b.classList.toggle('active', (Number(b.dataset.fpstarget) || 0) === tVal));
+      showToast(`🎯 Giới hạn FPS: ${tVal > 0 ? tVal + ' FPS' : 'MAX (Không giới hạn)'}`);
     });
   });
   document.querySelectorAll('#mobSpawnSeg .spawn-btn, #animalSpawnSeg .spawn-btn').forEach(btn => {
@@ -1330,6 +1345,7 @@
     dim_sift:       { label: '✨ Dream Realm',      desc: 'The Sift dimension shimmering with emerald aurora skies, Lullaby Hills, Ichor pools, and cute mobs.' },
     dim_nether:     { label: '🔥 The Nether',       desc: 'Molten lava dimension filled with Crimson fungus forests and glowing Netherrack caverns.' },
     dim_end:        { label: '🐉 The End City',     desc: 'Deep violet void with floating End Stone islands, obsidian pillars, and glowing Purpur towers.' },
+    dim_dragon_realm:{ label: '🌌 Dragon End Realm', desc: 'Mythic multi-biome dragon dimension with Void Jungles, Crystal Caverns, Purpur Citadels, and the 50-Skill Sovereign Boss.' },
     dim_warden:     { label: '👁️ Warden Realm',     desc: 'Abyssal Sculk citadel dimension with Soul Fire forests, 4 Sculk guardians (200-1000HP), and Tier-6 ores.' }
   };
   const DIFF_EN_MAP = {
@@ -1577,6 +1593,7 @@ const ORE_BIOME_PREVIEWS = {
   dim_sift:       { label: '✨ Khu Giấc Mơ',       desc: 'Chiều không gian mộng mơ The Sift với cực quang ngọc lục bảo, hồ Ichor phát sáng và tán cây huyền ảo.',               sky1: '#16284c', sky2: '#5eead4', grass: '#c084fc', dirt: '#6d28d9', water: '#2dd4bf', tree: '#f0abfc', trunk: '#312e81', accent: '#fef08a', kind: 'sift' },
   dim_nether:     { label: '🔥 Địa Ngục',         desc: 'Thế giới dung nham đỏ rực với rừng nấm Crimson và đá Netherrack rực lửa.',                                            sky1: '#450a0a', sky2: '#991b1b', grass: '#7f1d1d', dirt: '#450a0a', water: '#f97316', tree: '#b91c1c', trunk: '#292524', accent: '#facc15', kind: 'nether' },
   dim_end:        { label: '🐉 Thành Phố End',    desc: 'Hư không tím thẫm với đảo End Stone lơ lửng, trụ Hắc Diện Thạch và tháp Purpur phát sáng.',                           sky1: '#090514', sky2: '#2e1065', grass: '#e9d594', dirt: '#c2ad6b', water: '#1e1b4b', tree: '#18181b', trunk: '#09090b', accent: '#e879f9', kind: 'end' },
+  dim_dragon_realm:{ label: '🌌 Thế Giới Rồng End', desc: 'Chiều không gian rồng huyền thoại với 5 quần xã, Thành Cổ Purpur, Hang Pha Lê & Boss Tối Thượng 50 Skill.',          sky1: '#070316', sky2: '#3b0764', grass: '#a855f7', dirt: '#4c1d95', water: '#6d28d9', tree: '#c084fc', trunk: '#1e1b4b', accent: '#f0abfc', kind: 'end' },
   dim_warden:     { label: '👁️ Thế Giới Warden',  desc: 'Chiều không gian Cổ Thành Sculk huyền bí với Rừng Linh Hồn, Boss 1000HP và Quặng Tier 6.',                            sky1: '#030b14', sky2: '#082635', grass: '#0a2a36', dirt: '#151b24', water: '#06b6d4', tree: '#0ea5e9', trunk: '#111827', accent: '#22d3ee', kind: 'sift' }
 };
 
@@ -2047,6 +2064,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     document.querySelectorAll('#lobbySkinGrid .skin-card').forEach(el => el.classList.toggle('active', el.dataset.skin === skinId));
     updateDressingRoomCarousel();
     if (typeof syncTitleAvatarFace === 'function') syncTitleAvatarFace();
+    if (typeof broadcastSkinSync === 'function') broadcastSkinSync();
     if (notify) showToast(`🧑 Đã chọn Skin: ${skinId === 'custom' ? 'Skin Tùy Chỉnh' : sk.name}!`);
   }
 
@@ -3326,6 +3344,7 @@ function _buildBiomeDioramaScene(biomeKey) {
     dim_sift:       { skyTop: '#111d42', skyMid: '#2a6f82', skyBot: '#7ef5dc', fog: 0x4dbeb8, sun: 0xd8b4fe, amb: 0xa78bfa, gnd: 0x3b1d5e, fluid: 0x2dd4bf, fluidSpec: 0xfef08a, fluidAlpha: 0.82, clouds: false, aurora: true, noSunRays: true, sunX: 0.50, sunY: 0.18, rayTint: 'rgba(110,245,220,0.25)', mistRgba: 'rgba(130,245,225,0.22)' },
     dim_nether:     { skyTop: '#240404', skyMid: '#6e100a', skyBot: '#c93818', fog: 0x7d180e, sun: 0xff9b54, amb: 0xd9461f, gnd: 0x290707, fluid: 0xff6200, fluidSpec: 0xfef08a, fluidAlpha: 0.96, clouds: false, noSunRays: true, sunX: 0.50, sunY: 0.35, rayTint: 'rgba(255,120,40,0.24)', mistRgba: 'rgba(180,45,15,0.22)' },
     dim_end:        { skyTop: '#060312', skyMid: '#180833', skyBot: '#3b156b', fog: 0x240b47, sun: 0xe9d5ff, amb: 0x8b5cf6, gnd: 0x140826, fluid: null, fluidSpec: 0xe9d5ff, fluidAlpha: 0, clouds: false, stars: true, noSunRays: true, sunX: 0.50, sunY: 0.20, rayTint: 'rgba(216,180,254,0.22)', mistRgba: 'rgba(90,30,150,0.20)' },
+    dim_dragon_realm:{ skyTop: '#09041c', skyMid: '#240b47', skyBot: '#4c1d95', fog: 0x2a0f4d, sun: 0xf0abfc, amb: 0xa855f7, gnd: 0x1a0836, fluid: 0x6d28d9, fluidSpec: 0xe9d5ff, fluidAlpha: 0.78, clouds: false, stars: true, noSunRays: true, sunX: 0.50, sunY: 0.22, rayTint: 'rgba(232,121,249,0.26)', mistRgba: 'rgba(139,92,246,0.22)' },
     dim_warden:     { skyTop: '#030b14', skyMid: '#07222f', skyBot: '#0e3c4d', fog: 0x071d29, sun: 0x67e8f9, amb: 0x22d3ee, gnd: 0x06131c, fluid: 0x06b6d4, fluidSpec: 0xa5f3fc, fluidAlpha: 0.80, clouds: false, noSunRays: true, caveRays: true, sunX: 0.50, sunY: 0.16, rayTint: 'rgba(34,211,238,0.22)', mistRgba: 'rgba(8,145,178,0.22)' }
   };
   const cfg = presets[biomeKey] || presets.sakura;
@@ -3346,7 +3365,7 @@ function _buildBiomeDioramaScene(biomeKey) {
     placeTree(17, 6, 6, B_.WARPED_STEM || B_.CRIMSON_STEM, B_.WARPED_WART_BLOCK || B_.NETHER_WART_BLOCK, 4);
     setB(5, 8, 13, B_.SHROOMLIGHT); setB(18, 8, 12, B_.SHROOMLIGHT);
     fillBox(0, 13, 0, SX - 1, 15, 4, B_.NETHERRACK);
-  } else if (biomeKey === 'dim_end') {
+  } else if (biomeKey === 'dim_end' || biomeKey === 'dim_dragon_realm') {
     fluidY = -99;
     for (let z = 2; z < SZ - 1; z++) for (let x = 2; x < SX - 2; x++) {
       const d = Math.hypot(x - 12, z - 12);
@@ -4003,7 +4022,7 @@ function _buildBiomeDioramaScene(biomeKey) {
   } else if (isEnclosedCave) {
     cam.position.set(12.2, 8.8, 25.4);
     cam.lookAt(11.8, 5.2, 2.0);
-  } else if (biomeKey === 'dim_end') {
+  } else if (biomeKey === 'dim_end' || biomeKey === 'dim_dragon_realm') {
     cam.position.set(15.2, 13.8, 30.5);
     cam.lookAt(11.8, 5.4, 6.0);
   } else {

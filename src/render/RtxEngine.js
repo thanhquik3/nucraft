@@ -43,7 +43,7 @@
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.localClippingEnabled = (shaderQuality !== 'low');
-  const _useDirectRender = () => (shaderQuality === 'low' && !(typeof sodiumOpts !== 'undefined' && (sodiumOpts.rayTracing || (sodiumOpts.frameGen | 0) > 1)));
+  const _useDirectRender = () => ((shaderQuality === 'low' || (shaderQuality === 'high' && (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false))) && !(typeof sodiumOpts !== 'undefined' && (sodiumOpts.rayTracing || (sodiumOpts.frameGen | 0) > 1)));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.96 : 0.74;
   renderer.setClearColor(0x9bc4e8, 1);
@@ -2941,14 +2941,14 @@
     return g;
   }
 
-  // Shared 3D Stepped Voxel Dragon Egg builder (non-overlapping bands used by 1st/3rd person hand + placed world egg)
+  // Shared 3D Stepped Voxel Dragon Egg builder matching icon pattern (non-overlapping bands + 3D raised spots on 4 sides)
   function _buildDragonEggMesh(pal, scale = 1.0) {
     const g = new THREE.Group();
     const p = pal || { base: 0x3b0a0a, shell: 0xb91c1c, band: 0xf97316, spot: 0xfef08a };
     const mBase = new THREE.MeshStandardMaterial({ color: p.base, roughness: 0.55, metalness: 0.15 });
     const mShell = new THREE.MeshStandardMaterial({ color: p.shell, roughness: 0.35, metalness: 0.20, emissive: p.shell, emissiveIntensity: 0.16 });
     const mBand = new THREE.MeshStandardMaterial({ color: p.band, roughness: 0.25, metalness: 0.25, emissive: p.band, emissiveIntensity: 0.45 });
-    const mSpot = new THREE.MeshStandardMaterial({ color: p.spot, roughness: 0.18, emissive: p.spot, emissiveIntensity: 0.72 });
+    const mSpot = new THREE.MeshStandardMaterial({ color: p.spot, roughness: 0.18, emissive: p.spot, emissiveIntensity: 0.68 });
     const tiers = [
       [0.62, 0.14, 0.62, 0.07, mBase],
       [0.74, 0.22, 0.74, 0.25, mShell],
@@ -2962,14 +2962,32 @@
       bm.position.set(0, y * scale, 0);
       g.add(bm);
     }
+    // 3D raised elemental egg spots matching 16x16 icon silhouettes on all 4 sides
+    const spotSpecs = [
+      [0.14, 0.12, 0.06,  0.14, 0.54,  0.295, mSpot],
+      [0.14, 0.12, 0.06, -0.14, 0.54, -0.295, mSpot],
+      [0.06, 0.12, 0.14,  0.295, 0.54, -0.14, mSpot],
+      [0.06, 0.12, 0.14, -0.295, 0.54,  0.14, mSpot],
+      [0.12, 0.10, 0.06, -0.16, 0.28,  0.385, mBand],
+      [0.12, 0.10, 0.06,  0.16, 0.28, -0.385, mBand],
+      [0.06, 0.10, 0.12,  0.385, 0.28,  0.16, mBand],
+      [0.06, 0.10, 0.12, -0.385, 0.28, -0.16, mBand]
+    ];
+    for (const [w, h, d, x, y, z, mat] of spotSpecs) {
+      const sm = new THREE.Mesh(new THREE.BoxGeometry(w * scale, h * scale, d * scale), mat);
+      sm.position.set(x * scale, y * scale, z * scale);
+      g.add(sm);
+    }
     return g;
   }
 
   function build3DSculptedSpecialItem(blockId, meta = null) {
     const _aDef = BLOCK_DEF[blockId];
     if (_aDef && _aDef.dragonEgg) {
-      const g = _buildDragonEggMesh(_aDef.eggPal, 0.32);
-      g.children.forEach(c => { c.position.y -= 0.12; });
+      const g = new THREE.Group();
+      const inner = _buildDragonEggMesh(_aDef.eggPal, 0.34);
+      inner.position.set(0, -0.15, 0);
+      g.add(inner);
       g.rotation.order = 'YXZ'; g.position.set(0.01, -0.02, -0.04); g.rotation.set(0.20, -0.52, 0.06);
       g.userData.iconReady = true;
       return g;
@@ -3266,12 +3284,10 @@
       g.userData.iconReady = true;
       return g;
     }
-    if (blockId === B.GLOW_CRYSTAL || blockId === B.ICHOR_CRYSTAL || blockId === B.ECHO_SHARD || blockId === B.MOONSTONE_GEM || blockId === B.DREAM_PRISM_GEM || blockId === B.DRAGON_CRYSTAL) {
-      // Sculpted 3D Multi-Spire Glowing Amethyst / Crystal Cluster (matches media_1795287473580_5e1d17a6.jpg!)
+    if (blockId === B.GLOW_CRYSTAL || blockId === B.ICHOR_CRYSTAL || blockId === B.ECHO_SHARD || blockId === B.MOONSTONE_GEM || blockId === B.DREAM_PRISM_GEM) {
+      // Sculpted 3D Multi-Spire Glowing Amethyst / Crystal Cluster (Note: DRAGON_CRYSTAL renders from icon sprite 487 for 1P/3P/icon parity)
       const g = new THREE.Group();
-      const cPal = blockId === B.DRAGON_CRYSTAL
-        ? { main: 0xf59e0b, tip: 0x67e8f9, emit: 0xd97706, base: 0x292524 }
-        : (blockId === B.ICHOR_CRYSTAL
+      const cPal = blockId === B.ICHOR_CRYSTAL
         ? { main: 0xf472b6, tip: 0xfef08a, emit: 0xec4899, base: 0x4c1d95 }
         : (blockId === B.ECHO_SHARD
           ? { main: 0x06b6d4, tip: 0xa5f3fc, emit: 0x0891b2, base: 0x0f172a }
@@ -3281,7 +3297,7 @@
               ? { main: 0xa5b4fc, tip: 0xf8fafc, emit: 0x6366f1, base: 0x1e1b4b }
               : (blockId === B.DREAM_PRISM_GEM
                 ? { main: 0xffffff, tip: 0xffffff, emit: 0xffffff, base: 0x1e293b }
-                : { main: 0xa855f7, tip: 0xf3e8ff, emit: 0x9333ea, base: 0x2e1065 })))));
+                : { main: 0xa855f7, tip: 0xf3e8ff, emit: 0x9333ea, base: 0x2e1065 }))))
       const baseMat = new THREE.MeshStandardMaterial({ color: cPal.base, roughness: 0.72, metalness: 0.12 });
       const cryMat  = new THREE.MeshStandardMaterial({ color: cPal.main, roughness: 0.18, metalness: 0.15, emissive: cPal.emit, emissiveIntensity: 0.55 });
       const tipMat  = new THREE.MeshStandardMaterial({ color: cPal.tip,  roughness: 0.12, metalness: 0.10, emissive: cPal.tip,  emissiveIntensity: 0.70 });
@@ -3567,11 +3583,12 @@
   const _bowRgbaScratch = new Uint8ClampedArray(16 * 16 * 4);
   function build3DVoxelItemMesh(blockId, meta = null) {
     const def = BLOCK_DEF[blockId];
-    const tile = def.itemTile !== undefined ? def.itemTile : def.tiles[1];
+    const isCastRod = (blockId === B.FISHING_ROD && meta && meta.rodCast && typeof V153_TILES !== 'undefined');
+    const tile = isCastRod ? V153_TILES.rodCast : (def.itemTile !== undefined ? def.itemTile : def.tiles[1]);
     let imgData = null;
     let usedOfficialIcon = false;
     const _vKey = (typeof BLOCK_ID_TO_KEY !== 'undefined') ? BLOCK_ID_TO_KEY[blockId] : null;
-    const _vIm = (_vKey && !def.customAtlasTex && typeof _mcItemImgs !== 'undefined') ? _mcItemImgs.get(_vKey) : null;
+    const _vIm = (_vKey && !def.customAtlasTex && !isCastRod && typeof _mcItemImgs !== 'undefined') ? _mcItemImgs.get(_vKey) : null;
     if (def.tool === 'bow' && typeof window.getBowStageSprite === 'function') {
       const bStage = (meta && typeof meta.bowStage === 'number') ? meta.bowStage : 0;
       const sp = window.getBowStageSprite(blockId, bStage);
@@ -3657,9 +3674,9 @@
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.setIndex(idx);
-    const isWarmGlow = (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
+    const isWarmGlow = (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.END_DRAGON_SCALE || blockId === B.END_DRAGON_BONE || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_BOW || blockId === B.ENCHANTED_BOOK || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
     const isEnch = !!(meta && meta.ench);
-    const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW);
+    const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.ENCHANTED_BOOK || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_PICK || blockId === B.END_DRAGON_AXE || blockId === B.END_DRAGON_SHOVEL || blockId === B.END_DRAGON_HOE || blockId === B.END_DRAGON_BOW);
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: (isRainbowItem || isEnch || isSpecialGlint) ? 0.30 : (isChunky ? 0.62 : 0.72),
@@ -3820,6 +3837,7 @@
     if (!blockId) return 0;
     let k = String(blockId);
     if (meta && typeof meta.bowStage === 'number' && meta.bowStage > 0) k += `:bs${meta.bowStage}`;
+    if (meta && meta.rodCast) k += ':rc';
     if (meta && meta.ench) k += ':e';
     const t = meta && meta.trim;
     if (t && t.pattern) k += `:${t.pattern}:${t.matId || t.hex || ''}`;

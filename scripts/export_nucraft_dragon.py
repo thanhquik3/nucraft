@@ -51,20 +51,19 @@ def add_saddle_to_body(arm_obj):
             for loop in f.loops:
                 loop[vcol] = rgba
 
-    # Sleek proportional rider saddle placed cleanly between Body dorsal spike #1 (-5.1) and #2 (-2.0)
-    add_col_box(Vector((-4.2, 0.0, 16.72)) * PX, Vector((-2.2, 0.0, 16.72)) * PX, 3.2 * PX, 0.44 * PX, c_seat)
-    # Slim golden pommel (front) and cantle (back)
-    add_col_box(Vector((-4.32, 0.0, 17.08)) * PX, Vector((-3.98, 0.0, 17.08)) * PX, 3.2 * PX, 0.28 * PX, c_trim, cull={"bottom"})
-    add_col_box(Vector((-2.42, 0.0, 17.10)) * PX, Vector((-2.08, 0.0, 17.10)) * PX, 3.2 * PX, 0.32 * PX, c_trim, cull={"bottom"})
+    # Compact human-proportioned rider saddle placed cleanly between Body dorsal spike #1 (-5.1) and #2 (-2.0)
+    add_col_box(Vector((-3.9, 0.0, 16.58)) * PX, Vector((-2.5, 0.0, 16.58)) * PX, 1.45 * PX, 0.26 * PX, c_seat)
+    # Slim low golden pommel (front) and cantle (back) that never clip or cover the rider
+    add_col_box(Vector((-4.02, 0.0, 16.78)) * PX, Vector((-3.78, 0.0, 16.78)) * PX, 1.45 * PX, 0.16 * PX, c_trim, cull={"bottom"})
+    add_col_box(Vector((-2.62, 0.0, 16.78)) * PX, Vector((-2.38, 0.0, 16.78)) * PX, 1.45 * PX, 0.16 * PX, c_trim, cull={"bottom"})
 
-    # Slim contoured leather saddle flaps & dark girth strap hugging torso flanks
+    # Flush thin girth straps hugging torso flanks with zero bulky protruding side flaps
     for s in (-1.0, 1.0):
-        add_col_box(Vector((-3.9, s * 6.08, 13.6)) * PX, Vector((-2.5, s * 6.08, 13.6)) * PX, 0.28 * PX, 4.4 * PX, c_seat)
         add_col_box(
-            Vector((-3.2, s * 6.08, 6.25)) * PX, Vector((-3.2, s * 6.08, 11.40)) * PX,
-            0.28 * PX, 0.72 * PX, c_strap, up_hint=Vector((1.0, 0.0, 0.0)),
+            Vector((-3.2, s * 6.02, 6.25)) * PX, Vector((-3.2, s * 6.02, 11.40)) * PX,
+            0.20 * PX, 0.56 * PX, c_strap, up_hint=Vector((1.0, 0.0, 0.0)),
         )
-    add_col_box(Vector((-3.6, 0.0, 6.25)) * PX, Vector((-2.8, 0.0, 6.25)) * PX, 11.2 * PX, 0.36 * PX, c_strap)
+    add_col_box(Vector((-3.5, 0.0, 6.25)) * PX, Vector((-2.9, 0.0, 6.25)) * PX, 11.0 * PX, 0.30 * PX, c_strap)
 
     saddle_obj = bd.finalize_bmesh_object("Dragon_Saddle_Geo", bm, [mat], bpy.context.scene.collection)
     pb_body = arm_obj.pose.bones["Body"]

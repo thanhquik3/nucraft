@@ -387,6 +387,10 @@
         <div class="dstat-line" id="dstatGender">Giới tính: Đực ♂</div>
         <div class="dstat-line" id="dstatSpeed">Tốc độ: Đi 3.6 • Bay 28.0</div>
         <div class="dstat-line" id="dstatDmg">Sát thương: 15 • Giáp: 0/20</div>
+        <div id="dstatGrowthWrap">
+          <div class="dstat-growth-lbl">Độ lớn: <b id="dstatGrowthPct">0%</b></div>
+          <div id="dstatGrowthTrack"><div id="dstatGrowthFill"></div></div>
+        </div>
       </div>
       <div class="inv-grid-9" id="dragonBackpackGrid"></div>
       <div class="inv-gap"></div>
@@ -1365,6 +1369,7 @@
             <div class="gm-section">
               <div class="gm-section-title">TỐI ƯU SODIUM EXTRA • LITHIUM • CULLING</div>
               <div class="mcd-sopt-list" id="sodiumExtraSeg">
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="sodium" type="button" data-def="BẬT" title="Sodium Core: Render trực tiếp bỏ Post-FX thừa, giãn nhịp shadow &amp; giới hạn rebuild chunk">💎 Sodium Engine (Max FPS)</button>
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="entityCulling" type="button" data-def="BẬT" title="Entity Culling: Bỏ render &amp; xương hoạt ảnh của mob/vật phẩm bị tường che khuất hoặc ngoài khung nhìn">👁️ Entity Culling</button>
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="moreCulling" type="button" data-def="BẬT" title="More Culling: Smart Leaves ẩn mặt lá bên trong, ẩn đáy Bedrock &amp; sub-block xa">🍃 More Culling</button>
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="lithiumAi" type="button" data-def="BẬT" title="Lithium: Tối ưu AI mob, vật lý &amp; tick theo khoảng cách mà không đổi gameplay">⚙️ Lithium AI/Tick</button>
@@ -1383,7 +1388,15 @@
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="particles" type="button" data-def="BẬT" title="Sodium Extra: Bật/tắt hiệu ứng hạt vỡ khối &amp; phép">✨ Hạt Particle</button>
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="animations" type="button" data-def="BẬT" title="Sodium Extra: Hoạt ảnh chuyển động chi tiết mob &amp; khối">🎞️ Hoạt Ảnh</button>
                 <button class="seg-btn active mcd-row mcd-toggle" data-sopt="farEntities" type="button" data-def="BẬT" title="Sodium Extra: Hiển thị đầy đủ sinh vật ở tầm xa">🦕 Entity Xa</button>
-                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="modernFix" type="button" data-def="BẬT" title="ModernFix + QuickPack: Giải mã âm thanh dần &amp; cache asset SW">⚡ ModernFix / Pack</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="modernFix" type="button" data-def="BẬT" title="ModernFix: Giải mã âm thanh dần, giãn nhịp minimap &amp; dirty-check HUD">⚡ ModernFix</button>
+                <button class="seg-btn active mcd-row mcd-toggle" data-sopt="quickPack" type="button" data-def="BẬT" title="QuickPack: Tái sử dụng cache atlas khối &amp; bộ đệm texture tải nhanh">📦 QuickPack</button>
+              </div>
+              <div class="gm-section-title" style="margin-top:8px;">MỤC TIÊU FPS (TRẦN KHUNG HÌNH)</div>
+              <div class="mcd-row" style="gap:6px;flex-wrap:wrap;justify-content:flex-start;">
+                <button class="seg-btn" data-fpstarget="60" type="button">60 FPS</button>
+                <button class="seg-btn" data-fpstarget="120" type="button">120 FPS (Mobile)</button>
+                <button class="seg-btn" data-fpstarget="240" type="button">240 FPS (PC)</button>
+                <button class="seg-btn active" data-fpstarget="0" type="button">MAX Unlocked</button>
               </div>
             </div>
           </div>
@@ -1445,6 +1458,7 @@
                 <button class="spawn-btn" data-scenic="dim_nether">🔥 Địa Ngục (Nether)</button>
                 <button class="spawn-btn" data-scenic="nether_castle" style="border-color:#2dd4bf;color:#99f6e4;">🏰 Lâu Đài Địa Ngục</button>
                 <button class="spawn-btn" data-scenic="dim_end">🌌 Khu Kết Thúc (End)</button>
+                <button class="spawn-btn" id="btnTpDragonRealmDim" data-scenic="dim_dragon_realm" style="border-color:#c084fc;color:#f3e8ff;background:rgba(46,16,74,0.92);">🐉 Thế Giới Rồng The End</button>
                 <button class="spawn-btn" id="btnTpWardenDim" data-scenic="dim_warden" style="border-color:#22d3ee;color:#a5f3fc;background:rgba(6,36,48,0.92);">👁️ Thế Giới Warden (Cổ Thành)</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="dim_sift">✨ Khu Giấc Mơ (The Sift)</button>
                 <button class="spawn-btn sift-tp-btn" data-scenic="sift_meadow">🌸 Sift: Singer's Meadow</button>
@@ -1548,6 +1562,9 @@
               <div class="gm-btn-grid" id="mobSpawnSeg">
                 <button class="spawn-btn" data-mob="v70_hostile_pack" style="border-color:#22d3ee;color:#a5f3fc;">⚡ Bộ Creeper &amp; Xác Sống Mới (v70)</button>
                 <button class="spawn-btn" data-mob="ender_dragon" style="border-color:#d946ef;color:#f5d0fe;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#a855f7"/><rect x="9" y="0" width="2" height="2" fill="#a855f7"/><rect x="1" y="2" width="10" height="6" fill="#2d1438"/><rect x="2" y="4" width="2" height="2" fill="#f0abfc"/><rect x="8" y="4" width="2" height="2" fill="#f0abfc"/><rect x="3" y="6" width="6" height="3" fill="#180820"/></svg> Boss Rồng Ender (750HP)</button>
+                <button class="spawn-btn" data-mob="void_end_dragon" style="border-color:#a855f7;color:#e9d5ff;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#e879f9"/><rect x="9" y="0" width="2" height="2" fill="#e879f9"/><rect x="1" y="2" width="10" height="6" fill="#3b0764"/><rect x="2" y="4" width="2" height="2" fill="#22d3ee"/><rect x="8" y="4" width="2" height="2" fill="#22d3ee"/><rect x="3" y="6" width="6" height="3" fill="#1e0634"/></svg> Rồng Hư Không End (680HP)</button>
+                <button class="spawn-btn" data-mob="amethyst_end_dragon" style="border-color:#c084fc;color:#f3e8ff;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#f0abfc"/><rect x="9" y="0" width="2" height="2" fill="#f0abfc"/><rect x="1" y="2" width="10" height="6" fill="#581c87"/><rect x="2" y="4" width="2" height="2" fill="#f472b6"/><rect x="8" y="4" width="2" height="2" fill="#f472b6"/><rect x="3" y="6" width="6" height="3" fill="#2e1065"/></svg> Rồng Thạch Anh End (640HP)</button>
+                <button class="spawn-btn" data-mob="sovereign_end_dragon" style="border-color:#f0abfc;color:#fdf4ff;background:rgba(59,7,100,0.88);"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#38bdf8"/><rect x="9" y="0" width="2" height="2" fill="#38bdf8"/><rect x="1" y="2" width="10" height="6" fill="#1e0b36"/><rect x="2" y="4" width="2" height="2" fill="#e879f9"/><rect x="8" y="4" width="2" height="2" fill="#e879f9"/><rect x="3" y="6" width="6" height="3" fill="#0c041a"/></svg> Boss Tối Thượng Rồng End (50 Skill)</button>
                 <button class="spawn-btn" data-mob="ice_dragon" style="border-color:#38bdf8;color:#bae6fd;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#bae6fd"/><rect x="9" y="0" width="2" height="2" fill="#bae6fd"/><rect x="1" y="2" width="10" height="6" fill="#0284c7"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#075985"/></svg> Rồng Băng (460HP)</button>
                 <button class="spawn-btn" data-mob="fire_dragon" style="border-color:#f97316;color:#fed7aa;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#f59e0b"/><rect x="9" y="0" width="2" height="2" fill="#f59e0b"/><rect x="1" y="2" width="10" height="6" fill="#b91c1c"/><rect x="2" y="4" width="2" height="2" fill="#fef08a"/><rect x="8" y="4" width="2" height="2" fill="#fef08a"/><rect x="3" y="6" width="6" height="3" fill="#7f1d1d"/></svg> Rồng Lửa (490HP)</button>
                 <button class="spawn-btn" data-mob="earth_dragon" style="border-color:#d97706;color:#fde68a;"><svg class="mob-drg-ico" viewBox="0 0 12 9" shape-rendering="crispEdges"><rect x="1" y="0" width="2" height="2" fill="#78716c"/><rect x="9" y="0" width="2" height="2" fill="#78716c"/><rect x="1" y="2" width="10" height="6" fill="#7c4a26"/><rect x="2" y="4" width="2" height="2" fill="#34d399"/><rect x="8" y="4" width="2" height="2" fill="#34d399"/><rect x="3" y="6" width="6" height="3" fill="#452714"/></svg> Rồng Đất (540HP)</button>

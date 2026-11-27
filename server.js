@@ -211,6 +211,13 @@ function broadcastRoomsList() {
   }
 }
 
+function sanitizeCustomSkin(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const d = typeof raw.dataUrl === 'string' ? raw.dataUrl.trim() : '';
+  if (!d || d.length > 42000 || !/^data:image\/(png|webp);base64,[A-Za-z0-9+/=]+$/.test(d)) return null;
+  return { dataUrl: d, slim: !!raw.slim };
+}
+
 function broadcastRoomRoster(room) {
   if (!room) return;
   const peers = [];
@@ -307,13 +314,14 @@ function handleMessage(peer, msg) {
     }
     rooms.set(roomId, room);
     peer.name = String(msg.name || 'Người Chơi').slice(0, 20);
-    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 24);
+    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 48);
+    if (msg.customSkin !== undefined) peer.customSkin = sanitizeCustomSkin(msg.customSkin);
     if (msg.state) peer.state = msg.state;
     peer.color = PEER_COLORS[room.peers.size % PEER_COLORS.length];
     peer.roomId = roomId;
     const existingPeers = [];
     for (const p of room.peers.values()) {
-      if (p.id !== peer.id) existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
+      if (p.id !== peer.id) existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, customSkin: p.customSkin || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
     }
     room.peers.set(peer.id, peer);
     const allMods = Array.from(room.mods.entries());
@@ -339,7 +347,7 @@ function handleMessage(peer, msg) {
     });
     if (allMods.length > inlineMods.length) sendWsModsInChunks(peer, allMods.slice(inlineMods.length));
     if (existingPeers.length > 0) {
-      broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
+      broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, customSkin: peer.customSkin || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
     }
     broadcastRoomRoster(room);
     broadcastRoomsList();
@@ -357,14 +365,15 @@ function handleMessage(peer, msg) {
     peer.playerKey = sanitizePlayerKey(msg.playerKey || msg.clientId || peer.id) || peer.id;
     evictSamePlayerKey(room, peer.playerKey, peer.id);
     peer.name = String(msg.name || 'Bạn Chơi').slice(0, 20);
-    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 24);
+    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 48);
+    if (msg.customSkin !== undefined) peer.customSkin = sanitizeCustomSkin(msg.customSkin);
     peer.color = PEER_COLORS[room.peers.size % PEER_COLORS.length];
     peer.roomId = roomId;
     const becomeHost = (!room.hostId || !room.peers.has(room.hostId));
     if (becomeHost) room.hostId = peer.id;
     const existingPeers = [];
     for (const p of room.peers.values()) {
-      existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
+      existingPeers.push({ peerId: p.id, name: p.name, color: p.color, skinId: p.skinId || null, customSkin: p.customSkin || null, playerKey: p.playerKey || '', equip: p.equip || null, state: p.state });
     }
     room.peers.set(peer.id, peer);
     const allMods = Array.from(room.mods.entries());
@@ -387,7 +396,7 @@ function handleMessage(peer, msg) {
       peers: existingPeers
     });
     if (allMods.length > inlineMods.length) sendWsModsInChunks(peer, allMods.slice(inlineMods.length));
-    broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
+    broadcastRoom(room, { type: 'peer_join', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, customSkin: peer.customSkin || null, playerKey: peer.playerKey || '', state: peer.state }, peer.id);
     broadcastRoomRoster(room);
     broadcastRoomsList();
     scheduleRoomsSave();
@@ -398,10 +407,17 @@ function handleMessage(peer, msg) {
     for (const [k, v] of msg.mods) room.mods.set(String(k), Number(v) || 0);
     while (room.mods.size > 120000) room.mods.delete(room.mods.keys().next().value);
     scheduleRoomsSave();
+  } else if (msg.type === 'skin_sync' && peer.roomId) {
+    const room = rooms.get(peer.roomId);
+    if (!room) return;
+    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 48);
+    if (msg.customSkin !== undefined) peer.customSkin = sanitizeCustomSkin(msg.customSkin);
+    broadcastRoom(room, { type: 'skin_sync', peerId: peer.id, skinId: peer.skinId || null, customSkin: peer.customSkin || null }, peer.id);
   } else if (msg.type === 'state' && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
-    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 24);
+    if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 48);
+    if (msg.customSkin !== undefined) peer.customSkin = sanitizeCustomSkin(msg.customSkin);
     if (msg.equip) peer.equip = msg.equip;
     peer.state = msg.state || peer.state;
     if (typeof msg.dayTime === 'number') room.dayTime = msg.dayTime;

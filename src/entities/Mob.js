@@ -310,7 +310,12 @@
   let _glbFetchCount = 0;
   const _glbFetching = new Map();
   const DRAGON_SHARED_GLB = 'dragon_wyvern';
-  const _resolveGlbKey = (type) => (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
+  const _END_FIERCE_DRAGONS = new Set(['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon']);
+  const _resolveGlbKey = (type) => {
+    if (type === 'sovereign_end_dragon') return 'dragon_boss_sovereign';
+    if (_END_FIERCE_DRAGONS.has(type)) return 'dragon_end_fierce';
+    return (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
+  };
   const _hasGlbAsset = (type) => {
     const key = _resolveGlbKey(type);
     return (window.BLENDER_MOB_GLBS && (!!window.BLENDER_MOB_GLBS[key] || !!window.BLENDER_MOB_GLBS[type]))
@@ -572,6 +577,35 @@
       mem: [0x1a0a2a, 0x3b1760, 0x622699],
       horn: [0x4c1d95, 0xa855f7, 0xd8b4fe, 0x2e1065],
       eye: 0xf0abfc
+    },
+    void_end_dragon: null,
+    sovereign_end_dragon: null,
+    amethyst_end_dragon: {
+      body: [0x2a0845, 0x581c87, 0x86198f, 0xc026d3],
+      belly: [0x4c1d95, 0x7e22ce, 0xf0abfc],
+      dark: [0x1e0634, 0x3b0764],
+      under: [0x120320, 0x290548],
+      mem: [0x3b0764, 0x701a75, 0xa21caf],
+      horn: [0x86198f, 0xf0abfc, 0xfdf4ff, 0x4c1d95],
+      eye: 0xf472b6
+    },
+    storm_end_dragon: {
+      body: [0x0f172a, 0x1e1b4b, 0x3730a3, 0x6d28d9],
+      belly: [0x1e293b, 0x312e81, 0x38bdf8],
+      dark: [0x090d1a, 0x17153b],
+      under: [0x04060e, 0x0e0c26],
+      mem: [0x172554, 0x312e81, 0x0284c7],
+      horn: [0x312e81, 0x38bdf8, 0xe0f2fe, 0x1e1b4b],
+      eye: 0x22d3ee
+    },
+    abyss_end_dragon: {
+      body: [0x1a0410, 0x3f0828, 0x701048, 0x9f1239],
+      belly: [0x2e0820, 0x581c87, 0xf43f5e],
+      dark: [0x12020b, 0x290418],
+      under: [0x080105, 0x18020f],
+      mem: [0x260516, 0x500724, 0x881337],
+      horn: [0x500724, 0xfb7185, 0xffe4e6, 0x3b0764],
+      eye: 0xfb7185
     }
   };
   DRAGON_COLOR_PALETTES.baby_dragon = DRAGON_COLOR_PALETTES.leaf_dragon;
@@ -877,7 +911,7 @@
             o.receiveShadow = true;
             return;
           }
-          const isEnderSpike = (type === 'ender_dragon' && nodeTag.startsWith('spikes_'));
+          const isEnderSpike = ((type === 'ender_dragon' || type === 'sovereign_end_dragon' || _END_FIERCE_DRAGONS.has(type)) && nodeTag.startsWith('spikes_'));
           let mat = isEnderSpike ? _getEnderSpineMat(!!o.isSkinnedMesh) : _getDragonVariantMat(type, origMat, !!o.isSkinnedMesh);
           if (!isEnderSpike && typeof sodiumOpts !== 'undefined' && !sodiumOpts.immFast) {
             mat = mat.clone();
@@ -961,7 +995,7 @@
     if (isSkinnedDragon) {
       if (anim.bodyBone) {
         const saddleSeat = new THREE.Group();
-        saddleSeat.position.set(0, 16.94 * 0.0625, 3.2 * 0.0625);
+        saddleSeat.position.set(0, 16.82 * 0.0625, 3.2 * 0.0625);
         g.add(saddleSeat);
         g.updateMatrixWorld(true);
         anim.bodyBone.attach(saddleSeat);
@@ -1324,8 +1358,8 @@
         }
       }
       if (IS_DRAGON_MOB.has(type)) {
-        if (type === 'ender_dragon') {
-          const endSc = blenderMob.anim.mixer ? 4.85 : 4.20;
+        if (type === 'ender_dragon' || type === 'sovereign_end_dragon' || _END_FIERCE_DRAGONS.has(type)) {
+          const endSc = type === 'sovereign_end_dragon' ? 6.00 : (_END_FIERCE_DRAGONS.has(type) ? (blenderMob.anim.mixer ? 4.95 : 4.25) : (blenderMob.anim.mixer ? 4.85 : 4.20));
           blenderMob.group.scale.setScalar(endSc);
           blenderMob.group.userData.dragonScale = endSc;
           _applyDragonArmorToAnim(blenderMob.anim, null, false);
@@ -3935,8 +3969,8 @@
       hopper: sp[10].includes('h'), glow: sp[10].includes('g')
     });
   }
-  const FIRE_IMMUNE_MOBS = new Set(['magma_golem', 'redstone_monstrosity', 'blaze', 'wildfire', 'ghast', 'baby_ghast', 'hoglin', 'piglin', 'piglin_brute', 'zombified_piglin', 'wither_skeleton', 'wither_knight', 'wither', 'ender_dragon', 'fire_dragon', 'water_dragon', 'strider', 'magma_cube', 'zoglin', 'soul_wisp', 'copper_golem', 'cave_warden', 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager']);
-  const IS_DRAGON_MOB = new Set(['ender_dragon', 'ice_dragon', 'fire_dragon', 'earth_dragon', 'water_dragon', 'leaf_dragon', 'tree_dragon']);
+  const FIRE_IMMUNE_MOBS = new Set(['magma_golem', 'redstone_monstrosity', 'blaze', 'wildfire', 'ghast', 'baby_ghast', 'hoglin', 'piglin', 'piglin_brute', 'zombified_piglin', 'wither_skeleton', 'wither_knight', 'wither', 'ender_dragon', 'void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon', 'sovereign_end_dragon', 'fire_dragon', 'water_dragon', 'strider', 'magma_cube', 'zoglin', 'soul_wisp', 'copper_golem', 'cave_warden', 'sculk_stalker', 'sculk_brute', 'sculk_sentinel', 'sculk_soul_ravager']);
+  const IS_DRAGON_MOB = new Set(['ender_dragon', 'ice_dragon', 'fire_dragon', 'earth_dragon', 'water_dragon', 'leaf_dragon', 'tree_dragon', 'void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon', 'sovereign_end_dragon']);
 
   // Tameable Cute Pets (Birds, Cats, Dogs/Wolves, Foxes, Sheep & Special Companions!)
   const TAMEABLE_PETS = new Set([
@@ -4161,6 +4195,11 @@
     water_dragon:    { displayName: 'Rồng Nước',     hostile: true, hp: 470, speed: 7.20, r: 2.35, h: 2.9, dmg: 14.0, isBoss: true, flying: true, elementalDragon: 'water', noSunBurn: true, bossLabel: 'RỒNG NƯỚC', bossGrad: 'linear-gradient(180deg, #67e8f9, #06b6d4, #1e40af)' },
     leaf_dragon:     { displayName: 'Rồng Lá',       hostile: true, hp: 440, speed: 7.10, r: 2.35, h: 2.9, dmg: 13.0, isBoss: true, flying: true, elementalDragon: 'leaf',  bossLabel: 'RỒNG LÁ',       bossGrad: 'linear-gradient(180deg, #bef264, #22c55e, #14532d)' },
     tree_dragon:     { displayName: 'Rồng Cổ Thụ',   hostile: true, hp: 500, speed: 6.70, r: 2.40, h: 3.0, dmg: 14.5, isBoss: true, flying: true, elementalDragon: 'tree',  bossLabel: 'RỒNG CỔ THỤ',   bossGrad: 'linear-gradient(180deg, #84cc16, #3f6212, #451a03)' },
+    void_end_dragon:     { displayName: 'Rồng Hư Không End',   hostile: true, hp: 680,  speed: 8.60, r: 2.50, h: 3.1, dmg: 19.0, isBoss: true, flying: true, noSunBurn: true, endRealmDragon: true, bossLabel: '🌌 RỒNG HƯ KHÔNG THE END',     bossGrad: 'linear-gradient(180deg, #e879f9, #9333ea, #3b0764)' },
+    amethyst_end_dragon: { displayName: 'Rồng Thạch Anh End',  hostile: true, hp: 640,  speed: 8.80, r: 2.50, h: 3.1, dmg: 18.0, isBoss: true, flying: true, noSunBurn: true, endRealmDragon: true, bossLabel: '💎 RỒNG THẠCH ANH THE END',    bossGrad: 'linear-gradient(180deg, #f472b6, #a855f7, #4c1d95)' },
+    storm_end_dragon:    { displayName: 'Rồng Bão Tím End',    hostile: true, hp: 660,  speed: 9.20, r: 2.50, h: 3.1, dmg: 18.5, isBoss: true, flying: true, noSunBurn: true, endRealmDragon: true, bossLabel: '⚡ RỒNG BÃO TÍM THE END',     bossGrad: 'linear-gradient(180deg, #38bdf8, #a855f7, #312e81)' },
+    abyss_end_dragon:    { displayName: 'Rồng Vực Thẳm End',   hostile: true, hp: 700,  speed: 8.40, r: 2.60, h: 3.2, dmg: 20.0, isBoss: true, flying: true, noSunBurn: true, endRealmDragon: true, bossLabel: '🌑 RỒNG VỰC THẲM THE END',    bossGrad: 'linear-gradient(180deg, #fb7185, #7e22ce, #1e0634)' },
+    sovereign_end_dragon:{ displayName: 'Boss Tối Thượng Rồng End', hostile: true, hp: 2400, speed: 9.00, r: 3.20, h: 4.0, dmg: 26.0, isBoss: true, flying: true, noSunBurn: true, endRealmDragon: true, sovereignBoss: true, bossLabel: '👑 BOSS TỐI THƯỢNG RỒNG END • 50 KỸ NĂNG', bossGrad: 'linear-gradient(90deg, #38bdf8, #d946ef, #7e22ce, #1e0634)' },
     cave_warden:     { hostile: true,  hp: 500, speed: 2.85, r: 0.72, h: 2.85, dmg: 16.0, isBoss: true, noSunBurn: true, displayName: 'Warden', bossLabel: '💀 WARDEN — QUÁI THÚ DEEP DARK', bossGrad: 'linear-gradient(90deg, #064e63, #0891b2, #22d3ee)' },
     sculk_stalker:      { hostile: true, hp: 200, speed: 3.45, r: 0.56, h: 2.05, dmg: 14.0, noSunBurn: true, displayName: 'Thợ Săn Sculk Stalker' },
     sculk_brute:        { hostile: true, hp: 450, speed: 2.55, r: 0.85, h: 2.65, dmg: 20.0, noSunBurn: true, chargeKnock: true, displayName: 'Khổng Lồ Sculk Brute' },
@@ -4313,6 +4352,8 @@
       hopper: !!st.hopper, ranged: _rvRange || st.ranged || null, noSunBurn: !!st.noSunBurn,
       isBoss: !!st.isBoss, flying: !!st.flying, skyBird: !!st.skyBird, aqua: !!st.aqua,
       elemDragon: st.elementalDragon || null,
+      endRealmDragon: !!st.endRealmDragon,
+      sovereignBoss: !!st.sovereignBoss,
       dragonMode: st.elementalDragon ? 'fly' : null,
       dragonModeTimer: st.elementalDragon ? (8.5 + Math.random() * 2.5) : 0,
       dragonScale: _isDrgType ? _drgScInit : undefined,
@@ -4470,7 +4511,7 @@
     const parent = t.parent || m.group;
     if (playerAvatar.g.parent !== parent) parent.add(playerAvatar.g);
     const invS = 1 / Math.max(0.12, m.group.scale.x || 1);
-    playerAvatar.g.position.set(t.lx, t.ly - 0.08 * invS, t.lz);
+    playerAvatar.g.position.set(t.lx, t.ly + 0.06 * invS, t.lz);
     playerAvatar.g.rotation.set(0, 0, 0);
     playerAvatar.g.scale.setScalar(invS);
   }
@@ -5186,6 +5227,16 @@
       else if (r < 0.36) type = 'sculk_stalker';
       else if (r < 0.70) type = 'sculk_sentinel';
       else type = 'sculk_brute';
+    } else if (currentDimension === 'dragon_realm') {
+      if (hostileCnt >= hostileCap) return;
+      const wildEndDrgCnt = mobs.filter(mb => mb && !mb._dead && !mb.tamed && _END_FIERCE_DRAGONS.has(mb.type)).length;
+      if (wildEndDrgCnt < 3 && r > 0.76) {
+        const pool = ['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon'];
+        type = pool[Math.floor(Math.random() * pool.length)];
+        spawnY += 9.0;
+      } else if (r < 0.48) type = 'void_stalker';
+      else if (r < 0.76) type = 'shulker';
+      else { type = 'end_phantom'; spawnY += 6.0; }
     } else if (biome === BIOMES.GRAND_RUINS) {
       const dC = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
       if (dC < 20) return;
@@ -5763,6 +5814,17 @@
     if (!mob.hostile && !mob.neutral) mob.fleeT = 4.0;
     if (mob.hpBar) updateMobHpBar(mob, mob.hp / mob.maxHp);
     if (mob.hp <= 0) {
+      if (mob.type === 'ender_dragon' && !mob._dyingT) {
+        mob.hp = 1;
+        mob._dyingT = 4.0;
+        mob.hostile = false;
+        mob.flying = true;
+        mob.atkCd = 99;
+        _attachDragonDeathRays(mob);
+        playSfx('roar');
+        showToast('✨ RỒNG ENDER ĐANG TAN BIẾN!');
+        return true;
+      }
       spawnPixelFx('smoke_puff', mob.x, mob.y + 0.85, mob.z, { count: 3, scale: 1.0, life: 0.50, riseV: 1.1, spread: 0.45 });
       if (mob.type === 'icy_creeper') spawnPixelFx('ice_shatter', mob.x, mob.y + 0.9, mob.z, { count: 2, scale: 1.2, life: 0.46 });
       else if (mob.type === 'charged_creeper') spawnPixelFx('lightning_arc', mob.x, mob.y + 0.9, mob.z, { count: 2, scale: 1.25, life: 0.40 });
@@ -5783,7 +5845,7 @@
       else if (mob.type === 'ender_dragon') {
         spawnDroppedItem(bx, by, bz, B.DIAMOND); spawnDroppedItem(bx, by, bz, B.DIAMOND);
         spawnDroppedItem(bx, by, bz, B.VOID_PEARL); spawnDroppedItem(bx, by, bz, B.GOLD_APPLE);
-        spawnParticles(mob.x, mob.y + 1.8, mob.z, 0xd946ef, 30, true);
+        spawnParticles(mob.x, mob.y + 1.8, mob.z, 0xd946ef, 36, true);
         spawnXpOrbs(mob.x, mob.y + 1.4, mob.z, 80);
         if (currentDimension === 'end' && typeof buildEndReturnPortal === 'function') {
           const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
@@ -5792,9 +5854,31 @@
             const gwBaseY = Math.max(7, getTerrainHeight(32, 0, BIOMES.THE_END));
             buildEndGatewayPortal(32, gwBaseY + 4, 0);
           }
+          if (typeof buildDragonRealmPortal === 'function') {
+            const drBaseY = Math.max(7, getTerrainHeight(12, 0, BIOMES.THE_END));
+            buildDragonRealmPortal(12, drBaseY + 1, 0);
+          }
           flushUrgentChunks(48, true);
         }
-        showToast('🏆 CHIẾN THẮNG RỒNG ENDER! Cổng Về Nhà (0, 0) & Cổng End City (32, 0) đã mở!');
+        showToast('🏆 CHIẾN THẮNG RỒNG ENDER! Cổng Về Nhà (0,0), End City (32,0) & Thế Giới Rồng The End (12,0) đã mở!');
+      }
+      else if (mob.type === 'sovereign_end_dragon') {
+        spawnDroppedItem(bx, by, bz, B.SOVEREIGN_KNIGHT_HELM);
+        spawnDroppedItem(bx, by, bz, B.SOVEREIGN_KNIGHT_CHEST);
+        spawnDroppedItem(bx, by, bz, B.SOVEREIGN_KNIGHT_LEGS);
+        spawnDroppedItem(bx, by, bz, B.SOVEREIGN_KNIGHT_BOOTS);
+        spawnDroppedItem(bx, by, bz, B.END_DRAGON_SCALE, { count: 8 });
+        spawnDroppedItem(bx, by, bz, B.END_DRAGON_BONE, { count: 6 });
+        spawnXpOrbs(mob.x, mob.y + 1.6, mob.z, 250);
+        spawnParticles(mob.x, mob.y + 2.2, mob.z, 0xf0abfc, 42, true);
+        showToast('👑 CHIẾN THẮNG BOSS TỐI THƯỢNG! Đã rơi trọn bộ GIÁP HIỆP SĨ RỒNG TỐI THƯỢNG!');
+      }
+      else if (_END_FIERCE_DRAGONS.has(mob.type)) {
+        spawnDroppedItem(bx, by, bz, B.END_DRAGON_SCALE, { count: 4 + ((Math.random() * 4) | 0) });
+        spawnDroppedItem(bx, by, bz, B.END_DRAGON_BONE, { count: 3 + ((Math.random() * 3) | 0) });
+        spawnDroppedItem(bx, by, bz, B.VOID_PEARL, { count: 2 });
+        spawnXpOrbs(mob.x, mob.y + 1.4, mob.z, 85);
+        showToast(`🏆 ĐÃ HẠ GỤC ${mob.displayName.toUpperCase()}! Nhặt Vảy Rồng & Xương Rồng The End để rèn đồ mới!`);
       }
       else if (mob.elemDragon) {
         const dLoot = {
@@ -6143,10 +6227,200 @@
     return true;
   }
 
-  // Epic Ender Dragon Boss Visuals: Violet End-Crystal Healing Beam + Lingering Dragon Breath Acid Clouds!
-  const dragonHealBeamMat = new THREE.MeshBasicMaterial({ color: 0xe879f9, transparent: true, opacity: 0.78 });
-  const dragonHealBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1, 6), dragonHealBeamMat);
-  dragonHealBeam.visible = false; dragonHealBeam.frustumCulled = false; scene.add(dragonHealBeam);
+  // Epic Ender Dragon Boss Visuals: Composite Multi-Layer Portal-Shader Healing Beam, Death Rays, & 50-Skill Sovereign Engine!
+  const dragonHealBeam = (() => {
+    const grp = new THREE.Group();
+    const coreU = { uTime: { value: 0 } };
+    const auraU = { uTime: { value: 0 } };
+    const vShader = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+    const coreMat = new THREE.ShaderMaterial({
+      uniforms: coreU,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: vShader,
+      fragmentShader: `
+        uniform float uTime; varying vec2 vUv;
+        void main(){
+          float scroll = fract(vUv.y * 14.0 - uTime * 3.8);
+          float px = step(0.32, scroll) * 0.65 + step(0.72, fract(vUv.x * 8.0 + floor(vUv.y * 28.0) * 0.25)) * 0.35;
+          vec3 c = mix(vec3(0.76, 0.28, 0.98), vec3(1.0, 0.92, 1.0), 0.45 + 0.55 * px);
+          float pulse = 0.72 + 0.28 * sin(uTime * 14.0 + vUv.y * 18.0);
+          gl_FragColor = vec4(c, 0.92 * pulse);
+        }`
+    });
+    const auraMat = new THREE.ShaderMaterial({
+      uniforms: auraU,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: vShader,
+      fragmentShader: `
+        uniform float uTime; varying vec2 vUv;
+        void main(){
+          float spiral = sin(vUv.y * 26.0 - uTime * 8.5 + vUv.x * 12.566);
+          float band = smoothstep(0.15, 0.95, spiral * 0.5 + 0.5);
+          float edge = smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.86, vUv.y);
+          vec3 col = mix(vec3(0.55, 0.14, 0.92), vec3(0.95, 0.55, 1.0), band);
+          gl_FragColor = vec4(col, (0.28 + 0.52 * band) * edge);
+        }`
+    });
+    const coreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.20, 1, 8, 1, true), coreMat);
+    const auraMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 1, 12, 1, true), auraMat);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5d0fe, transparent: true, opacity: 0.88, blending: THREE.AdditiveBlending, depthWrite: false });
+    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.06, 6, 16), ringMat);
+    ring1.rotation.x = Math.PI * 0.5;
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.05, 6, 16), ringMat);
+    ring2.rotation.x = Math.PI * 0.5;
+    grp.add(coreMesh, auraMesh, ring1, ring2);
+    grp.userData = { coreU, auraU, ring1, ring2 };
+    grp.visible = false; grp.frustumCulled = false;
+    scene.add(grp);
+    return grp;
+  })();
+
+  function _attachDragonDeathRays(m) {
+    if (!m || !m.group || m._deathRaysGrp) return;
+    const grp = new THREE.Group();
+    const rayGeo = new THREE.ConeGeometry(0.55, 5.2, 6, 1, true);
+    rayGeo.translate(0, 2.6, 0);
+    const matA = new THREE.MeshBasicMaterial({ color: 0xe879f9, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const matB = new THREE.MeshBasicMaterial({ color: 0xfef0ff, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    for (let k = 0; k < 14; k++) {
+      const cone = new THREE.Mesh(rayGeo, (k & 1) ? matA : matB);
+      cone.rotation.set(Math.sin(k * 1.9) * 1.4, (k / 14) * Math.PI * 2, Math.cos(k * 2.3) * 1.4);
+      grp.add(cone);
+    }
+    grp.userData = { rayGeo, matA, matB };
+    const anchor = (m.anim && m.anim.bodyBone) ? m.anim.bodyBone : m.group;
+    anchor.add(grp);
+    m._deathRaysGrp = grp;
+  }
+  function _disposeDragonDeathRays(m) {
+    if (!m || !m._deathRaysGrp) return;
+    const grp = m._deathRaysGrp;
+    if (grp.parent) grp.parent.remove(grp);
+    if (grp.userData) {
+      if (grp.userData.rayGeo) grp.userData.rayGeo.dispose();
+      if (grp.userData.matA) grp.userData.matA.dispose();
+      if (grp.userData.matB) grp.userData.matB.dispose();
+    }
+    m._deathRaysGrp = null;
+  }
+
+  const SOVEREIGN_BOSS_SKILLS = (() => {
+    const archetypes = [
+      { arch: 'void_beam',     col: 0xd946ef, names: ['Tia Hư Vô Khởi Nguyên', 'Chùm Tia Sụp Đổ', 'Laser Ngân Hà Tím', 'Xuyên Phá Không Gian', 'Quang Tuyến Tận Diệt'] },
+      { arch: 'meteor_shower', col: 0xf43f5e, names: ['Mưa Thiên Thạch Đen', 'Thiên Thạch Purpur', 'Sao Băng Vỡ Vụn', 'Bão Đá Hư Không', 'Trời Sập Hỗn Mang'] },
+      { arch: 'gravity_vortex',col: 0x8b5cf6, names: ['Hố Đen Trọng Lực', 'Vòng Xoáy Không Thời Gian', 'Lực Hút Vĩnh Hằng', 'Vực Sâu Nuốt Chửng', 'Lỗ Đen Nghịch Đảo'] },
+      { arch: 'crystal_spire', col: 0xe879f9, names: ['Mũi Nhọn Pha Lê End', 'Rừng Gai Thạch Anh', 'Băng Tinh Hư Vô Trồi Lên', 'Đỉnh Nhọn Tím Biếc', 'Kết Tinh Không Gian'] },
+      { arch: 'shockwave',     col: 0xc084fc, names: ['Sóng Xung Kích Long Đế', 'Cú Đập Nứt Toác', 'Gầm Vang Cửu Thiên', 'Chấn Động Hoàng Hôn End', 'Bão Áp Suất Hư Không'] },
+      { arch: 'lightning_grid',col: 0x38bdf8, names: ['Thiên Lôi Phán Quyết', 'Lưới Sét Hư Vô', 'Cơn Thịnh Nộ Sấm Tím', 'Sấm Chớp Diệt Thế', 'Tia Sét Lam Tinh'] },
+      { arch: 'acid_sweep',    col: 0xa855f7, names: ['Hơi Thở Axit Tối Thượng', 'Sương Mù Độc Hư Không', 'Hồ Axit Tràn Bờ', 'Hơi Thở Phân Rã', 'Cơn Mưa Độc Tố End'] },
+      { arch: 'blink_dive',    col: 0xf472b6, names: ['Dịch Chuyển Bổ Nhào', 'Ảo Ảnh Đoạt Mệnh', 'Xé Rách Thực Tại Lao Xuống', 'Cú Vồ Siêu Thanh', 'Đột Kích Hư Vô'] },
+      { arch: 'blade_ring',    col: 0xf0abfc, names: ['Luân Hồi Long Đao', 'Bão Kiếm Pha Lê Quay', 'Vòng Tròn Lưỡi Hái End', 'Phi Tiêu Ngân Hà', 'Mười Hai Thanh Long Kiếm'] },
+      { arch: 'frost_nova',    col: 0x22d3ee, names: ['Bão Băng Hư Vô Tuyệt Đối', 'Đóng Băng Thời Không', 'Tuyết Lạnh Kết Giới', 'Hàn Khí Bất Tử', 'Vụ Nổ Băng Giá Tối Thượng'] }
+    ];
+    const out = [];
+    let idx = 0;
+    for (let a = 0; a < archetypes.length; a++) {
+      for (let v = 0; v < archetypes[a].names.length; v++) {
+        idx++;
+        out.push({ id: idx, arch: archetypes[a].arch, col: archetypes[a].col, name: archetypes[a].names[v] });
+      }
+    }
+    return out;
+  })();
+  window._NUCRAFT_SOVEREIGN_SKILLS = SOVEREIGN_BOSS_SKILLS;
+
+  function _drawNextSovereignSkill(m) {
+    if (!m._skillBag || m._skillBag.length === 0) {
+      m._skillBag = [];
+      for (let k = 0; k < SOVEREIGN_BOSS_SKILLS.length; k++) m._skillBag.push(k);
+      for (let k = m._skillBag.length - 1; k > 0; k--) {
+        const j = Math.floor(Math.random() * (k + 1));
+        const tmp = m._skillBag[k]; m._skillBag[k] = m._skillBag[j]; m._skillBag[j] = tmp;
+      }
+      if (m._lastSkillId && m._skillBag[m._skillBag.length - 1] === m._lastSkillId - 1 && m._skillBag.length > 1) {
+        const tmp = m._skillBag[0]; m._skillBag[0] = m._skillBag[m._skillBag.length - 1]; m._skillBag[m._skillBag.length - 1] = tmp;
+      }
+    }
+    const sk = SOVEREIGN_BOSS_SKILLS[m._skillBag.pop()];
+    m._lastSkillId = sk.id;
+    return sk;
+  }
+
+  function _execSovereignSkill(m, sk, aimX, aimY, aimZ, aimDist3D) {
+    const mp = getDragonMouthWorldPos(m, _mouthPos);
+    const dx = aimX - mp.x, dy = aimY - mp.y, dz = aimZ - mp.z;
+    const dLen = Math.hypot(dx, dy, dz) || 1;
+    m.lastSkillLabel = `👑 CHIÊU ${sk.id}/50: ${sk.name.toUpperCase()}!`;
+    m.atkAnimT = 0.72; m._roarT = 1.25; playSfx('roar');
+    const a = sk.arch;
+    if (a === 'void_beam') {
+      for (let k = -2; k <= 2; k++) {
+        const sp = k * 0.08;
+        const sx = (dx / dLen) * Math.cos(sp) - (dz / dLen) * Math.sin(sp);
+        const sz = (dx / dLen) * Math.sin(sp) + (dz / dLen) * Math.cos(sp);
+        fireEnergyOrb(mp.x, mp.y, mp.z, sx, dy / dLen, sz, 28.0, m.dmg * 0.90, 'dragon_ball', { pfxKey: 'lightning_arc', scale: 3.6, splashR: 5.5, ownerDragon: m });
+      }
+    } else if (a === 'meteor_shower') {
+      for (let mi = 0; mi < 6; mi++) {
+        const mx = aimX + (mi === 0 ? 0 : (Math.random() - 0.5) * 14);
+        const mz = aimZ + (mi === 0 ? 0 : (Math.random() - 0.5) * 14);
+        fireEnergyOrb(mx, aimY + 26 + mi * 2, mz, 0, -1, 0, 23.0, m.dmg * 0.95, 'dragon_ball', { pfxKey: 'explosion_ender', scale: 4.0, splashR: 7.0, gravity: 8.5, ownerDragon: m });
+      }
+    } else if (a === 'gravity_vortex') {
+      const vxY = _getDragonGroundSurfaceY(aimX, aimY + 4, aimZ, m.dragonScale);
+      spawnEnderVortex(aimX, vxY, aimZ, m.dmg * 1.15);
+    } else if (a === 'crystal_spire') {
+      for (let k = 0; k < 5; k++) {
+        const ang = (k / 5) * Math.PI * 2 + Math.random() * 0.4;
+        const distK = 3.0 + Math.random() * 4.5;
+        const sx = aimX + Math.cos(ang) * distK, sz = aimZ + Math.sin(ang) * distK;
+        const sy = _getDragonGroundSurfaceY(sx, aimY + 4, sz, m.dragonScale);
+        spawnPixelFx('end_crystal_burst', sx, sy + 1.4, sz, { count: 4, scale: 3.6, life: 0.65, spread: 1.4 });
+        if (!player.dead && gameMode !== 'creative' && Math.hypot(player.x - sx, player.z - sz) < 4.2 && Math.abs(player.y - sy) < 6.0) {
+          hurtPlayer(m.dmg * 0.85, `Bạn trúng ${sk.name} của Boss Tối Thượng!`);
+        }
+      }
+    } else if (a === 'shockwave') {
+      cameraShake = Math.max(cameraShake, 0.55);
+      spawnPixelFx('explosion_ender', m.x, m.y + 1.0, m.z, { count: 7, scale: 4.4, life: 0.70, spread: 4.0 });
+      if (!player.dead && gameMode !== 'creative' && aimDist3D < 20) {
+        player.vy = Math.max(player.vy, 9.5);
+        hurtPlayer(m.dmg * 0.95, `Bạn bị Sóng Xung Kích ${sk.name} hất văng!`);
+      }
+    } else if (a === 'lightning_grid') {
+      for (let li = 0; li < 5; li++) {
+        const lx = aimX + (li === 0 ? 0 : (Math.random() - 0.5) * 12);
+        const lz = aimZ + (li === 0 ? 0 : (Math.random() - 0.5) * 12);
+        const ly = _getDragonGroundSurfaceY(lx, aimY + 4, lz, m.dragonScale);
+        for (let h = 0; h <= 10; h += 5) spawnPixelFx('lightning_arc', lx, ly + h + 1.2, lz, { count: 2, scale: 3.2, life: 0.52, spread: 0.5 });
+        if (!player.dead && gameMode !== 'creative' && Math.hypot(player.x - lx, player.z - lz) < 4.2 && Math.abs(player.y - ly) < 6.5) {
+          hurtPlayer(m.dmg * 0.80, `Bạn bị ${sk.name} giáng xuống!`);
+        }
+      }
+    } else if (a === 'acid_sweep') {
+      for (let s = -1; s <= 1; s++) {
+        const cx = aimX + s * 4.5, cz = aimZ + (Math.random() - 0.5) * 4.0;
+        const cy = Math.max(2, _getDragonGroundSurfaceY(cx, aimY + 4, cz, m.dragonScale));
+        spawnDragonBreathCloud(cx, cy, cz, 1.55);
+      }
+      fireEnergyOrb(mp.x, mp.y, mp.z, dx / dLen, dy / dLen, dz / dLen, 25.0, m.dmg * 0.90, 'dragon_ball', { scale: 3.8, splashR: 6.5, effect: 'acid', ownerDragon: m });
+    } else if (a === 'blink_dive') {
+      m.swoopT = 2.6;
+      spawnParticles(m.x, m.y + 1.8, m.z, sk.col, 28, true);
+    } else if (a === 'blade_ring') {
+      for (let b = 0; b < 8; b++) {
+        const ang = (b / 8) * Math.PI * 2;
+        fireEnergyOrb(mp.x, mp.y, mp.z, Math.cos(ang), (dy / dLen) * 0.45, Math.sin(ang), 21.0, m.dmg * 0.78, 'dragon_ball', { pfxKey: 'magic_ender', scale: 3.0, splashR: 4.8, ownerDragon: m });
+      }
+    } else {
+      spawnPixelFx('ice_shatter', aimX, aimY + 1.0, aimZ, { count: 7, scale: 4.0, life: 0.65, spread: 3.5 });
+      if (!player.dead && gameMode !== 'creative' && aimDist3D < 15) {
+        player.chillT = 4.2;
+        hurtPlayer(m.dmg * 0.85, `Bạn bị đóng băng bởi ${sk.name}!`);
+      }
+    }
+    spawnParticles(mp.x, mp.y, mp.z, sk.col, 22, true);
+  }
   const dragonClouds = [];
   const _cloudGeo = new THREE.CylinderGeometry(3.8, 4.1, 0.45, 12);
   const _cloudMat = new THREE.MeshBasicMaterial({ color: 0xc026d3, transparent: true, opacity: 0.36, depthWrite: false });
@@ -6749,6 +7023,29 @@
     for (let i = 0; i < _mobSnapBuf.length; i++) {
       const m = _mobSnapBuf[i];
       if (!m || m._dead) continue;
+      if (m._dyingT > 0) {
+        m._dyingT -= _rawMobDt;
+        m.y += _rawMobDt * 1.45;
+        m.yaw += _rawMobDt * 1.8;
+        if (m.group) {
+          m.group.position.set(m.x, m.y, m.z);
+          m.group.rotation.y = m.yaw;
+        }
+        if (m._deathRaysGrp) {
+          m._deathRaysGrp.rotation.y += _rawMobDt * 2.4;
+          m._deathRaysGrp.rotation.z += _rawMobDt * 1.1;
+          const scR = 0.65 + (4.0 - m._dyingT) * 0.55;
+          m._deathRaysGrp.scale.setScalar(scR);
+        }
+        if (((frameCounter + i) & 3) === 0) spawnParticles(m.x, m.y + 1.5, m.z, 0xe879f9, 4, true);
+        if (m._dyingT <= 0) {
+          m._dyingT = 0;
+          _disposeDragonDeathRays(m);
+          m.hp = -1;
+          hurtMob(m, 999, 0, 0, 0, false, false);
+        }
+        continue;
+      }
       const mdx = m.x - player.x, mdy = m.y - player.y, mdz = m.z - player.z;
       const dist2 = mdx * mdx + mdz * mdz;
       const dist = Math.sqrt(dist2);
@@ -7328,14 +7625,59 @@
           if (_endCrystalCache.best && _endCrystalCache.best.d2 < 52 * 52) {
             if (m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + dt * 3.5);
             _beamA.set(_endCrystalCache.best.x, _endCrystalCache.best.y, _endCrystalCache.best.z);
-            _beamB.set(m.x, m.y + 1.8, m.z);
+            if (m.group) m.group.updateMatrixWorld(true);
+            if (m.anim && m.anim.bodyBone) {
+              m.anim.bodyBone.getWorldPosition(_beamB);
+            } else {
+              _beamB.set(m.x, m.y + (m.dragonScale || 4.8) * 1.15, m.z);
+            }
             const bLen = _beamA.distanceTo(_beamB);
             dragonHealBeam.position.copy(_beamA).add(_beamB).multiplyScalar(0.5);
-            dragonHealBeam.scale.set(1 + Math.sin(elapsed * 14) * 0.25, bLen, 1 + Math.sin(elapsed * 14) * 0.25);
+            const bRad = 1.0 + Math.sin(elapsed * 12) * 0.16;
+            dragonHealBeam.scale.set(bRad, bLen, bRad);
             _beamDir.subVectors(_beamB, _beamA).normalize();
             dragonHealBeam.quaternion.setFromUnitVectors(_upVec, _beamDir);
+            if (dragonHealBeam.userData && dragonHealBeam.userData.coreU) {
+              dragonHealBeam.userData.coreU.uTime.value = elapsed;
+              dragonHealBeam.userData.auraU.uTime.value = elapsed;
+              dragonHealBeam.userData.ring1.position.y = ((elapsed * 0.65) % 0.92) - 0.46;
+              dragonHealBeam.userData.ring2.position.y = (((elapsed * 0.65) + 0.46) % 0.92) - 0.46;
+            }
             dragonHealBeam.visible = true;
             dragonBeamActive = true;
+          }
+          if (currentDimension === 'end' && !m._dyingT) {
+            if (m._perchCd === undefined) m._perchCd = 22 + Math.random() * 8;
+            if (!m._perchState) {
+              m._perchCd -= dt;
+              if (m._perchCd <= 0) { m._perchState = 'approach'; m._perchT = 7.5; }
+            }
+            if (m._perchState === 'approach') {
+              const fy = Math.max(9.5, getTerrainHeight(0, 0, BIOMES.THE_END) + 3.2);
+              const pxT = 0.5, pyT = fy, pzT = 0.5;
+              const pdx = pxT - m.x, pdy = pyT - m.y, pdz = pzT - m.z;
+              const pDist = Math.hypot(pdx, pdy, pdz) || 1;
+              m.yaw = _turnAngleTowards(m.yaw, Math.atan2(pdx, pdz), 5.0, dt);
+              m.x += (pdx / pDist) * Math.min(pDist, 14.0 * dt);
+              m.y += (pdy / pDist) * Math.min(pDist, 10.0 * dt);
+              m.z += (pdz / pDist) * Math.min(pDist, 14.0 * dt);
+              m.rx = m.x; m.ry = m.y; m.rz = m.z;
+              if (pDist < 2.2) { m._perchState = 'perched'; m._perchT = 7.5; m.flying = false; m._roarT = 1.5; playSfx('roar'); m.lastSkillLabel = '⛩️ RỒNG ENDER ĐẬU ĐÀI LỆNH!'; }
+            } else if (m._perchState === 'perched') {
+              m.flying = false; m.vx = 0; m.vz = 0; m._flyPitch = 0;
+              m.yaw = _turnAngleTowards(m.yaw, Math.atan2(player.x - m.x, player.z - m.z), 3.6, dt);
+              m._perchT -= dt;
+              if (m.atkCd <= 0) {
+                m.atkCd = 1.8; m.atkAnimT = 0.65; m._roarT = 1.2;
+                spawnDragonBreathCloud(player.x, colGroundY(Math.floor(player.x), Math.floor(player.z)) + 0.5, player.z, 1.35);
+                spawnParticles(m.x, m.y + 2.2, m.z, 0xd946ef, 18, true);
+              }
+              if (m._perchT <= 0) {
+                m._perchState = null; m._perchCd = 24 + Math.random() * 10;
+                m.flying = true; m.vy = 6.0; playSfx('wing_flap');
+                spawnPixelFx('explosion_ender', m.x, m.y + 1.0, m.z, { count: 4, scale: 3.4, life: 0.55, spread: 2.2 });
+              }
+            }
           }
         }
 
@@ -7506,6 +7848,9 @@
         const hasTarget = (canSeePlayer || !!aimTgtMob) && (!_drgHomeLeash || _drgAimFromHome <= _drgHomeLeash + 4);
         if (_drgHomeLeash > 0 && Math.hypot(m.x - m.homeX, m.z - m.homeZ) > _drgHomeLeash + 2) m.swoopT = 0;
 
+        if (m._perchState) {
+          speed = 0; m.vx = 0; m.vz = 0;
+        } else {
         if (m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground')) {
           m.swoopT = 0;
           const landTargetX = hasTarget ? aimX : (typeof m.homeX === 'number' ? m.homeX : aimX);
@@ -7596,7 +7941,27 @@
               const nextY = m.y + (targetH - m.y) * dt * 1.5;
               if (!isSolidAt(Math.floor(m.x), Math.floor(nextY), Math.floor(m.z))) m.y = nextY;
             }
-            if (isDragon && m.atkCd <= 0 && aimDist3D < 72) {
+            if (isDragon && m.sovereignBoss) {
+              if (m._restT > 0) {
+                m._restT -= dt;
+                m.lastSkillLabel = `👑 HỒI SỨC THỞ DỐC (${Math.ceil(m._restT)}s)`;
+              } else if (m._skillChargeT > 0) {
+                m._skillChargeT -= dt;
+                const pend = m._pendingSkill;
+                if (pend) m.lastSkillLabel = `⏳ GỒNG CHIÊU ${pend.id}/50: ${pend.name.toUpperCase()}!`;
+                if (m._skillChargeT <= 0 && pend) {
+                  _execSovereignSkill(m, pend, aimX, aimY, aimZ, aimDist3D);
+                  m._pendingSkill = null;
+                  m._skillsSinceRest = (m._skillsSinceRest || 0) + 1;
+                  if (m._skillsSinceRest >= 4) { m._restT = 6.5; m._skillsSinceRest = 0; m.atkCd = 1.5; }
+                  else { m.atkCd = 3.8 + Math.random() * 1.2; }
+                }
+              } else if (m.atkCd <= 0 && aimDist3D < 82) {
+                m._pendingSkill = _drawNextSovereignSkill(m);
+                m._skillChargeT = 0.85;
+                spawnParticles(m.x, m.y + 3.0, m.z, m._pendingSkill.col, 18, true);
+              }
+            } else if (isDragon && m.atkCd <= 0 && aimDist3D < 72) {
               if (m.elemDragon) {
                 castElementalDragonAerialSkill(m, aimDist3D, aimTgtMob);
               } else {
@@ -7705,6 +8070,7 @@
             if (isDragon) { m.flyVx = Math.sin(m.yaw) * speed; m.flyVz = Math.cos(m.yaw) * speed; }
           }
           m.vx *= 0.9; m.vz *= 0.9;
+        }
         }
         } // end wild/hostile flyer branch
       } else if (canChasePlayer) {
@@ -8383,7 +8749,10 @@
             } else if (nextAct) {
               nextAct.setEffectiveTimeScale(desiredScale);
             }
-            m.anim.mixer.update(Math.min(0.05, dt));
+            if (m._mixerTickedFrame !== frameCounter) {
+              m.anim.mixer.update(Math.min(0.05, dt));
+              m._mixerTickedFrame = frameCounter;
+            }
           }
           m.group.rotation.x = isRidingThis
             ? (m._flyPitch || 0)
@@ -8824,7 +9193,12 @@
             earth_dragon: ['#7c4a26', '#a8a29e', '#34d399', '#452714'],
             water_dragon: ['#0369a1', '#67e8f9', '#fef9c3', '#0c4a6e'],
             leaf_dragon:  ['#15803d', '#86efac', '#fde047', '#14532d'],
-            tree_dragon:  ['#5c3a21', '#a3e635', '#facc15', '#3f2314']
+            tree_dragon:  ['#5c3a21', '#a3e635', '#facc15', '#3f2314'],
+            void_end_dragon:     ['#3b0764', '#e879f9', '#22d3ee', '#1e0634'],
+            amethyst_end_dragon: ['#581c87', '#f0abfc', '#f472b6', '#2e1065'],
+            storm_end_dragon:    ['#1e1b4b', '#38bdf8', '#22d3ee', '#0f172a'],
+            abyss_end_dragon:    ['#500724', '#fb7185', '#f43f5e', '#1a0410'],
+            sovereign_end_dragon:['#1e0b36', '#38bdf8', '#e879f9', '#0c041a']
           }[activeBoss.type] || ['#2d1438', '#a855f7', '#f0abfc', '#581c87'];
           _elBossCrest.style.setProperty('--drg-head', crestPal[0]);
           _elBossCrest.style.setProperty('--drg-horn', crestPal[1]);

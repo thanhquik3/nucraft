@@ -71,17 +71,71 @@
   const skinTexCache = new Map();
   const skinCanvasCache = new Map();
   const _skinViewportThumbCache = new Map();
+  const remoteCustomSkins = new Map();
   let _skinRefreshQueued = false;
 
   function getSkinDef(id) {
     if (id === 'custom') {
       return { id: 'custom', name: 'Skin Tùy Chỉnh (.PNG)', slim: customSkinSlim, skin: '#f6d4c2', hair: '#4a3525', eye: '#2b2430', sleeve: '#94a3b8', png: '' };
     }
+    if (typeof id === 'string' && id.startsWith('custom_peer_')) {
+      const rEntry = remoteCustomSkins.get(id);
+      return { id, name: 'Skin Bạn Chơi', slim: !!(rEntry && rEntry.slim), skin: '#f6d4c2', hair: '#4a3525', eye: '#2b2430', sleeve: '#94a3b8', png: '' };
+    }
     return PLAYER_SKINS.find(s => s.id === id) || PLAYER_SKINS[0];
   }
 
   function isSkinSlim(skinId) {
-    return (skinId === 'custom') ? !!customSkinSlim : !!getSkinDef(skinId).slim;
+    if (skinId === 'custom') return !!customSkinSlim;
+    if (typeof skinId === 'string' && skinId.startsWith('custom_peer_')) {
+      const rEntry = remoteCustomSkins.get(skinId);
+      return !!(rEntry && rEntry.slim);
+    }
+    return !!getSkinDef(skinId).slim;
+  }
+
+  function getLocalCustomSkinPayload() {
+    if (selectedSkinId === 'custom' && customSkinImage) {
+      const cv = getSkinCanvas('custom');
+      return cv ? { dataUrl: cv.toDataURL('image/png'), slim: !!customSkinSlim } : null;
+    }
+    const sk = getSkinDef(selectedSkinId);
+    if (sk && sk.isCustom) {
+      const cv = getSkinCanvas(selectedSkinId);
+      const dataUrl = cv ? cv.toDataURL('image/png') : (sk.png && String(sk.png).startsWith('data:image/') ? String(sk.png) : '');
+      if (dataUrl) return { dataUrl, slim: !!sk.slim };
+    }
+    return null;
+  }
+
+  function registerRemoteCustomSkin(peerId, payload) {
+    if (!peerId || !payload || typeof payload.dataUrl !== 'string' || !payload.dataUrl.startsWith('data:image/')) return null;
+    const key = 'custom_peer_' + peerId;
+    const prev = remoteCustomSkins.get(key);
+    if (prev && prev.dataUrl === payload.dataUrl) {
+      prev.slim = !!payload.slim;
+      return key;
+    }
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+    paintFallbackSkinCanvas(cv, PLAYER_SKINS[0]);
+    const entry = { dataUrl: payload.dataUrl, slim: !!payload.slim, canvas: cv };
+    remoteCustomSkins.set(key, entry);
+    skinTexCache.delete(key);
+    const img = new Image();
+    img.onload = () => {
+      const norm = normalizeCustomSkinImage(img);
+      const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 64, 64);
+      ctx.drawImage(norm && norm.canvas ? norm.canvas : img, 0, 0, 64, 64);
+      skinTexCache.delete(key);
+      if (typeof remotePlayers !== 'undefined') {
+        const rp = remotePlayers.get(peerId);
+        if (rp && rp.rig) applySkinToRig(rp.rig, key);
+      }
+    };
+    img.src = payload.dataUrl;
+    return key;
   }
 
   function _countOpaqueBox(ctx, x, y, w, h) {
@@ -220,6 +274,10 @@
     if (skinId === 'custom' && customSkinImage) {
       return buildCustomSkinCanvas(customSkinImage);
     }
+    if (typeof skinId === 'string' && skinId.startsWith('custom_peer_')) {
+      const rEntry = remoteCustomSkins.get(skinId);
+      if (rEntry && rEntry.canvas) return rEntry.canvas;
+    }
     if (skinCanvasCache.has(skinId)) return skinCanvasCache.get(skinId);
     const sk = getSkinDef(skinId);
     const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
@@ -248,12 +306,13 @@
   }
 
   function getSkinTexture(skinId) {
-    if (skinId !== 'custom' && skinTexCache.has(skinId)) return skinTexCache.get(skinId);
+    const isDynamic = (skinId === 'custom' || (typeof skinId === 'string' && skinId.startsWith('custom_peer_')));
+    if (!isDynamic && skinTexCache.has(skinId)) return skinTexCache.get(skinId);
     const cv = getSkinCanvas(skinId);
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
-    if (skinId !== 'custom') skinTexCache.set(skinId, tex);
+    if (!isDynamic) skinTexCache.set(skinId, tex);
     return tex;
   }
 
@@ -359,16 +418,25 @@
       });
     };
     const m = eqMeta || {};
+    const isSovHelm  = (eq.helmet === B.SOVEREIGN_KNIGHT_HELMET);
+    const isSovChest = (eq.chest === B.SOVEREIGN_KNIGHT_CHEST);
+    const isSovLegs  = (eq.legs === B.SOVEREIGN_KNIGHT_LEGS);
+    const isSovBoots = (eq.boots === B.SOVEREIGN_KNIGHT_BOOTS);
     setArmorMat(rig.armor.helmet, eq.helmet, m.helmet);
     if (rig.armor.dragonHelmet) rig.armor.dragonHelmet.visible = (eq.helmet === B.DRAGON_HEAD);
-    if (eq.helmet === B.DRAGON_HEAD && rig.armor.helmet) rig.armor.helmet.visible = false;
+    if (rig.armor.sovereignHelm) rig.armor.sovereignHelm.visible = isSovHelm;
+    if ((eq.helmet === B.DRAGON_HEAD || isSovHelm) && rig.armor.helmet) rig.armor.helmet.visible = false;
     if (rig.headAcc) rig.headAcc.visible = !eq.helmet; // Keep cute face/bangs visible, tuck tall horns/ears under helmet!
     setArmorMat(rig.armor.chest, eq.chest, m.chest);
     setArmorMat(rig.armor.pauldronL, eq.chest, m.chest);
     setArmorMat(rig.armor.pauldronR, eq.chest, m.chest);
+    if (rig.armor.sovereignChest) rig.armor.sovereignChest.visible = isSovChest;
+    if (rig.armor.sovereignCape) rig.armor.sovereignCape.visible = isSovChest;
+    if (rig.armor.sovereignPauldronL) rig.armor.sovereignPauldronL.visible = isSovChest;
+    if (rig.armor.sovereignPauldronR) rig.armor.sovereignPauldronR.visible = isSovChest;
     const isEly = !!(eq.chest && BLOCK_DEF[eq.chest] && BLOCK_DEF[eq.chest].isElytra);
     const isPhoenixEly = (eq.chest === B.ELYTRA_PHOENIX);
-    if (isEly) {
+    if (isEly || isSovChest) {
       if (rig.armor.chest) rig.armor.chest.visible = false;
       if (rig.armor.pauldronL) rig.armor.pauldronL.visible = false;
       if (rig.armor.pauldronR) rig.armor.pauldronR.visible = false;
@@ -383,8 +451,22 @@
     setArmorMat(rig.armor.waist, eq.legs, m.legs);
     setArmorMat(rig.armor.legL, eq.legs, m.legs);
     setArmorMat(rig.armor.legR, eq.legs, m.legs);
+    if (rig.armor.sovereignWaist) rig.armor.sovereignWaist.visible = isSovLegs;
+    if (rig.armor.sovereignLegL) rig.armor.sovereignLegL.visible = isSovLegs;
+    if (rig.armor.sovereignLegR) rig.armor.sovereignLegR.visible = isSovLegs;
+    if (isSovLegs) {
+      if (rig.armor.waist) rig.armor.waist.visible = false;
+      if (rig.armor.legL) rig.armor.legL.visible = false;
+      if (rig.armor.legR) rig.armor.legR.visible = false;
+    }
     setArmorMat(rig.armor.bootL, eq.boots, m.boots);
     setArmorMat(rig.armor.bootR, eq.boots, m.boots);
+    if (rig.armor.sovereignBootL) rig.armor.sovereignBootL.visible = isSovBoots;
+    if (rig.armor.sovereignBootR) rig.armor.sovereignBootR.visible = isSovBoots;
+    if (isSovBoots) {
+      if (rig.armor.bootL) rig.armor.bootL.visible = false;
+      if (rig.armor.bootR) rig.armor.bootR.visible = false;
+    }
     if (rig.armor.shield) rig.armor.shield.visible = (eq.offhand === B.SHIELD);
     if (rig.armor.offTorch) rig.armor.offTorch.visible = (eq.offhand === B.TORCH_BLOCK);
     if (rig.armor.offLantern) rig.armor.offLantern.visible = (eq.offhand === B.LANTERN);
@@ -401,15 +483,19 @@
       if (d && d.kbResist) kb += d.kbResist;
     }
     let elemSet = null;
+    let sovCount = 0;
     for (const k of ['helmet', 'chest', 'legs', 'boots']) {
       const id = player.equip[k], d = id ? BLOCK_DEF[id] : null;
+      if (d && d.sovereignKnightSet) sovCount++;
       const es = (d && d.dragonElemSet) ? d.dragonElemSet : '';
-      if (!es) { elemSet = null; break; }
+      if (!es) { elemSet = null; continue; }
       if (elemSet === null) elemSet = es;
-      else if (elemSet !== es) { elemSet = null; break; }
+      else if (elemSet !== es) elemSet = null;
     }
+    if (!player.equip.helmet || !player.equip.chest || !player.equip.legs || !player.equip.boots) elemSet = null;
+    player.sovereignKnightPieces = sovCount;
     player.dragonArmorSet = elemSet;
-    if (elemSet === 'earth') kb = Math.max(kb, 0.75);
+    if (elemSet === 'earth' || elemSet === 'sovereign_knight') kb = Math.max(kb, 0.80);
     player.armor = Math.min(40, total);
     player.armorToughness = tough;
     player.kbResist = Math.min(0.85, kb);
@@ -854,6 +940,133 @@
     addRelief(armorBootR, 0.365, 0.07, 0.365, 0,  0.045, 0,    armBootRelMat, false);
     armorBootR.visible = false;
 
+    // 5B) Sovereign Dragon Knight Boss Armor (3D Plumed Greathelm, Dual Shoulder Dragon Heads, Layered Cape & Tasset War-Skirt)
+    const _mkSovArmorParts = () => {
+      const mSteel  = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.24, metalness: 0.72 });
+      const mBright = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.18, metalness: 0.78 });
+      const mDark   = new THREE.MeshStandardMaterial({ color: 0x1e2538, roughness: 0.36, metalness: 0.55 });
+      const mTeal   = new THREE.MeshStandardMaterial({ color: 0x2dd4bf, roughness: 0.30, metalness: 0.25, emissive: 0x0d9488, emissiveIntensity: 0.22 });
+      const mNavy   = new THREE.MeshStandardMaterial({ color: 0x312e81, roughness: 0.44, metalness: 0.28 });
+      const mGlow   = new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.12, metalness: 0.15, emissive: 0x38bdf8, emissiveIntensity: 1.05 });
+      const mFang   = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.10 });
+      const bx = (p, w, h, d, x, y, z, mat, rx = 0, ry = 0, rz = 0) => {
+        const ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        ms.position.set(x, y, z);
+        if (rx || ry || rz) ms.rotation.set(rx, ry, rz);
+        ms.castShadow = true;
+        p.add(ms);
+        return ms;
+      };
+
+      // Helmet: visored knight greathelm + grille + diamond forehead gem + tall aqua plume + swept winged ears
+      const helm = new THREE.Group(); helm.position.set(0, 0.25, 0); head.add(helm); helm.visible = false;
+      bx(helm, 0.56, 0.56, 0.56, 0, 0.01, 0, mSteel);
+      bx(helm, 0.59, 0.14, 0.59, 0, 0.23, 0, mBright);
+      bx(helm, 0.60, 0.08, 0.08, 0, 0.04, 0.275, mDark); // visor eye slit
+      bx(helm, 0.52, 0.20, 0.07, 0, -0.14, 0.28, mSteel); // lower faceplate
+      for (let gi = -2; gi <= 2; gi++) bx(helm, 0.032, 0.18, 0.04, gi * 0.08, -0.14, 0.312, mDark);
+      // Forehead diamond crest
+      bx(helm, 0.14, 0.14, 0.06, 0, 0.25, 0.30, mBright, 0, 0, Math.PI * 0.25);
+      bx(helm, 0.085, 0.085, 0.075, 0, 0.25, 0.315, mGlow, 0, 0, Math.PI * 0.25);
+      // Tall aqua-teal crest fin cascading over top/back of helmet
+      const plumePts = [
+        [0.08, 0.12, 0.10, 0, 0.34,  0.14],
+        [0.07, 0.22, 0.12, 0, 0.39,  0.03],
+        [0.07, 0.28, 0.12, 0, 0.43, -0.09],
+        [0.06, 0.24, 0.12, 0, 0.39, -0.21],
+        [0.06, 0.18, 0.10, 0, 0.24, -0.32],
+        [0.06, 0.16, 0.08, 0, 0.08, -0.34]
+      ];
+      for (const [pw, ph, pd, px, py, pz] of plumePts) bx(helm, pw, ph, pd, px, py, pz, pz > -0.1 ? mTeal : mNavy);
+      // Dual swept silver ear frames + layered aqua/navy feathered side wings
+      for (const sd of [-1, 1]) {
+        bx(helm, 0.07, 0.34, 0.09, sd * 0.31, 0.18, -0.06, mBright, -0.45, 0, -sd * 0.20);
+        bx(helm, 0.045, 0.22, 0.08, sd * 0.33, 0.18, -0.16, mTeal,  -0.55, 0, -sd * 0.24);
+        bx(helm, 0.045, 0.20, 0.08, sd * 0.33, 0.08, -0.22, mTeal,  -0.78, 0, -sd * 0.24);
+        bx(helm, 0.045, 0.18, 0.08, sd * 0.33, -0.02, -0.24, mNavy, -1.00, 0, -sd * 0.22);
+      }
+
+      // Chestplate: silver/aqua core cuirass + glowing sternum diamond + crossed harness + belt + flowing cape
+      const chest = new THREE.Group(); chest.position.set(0, 0, 0); torso.add(chest); chest.visible = false;
+      bx(chest, 0.56, 0.78, 0.32, 0, 0.0, 0, mSteel);
+      bx(chest, 0.26, 0.26, 0.34, 0, 0.11, 0.01, mTeal);
+      bx(chest, 0.14, 0.14, 0.36, 0, -0.12, 0.01, mBright, 0, 0, Math.PI * 0.25);
+      bx(chest, 0.08, 0.08, 0.38, 0, -0.12, 0.015, mGlow, 0, 0, Math.PI * 0.25);
+      bx(chest, 0.60, 0.10, 0.35, 0, -0.26, 0, mDark);
+      bx(chest, 0.13, 0.13, 0.07, 0, -0.26, 0.18, mGlow, 0, 0, Math.PI * 0.25);
+
+      const capePivot = new THREE.Group(); capePivot.position.set(0, 0.34, -0.175); torso.add(capePivot); capePivot.visible = false;
+      bx(capePivot, 0.58, 0.16, 0.10, 0, -0.04, -0.03, mNavy);
+      bx(capePivot, 0.56, 0.72, 0.055, 0, -0.44, -0.06, mTeal, 0.10, 0, 0);
+      bx(capePivot, 0.14, 0.80, 0.065, 0, -0.46, -0.08, mSteel, 0.10, 0, 0);
+      bx(capePivot, 0.14, 0.14, 0.075, 0, -0.22, -0.085, mGlow, 0.10, 0, Math.PI * 0.25);
+      bx(capePivot, 0.12, 0.12, 0.070, 0, -0.84, -0.105, mBright, 0.10, 0, Math.PI * 0.25);
+
+      // Dual 3D Sculpted Dragon Head Shoulder Pauldrons (pointing outward ±X) + Teal Shoulder Drape
+      const mkShoulderDragonHead = (side, armParent, restX) => {
+        const sp = new THREE.Group(); sp.position.set(restX, 0, 0); armParent.add(sp); sp.visible = false;
+        bx(sp, 0.32, 0.30, 0.32, side * 0.02, 0.02, 0, mSteel);
+        bx(sp, 0.22, 0.34, 0.36, side * 0.10, -0.12, 0, mNavy, 0, 0, -side * 0.18);
+        bx(sp, 0.18, 0.26, 0.30, side * 0.14, -0.08, 0, mTeal, 0, 0, -side * 0.18);
+        // Sculpted outward-facing Dragon Head on shoulder
+        const dh = new THREE.Group();
+        dh.position.set(side * 0.18, 0.16, 0);
+        dh.rotation.y = side > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+        bx(dh, 0.26, 0.22, 0.24, 0, 0.02, 0.02, mSteel); // skull
+        bx(dh, 0.20, 0.13, 0.22, 0, 0.04, 0.20, mSteel); // upper snout
+        bx(dh, 0.22, 0.05, 0.22, 0, 0.12, 0.16, mBright); // snout ridge
+        // Swept silver dragon horns on shoulder skull
+        bx(dh, 0.06, 0.06, 0.20, -0.11, 0.14, -0.08, mBright, 0.45, -0.25, 0);
+        bx(dh, 0.06, 0.06, 0.20,  0.11, 0.14, -0.08, mBright, 0.45,  0.25, 0);
+        // Glowing blue-cyan dragon eyes
+        bx(dh, 0.28, 0.055, 0.08, 0, 0.06, 0.10, mGlow);
+        // Open lower jaw + white voxel fangs
+        bx(dh, 0.18, 0.06, 0.22, 0, -0.09, 0.18, mDark, 0.22, 0, 0);
+        for (const fx of [-0.07, 0.07]) {
+          bx(dh, 0.035, 0.045, 0.035, fx, -0.03, 0.27, mFang);
+          bx(dh, 0.035, 0.04,  0.035, fx, -0.07, 0.24, mFang);
+        }
+        sp.add(dh);
+        // Layered armored gauntlet wrist cuff + diamond charm
+        bx(sp, 0.30, 0.16, 0.30, 0, -0.32, 0, mSteel);
+        bx(sp, 0.08, 0.08, 0.32, side * 0.14, -0.34, 0, mGlow, 0, 0, Math.PI * 0.25);
+        return sp;
+      };
+      const pauldronL = mkShoulderDragonHead(1, armL, 0.105);
+      const pauldronR = mkShoulderDragonHead(-1, armR, -0.105);
+
+      // Leggings: tasset war-skirt flaps & armored greaves
+      const waist = new THREE.Group(); waist.position.set(0, -0.30, 0); torso.add(waist); waist.visible = false;
+      bx(waist, 0.60, 0.26, 0.35, 0, 0, 0, mNavy);
+      bx(waist, 0.22, 0.32, 0.38, 0, -0.04, 0, mTeal);
+      bx(waist, 0.12, 0.12, 0.40, 0, 0.04, 0, mBright, 0, 0, Math.PI * 0.25);
+
+      const mkLegArmor = (restX, legParent) => {
+        const lg = new THREE.Group(); lg.position.set(restX, -0.36, 0); legParent.add(lg); lg.visible = false;
+        bx(lg, 0.30, 0.48, 0.30, 0, 0.12, 0, mSteel);
+        bx(lg, 0.32, 0.22, 0.32, restX < 0 ? 0.02 : -0.02, 0.16, 0, mTeal);
+        bx(lg, 0.11, 0.11, 0.34, 0, 0.02, 0, mBright, 0, 0, Math.PI * 0.25);
+        return lg;
+      };
+      const legAL = mkLegArmor(-0.125, legL);
+      const legAR = mkLegArmor( 0.125, legR);
+
+      // Boots: heavy frost-silver knight sabatons
+      const mkBootArmor = (restX, legParent) => {
+        const bt = new THREE.Group(); bt.position.set(restX, -0.5625, 0); legParent.add(bt); bt.visible = false;
+        bx(bt, 0.32, 0.30, 0.34, 0, -0.02, 0.015, mSteel);
+        bx(bt, 0.34, 0.08, 0.36, 0,  0.10, 0.015, mBright);
+        bx(bt, 0.33, 0.07, 0.14, 0, -0.14, 0.14,  mTeal);
+        return bt;
+      };
+      const bootAL = mkBootArmor(-0.125, legL);
+      const bootAR = mkBootArmor( 0.125, legR);
+
+      return { helm, chest, capePivot, pauldronL, pauldronR, waist, legAL, legAR, bootAL, bootAR };
+    };
+    const _sov = _mkSovArmorParts();
+    armorBootR.visible = false;
+
     // 6) Authentic Larger 3D Off-Hand Minecraft Tower Shield mounted cleanly on left R6 arm!
     const armorShield = makeP(0.28, -0.32, 0.04, armL);
     armorShield.rotation.set(-0.04, Math.PI * 0.38, 0.04);
@@ -903,7 +1116,16 @@
         legL: [0.25, -0.375, 0],
         legR: [-0.25, -0.375, 0]
       },
-      armor: { helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR, elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyStateObjs, elyPhxFlag: false, elyStatePrev: -1, waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR, shield: armorShield, offTorch, offLantern, offSoulLantern, offTotem, offLanternPivot, offSoulLanternPivot },
+      armor: {
+        helmet: armorHelmet, dragonHelmet, chest: armorChest, pauldronL: armorPauldronL, pauldronR: armorPauldronR,
+        elytra: elytraGrp, elytraL, elytraR, elyNormGroups, elyPhxGroups, elyStateObjs, elyPhxFlag: false, elyStatePrev: -1,
+        waist: armorWaist, legL: armorLegL, legR: armorLegR, bootL: armorBootL, bootR: armorBootR,
+        sovereignHelm: _sov.helm, sovereignChest: _sov.chest, sovereignCape: _sov.capePivot,
+        sovereignPauldronL: _sov.pauldronL, sovereignPauldronR: _sov.pauldronR,
+        sovereignWaist: _sov.waist, sovereignLegL: _sov.legAL, sovereignLegR: _sov.legAR,
+        sovereignBootL: _sov.bootAL, sovereignBootR: _sov.bootAR,
+        shield: armorShield, offTorch, offLantern, offSoulLantern, offTotem, offLanternPivot, offSoulLanternPivot
+      },
       animPhase: Math.random() * 6,
       moveBlend: 0, sprintBlend: 0, airBlend: 0, jumpFlip: 1
     };
@@ -1639,6 +1861,10 @@
     if (rig.armor.dragonHelmet && rig.armor.dragonHelmet.visible && rig.armor.dragonHelmet.userData.jawPivot) {
       rig.armor.dragonHelmet.userData.jawPivot.rotation.x = Math.max(0, Math.sin(tNow * 4.5) * Math.min(0.28, speed * 0.04));
     }
+    if (rig.armor.sovereignCape && rig.armor.sovereignCape.visible) {
+      const capeTarget = (airborne || flying ? 0.42 : 0.06) + Math.min(0.45, speed * 0.055) + Math.sin(tNow * (moving ? 6.5 : 2.2)) * (moving ? 0.08 : 0.025);
+      rig.armor.sovereignCape.rotation.x += (capeTarget - rig.armor.sovereignCape.rotation.x) * Math.min(1, dtClamped * 10);
+    }
     for (let i = 0; i < R6_JOINTS.length; i++) {
       const k = R6_JOINTS[i], jt = _r6TargetBuf[k], rPos = rest[k];
       const obj = rig[k];
@@ -1683,9 +1909,11 @@
     inventory[idx].dur = dur !== null ? dur : maxDur;
     inventory[idx].ench = !!(meta && meta.ench);
     inventory[idx].trim = (meta && meta.trim) ? { ...meta.trim } : null;
+    inventory[idx].luck = (meta && meta.luck) ? (meta.luck | 0) : 0;
+    inventory[idx].lure = (meta && meta.lure) ? (meta.lure | 0) : 0;
   }
   function initStarterInventory() {
-    for (let i = 0; i < 36; i++) { inventory[i].id = 0; inventory[i].count = 0; inventory[i].dur = 0; inventory[i].maxDur = 0; inventory[i].ench = false; inventory[i].trim = null; }
+    for (let i = 0; i < 36; i++) { inventory[i].id = 0; inventory[i].count = 0; inventory[i].dur = 0; inventory[i].maxDur = 0; inventory[i].ench = false; inventory[i].trim = null; inventory[i].luck = 0; inventory[i].lure = 0; }
     // Authentic Minecraft Survival Start: New players begin 100% empty-handed with NO items or armor!
     player.equip = { helmet: 0, chest: 0, legs: 0, boots: 0, offhand: 0 };
     player.equipMeta = { helmet: null, chest: null, legs: null, boots: null, offhand: null };
@@ -3401,7 +3629,8 @@
     }
     const effArmor = Math.max(player.armor * 0.28, player.armor - (4 * amount) / (2 + (player.armorToughness || 0) * 0.25));
     const armorRed = Math.min(0.76, effArmor <= 20 ? effArmor * 0.032 : (0.64 + (effArmor - 20) * 0.0085));
-    const reduced = bypassAll ? amount : Math.max(0.5, Math.round(amount * shieldMul * (1.0 - armorRed) * 2) / 2);
+    const sovDragonMit = (player.dragonArmorSet === 'sovereign_knight' && reason && /rồng|hơi thở|hư không|ender|chúa tể/i.test(String(reason))) ? 0.65 : 1.0;
+    const reduced = bypassAll ? amount : Math.max(0.5, Math.round(amount * shieldMul * sovDragonMit * (1.0 - armorRed) * 2) / 2);
     if (!bypassAll && reduced > 0 && player.armor > 0) {
       const armorDmg = Math.max(1, Math.floor(amount * 0.25));
       let eqBroken = false;
@@ -4039,9 +4268,15 @@
           if (player.level < 1 && gameMode !== 'creative') { showToast('✨ Cần ít nhất 1 Cấp Kinh Nghiệm (XP) để Phù Phép!'); return; }
           if (gameMode !== 'creative') player.level = Math.max(0, player.level - 1);
           slot.ench = true;
+          if (slot.id === B.FISHING_ROD) {
+            slot.luck = 1 + Math.floor(Math.random() * 3);
+            slot.lure = 1 + Math.floor(Math.random() * 3);
+          }
           spawnParticles(hit.x + 0.5, hit.y + 1.2, hit.z + 0.5, 0xc084fc, 16, true);
           playSfx('warp'); renderHotbar(); renderStatusBars();
-          showToast(`✨ ĐÃ PHÙ PHÉP ${selDef.name}!`);
+          showToast(slot.id === B.FISHING_ROD
+            ? `✨ Đã phù phép Cần Câu (May Mắn ${slot.luck} • Nhử Mồi ${slot.lure})!`
+            : `✨ ĐÃ PHÙ PHÉP ${selDef.name}!`);
         } else showToast('✨ Hãy cầm Công Cụ hoặc Áo Giáp rồi bấm vào Bàn Phù Phép!');
         return;
       }
@@ -4189,15 +4424,32 @@
       return;
     }
 
-    // Fishing Rod: Catch fresh fish or sea treasure from any water body!
+    // Fishing Rod: Cast & Reel with 3D curved fishing line + bobber on even a single 1x1 water block!
     if (selDef.tool === 'rod') {
-      if (hit && hit.id === B.WATER) {
-        player.swingT = 0.24; damageHeldTool(1); playSfx('splash');
-        spawnParticles(hit.x + 0.5, hit.y + 1.0, hit.z + 0.5, 0x38bdf8, 12, false);
-        const caught = Math.random() < 0.18 ? B.GOLD_ORE : (Math.random() < 0.15 ? B.SEA_LANTERN : B.RAW_FISH);
-        addItemToInventory(caught, 1); renderHotbar();
-        showToast(`🎣 Câu được 1 ${BLOCK_DEF[caught].name}!`);
-      } else showToast('🎣 Hãy hướng Cần Câu về mặt nước biển/hồ để câu cá!');
+      toggleFishingCast(screenX, screenY);
+      return;
+    }
+
+    // Enchanted Book: Apply enchantment directly to first eligible tool/armor/rod in hotbar!
+    if (selDef.enchantedBook) {
+      let applied = null;
+      for (let hi = 0; hi < 9; hi++) {
+        const hs = inventory[hi];
+        const hd = hs && hs.count > 0 ? BLOCK_DEF[hs.id] : null;
+        if (!hd || (!hd.tool && !hd.armorSlot) || hs.ench) continue;
+        hs.ench = true;
+        if (hs.id === B.FISHING_ROD) {
+          hs.luck = Math.max(hs.luck || 0, slot.luck || (1 + Math.floor(Math.random() * 3)));
+          hs.lure = Math.max(hs.lure || 0, slot.lure || (1 + Math.floor(Math.random() * 3)));
+        }
+        applied = hd;
+        break;
+      }
+      if (applied) {
+        if (gameMode !== 'creative') { slot.count--; if (slot.count <= 0) slot.id = 0; }
+        playSfx('warp'); renderHotbar();
+        showToast(`✨ Sách Phù Phép đã cường hóa ${applied.name}!`);
+      } else showToast('📘 Đặt 1 công cụ/áo giáp/cần câu chưa phù phép vào thanh Hotbar để cường hóa!');
       return;
     }
 
@@ -4958,7 +5210,27 @@
     const inEndGateway = (feetBlock === B.END_GATEWAY || bodyBlock === B.END_GATEWAY || underFeetBlock === B.END_GATEWAY);
     const inDreamPortal = (feetBlock === B.DREAM_PORTAL || bodyBlock === B.DREAM_PORTAL);
     const inWardenPortal = (feetBlock === B.WARDEN_PORTAL || bodyBlock === B.WARDEN_PORTAL);
-    if (inWardenPortal && _portalCooldown <= 0 && !isWorldLoading) {
+    const inDragonRealmPortal = (feetBlock === B.DRAGON_REALM_PORTAL || bodyBlock === B.DRAGON_REALM_PORTAL);
+    if (inDragonRealmPortal && _portalCooldown <= 0 && !isWorldLoading) {
+      _portalCooldown = 4.5;
+      if (currentDimension === 'dragon_realm') {
+        const retDim = window.lastDragonRealmPrevDim || 'end';
+        showWorldLoadingOverlay(
+          'Đang tải thế giới',
+          'Đang rời Thế Giới Rồng The End...',
+          () => switchDimension(retDim, '🌌 Đã quay về qua Cổng Thế Giới Rồng!'),
+          { badge: retDim.toUpperCase() }
+        );
+      } else {
+        window.lastDragonRealmPrevDim = currentDimension;
+        showWorldLoadingOverlay(
+          'Đang tải Thế Giới Rồng The End',
+          'Đang bước qua Cổng Rồng vào chiều không gian Rồng The End...',
+          () => switchDimension('dragon_realm', '🌌 ĐÃ BƯỚC VÀO THẾ GIỚI RỒNG THE END!'),
+          { badge: 'DRAGON REALM' }
+        );
+      }
+    } else if (inWardenPortal && _portalCooldown <= 0 && !isWorldLoading) {
       _portalCooldown = 4.5;
       if (currentDimension === 'warden') {
         showWorldLoadingOverlay(
@@ -5188,12 +5460,20 @@
         dm.group.rotation.z = dm._bankRoll;
       }
       if (dm.anim && dm.anim.torso) dm.anim.torso.rotation.x = dm._flyPitch;
+      if (dm.anim && dm.anim.mixer && typeof frameCounter !== 'undefined' && dm._mixerTickedFrame !== frameCounter) {
+        dm.anim.mixer.update(Math.min(0.05, dt));
+        dm._mixerTickedFrame = frameCounter;
+      }
       if (typeof attachRiderToDragon === 'function' && typeof playerAvatar !== 'undefined' && playerAvatar.g && playerAvatar.g.parent === scene) {
         attachRiderToDragon(dm);
       }
       if (typeof getDragonSaddleWorldPos === 'function') {
         const sw = getDragonSaddleWorldPos(dm);
-        player.x = sw.x; player.y = sw.y; player.z = sw.z;
+        const ySm = 1 - Math.exp(-26.0 * dt);
+        player.x = sw.x;
+        player.y = (player._drgRidePrev === dm && Number.isFinite(player.y)) ? (player.y + (sw.y - player.y) * ySm) : sw.y;
+        player.z = sw.z;
+        player._drgRidePrev = dm;
       } else {
         const scD = dm.dragonScale || 1.16;
         player.x = dm.x + Math.sin(dm.yaw) * (0.20 * scD);
@@ -6170,4 +6450,297 @@
       }
       }
     }
+
+    // Sovereign Dragon Knight Armor passive frost-cyan diamond aura particles
+    if (player.sovereignKnightPieces > 0 && (frameCounter % 6) === 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false)) {
+      const ang = elapsed * 2.6;
+      const rA = 0.65;
+      spawnParticles(player.x + Math.cos(ang) * rA, player.y + 0.9 + Math.sin(elapsed * 3.1) * 0.45, player.z + Math.sin(ang) * rA, (frameCounter & 1) ? 0x67e8f9 : 0x2dd4bf, 1, true);
+    }
+    tickFishingRod(dt);
+  }
+
+  // ===================== 3D FISHING ROD ENGINE (1-BLOCK WATER, 3D BOBBER/LINE & EXACT NOIRPVP LOOT TABLE) =====================
+  const FISHING_CAT_PCT = [
+    { fish: 85.0, treasure: 5.0,  junk: 10.0 },
+    { fish: 84.8, treasure: 7.1,  junk: 8.1  },
+    { fish: 84.7, treasure: 9.2,  junk: 6.1  },
+    { fish: 84.5, treasure: 11.3, junk: 4.2  }
+  ];
+  const _FISH_POOL = [
+    { id: B.RAW_FISH, w: 60.0 },
+    { id: B.RAW_SALMON, w: 25.0 },
+    { id: B.TROPICAL_FISH, w: 2.0 },
+    { id: B.PUFFERFISH, w: 13.0 }
+  ];
+  const _TREASURE_POOL = [
+    { id: B.BOW, ench: true, dmgFrac: [0.30, 0.85] },
+    { id: B.ENCHANTED_BOOK, ench: true, bookRoll: true },
+    { id: B.FISHING_ROD, ench: true, rodRoll: true, dmgFrac: [0.30, 0.85] },
+    { id: B.NAME_TAG },
+    { id: B.NAUTILUS_SHELL },
+    { id: B.SADDLE }
+  ];
+  const _JUNK_NORMAL = [
+    { id: B.LILY_PAD, w: 17 },
+    { id: B.BOWL, w: 10 },
+    { id: B.FISHING_ROD, w: 2, dmgFrac: [0.10, 0.45] },
+    { id: B.LEATHER, w: 10 },
+    { id: B.LEATHER_BOOTS, w: 10, dmgFrac: [0.10, 0.45] },
+    { id: B.ROTTEN_FLESH, w: 10 },
+    { id: B.STICK, w: 5 },
+    { id: B.STRING, w: 5 },
+    { id: B.WATER_BOTTLE, w: 10 },
+    { id: B.BONE, w: 10 },
+    { id: B.INK_SAC, w: 1, qty: 10 },
+    { id: B.TRIPWIRE_HOOK, w: 10 }
+  ];
+  const _JUNK_JUNGLE = [
+    { id: B.LILY_PAD, w: 17 },
+    { id: B.BAMBOO, w: 10 },
+    { id: B.COCOA_BEANS, w: 10 },
+    { id: B.BOWL, w: 10 },
+    { id: B.FISHING_ROD, w: 2, dmgFrac: [0.10, 0.45] },
+    { id: B.LEATHER, w: 10 },
+    { id: B.LEATHER_BOOTS, w: 10, dmgFrac: [0.10, 0.45] },
+    { id: B.ROTTEN_FLESH, w: 10 },
+    { id: B.STICK, w: 5 },
+    { id: B.STRING, w: 5 },
+    { id: B.WATER_BOTTLE, w: 10 },
+    { id: B.BONE, w: 10 },
+    { id: B.INK_SAC, w: 1, qty: 10 },
+    { id: B.TRIPWIRE_HOOK, w: 10 }
+  ];
+
+  function _pickWeighted(list, rNorm) {
+    let total = 0;
+    for (let i = 0; i < list.length; i++) total += list[i].w;
+    let acc = rNorm * total;
+    for (let i = 0; i < list.length; i++) {
+      acc -= list[i].w;
+      if (acc <= 0) return list[i];
+    }
+    return list[list.length - 1];
+  }
+
+  function rollFishingLoot(isJungle = false, luckLevel = 0, rng = Math.random) {
+    const lk = Math.max(0, Math.min(3, luckLevel | 0));
+    const pct = FISHING_CAT_PCT[lk];
+    const rollCat = rng() * 100.0;
+    let cat = 'junk';
+    let picked = null;
+    if (rollCat < pct.fish) {
+      cat = 'fish';
+      picked = _pickWeighted(_FISH_POOL, rng());
+    } else if (rollCat < pct.fish + pct.treasure) {
+      cat = 'treasure';
+      picked = _TREASURE_POOL[Math.floor(rng() * _TREASURE_POOL.length) % _TREASURE_POOL.length];
+    } else {
+      cat = 'junk';
+      picked = _pickWeighted(isJungle ? _JUNK_JUNGLE : _JUNK_NORMAL, rng());
+    }
+    const def = BLOCK_DEF[picked.id];
+    const meta = {};
+    if (picked.ench) meta.ench = true;
+    if (picked.rodRoll || picked.bookRoll) {
+      meta.luck = 1 + Math.floor(rng() * 3);
+      meta.lure = 1 + Math.floor(rng() * 3);
+    }
+    if (picked.dmgFrac && def && def.maxDur) {
+      const f = picked.dmgFrac[0] + rng() * (picked.dmgFrac[1] - picked.dmgFrac[0]);
+      meta.dur = Math.max(1, Math.round(def.maxDur * f));
+      meta.maxDur = def.maxDur;
+    }
+    return { cat, id: picked.id, qty: picked.qty || 1, meta: Object.keys(meta).length ? meta : null };
+  }
+  window._nucraftRollFishingLoot = rollFishingLoot;
+
+  const _FISH_LINE_PTS = 14;
+  const _fishTipTmp = new THREE.Vector3();
+  const fishingState = {
+    active: false, mode: 'cast',
+    x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
+    waterY: 0, inWater: false, waitT: 0, biteT: 0, splashTick: 0,
+    lureLvl: 0, luckLvl: 0, slotIdx: 0,
+    bobberGrp: null, lineMesh: null,
+    lineArr: new Float32Array(_FISH_LINE_PTS * 3)
+  };
+  function _ensureFishingMeshes() {
+    if (fishingState.bobberGrp) return;
+    const grp = new THREE.Group();
+    const redM = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.45 });
+    const whtM = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.45 });
+    const blkM = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.65 });
+    const topCap = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.14), redM);
+    topCap.position.y = 0.04;
+    const botCap = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.14), whtM);
+    botCap.position.y = -0.04;
+    const pin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.04), blkM);
+    pin.position.y = 0.10;
+    const hook = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.09, 0.035), blkM);
+    hook.position.y = -0.11;
+    grp.add(topCap, botCap, pin, hook);
+    grp.visible = false;
+    grp.frustumCulled = false;
+    scene.add(grp);
+    fishingState.bobberGrp = grp;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(fishingState.lineArr, 3));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x1f2937 }));
+    line.visible = false;
+    line.frustumCulled = false;
+    scene.add(line);
+    fishingState.lineMesh = line;
+  }
+  function isFishingRodCast() { return !!fishingState.active; }
+  function syncFishingRodVisualState() {
+    const slot = inventory[player.selectedSlot];
+    const isRod = !!(slot && slot.count > 0 && slot.id === B.FISHING_ROD);
+    const meta = isRod ? { ...slot, rodCast: fishingState.active } : (slot && slot.count > 0 ? slot : null);
+    if (typeof updateHeldViewModel === 'function') updateHeldViewModel(slot && slot.count > 0 ? slot.id : B.AIR, meta);
+    if (typeof playerAvatar !== 'undefined' && playerAvatar && typeof setRigHeldItem === 'function') setRigHeldItem(playerAvatar, slot && slot.count > 0 ? slot.id : 0, meta);
+  }
+  function cancelFishingCast(silent = false) {
+    if (!fishingState.active) return;
+    fishingState.active = false;
+    fishingState.inWater = false;
+    if (fishingState.bobberGrp) fishingState.bobberGrp.visible = false;
+    if (fishingState.lineMesh) fishingState.lineMesh.visible = false;
+    syncFishingRodVisualState();
+    if (!silent) playSfx('swing');
+  }
+  function _isJungleBiomeAt(wx, wz) {
+    if (typeof getBiomeAt !== 'function') return false;
+    const bio = getBiomeAt(wx, wz);
+    return !!(bio && (bio === BIOMES.BAMBOO_JUNGLE || bio === BIOMES.GIANT_JUNGLE || bio === BIOMES.DR_JUNGLE));
+  }
+  function toggleFishingCast(screenX = null, screenY = null) {
+    _ensureFishingMeshes();
+    const slot = inventory[player.selectedSlot];
+    if (!slot || slot.count <= 0 || slot.id !== B.FISHING_ROD) return false;
+    player.swingT = 0.24;
+    if (fishingState.active) {
+      if (fishingState.mode === 'bite' && fishingState.inWater) {
+        const bx = Math.floor(fishingState.x), bz = Math.floor(fishingState.z);
+        const drop = rollFishingLoot(_isJungleBiomeAt(bx, bz), fishingState.luckLvl);
+        addItemToInventory(drop.id, drop.qty, drop.meta);
+        player.xp = (player.xp || 0) + 3;
+        if (typeof addPlayerXp === 'function') addPlayerXp(3);
+        if (gameMode !== 'creative') damageHeldTool(1);
+        spawnParticles(fishingState.x, fishingState.y + 0.15, fishingState.z, 0x38bdf8, 14, true);
+        playSfx('pickup');
+        const qtyTag = drop.qty > 1 ? `${drop.qty}× ` : '';
+        showToast(`🎣 Câu được ${qtyTag}${BLOCK_DEF[drop.id]?.name || 'Kho Báu'}!`);
+      } else {
+        if (fishingState.inWater && gameMode !== 'creative') damageHeldTool(1);
+        playSfx('swing');
+        showToast(fishingState.inWater ? '🎣 Đã thu cần câu!' : '🎣 Đã thu dây câu!');
+      }
+      cancelFishingCast(true);
+      renderHotbar();
+      return true;
+    }
+    if (screenX !== null && screenY !== null && typeof getRayDirFromScreen === 'function') getRayDirFromScreen(screenX, screenY);
+    else { _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ'); _rayDir.set(0, 0, -1).applyEuler(_rayEuler); }
+    const eyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
+    fishingState.active = true;
+    fishingState.mode = 'cast';
+    fishingState.inWater = false;
+    fishingState.x = player.x + _rayDir.x * 0.65;
+    fishingState.y = eyeY - 0.08 + _rayDir.y * 0.65;
+    fishingState.z = player.z + _rayDir.z * 0.65;
+    fishingState.vx = _rayDir.x * 13.8;
+    fishingState.vy = _rayDir.y * 13.8 + 2.6;
+    fishingState.vz = _rayDir.z * 13.8;
+    fishingState.lureLvl = Math.max(0, Math.min(3, (slot.lure | 0)));
+    fishingState.luckLvl = Math.max(0, Math.min(3, (slot.luck | 0)));
+    fishingState.slotIdx = player.selectedSlot;
+    fishingState.waitT = 0; fishingState.biteT = 0; fishingState.splashTick = 0;
+    fishingState.bobberGrp.visible = true;
+    fishingState.lineMesh.visible = true;
+    playSfx('bow');
+    syncFishingRodVisualState();
+    return true;
+  }
+  function tickFishingRod(dt) {
+    if (!fishingState.active) return;
+    const slot = inventory[player.selectedSlot];
+    if (player.dead || !slot || slot.id !== B.FISHING_ROD || Math.hypot(fishingState.x - player.x, fishingState.y - player.y, fishingState.z - player.z) > 36) {
+      cancelFishingCast(true);
+      return;
+    }
+    if (fishingState.mode === 'cast') {
+      const steps = 2, sdt = dt / steps;
+      for (let si = 0; si < steps; si++) {
+        fishingState.vy -= 18.0 * sdt;
+        const nx = fishingState.x + fishingState.vx * sdt;
+        const ny = fishingState.y + fishingState.vy * sdt;
+        const nz = fishingState.z + fishingState.vz * sdt;
+        const fx = Math.floor(nx), fy = Math.floor(ny), fz = Math.floor(nz);
+        const bid = getBlockWorld(fx, fy, fz);
+        const bidBelow = getBlockWorld(fx, fy - 1, fz);
+        if (bid === B.WATER || (bid === B.AIR && bidBelow === B.WATER && ny <= fy + 0.12)) {
+          const wy = (bid === B.WATER) ? fy : (fy - 1);
+          fishingState.x = nx; fishingState.z = nz;
+          fishingState.waterY = wy + 0.88;
+          fishingState.y = fishingState.waterY;
+          fishingState.vx = 0; fishingState.vy = 0; fishingState.vz = 0;
+          fishingState.inWater = true;
+          fishingState.mode = 'float';
+          fishingState.waitT = Math.max(1.4, (3.2 + Math.random() * 5.2) - fishingState.lureLvl * 1.1);
+          spawnParticles(nx, wy + 0.96, nz, 0x7dd3fc, 10, true);
+          playSfx('splash');
+          break;
+        }
+        if (bid !== B.AIR && IS_SOLID[bid]) {
+          fishingState.vx *= -0.12; fishingState.vz *= -0.12; fishingState.vy = 0;
+        } else {
+          fishingState.x = nx; fishingState.y = ny; fishingState.z = nz;
+        }
+      }
+    } else if (fishingState.mode === 'float') {
+      fishingState.waitT -= dt;
+      fishingState.y = fishingState.waterY + Math.sin(elapsed * 4.2) * 0.032;
+      if (fishingState.waitT < 1.2 && (frameCounter % 6) === 0) {
+        const ang = fishingState.waitT * 5.0;
+        spawnParticles(fishingState.x + Math.cos(ang) * fishingState.waitT * 0.8, fishingState.waterY + 0.04, fishingState.z + Math.sin(ang) * fishingState.waitT * 0.8, 0xbae6fd, 1, false);
+      }
+      if (fishingState.waitT <= 0) {
+        fishingState.mode = 'bite';
+        fishingState.biteT = 2.4;
+        spawnParticles(fishingState.x, fishingState.waterY + 0.06, fishingState.z, 0xe0f2fe, 12, true);
+        playSfx('splash');
+        showToast('🐟 Cá đang cắn câu! Bấm Chuột Phải / Sử Dụng để giật!');
+      }
+    } else if (fishingState.mode === 'bite') {
+      fishingState.biteT -= dt;
+      fishingState.y = fishingState.waterY - 0.22 + Math.sin(elapsed * 22.0) * 0.05;
+      if (fishingState.biteT <= 0) {
+        fishingState.mode = 'float';
+        fishingState.waitT = Math.max(1.4, (3.2 + Math.random() * 5.0) - fishingState.lureLvl * 1.1);
+        fishingState.y = fishingState.waterY;
+      }
+    }
+    fishingState.bobberGrp.position.set(fishingState.x, fishingState.y, fishingState.z);
+    if (thirdPerson === 0 && typeof heldPivot !== 'undefined' && heldPivot.visible) {
+      _fishTipTmp.set(0.16, 0.28, -0.26);
+      heldPivot.localToWorld(_fishTipTmp);
+    } else if (typeof playerAvatar !== 'undefined' && playerAvatar.handHold) {
+      _fishTipTmp.set(0.16, 0.36, 0.26);
+      playerAvatar.handHold.localToWorld(_fishTipTmp);
+    } else {
+      _fishTipTmp.set(player.x, player.y + 1.35, player.z);
+    }
+    const arr = fishingState.lineArr;
+    const bx = fishingState.x, by = fishingState.y + 0.09, bz = fishingState.z;
+    const ax = _fishTipTmp.x, ay = _fishTipTmp.y, az = _fishTipTmp.z;
+    const sag = fishingState.inWater ? 0.55 : 0.24;
+    for (let li = 0; li < _FISH_LINE_PTS; li++) {
+      const t = li / (_FISH_LINE_PTS - 1);
+      arr[li * 3]     = ax + (bx - ax) * t;
+      arr[li * 3 + 1] = ay + (by - ay) * t - sag * 4.0 * t * (1.0 - t);
+      arr[li * 3 + 2] = az + (bz - az) * t;
+    }
+    fishingState.lineMesh.geometry.attributes.position.needsUpdate = true;
   }

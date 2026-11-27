@@ -886,6 +886,18 @@
     color: #f8fafc; font-family: var(--font-pixel); font-size: 11.5px; line-height: 1.38; text-shadow: 1px 1px 0 #141414;
   }
   .dstat-name { color: #fde047; font-weight: 800; font-size: 12px; }
+  #dstatGrowthWrap { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; }
+  .dstat-growth-lbl { font-size: 11px; color: #cbd5e1; }
+  .dstat-growth-lbl b { color: #4ade80; }
+  #dstatGrowthTrack {
+    width: 100%; height: 9px; background: #141821;
+    border: 1px solid #475569; box-shadow: inset 0 1px 2px #000;
+  }
+  #dstatGrowthFill {
+    width: 0%; height: 100%;
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+    transition: width 160ms ease-out;
+  }
   #dragonBackpackGrid, #dragonHotbarGrid { margin: 0 auto; }
   #dragonBackpackGrid .slot:hover::before, #dragonHotbarGrid .slot:hover::before {
     content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.32); pointer-events: none; z-index: 2;

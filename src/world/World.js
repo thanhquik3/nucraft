@@ -1270,6 +1270,141 @@
     return chE;
   }
 
+  function _genDragonRealmChunk(cx, cz, wx0, wz0, data) {
+    let maxLy = 0;
+    if (!chunkWorkerPool.take(wx0, wz0, 0)) fillCoarseCaveGrid(wx0, wz0);
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      const wz = wz0 + lz;
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx;
+        const b = getBiomeAt(wx, wz);
+        const topH = getTerrainHeight(wx, wz, b);
+        const ci = (lz << 4) | lx; colHeights[ci] = topH; colBiomes[ci] = b.id;
+        const maxFillLy = Math.min(WORLD_H - 1, topH - MIN_Y);
+        if (maxFillLy > maxLy) maxLy = maxFillLy;
+        const dArena = Math.hypot(wx, wz - 136);
+        const pondN = valueNoise2D(wx * 0.085, wz * 0.085, worldSeed + 8609);
+        const isJunglePond = (b === BIOMES.DR_JUNGLE && dArena >= 30 && Math.hypot(wx, wz) >= 28 && pondN < 0.24 && topH <= 19);
+        for (let ly = 0; ly <= maxFillLy; ly++) {
+          const wy = MIN_Y + ly;
+          const idx = (ly << 8) | (lz << 4) | lx;
+          if (wy === MIN_Y) { data[idx] = B.BEDROCK; continue; }
+          if (isJunglePond && wy >= topH - 1) { data[idx] = B.WATER; continue; }
+          const caveThresh = (b === BIOMES.DR_CAVERNS) ? 0.60 : 0.75;
+          if (wy < topH - 2 && wy > MIN_Y + 4 && dArena >= 28 && sampleCaveFast(lx, ly, lz) > caveThresh) {
+            const cH = hash3i(wx, wy, wz, worldSeed + 8707);
+            data[idx] = (wy === MIN_Y + 5 && cH > 0.90) ? B.GLOW_CRYSTAL : ((cH > 0.985 && wy < topH - 5) ? B.AMETHYST : B.AIR);
+            continue;
+          }
+          if (wy === topH) {
+            if (dArena < 22) data[idx] = (dArena > 19.5) ? B.PURPUR_BLOCK : (((Math.abs(wx) + Math.abs(wz - 136)) % 4 === 0) ? B.END_STONE_BRICKS : B.OBSIDIAN);
+            else if (b === BIOMES.DR_JUNGLE) data[idx] = pondN > 0.56 ? B.END_MOSS : B.END_CRYSTAL_STONE;
+            else if (b === BIOMES.DR_PLATEAU) data[idx] = ((wx ^ wz) & 3) === 0 ? B.PURPUR_BLOCK : B.END_STONE_BRICKS;
+            else if (b === BIOMES.DR_PEAKS) data[idx] = wy >= 42 ? B.OBSIDIAN : (pondN > 0.58 ? B.AMETHYST : B.END_CRYSTAL_STONE);
+            else if (b === BIOMES.DR_CAVERNS) data[idx] = pondN > 0.52 ? B.AMETHYST : B.END_CRYSTAL_STONE;
+            else data[idx] = pondN > 0.45 ? B.END_MOSS : B.END_STONE;
+          } else {
+            const oh = hash3i(wx, wy, wz, worldSeed + 8819);
+            if (wy < 12 && oh > 0.986) data[idx] = B.VOID_ORE;
+            else if (wy < 22 && oh > 0.980) data[idx] = B.DIAMOND_ORE;
+            else if (oh > 0.968) data[idx] = B.AMETHYST;
+            else data[idx] = (wy >= topH - 3) ? B.END_CRYSTAL_STONE : B.END_STONE;
+          }
+        }
+        // Arena corner obelisks around (0, 136)
+        if (Math.abs(Math.abs(wx) - 14) <= 1 && Math.abs(Math.abs(wz - 136) - 14) <= 1) {
+          for (let py = topH + 1; py <= topH + 12; py++) {
+            setLocalSafe(data, lx, py, lz, (wx === 14 || wx === -14) && (wz === 150 || wz === 122) && py === topH + 12 ? B.END_CRYSTAL_BLOCK : ((py % 3 === 0) ? B.AMETHYST : B.OBSIDIAN), true);
+          }
+          const aTop = Math.min(WORLD_H - 1, topH + 13 - MIN_Y);
+          if (aTop > maxLy) maxLy = aTop;
+        }
+        // Biome trees / crystal spires outside central hub & arena
+        if (Math.hypot(wx, wz) > 16 && dArena > 25 && !isJunglePond) {
+          const fh = hash2i(wx * 3 + 11, wz * 3 - 17, worldSeed + 8923);
+          if (b === BIOMES.DR_JUNGLE && fh > 0.958 && lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12) {
+            const tH = 6 + (Math.abs(wx * 7 + wz * 13) % 5);
+            for (let ty = 1; ty <= tH; ty++) setLocalSafe(data, lx, topH + ty, lz, B.VOID_LOG, true);
+            for (let dy = -1; dy <= 2; dy++) {
+              const rad = dy === 2 ? 1 : (dy <= 0 ? 3 : 2);
+              for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+                if (Math.abs(dx) + Math.abs(dz) <= rad + 1) setLocalSafe(data, lx + dx, topH + tH + dy, lz + dz, B.VOID_LEAVES, false);
+              }
+            }
+            const topT = Math.min(WORLD_H - 1, topH + tH + 3 - MIN_Y);
+            if (topT > maxLy) maxLy = topT;
+          } else if ((b === BIOMES.DR_PEAKS || b === BIOMES.DR_CAVERNS) && fh > 0.978) {
+            const spH = 3 + (Math.abs(wx + wz) % 4);
+            for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, topH + sy, lz, sy === spH ? B.GLOW_CRYSTAL : B.AMETHYST, true);
+            const spTop = Math.min(WORLD_H - 1, topH + spH + 1 - MIN_Y);
+            if (spTop > maxLy) maxLy = spTop;
+          } else if (b === BIOMES.DR_PLAINS && fh > 0.985) {
+            setLocalSafe(data, lx, topH + 1, lz, B.END_ROD, true);
+          }
+        }
+      }
+    }
+    // End-City style Structures (Dragon Citadels, Purpur Sky Bridges, Void Crystal Shrines, Wild Dragon Nests)
+    const dHub = Math.hypot(wx0 + 8, wz0 + 8), dBoss = Math.hypot(wx0 + 8, wz0 + 8 - 136);
+    const sRoll = hash2i(cx * 5 + 17, cz * 5 - 29, worldSeed + 8999);
+    if (dHub > 34 && dBoss > 34 && sRoll > 0.62) {
+      const sKind = Math.floor(hash2i(cx, cz, worldSeed + 9011) * 4);
+      const baseY = Math.max(15, getTerrainHeight(wx0 + 8, wz0 + 8, getBiomeAt(wx0 + 8, wz0 + 8)));
+      if (sKind === 0) {
+        // 1) Dragon Citadel Tower
+        for (let dx = 4; dx <= 11; dx++) for (let dz = 4; dz <= 11; dz++) {
+          setLocalSafe(data, dx, baseY, dz, B.END_STONE_BRICKS, true);
+          const edge = (dx === 4 || dx === 11 || dz === 4 || dz === 11);
+          const door = (dz === 4 && dx >= 7 && dx <= 8);
+          for (let dy = 1; dy <= 11; dy++) {
+            if (door && dy <= 3) { setLocalSafe(data, dx, baseY + dy, dz, B.AIR, true); continue; }
+            if (edge || dy === 6 || dy === 11) setLocalSafe(data, dx, baseY + dy, dz, (dy % 4 === 0) ? B.PURPUR_BLOCK : B.END_STONE_BRICKS, true);
+            else setLocalSafe(data, dx, baseY + dy, dz, B.AIR, true);
+          }
+        }
+        setLocalSafe(data, 7, baseY + 1, 9, B.DIAMOND_CHEST, true);
+        setLocalSafe(data, 5, baseY + 12, 5, B.END_ROD, true);
+        setLocalSafe(data, 10, baseY + 12, 10, B.END_ROD, true);
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 13 - MIN_Y));
+      } else if (sKind === 1) {
+        // 2) Purpur Sky Arch Bridge
+        const archY = baseY + 6;
+        for (let dx = 2; dx <= 13; dx++) for (let dz = 6; dz <= 9; dz++) {
+          const arcLift = Math.round(Math.sin(((dx - 2) / 11) * Math.PI) * 3);
+          setLocalSafe(data, dx, archY + arcLift, dz, (dz === 6 || dz === 9) ? B.END_STONE_BRICKS : B.PURPUR_BLOCK, true);
+          if ((dx === 2 || dx === 13) && (dz === 6 || dz === 9)) {
+            for (let py = baseY; py <= archY + 2; py++) setLocalSafe(data, dx, py, dz, B.OBSIDIAN, true);
+            setLocalSafe(data, dx, archY + 3, dz, B.END_ROD, true);
+          }
+        }
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, archY + 6 - MIN_Y));
+      } else if (sKind === 2) {
+        // 3) Crystal Void Sanctuary
+        for (let dx = 5; dx <= 10; dx++) for (let dz = 5; dz <= 10; dz++) {
+          setLocalSafe(data, dx, baseY, dz, (dx === 5 || dx === 10 || dz === 5 || dz === 10) ? B.OBSIDIAN : B.PURPUR_BLOCK, true);
+        }
+        for (let dy = 1; dy <= 5; dy++) setLocalSafe(data, 7, baseY + dy, 7, B.OBSIDIAN, true);
+        setLocalSafe(data, 7, baseY + 6, 7, B.END_CRYSTAL_BLOCK, true);
+        setLocalSafe(data, 8, baseY + 1, 7, B.GOLD_CHEST, true);
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 7 - MIN_Y));
+      } else {
+        // 4) End Dragon Nest
+        for (let dx = 3; dx <= 12; dx++) for (let dz = 3; dz <= 12; dz++) {
+          const r = Math.hypot(dx - 7.5, dz - 7.5);
+          if (r <= 4.6) setLocalSafe(data, dx, baseY + (r > 3.1 ? 1 : 0), dz, r > 3.1 ? B.OBSIDIAN : B.END_CRYSTAL_STONE, true);
+        }
+        setLocalSafe(data, 7, baseY + 1, 7, B.AMETHYST, true);
+        setLocalSafe(data, 8, baseY + 1, 8, B.GOLD_CHEST, true);
+        maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 3 - MIN_Y));
+      }
+    }
+    maxLy = applyChunkMods(cx, cz, data, Math.min(WORLD_H - 1, maxLy));
+    const chD = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+    registerChunk(chunkKey(cx, cz), chD);
+    markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
+    return chD;
+  }
+
   // v86: Exciting Upper-Nether Roof & Main-Cavern Structures (Bastion Citadels, Obsidian End-Crystal Obelisks, Soul-Fire Portal Shrines, Ancient Debris Vaults & Fungus Sanctuaries!)
   function stampNetherRoofAndCavernStructures(data, cx, cz, wx0, wz0, baseWy, isUpperRoof = false) {
     if (baseWy < MIN_Y + 3 || baseWy > MAX_Y - 13) return;
@@ -2968,6 +3103,7 @@
   function generateChunk(cx, cz) {
     const data = _allocChunkData();
     const wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
+    if (currentDimension === 'dragon_realm') return _genDragonRealmChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'end') return _genEndChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'warden') return _genWardenChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'sift') return _genSiftChunk(cx, cz, wx0, wz0, data);
@@ -4996,7 +5132,10 @@
   function updateChunkStreaming(rawDt = 0.016) {
     window._chunkBuiltThisFrame = false;
     const tBudgetStart = performance.now();
-    const frameBudgetMs = (rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.4 : 1.8) : (_isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 2.2 : 4.2));
+    const _sodiumTight = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
+    const frameBudgetMs = _sodiumTight
+      ? ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.2 : 1.5) : (_isMobilePerf ? 1.8 : 2.2))
+      : ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.4 : 1.8) : (_isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 2.2 : 4.2)));
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
     const isMoving = (player.curSpeed || 0) > 1.2 || !!player.sprinting || !!player.flying;
@@ -7826,6 +7965,25 @@
     spawnParticles(player.x, player.y + 1.0, player.z, 0xc084fc, 18, true);
   }
 
+  function buildDragonRealmPortal(px, py, pz) {
+    for (let cz = (pz - 5) >> 4; cz <= (pz + 5) >> 4; cz++) {
+      for (let cx = (px - 5) >> 4; cx <= (px + 5) >> 4; cx++) if (!chunks.has(chunkKey(cx, cz))) generateChunk(cx, cz);
+    }
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -2; dz <= 2; dz++) {
+      setBlockWorld(px + dx, py, pz + dz, (Math.abs(dx) === 3 || Math.abs(dz) === 2) ? B.PURPUR_BLOCK : B.OBSIDIAN, true, true);
+      for (let hy = 1; hy <= 7; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
+    }
+    for (let dy = 1; dy <= 5; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const isFrame = (dx === -2 || dx === 2 || dy === 5);
+        setBlockWorld(px + dx, py + dy, pz, isFrame ? (dy === 5 && Math.abs(dx) === 2 ? B.AMETHYST : B.OBSIDIAN) : B.DRAGON_REALM_PORTAL, true, true);
+      }
+    }
+    setBlockWorld(px - 2, py + 6, pz, B.END_ROD, true, true);
+    setBlockWorld(px + 2, py + 6, pz, B.END_ROD, true, true);
+    setBlockWorld(px, py + 6, pz, B.END_CRYSTAL_BLOCK, true, true);
+  }
+
   function tryActivateEndPortalAround(fx, fy, fz) {
     // Search possible 3x3 center offsets relative to a filled frame block
     const offsets = [
@@ -8142,6 +8300,24 @@
       mobSpawnTimer = 1.5;
       playSfx('roar');
       showToast(reasonToast || '🩵 CHÀO MỪNG TỚI THẾ GIỚI WARDEN! Săn Quặng Tier 6 & Hạ Boss Sculk 1000HP!');
+    } else if (targetDim === 'dragon_realm') {
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) generateChunk(dx, dz);
+      for (let dz = 7; dz <= 10; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(dx, dz);
+      const ly = Math.max(16, getTerrainHeight(0, 0, BIOMES.DR_PLAINS));
+      buildDragonRealmPortal(0, ly, -10);
+      _recordPortalPos('dragon_realm', 0, ly, -10);
+      _portalCooldown = 4.5;
+      _rebuildStandingOnly(0, 0, 0, -1);
+      player.x = 0.5; player.y = ly + 1.3; player.z = 2.5; player.yaw = Math.PI; player.pitch = 0.04;
+      player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+      if (typeof spawnMobOfType === 'function') {
+        spawnMobOfType('void_end_dragon', -28, ly + 8, 42);
+        spawnMobOfType('amethyst_end_dragon', 30, ly + 9, 54);
+        spawnMobOfType('sovereign_end_dragon', 0.5, 22.0, 136.5);
+      }
+      mobSpawnTimer = 2.0;
+      playSfx('roar');
+      showToast(reasonToast || '🌌 CHÀO MỪNG TỚI THẾ GIỚI RỒNG THE END! Hạ Boss Tối Thượng 50 Skill tại (0, 136)!');
     } else if (portalOpts && portalOpts.returnFromWarden) {
       const wp = window.lastWardenOverworldPos;
       const lx = wp ? Math.floor(wp.x) : 0;

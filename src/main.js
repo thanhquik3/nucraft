@@ -727,7 +727,7 @@
   let _lastAtkCdVis = false, _lastAtkCdReady = false, _lastAtkCdPct = -1;
   const _tmpFog = new THREE.Color(0xc8f2ef);
   function updateAtmosphere(dt) {
-    envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0)));
+    envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'dragon_realm' ? 2.15 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0))));
     const applyLavaAtmo = () => {
       const inLv = !!(player && player.eyesInLava);
       envUniforms.uInLava.value = inLv ? 1.0 : 0.0;
@@ -776,6 +776,39 @@
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');
+      applyLavaAtmo();
+      return;
+    }
+
+    // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE =====================
+    if (currentDimension === 'dragon_realm') {
+      _tmpTop.setHex(0x09041c);
+      _tmpHor.setHex(0x341159);
+      _tmpFog.setHex(0x1f0c3a);
+      envUniforms.uSkyTop.value.copy(_tmpTop);
+      envUniforms.uSkyHorizon.value.copy(_tmpHor);
+      envUniforms.uFogColor.value.copy(_tmpFog);
+      scene.fog.color.copy(_tmpFog);
+      scene.fog.near = 28; scene.fog.far = Math.max(88, renderDistance * 21);
+      envUniforms.uFogStart.value = 28; envUniforms.uFogEnd.value = Math.max(88, renderDistance * 21);
+      renderer.setClearColor(_tmpFog, 1);
+      sunLight.color.setHex(0xe9d5ff);
+      sunLight.intensity = 1.02;
+      hemiLight.color.setHex(0xa855f7);
+      hemiLight.groundColor.setHex(0x1a0b2e);
+      hemiLight.intensity = 0.56;
+      envUniforms.uSunColor.value.setHex(0xe9d5ff);
+      envUniforms.uSunDir.value.set(0.36, 0.84, 0.40).normalize();
+      const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
+      sunLight.target.position.set(snapX, snapY, snapZ);
+      sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
+      sunLight.target.updateMatrixWorld();
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.85;
+      envUniforms.uMoonBoost.value = 0.25; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
+      envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
+      cloudMesh.visible = false;
+      updateShootingStars(dt, 1, false);
+      updateAirMotesBatch(dt, shaderQuality !== 'low', 'end');
       applyLavaAtmo();
       return;
     }
@@ -1250,7 +1283,9 @@
     const _rPreset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { reflIntervalMs: 55 };
     const tierMult = (_autoPerfTier >= 1 && !inLobby) ? 1.25 : 1.0;
     const fgModeR = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
-    const reflInterval = (inLobby ? 0.032 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult) * (fgModeR > 1 ? 1.45 : 1.0);
+    const _sodRefl = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
+    const reflMinMs = _sodRefl ? 0.092 : 0.024;
+    const reflInterval = Math.max(reflMinMs, (inLobby ? 0.045 : ((_rPreset.reflIntervalMs || 40) / 1000) * (_fpsSlow ? 1.2 : 1.0) * tierMult) * (fgModeR > 1 ? 1.45 : 1.0));
     const fastTurn = !_reflDoneOnce ||
       Math.abs(camera.rotation.y - _lastReflYaw) > 0.045 ||
       Math.abs(camera.rotation.x - _lastReflPitch) > 0.045;
@@ -1393,6 +1428,7 @@
   }
   function renderMainScene(rawDt = 0.016, isAiSynth = false) {
     if (!_useDirectRender()) {
+      window._lastDirectRenderUsed = false;
       const isUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme');
       const fgMode = (typeof sodiumOpts !== 'undefined' && sodiumOpts.frameGen > 1) ? (sodiumOpts.frameGen | 0) : 1;
       if (!sceneRT || (isUltra && !bloomWide1) || (fgMode > 1 && !fgRtA)) resizeViewport();
@@ -1530,6 +1566,8 @@
         renderer.render(postScene, postCam);
       }
     } else {
+      window._lastDirectRenderUsed = true;
+      window._directRenderHits = (window._directRenderHits || 0) + 1;
       renderer.setClearColor(envUniforms.uFogColor.value, 1);
       renderer.render(scene, camera);
     }
@@ -1544,9 +1582,16 @@
     return (typeof activeRoomId !== 'undefined' && !!activeRoomId && typeof p2pIsHost !== 'undefined' && !p2pIsHost);
   }
 
+  let _lastPacedFrameMs = 0;
   function animate(now) {
     requestAnimationFrame(animate);
     if (document.hidden) { lastFrame = now; return; }
+    const _fpsCap = (typeof sodiumOpts !== 'undefined') ? (Number(sodiumOpts.fpsTarget) || 0) : 0;
+    if (_fpsCap > 0) {
+      const minGap = 1000 / _fpsCap;
+      if (now - _lastPacedFrameMs < minGap * 0.90) return;
+      _lastPacedFrameMs = now;
+    }
     const _tFrameStart = performance.now();
     try {
     frameCounter++;
@@ -1707,7 +1752,8 @@
     if (worldSimActive && !_runAiSynth) {
       if (typeof window._minimapAcc !== 'number') window._minimapAcc = 0;
       window._minimapAcc += rawDt;
-      if (window._minimapAcc >= (_isMobilePerf ? 0.16 : 0.12)) {
+      const _mmInt = (typeof sodiumOpts === 'undefined' || sodiumOpts.modernFix !== false) ? (_isMobilePerf ? 0.18 : 0.12) : 0.032;
+      if (window._minimapAcc >= _mmInt) {
         window._minimapAcc = 0;
         updateMinimap();
       }
@@ -1722,11 +1768,12 @@
       const _locB = (b) => (typeof getLocalizedBiomeName === 'function' ? getLocalizedBiomeName(b) : (b && b.name) || '');
       const _tr = (v, e) => (typeof tr === 'function' ? tr(v, e) : v);
       const area = currentDimension === 'end' ? _tr('Khu Kết Thúc (The End)', 'The End')
+        : (currentDimension === 'dragon_realm' ? _locB(curBio)
         : (currentDimension === 'warden' ? _locB(curBio)
         : (currentDimension === 'sift' ? _locB(curBio)
         : (currentDimension === 'nether' ? _locB(curBio)
         : (player.eyesInWater ? (trueY <= -450 ? _tr('🌊 Vực Hadal -700m', '🌊 Hadal Trench -700m') : (trueY <= -200 ? _tr('🌊 Vực Đêm Sâu', '🌊 Midnight Zone') : (trueY <= -60 ? _tr('🌊 Tầng Chạng Vạng', '🌊 Twilight Zone') : _tr('🌊 Đại Dương Rộng Lớn', '🌊 Deep Ocean'))))
-        : _locB(ugBioHud || curBio)))));
+        : _locB(ugBioHud || curBio))))));
       const _fgTag = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1) ? ` AI-FG x${sodiumOpts.frameGen | 0}` : '';
       const _rtTag = (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing) ? ' • ✨RTX' : '';
       const fpsTag = (sodiumOpts.fpsHud && window._nucraftFps)
@@ -1749,6 +1796,7 @@
               : `⛏️ Độ sâu: ${trueY} / -1000m (Còn ${Math.max(0, 1000 + trueY)}m → Địa Ngục)`);
         }
         else if (currentDimension === 'warden') nextDepth = _tr('🩵 Thế Giới Warden • Quặng T6 & Boss 1000HP', '🩵 Warden Realm • Tier-6 Ores & Boss');
+        else if (currentDimension === 'dragon_realm') nextDepth = _tr('🌌 Thế Giới Rồng The End • Boss 50 Skill (0, 136)', '🌌 Dragon End Realm • 50-Skill Sovereign Boss');
         else if (currentDimension === 'sift') nextDepth = _tr('✨ Khu Giấc Mơ (The Sift) • Ao Ichor Cầu Vồng & Quặng Aetherium', '✨ The Sift • Rainbow Ichor & Aetherium Ore');
         else if (currentDimension === 'nether') nextDepth = currentLang === 'en'
           ? `🔥 The Nether: ${trueY} / -1000m (${Math.max(0, 1000 + trueY)}m → The End)`
@@ -1794,9 +1842,10 @@
           const hasDynamicShadow = _hasActiveFlyingBoss || playerDynamicShadow || !!window._hasActiveNearShadowMob || _hasRemoteSh;
           const terrainCamMoved = Math.abs(player.x - _lastShX) > 0.14 || Math.abs(player.y - _lastShY) > 0.14 || Math.abs(player.z - _lastShZ) > 0.14 || Math.abs(dayTime - _lastShTime) > 0.0018;
           const _shMs = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality] && CFG.GFX_PRESETS[shaderQuality].shadowIntervalMs) || 44;
+          const _sodiumSh = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
           const shInterval = hasDynamicShadow
-            ? (sodiumOpts.smoothShadows !== false ? 0.0 : 0.033)
-            : ((inLobby || isWorldLoading) ? 0.04 : (terrainCamMoved ? (_shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.0) : 0.25));
+            ? (_sodiumSh ? (_initMobile ? 0.14 : 0.09) : (sodiumOpts.smoothShadows !== false ? 0.0 : 0.033))
+            : ((inLobby || isWorldLoading) ? 0.08 : (terrainCamMoved ? Math.max(_sodiumSh ? 0.08 : 0.03, _shMs / 1000) * (sodiumOpts.smoothShadows ? 1.0 : 2.0) : (_sodiumSh ? 0.35 : 0.25)));
           if (_shadowAcc >= shInterval && (hasDynamicShadow || !window._chunkBuiltThisFrame || _shadowAcc >= shInterval * 2.0)) {
             _shadowAcc = 0;
             renderer.shadowMap.needsUpdate = true;
@@ -1814,6 +1863,31 @@
     }
     const _frameWorkMs = performance.now() - _tFrameStart;
     window._nucraftCpuMs = window._nucraftCpuMs ? (window._nucraftCpuMs * 0.85 + _frameWorkMs * 0.15) : _frameWorkMs;
+    const _cpuMs = Math.max(0.25, window._nucraftCpuMs || _frameWorkMs || 1);
+    const _potFps = Math.min(999, Math.round(1000 / _cpuMs));
+    const _sOpt = (typeof sodiumOpts !== 'undefined') ? sodiumOpts : {};
+    window.__NUCRAFT_ADDONS__ = {
+      sodium:         { enabled: _sOpt.sodium !== false,        activeHits: (window._visibleChunksCount || 0) + (window._directRenderHits || 0) },
+      sodiumExtra:    { enabled: _sOpt.fpsHud !== false,        activeHits: (window._shadowUpdatesCount || 0) },
+      lithium:        { enabled: _sOpt.lithiumAi !== false,     activeHits: (typeof mobs !== 'undefined' ? mobs.length : 0) },
+      immediatelyFast:{ enabled: _sOpt.immFast !== false,       activeHits: (typeof _partInstMesh !== 'undefined' && _partInstMesh ? _partInstMesh.count : 0) },
+      entityCulling:  { enabled: _sOpt.entityCulling !== false, activeHits: (typeof _culledEntitiesCount !== 'undefined' ? _culledEntitiesCount : 0) },
+      moreCulling:    { enabled: _sOpt.moreCulling !== false,   activeHits: (window._visibleChunksCount || (typeof chunks !== 'undefined' ? chunks.size : 0)) },
+      ferriteCore:    { enabled: _sOpt.ferriteRam !== false,    activeHits: (window._ferritePoolHits || 0) },
+      modernFix:      { enabled: _sOpt.modernFix !== false,     activeHits: frameCounter },
+      quickPack:      { enabled: _sOpt.quickPack !== false,     activeHits: (typeof window.__NUCRAFT_MOB_KEYS__ !== 'undefined' ? window.__NUCRAFT_MOB_KEYS__.length : 0) },
+      scalableLux:    { enabled: _sOpt.fastLight !== false,     activeHits: (typeof chunks !== 'undefined' ? chunks.size : 0) }
+    };
+    window.__NUCRAFT_PERF__ = {
+      fps: window._nucraftFps || 60,
+      frameWorkMs: +(_cpuMs.toFixed(2)),
+      potFps: _potFps,
+      shadowUpdates: window._shadowUpdatesCount || 0,
+      culledEntities: (typeof _culledEntitiesCount !== 'undefined' ? _culledEntitiesCount : 0),
+      visibleChunks: window._visibleChunksCount || (typeof chunks !== 'undefined' ? chunks.size : 0),
+      fpsTarget: Number(_sOpt.fpsTarget) || 0,
+      directRender: !!window._lastDirectRenderUsed
+    };
     } catch (err) {
       // CRASH GUARD: một lỗi đơn lẻ không được phép làm chết vòng lặp game
       window.__ncErrCount = (window.__ncErrCount || 0) + 1;

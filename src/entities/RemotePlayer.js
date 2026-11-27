@@ -113,6 +113,10 @@
           if (needMeta) {
             _lastSentNet.eqSig = eqSig; _lastSentNet.skinId = selectedSkinId; _lastSentNet.metaAt = nowPerf;
             pkt.skinId = selectedSkinId; pkt.equip = eq; pkt.dayTime = dayTime;
+            if (typeof getLocalCustomSkinPayload === 'function') {
+              const cs = getLocalCustomSkinPayload();
+              if (cs) pkt.customSkin = cs;
+            }
           }
           sendCoopMsg(pkt);
         }
