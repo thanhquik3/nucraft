@@ -1900,13 +1900,47 @@
         addBoxTo(leg, 0.15, 0.70, 0.15, 0x94a3b8, 0, -0.35, 0, false, 0.72, 'stone');
       }
     } else if (type === 'slime' || type === 'sulfur_slime') {
-      const isSulf = (type === 'sulfur_slime');
-      anim.torso = makePivot(g, 0, 0.45, 0);
-      addArtBox(anim.torso, 0.90, 0.90, 0.90, isSulf ? 'fb_sulfur_slime_outer' : 'fb_slime_outer', (ctx, h) => {
-        h.fillAll(isSulf ? 0xfacc15 : 0x4ade80, 12, 'crystal', 18, -18);
-        h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 2, eyeCol: isSulf ? 0x451a03 : 0x052e16, sparkle: true, noseY: 10, noseW: 2, noseH: 2, noseCol: isSulf ? 0x451a03 : 0x052e16 });
-      }, 0, 0, 0, { rough: 0.22, transparent: true, opacity: isSulf ? 0.78 : 0.72, emissive: isSulf ? 0xca8a04 : 0x064e3b, emissiveIntensity: isSulf ? 0.48 : 0.22 });
-      addBoxTo(anim.torso, 0.56, 0.56, 0.56, isSulf ? 0xca8a04 : 0x16a34a, 0, 0, 0, false, 0.40, 'crystal');
+      anim.torso = makePivot(g, 0, 0, 0);
+      if (type === 'sulfur_slime') {
+        anim.slimeCore = makePivot(anim.torso, 0, 0.44, 0);
+        addArtBox(anim.slimeCore, 0.54, 0.52, 0.54, 'fb_sulfur_slime_core_v2', (ctx, h) => {
+          h.fillAll(0xeab308, 12, 'crystal', 16, -16);
+          for (const t of [0, 1, 2, 5]) h.spots(t, 0xf59e0b, [[2, 2, 4, 3], [9, 6, 4, 4], [4, 10, 5, 3]]);
+          h.px(4, 2, 10, 12, 3, 0xb45309);
+          h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 3, eyeCol: 0x3b1203, sparkle: true, noseY: 11, noseW: 4, noseH: 1, noseCol: 0x3b1203 });
+        }, 0, 0, 0, { rough: 0.32, emissive: 0xd97706, emissiveIntensity: 0.42 });
+        anim.slimeBubbles = [
+          { m: addBoxTo(anim.slimeCore, 0.11, 0.11, 0.11, 0xfef08a, -0.22, 0.14, 0.18, true), by: 0.14 },
+          { m: addBoxTo(anim.slimeCore, 0.09, 0.09, 0.09, 0xfde047,  0.24, -0.10, -0.14, true), by: -0.10 },
+          { m: addBoxTo(anim.slimeCore, 0.10, 0.10, 0.10, 0xfb923c, -0.18, -0.14, -0.20, true), by: -0.14 },
+          { m: addBoxTo(anim.slimeCore, 0.08, 0.08, 0.08, 0xfefce8,  0.20, 0.18, 0.16, true), by: 0.18 }
+        ];
+        const outerMesh = addArtBox(anim.torso, 0.94, 0.88, 0.94, 'fb_sulfur_slime_outer_v2', (ctx, h) => {
+          h.fillAll(0xfacc15, 10, 'crystal', 14, -14);
+          for (const t of [0, 1, 2, 4, 5]) {
+            h.px(t, 0, 0, 16, 3, 0xfef08a);
+            h.px(t, 0, 12, 16, 4, 0xeab308);
+            h.px(t, 2, 2, 3, 3, 0xfefce8);
+          }
+          h.px(2, 3, 3, 10, 10, 0xfef08a);
+        }, 0, 0.45, 0, { rough: 0.14, transparent: true, opacity: 0.64, emissive: 0xca8a04, emissiveIntensity: 0.28 });
+        if (outerMesh && outerMesh.material) { outerMesh.material.depthWrite = false; outerMesh.renderOrder = 2; }
+        const skirtMesh = addArtBox(anim.torso, 1.00, 0.12, 1.00, 'fb_sulfur_slime_skirt_v2', (ctx, h) => {
+          h.fillAll(0xeab308, 10, 'crystal', 12, -12);
+          for (const t of [0, 1, 4, 5]) h.px(t, 1, 0, 14, 5, 0xfde047);
+        }, 0, 0.06, 0, { rough: 0.18, transparent: true, opacity: 0.54, emissive: 0xb45309, emissiveIntensity: 0.22 });
+        if (skirtMesh && skirtMesh.material) { skirtMesh.material.depthWrite = false; skirtMesh.renderOrder = 1; }
+        const bud1 = addBoxTo(anim.torso, 0.14, 0.18, 0.14, 0xfde047, 0.16, 0.91, -0.10, true);
+        if (bud1) bud1.rotation.set(0.18, 0, -0.22);
+        const bud2 = addBoxTo(anim.torso, 0.10, 0.13, 0.10, 0xfef08a, -0.18, 0.89, 0.12, true);
+        if (bud2) bud2.rotation.set(-0.20, 0, 0.24);
+      } else {
+        addArtBox(anim.torso, 0.90, 0.90, 0.90, 'fb_slime_outer', (ctx, h) => {
+          h.fillAll(0x4ade80, 12, 'crystal', 18, -18);
+          h.cuteFace(4, { eyeY: 5, eyeSep: 3, eyeW: 2, eyeH: 2, eyeCol: 0x052e16, sparkle: true, noseY: 10, noseW: 2, noseH: 2, noseCol: 0x052e16 });
+        }, 0, 0.45, 0, { rough: 0.22, transparent: true, opacity: 0.72, emissive: 0x064e3b, emissiveIntensity: 0.22 });
+        addBoxTo(anim.torso, 0.56, 0.56, 0.56, 0x16a34a, 0, 0.45, 0, false, 0.40, 'crystal');
+      }
     } else if (type === 'wither_knight') {
       addBoxTo(g, 0.66, 0.90, 0.38, 0x18181b, 0, 1.24, 0, false, 0.42, 'stone');
       addBoxTo(g, 0.84, 0.26, 0.44, 0x27272a, 0, 1.58, 0, false, 0.40, 'stone');
@@ -7223,7 +7257,12 @@
 
       if (m.hopper && !m.sitting) {
         m.hopCd -= dt;
-        if (m.hopCd <= 0 && (m.onGround || Math.abs(m.vy) < 0.08)) { m.vy = 5.4; m.onGround = false; m.hopCd = 0.85 + Math.random() * 0.45; }
+        if (m.hopCd <= 0 && (m.onGround || Math.abs(m.vy) < 0.08)) {
+          m.vy = (m.type === 'sulfur_slime') ? 5.85 : 5.4;
+          m.onGround = false;
+          m.hopCd = 0.72 + Math.random() * 0.36;
+          if (m.type === 'sulfur_slime') spawnParticles(m.x, m.y + 0.12, m.z, 0xfde047, 2, true);
+        }
       }
 
       // 1) Iron Golem (Village Defender) & Tamed Pet Defender + 2) Hostile/Villager LOS & Threat AI (throttled ~4Hz!)
@@ -8445,11 +8484,14 @@
         }
 
         // Silky Velocity Interpolation + Smooth Physics Block Jumping (Zero Teleport Snapping!)
-        const effDriveSpd = inWater ? speed * 0.62 : speed;
+        const isSlimeMob = (m.type === 'slime' || m.type === 'sulfur_slime');
+        const slimeDriveMul = !isSlimeMob ? 1.0 : (!m.onGround ? 1.32 : (m.hopCd < 0.24 ? 0.15 : 0.24));
+        const effDriveSpd = (inWater ? speed * 0.62 : speed) * slimeDriveMul;
         const tgtVx = Math.sin(moveYaw) * effDriveSpd + sepX + latX;
         const tgtVz = Math.cos(moveYaw) * effDriveSpd + sepZ + latZ;
         if (m.svx === undefined) { m.svx = 0; m.svz = 0; }
-        const accK = 1 - Math.exp(-(m.onGround ? 11.0 : (inWater ? 6.8 : 5.4)) * dt);
+        const accRate = isSlimeMob ? (m.onGround ? 11.0 : 6.2) : (m.onGround ? 11.0 : (inWater ? 6.8 : 5.4));
+        const accK = 1 - Math.exp(-accRate * dt);
         m.svx += (tgtVx - m.svx) * accK;
         m.svz += (tgtVz - m.svz) * accK;
         const dxM = (m.svx + m.vx) * dt, dzM = (m.svz + m.vz) * dt;
@@ -8582,10 +8624,15 @@
         } else {
           m.y = nextMY;
           const fy = Math.floor(m.y);
+          const prevVy = m.vy, wasGround = !!m.onGround;
           if (m.vy <= 0 && mobFootprintSolidAtY(m.x, fy, m.z, m.hitboxR)) {
             m.y = fy + 1;
             m.vy = 0;
             m.onGround = true;
+            if (!wasGround && prevVy < -1.2) {
+              m._landImpact = Math.min(1.0, Math.abs(prevVy) / 7.5);
+              if (m.type === 'sulfur_slime') spawnParticles(m.x, m.y + 0.08, m.z, 0xfacc15, 3, true);
+            }
           } else {
             m.onGround = mobFootprintSolidAtY(m.x, Math.floor(m.y - 0.06), m.z, m.hitboxR) && Math.abs(m.vy) < 0.25;
           }
@@ -8793,12 +8840,42 @@
         } else {
         if (m.anim.torso) {
           if (m.hopper) {
-            // Fresh Animations Hopper Anticipation -> Mid-Air Stretch -> Touchdown Squash!
-            const hopStretch = m.vy > 0.5 ? (1.16 + Math.min(0.18, m.vy * 0.032))
-              : (m.vy < -0.5 ? 0.84 : (m.hopCd < 0.18 ? 0.82 : (1.0 + Math.sin(elapsed * 4.8 + i) * 0.055)));
-            const invSq = 1 / Math.sqrt(hopStretch);
-            m.anim.torso.scale.set(invSq, hopStretch, invSq);
-            m.anim.torso.rotation.x = m.vy > 0.5 ? -0.22 : (m.vy < -0.5 ? 0.18 : idleBreath);
+            // Spring-damped gelatinous crouch -> launch stretch -> touchdown squash + suspended sulfur bubbles
+            const sdt = Math.min(0.04, dt);
+            m._landImpact = (m._landImpact || 0) * Math.exp(-7.5 * sdt);
+            let tgtSy = 1.0 + Math.sin(elapsed * 4.4 + i) * 0.055;
+            if (!m.onGround) {
+              tgtSy = 1.0 + Math.max(-0.18, Math.min(0.32, m.vy * 0.055));
+            } else if (m._landImpact > 0.04) {
+              tgtSy = 1.0 - 0.32 * m._landImpact;
+            } else if (m.hopCd < 0.24) {
+              const crouchP = 1.0 - Math.max(0, m.hopCd) / 0.24;
+              tgtSy = 1.0 - 0.28 * crouchP * crouchP;
+            }
+            if (m._sqY === undefined) { m._sqY = 1.0; m._sqVel = 0.0; m._hopPitch = 0.0; }
+            const sqAcc = (tgtSy - m._sqY) * 115.0 - m._sqVel * 12.5;
+            m._sqVel += sqAcc * sdt;
+            m._sqY = Math.max(0.58, Math.min(1.48, m._sqY + m._sqVel * sdt));
+            const invSq = 1 / Math.sqrt(m._sqY);
+            const jiggle = Math.sin(elapsed * 7.6 + i) * (0.022 + m._landImpact * 0.045);
+            m.anim.torso.scale.set(invSq * (1 + jiggle), m._sqY, invSq * (1 - jiggle));
+            const tgtPitch = !m.onGround ? Math.max(-0.24, Math.min(0.22, -m.vy * 0.042)) : (m.hopCd < 0.24 ? 0.08 : idleBreath * 0.6);
+            m._hopPitch += (tgtPitch - m._hopPitch) * (1 - Math.exp(-12.0 * sdt));
+            m.anim.torso.rotation.x = m._hopPitch;
+            if (m.anim.slimeCore) {
+              const coreLag = Math.max(-0.08, Math.min(0.09, -m._sqVel * 0.016));
+              m.anim.slimeCore.position.y = 0.44 + coreLag + Math.sin(elapsed * 5.2 + i) * 0.018;
+              m.anim.slimeCore.rotation.y = Math.sin(elapsed * 2.8 + i) * 0.08;
+            }
+            if (m.anim.slimeBubbles && m.anim.slimeBubbles.length) {
+              for (let bi = 0; bi < m.anim.slimeBubbles.length; bi++) {
+                const sb = m.anim.slimeBubbles[bi];
+                sb.m.position.y = sb.by + Math.sin(elapsed * (3.6 + bi * 0.7) + i + bi * 1.4) * 0.035;
+              }
+            }
+            if (m.type === 'sulfur_slime' && isMobVis && ((frameCounter + i) % 24) === 0) {
+              spawnPixelFx('sulfur_steam', m.x, m.y + 0.65, m.z, { count: 1, scale: 0.42, life: 0.75, vy: 0.55, spread: 0.16, randV: 0.1 });
+            }
             if (m.anim.slices && m.anim.slices.length) {
               const lift = Math.max(0, Math.abs(m.vy) > 0.35 ? Math.min(0.18, Math.abs(m.vy) * 0.025) : 0);
               for (let si = 0; si < m.anim.slices.length; si++) {

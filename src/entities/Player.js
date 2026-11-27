@@ -3776,6 +3776,7 @@
         player.hp = 10;
         player.invuln = 3.2;
         player.burnTime = 0;
+        player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false;
         player._darknessT = 0;
         recalcPlayerArmor(); renderHotbar(); renderEquipmentUI(); renderStatusBars();
         const tf = document.getElementById('totemFlash');
@@ -3786,7 +3787,7 @@
         showToast('🗿 Totem Bất Tử đã cứu mạng bạn!');
         return;
       }
-      player.dead = true; if (player.ridingDragon) dismountDragon(); player._wardenWarningLevel = 0; if (document.pointerLockElement) document.exitPointerLock();
+      player.dead = true; player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false; if (player.ridingDragon) dismountDragon(); player._wardenWarningLevel = 0; if (document.pointerLockElement) document.exitPointerLock();
       isPlaying = false; mining.active = false;
       if (typeof clearMoveKeys === 'function') clearMoveKeys();
       if (typeof chatOpen !== 'undefined' && chatOpen && typeof closeChatBox === 'function') { closeChatBox(); isPlaying = false; }
@@ -5264,6 +5265,41 @@
       lavaTick += dt;
       if (lavaTick >= 0.85) { lavaTick = 0; hurtPlayer(1, '🔥 Bỏng chân trên Khối Dung Nham (ngồi Shift để tránh)!'); }
     } else lavaTick = 0;
+
+    const _inSulfurPool = player.inWater && !player.inBoat && gameMode !== 'creative' && !player.dead && (
+      (typeof BIOMES !== 'undefined' && BIOMES.SULFUR_SPRINGS && getBiomeAt(Math.floor(player.x), Math.floor(player.z)) === BIOMES.SULFUR_SPRINGS) ||
+      (typeof UNDERGROUND_BIOMES !== 'undefined' && UNDERGROUND_BIOMES.SULFUR_CAVE && getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z)) === UNDERGROUND_BIOMES.SULFUR_CAVE)
+    );
+    if (_inSulfurPool) {
+      player._sulfurSoakT = (player._sulfurSoakT || 0) + dt;
+      if ((frameCounter % 10) === 0) {
+        spawnPixelFx('sulfur_steam', player.x, player.y + 0.55, player.z, { count: 1, scale: 0.68, life: 0.95, vy: 0.85, spread: 0.25, randV: 0.14 });
+        spawnParticles(player.x, player.y + 0.35, player.z, 0xfde047, 2, true);
+      }
+      if (player._sulfurSoakT >= 1.0 && !player._sulfurWarned) {
+        player._sulfurWarned = true;
+        playSfx('burn');
+        showToast('♨️ Hồ lưu huỳnh rất nóng & có axit — đứng lâu sẽ bị mất máu!', 2800);
+      }
+      if (player._sulfurSoakT >= 2.5) {
+        player._sulfurDmgTick = (player._sulfurDmgTick || 0) + dt;
+        if (player._sulfurDmgTick >= 1.0) {
+          player._sulfurDmgTick = 0;
+          hurtPlayer(1, '♨️ Bạn bị bỏng do ngâm mình quá lâu trong hồ lưu huỳnh!');
+          playSfx('burn');
+          spawnParticles(player.x, player.y + 0.75, player.z, 0xfacc15, 4, true);
+        }
+      } else {
+        player._sulfurDmgTick = 1.0;
+      }
+    } else {
+      player._sulfurSoakT = Math.max(0, (player._sulfurSoakT || 0) - dt * 2.5);
+      if (player._sulfurSoakT <= 0.05) {
+        player._sulfurSoakT = 0;
+        player._sulfurDmgTick = 0;
+        player._sulfurWarned = false;
+      }
+    }
 
     if (gameMode === 'creative' || player.inWater || _isFireImmuneEquip) {
       player.burnTime = 0; player._burnSoul = false; fireTick = 0;

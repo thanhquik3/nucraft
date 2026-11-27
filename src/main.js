@@ -661,24 +661,32 @@
       }
     }
 
-    // BUILD v156: Billowing white geothermal steam plumes in Sulfur Hot Springs & Sulfur Caves
-    if (isPlaying && !isWorldLoading && shaderQuality !== 'low' && (frameCounter % 5) === 0) {
+    // BUILD v164: Billowing white geothermal steam plumes across ALL Sulfur Hot Springs pools, vents & Sulfur Caves
+    if (isPlaying && !isWorldLoading && (frameCounter % (shaderQuality === 'low' ? 5 : 3)) === 0) {
       const pBio = getPlayerBiome();
       const uBio = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z));
       if (pBio === BIOMES.SULFUR_SPRINGS || uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
-        for (let k = 0; k < 2; k++) {
-          const sx = Math.floor(player.x + (Math.random() - 0.5) * 18);
-          const sz = Math.floor(player.z + (Math.random() - 0.5) * 18);
-          const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 6));
-          const minScan = Math.max(MIN_Y + 1, Math.floor(player.y - 6));
+        const probes = (shaderQuality === 'low') ? 3 : 6;
+        const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 7));
+        const minScan = Math.max(MIN_Y + 1, Math.min(Math.floor(player.y - 8), WATER_LEVEL - 2));
+        for (let k = 0; k < probes; k++) {
+          const sx = Math.floor(player.x + (Math.random() - 0.5) * 22);
+          const sz = Math.floor(player.z + (Math.random() - 0.5) * 22);
           for (let by = startY; by >= minScan; by--) {
             const bid = getBlockWorld(sx, by, sz);
             if (bid === B.AIR) continue;
-            if (bid === B.SULFUR_VENT || (bid === B.WATER && pBio === BIOMES.SULFUR_SPRINGS && Math.random() < 0.38)) {
-              const isVent = (bid === B.SULFUR_VENT);
-              spawnPixelFx('sulfur_steam', sx + 0.5, by + (isVent ? 1.15 : 0.96), sz + 0.5, {
-                count: 1, scale: isVent ? 1.05 : 0.65, spread: 0.14, randV: 0.18, grow: 0.65,
-                vy: isVent ? 1.55 : 0.72, life: isVent ? 1.65 : 1.05
+            if (bid === B.SULFUR_VENT) {
+              spawnPixelFx('sulfur_steam', sx + 0.5, by + 1.15, sz + 0.5, {
+                count: 1, scale: 1.25, spread: 0.16, randV: 0.18, grow: 0.85, vy: 1.75, life: 1.85
+              });
+            } else if (bid === B.WATER && getBlockWorld(sx, by + 1, sz) === B.AIR && Math.random() < 0.82) {
+              spawnPixelFx('sulfur_steam', sx + 0.5, by + 0.96, sz + 0.5, {
+                count: 1, scale: 0.92 + Math.random() * 0.42, spread: 0.22, randV: 0.20, grow: 0.82,
+                vy: 0.92 + Math.random() * 0.42, life: 1.45 + Math.random() * 0.55
+              });
+            } else if (bid === B.SULFUR_CRYSTAL && Math.random() < 0.35) {
+              spawnPixelFx('sulfur_steam', sx + 0.5, by + 1.02, sz + 0.5, {
+                count: 1, scale: 0.65, spread: 0.12, randV: 0.14, grow: 0.55, vy: 0.85, life: 1.15
               });
             }
             break;

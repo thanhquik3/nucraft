@@ -5316,24 +5316,13 @@
       paintNoiseBlock(V156_TILES.travertineStone, '#ebe7de', '#c7c0b4', '#f8fafc', '#d6d3d1', 49);
       paintNoiseBlock(V156_TILES.thermalCrust,    '#ea580c', '#9a3412', '#fb923c', '#facc15', 61);
       paintNoiseBlock(V156_TILES.sulfurVent,      '#a16207', '#451a03', '#f59e0b', '#fef9c3', 73);
-      drawSpriteMap(V156_TILES.sulfurCrystal, [
-        '.......h........',
-        '......hWh.......',
-        '.....hYYWh......',
-        '....hYYYYYh.....',
-        '....hYYYYDh.....',
-        '...hWYYYYYDh....',
-        '...hYYYYYYDh..h.',
-        '..hYYYYYYYYDhhWh',
-        '..hYYYYDDDDDYYYh',
-        '.hWYYYYYYDYYYYDh',
-        '.hYYYYYYYDYYYYDh',
-        'hYYYYDDDDYYYYDDh',
-        'hYYYDYYYYYDDDYYh',
-        'DDDDYYYYDDDDDDDh',
-        'DDDDDDDDDDDDDDDD',
-        'oooooooooooooooo'
-      ], { o: '#713f12', D: '#ca8a04', Y: '#facc15', h: '#fde047', W: '#fefce8' });
+      tilePixels(V156_TILES.sulfurCrystal, (x, y, r) => {
+        if (y <= 2 || Math.abs(x - 7.5) + y < 5) return '#fefce8';
+        if (x <= 1 || x >= 14) return '#a16207';
+        if (y >= 14) return '#713f12';
+        if (Math.abs(x - y) <= 1 || Math.abs((15 - x) - y) <= 1) return '#fef08a';
+        return shade(((x + y) & 2) ? '#fde047' : '#eab308', (r - 0.5) * 18);
+      });
       drawSpriteMap(V156_TILES.sulfurSlimeball, [
         '................',
         '......oooo......',

@@ -3338,11 +3338,14 @@
                 if (lh > 0.980) data[i] = B.SULFUR_VENT;
                 else if (lh > 0.942) {
                   const sh = 1 + ((hash2i(wx, wz, worldSeed + 7841) * 3) | 0);
+                  let topD = -1;
                   for (let d = 0; d < sh && (ly + d) < (h - MIN_Y - 4); d++) {
                     const idxC = ((ly + d) << 8) | (lz << 4) | lx;
                     if (data[idxC] !== B.AIR) break;
-                    data[idxC] = B.SULFUR_CRYSTAL;
+                    data[idxC] = B.SULFUR_BLOCK;
+                    topD = d;
                   }
+                  if (topD >= 0) data[((ly + topD) << 8) | (lz << 4) | lx] = B.SULFUR_CRYSTAL;
                 } else if (lh < 0.14 && data[below] !== B.AIR) {
                   data[below] = B.WATER;
                 }
@@ -3384,11 +3387,14 @@
                 }
               } else if (uBioCol === UNDERGROUND_BIOMES.SULFUR_CAVE && vh > 0.89) {
                 const sLen = 1 + Math.floor(hash2i(wx, wz, seedMix.s1 + 7853) * 3);
+                let botD = -1;
                 for (let d = 0; d < sLen && (ly - d) > 5; d++) {
                   const idxS = ((ly - d) << 8) | (lz << 4) | lx;
                   if (data[idxS] !== B.AIR) break;
-                  data[idxS] = B.SULFUR_CRYSTAL;
+                  data[idxS] = B.SULFUR_BLOCK;
+                  botD = d;
                 }
+                if (botD >= 0) data[((ly - botD) << 8) | (lz << 4) | lx] = B.SULFUR_CRYSTAL;
               }
             }
           }
@@ -3634,7 +3640,7 @@
                 setLocalSafe(data, lx, h + 1, lz, B.SULFUR_VENT, true);
               } else {
                 const spH = 1 + ((hash2i(wx, wz, worldSeed + 7867) * 3) | 0);
-                for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, h + sy, lz, B.SULFUR_CRYSTAL, false);
+                for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, h + sy, lz, sy === spH ? B.SULFUR_CRYSTAL : B.SULFUR_BLOCK, false);
               }
               placed = true;
             }
