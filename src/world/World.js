@@ -4471,7 +4471,11 @@
       const reactPair = (tx, ty, tz, targetId) => {
         if (isLava && targetId === B.WATER) {
           const outB = B.STONE;
+          const rk = modKey(tx, ty, tz);
+          fluidLevel.delete(rk);
+          pouredFluidSources.delete(rk);
           setBlockWorld(tx, ty, tz, outB, true);
+          wakeAdjacentFluids(tx, ty, tz, 0.55);
           spawnParticles(tx + 0.5, ty + 0.9, tz + 0.5, 0xe2e8f0, 5, false);
           playSfx('hiss');
           changedVisuals++;
@@ -4479,7 +4483,11 @@
         }
         if (!isLava && targetId === B.LAVA) {
           const tLvl = getFluidLevel(tx, ty, tz, B.LAVA);
+          const rk = modKey(tx, ty, tz);
+          fluidLevel.delete(rk);
+          pouredFluidSources.delete(rk);
           setBlockWorld(tx, ty, tz, tLvl === 0 ? B.OBSIDIAN : B.STONE, true);
+          wakeAdjacentFluids(tx, ty, tz, 0.55);
           spawnParticles(tx + 0.5, ty + 0.9, tz + 0.5, 0xcbd5e1, 6, false);
           playSfx('hiss');
           changedVisuals++;
@@ -4550,6 +4558,35 @@
 
   // ===================== v23.0 ANIMATED 3D CHESTS (5 TIERS), DOORS (5 TYPES), TRAPDOORS (4 TYPES), FURNACES & WHEAT CROPS =====================
   const doorOpenState = new Map();     // 'wx,wy,wz' -> boolean
+  const openBarrels = new Set();       // 'wx,wy,wz' -> barrel currently open (lid open + Redstone signal active)
+  function emitBarrelRedstoneSignal(wx, wy, wz, active) {
+    const adj = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    let triggered = false;
+    for (const [dx, dy, dz] of adj) {
+      const nx = wx + dx, ny = wy + dy, nz = wz + dz;
+      const nb = getBlockWorld(nx, ny, nz);
+      const nd = BLOCK_DEF[nb];
+      if (!nd) continue;
+      if (nb === B.NOTE_BLOCK && active) {
+        triggered = true;
+        spawnParticles(nx + 0.5, ny + 1.1, nz + 0.5, 0xfacc15, 6, true);
+        playSfx('xp_orb');
+      } else if (nd.door || nd.trapdoor) {
+        triggered = true;
+        setDoorOpenPair(nx, ny, nz, !!active, true);
+      } else if (nb === B.TNT && active) {
+        triggered = true;
+        setBlockWorld(nx, ny, nz, B.AIR, true);
+        spawnPrimedTnt(nx + 0.5, ny, nz + 0.5, 2.4);
+      } else if (nb === B.REDSTONE_ORE) {
+        triggered = true;
+      }
+    }
+    if (active) {
+      spawnParticles(wx + 0.5, wy + 0.85, wz + 0.5, 0xef4444, triggered ? 10 : 4, true);
+    }
+    return triggered;
+  }
   const plantedSaplings = new Map();   // 'wx,wy,wz' -> { x, y, z, id, age, targetAge }
   const saplingFertilizeCount = new Map();
   let _sapScratch = null;
@@ -4653,7 +4690,7 @@
   function findDoubleChestPartner(wx, wy, wz, id) {
     if (!id) id = getBlockWorld(wx, wy, wz);
     const def = BLOCK_DEF[id];
-    if (!def || !def.chest || isEnderChestBlock(id)) return null;
+    if (!def || !def.chest || def.isBarrel || isEnderChestBlock(id)) return null;
     const k = modKey(wx, wy, wz);
     let pair = chestPairMap.get(k);
     if (pair) {
@@ -4728,6 +4765,7 @@
       chestPairMap.delete(pair.sk);
     }
     _delInteractiveVisual(k);
+    if (typeof openBarrels !== 'undefined') openBarrels.delete(k);
     if (activeChestKey === k || activeChestPartnerKey === k) closeChestModal();
     if (pair) {
       const ox = (pair.pk === k) ? pair.sx : pair.px;
@@ -8142,7 +8180,19 @@
   function getStrongholdLocations() {
     const s = (typeof worldSeed === 'number' ? worldSeed : 1337);
     if (_shLocCache && _shLocSeed === s) return _shLocCache;
+    // Authentic Minecraft Stronghold ring around spawn (3 underground Strongholds with 12-frame End Portals) + Grand Ruins End Shrine
     const out = [{ x: GRAND_RUINS_CX, y: GRAND_RUINS_PORTAL_Y, z: GRAND_RUINS_CZ, inGrandRuins: true }];
+    const baseAng = hash2i(s & 1023, (s >> 10) & 1023, s + 9137) * Math.PI * 2;
+    for (let i = 0; i < 3; i++) {
+      const ang = baseAng + i * (Math.PI * 2 / 3) + (hash2i(i * 19 + 7, s & 511, s + 3313) - 0.5) * 0.45;
+      const rad = 460 + hash2i(i * 31 + 3, (s >> 4) & 511, s + 7727) * 220;
+      out.push({
+        x: Math.round(Math.cos(ang) * rad),
+        y: -26,
+        z: Math.round(Math.sin(ang) * rad),
+        inGrandRuins: false
+      });
+    }
     _shLocSeed = s; _shLocCache = out;
     return out;
   }
@@ -8662,12 +8712,14 @@
     return false;
   }
 
-  const _enderEyeOrbGeo = new THREE.SphereGeometry(0.18, 10, 10);
-  const _enderEyeOrbMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
-  const _enderEyePupilGeo = new THREE.BoxGeometry(0.06, 0.22, 0.24);
-  const _enderEyePupilMat = new THREE.MeshBasicMaterial({ color: 0x020617 });
-  const _enderEyeHaloGeo = new THREE.SphereGeometry(0.26, 8, 8);
-  const _enderEyeHaloMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.35 });
+  const _enderEyeOrbGeo = new THREE.SphereGeometry(0.18, 12, 12);
+  const _enderEyeOrbMat = new THREE.MeshBasicMaterial({ color: 0x228b6e });
+  const _enderEyeIrisGeo = new THREE.SphereGeometry(0.135, 10, 10);
+  const _enderEyeIrisMat = new THREE.MeshBasicMaterial({ color: 0x9ac668 });
+  const _enderEyePupilGeo = new THREE.BoxGeometry(0.055, 0.21, 0.23);
+  const _enderEyePupilMat = new THREE.MeshBasicMaterial({ color: 0x061314 });
+  const _enderEyeHaloGeo = new THREE.SphereGeometry(0.27, 8, 8);
+  const _enderEyeHaloMat = new THREE.MeshBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0.34 });
   function throwEnderEye() {
     if (currentDimension !== 'overworld') {
       showToast('👁️ Mắt Ender chỉ hoạt động tìm Pháo Đài ở Thế Giới Chính (Overworld)!');
@@ -8678,34 +8730,41 @@
     const dist = Math.hypot(dx, dz);
     const dirX = dist > 0.5 ? dx / dist : 0;
     const dirZ = dist > 0.5 ? dz / dist : 0;
-    const diving = dist < 16;
+    const diving = dist < 14;
 
     const grp = new THREE.Group();
     const orb = new THREE.Mesh(_enderEyeOrbGeo, _enderEyeOrbMat);
+    const iris = new THREE.Mesh(_enderEyeIrisGeo, _enderEyeIrisMat);
+    iris.scale.set(1.06, 1.06, 0.85);
     const pupil = new THREE.Mesh(_enderEyePupilGeo, _enderEyePupilMat);
     const halo = new THREE.Mesh(_enderEyeHaloGeo, _enderEyeHaloMat);
-    grp.add(orb, pupil, halo);
-    const sx = player.x, sy = player.y + 1.5, sz = player.z;
+    grp.add(orb, iris, pupil, halo);
+    const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
+    const sx = player.x + fwdX * 1.15, sy = player.y + 1.38, sz = player.z + fwdZ * 1.15;
     grp.position.set(sx, sy, sz);
     scene.add(grp);
 
-    const tx = diving ? sh.x + 0.5 : sx + dirX * Math.min(13, dist);
-    const ty = diving ? (sh.inGrandRuins ? sh.y + 1.5 : Math.max(sh.y + 1, sy - 4.0)) : sy + 3.6;
-    const tz = diving ? sh.z + 0.5 : sz + dirZ * Math.min(13, dist);
+    const flyDist = Math.min(12.5, dist);
+    const tx = diving ? sh.x + 0.5 : player.x + dirX * flyDist;
+    const ty = diving ? (sh.inGrandRuins ? sh.y + 1.5 : Math.max(sh.y + 1, sy - 4.5)) : sy + 4.4;
+    const tz = diving ? sh.z + 0.5 : player.z + dirZ * flyDist;
+    // Control point curves gracefully from right in front of the player's face toward the Stronghold direction
+    const mx = sx + fwdX * 1.8 + dirX * 2.4;
+    const my = sy + (diving ? 0.8 : 2.6);
+    const mz = sz + fwdZ * 1.8 + dirZ * 2.4;
 
     flyingEnderEyes.push({
-      mesh: grp, sx, sy, sz, tx, ty, tz,
-      t: 0, dur: 2.2, sparkT: 0, diving
+      mesh: grp, sx, sy, sz, mx, my, mz, tx, ty, tz,
+      t: 0, dur: 2.35, sparkT: 0, diving
     });
+    if (typeof window !== 'undefined') window._lastEnderEyeThrow = { x: sh.x, y: sh.y, z: sh.z, dist: Math.round(dist), at: Date.now() };
     playSfx('equip');
     if (diving) {
       showToast(sh.inGrandRuins
-        ? `👁️ Mắt Ender bay thẳng tới Đền Cổng The End trong Khu Tàn Tích 1000×1000 (~${Math.round(dist)}m, y=${sh.y})!`
-        : `👁️ Mắt Ender lao xuống đất! Pháo Đài (Cổng End) ở ngay bên dưới (~${Math.round(dist)}m, y=${sh.y})!`);
+        ? `👁️ Mắt Ender bay thẳng tới Đền Cổng The End (~${Math.round(dist)}m, y=${sh.y})!`
+        : `👁️ Mắt Ender lao xuống đất! Pháo Đài (Cổng The End) ở ngay bên dưới (~${Math.round(dist)}m, y=${sh.y})!`);
     } else {
-      showToast(sh.inGrandRuins
-        ? `👁️ Mắt Ender đang dẫn lối tới Khu Tàn Tích Cổng The End 1000×1000 (cách khoảng ${Math.round(dist)}m)...`
-        : `👁️ Mắt Ender đang bay về phía Pháo Đài (cách khoảng ${Math.round(dist)}m)...`);
+      showToast(`👁️ Mắt Ender đang bay về phía Cổng The End (~${Math.round(dist)}m)...`);
     }
     return true;
   }
@@ -8715,25 +8774,27 @@
       const e = flyingEnderEyes[i];
       e.t += dt;
       const p = Math.min(1, e.t / e.dur);
-      const ease = 1 - Math.pow(1 - p, 2);
-      const cx = e.sx + (e.tx - e.sx) * ease;
-      const cy = e.sy + (e.ty - e.sy) * ease + Math.sin(p * Math.PI) * (e.diving ? 0.6 : 1.5);
-      const cz = e.sz + (e.tz - e.sz) * ease;
+      const u = 1 - Math.pow(1 - p, 1.85);
+      const inv = 1 - u;
+      const cx = inv * inv * e.sx + 2 * inv * u * e.mx + u * u * e.tx;
+      const cy = inv * inv * e.sy + 2 * inv * u * e.my + u * u * e.ty;
+      const cz = inv * inv * e.sz + 2 * inv * u * e.mz + u * u * e.tz;
       e.mesh.position.set(cx, cy, cz);
-      e.mesh.rotation.y += dt * 6;
+      e.mesh.rotation.y += dt * 6.5;
       e.sparkT += dt;
-      if (e.sparkT >= 0.09) {
+      if (e.sparkT >= 0.065) {
         e.sparkT = 0;
-        spawnParticles(cx, cy, cz, 0x34d399, 2, true);
+        spawnParticles(cx, cy, cz, 0xa855f7, 2, true);
+        spawnParticles(cx, cy, cz, 0x34d399, 1, true);
       }
-      if (e.t >= e.dur + 0.45) {
+      if (e.t >= e.dur + 0.50) {
         scene.remove(e.mesh);
         flyingEnderEyes.splice(i, 1);
         if (Math.random() < 0.80) {
           spawnDroppedItem(Math.floor(cx), Math.floor(cy), Math.floor(cz), B.ENDER_EYE);
-          spawnParticles(cx, cy, cz, 0x67e8f9, 8, true);
+          spawnParticles(cx, cy, cz, 0x5eead4, 10, true);
         } else {
-          spawnParticles(cx, cy, cz, 0xc084fc, 16, true);
+          spawnParticles(cx, cy, cz, 0xa855f7, 18, true);
           playSfx('break');
           showToast('💥 Mắt Ender đã vỡ tan thành bụi sao!');
         }

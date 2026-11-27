@@ -2380,6 +2380,13 @@
     c2d.imageSmoothingEnabled = false;
     const key = BLOCK_ID_TO_KEY[blockId];
 
+    if (def.glassPane) {
+      const gTile = def.tiles[0];
+      const tx = (gTile & 7) * TILE_PX, ty = (gTile >> 3) * TILE_PX;
+      const pad = Math.max(2, Math.round(W * 0.10));
+      c2d.drawImage(atlasCanvas, tx, ty, TILE_PX, TILE_PX, pad, pad, W - pad * 2, H - pad * 2);
+      return;
+    }
     if (blockId === B.DRAGON_HEAD) {
       const tx = (516 & 7) * TILE_PX, ty = (516 >> 3) * TILE_PX;
       const pad = Math.max(1, Math.round(W * 0.08));
@@ -2743,7 +2750,8 @@
       const allowLog = r.req.some(q => q.anyLog);
       const allowCoal = r.req.some(q => q.anyCoal);
       const allowPlanks = r.req.some(q => q.anyPlanks);
-      const matMatch = (pb, rb) => pb === rb || (allowLog && BLOCK_DEF[pb]?.isLog) || (allowCoal && BLOCK_DEF[pb]?.isCoal && BLOCK_DEF[rb]?.isCoal) || (allowPlanks && BLOCK_DEF[pb]?.isPlanks && BLOCK_DEF[rb]?.isPlanks);
+      const allowWoodSlab = r.req.some(q => q.anyWoodSlab);
+      const matMatch = (pb, rb) => pb === rb || (allowLog && BLOCK_DEF[pb]?.isLog) || (allowCoal && BLOCK_DEF[pb]?.isCoal && BLOCK_DEF[rb]?.isCoal) || (allowPlanks && BLOCK_DEF[pb]?.isPlanks && BLOCK_DEF[rb]?.isPlanks) || (allowWoodSlab && isWoodSlabId(pb) && isWoodSlabId(rb));
       let ok = true;
       for (let k = 0; k < pts.length; k++) {
         const [pr, pc, pb] = pts[k], [rr, rc, rb] = rPts[k];
@@ -2896,12 +2904,13 @@
     const needTable = !!(selectedRecipe && is2x2 && !selectedRecipe.is2x2);
     const makeAvailChecker = () => {
       const remMat = new Map();
-      let remAnyLog = 0, remAnyCoal = 0, remAnyPlanks = 0;
+      let remAnyLog = 0, remAnyCoal = 0, remAnyPlanks = 0, remAnyWoodSlab = 0;
       if (!hasManual && selectedRecipe) {
         for (const req of selectedRecipe.req) {
           if (req.anyLog) remAnyLog = countAnyLog();
           else if (req.anyCoal) remAnyCoal = countAnyCoal();
           else if (req.anyPlanks) remAnyPlanks = countAnyPlanks();
+          else if (req.anyWoodSlab) remAnyWoodSlab = countAnyWoodSlab();
           else remMat.set(req.id, countItem(req.id));
         }
       }
@@ -2918,6 +2927,10 @@
         }
         if (BLOCK_DEF[bid]?.isPlanks && selectedRecipe.req.some(q => q.anyPlanks)) {
           if (remAnyPlanks > 0) { remAnyPlanks--; return true; }
+          return false;
+        }
+        if (isWoodSlabId(bid) && selectedRecipe.req.some(q => q.anyWoodSlab)) {
+          if (remAnyWoodSlab > 0) { remAnyWoodSlab--; return true; }
           return false;
         }
         const hv = remMat.get(bid) || 0;
@@ -2987,7 +3000,7 @@
     if (!selectedRecipe) return;
     if (invMode === 'backpack' && !selectedRecipe.is2x2) { showToast(_t('🪵 Công thức này cần đặt Bàn Chế Tạo (3×3) để chế!', '🪵 Place a Crafting Table (3×3) to craft this recipe!')); return; }
     if (!canCraftRecipe(selectedRecipe)) { showToast(_t('Chưa đủ nguyên liệu chế tạo!', 'Not enough materials to craft!')); return; }
-    for (const req of selectedRecipe.req) consumeItem(req.id, req.qty, !!req.anyLog, !!req.anyCoal, !!req.anyPlanks);
+    for (const req of selectedRecipe.req) consumeItem(req.id, req.qty, !!req.anyLog, !!req.anyCoal, !!req.anyPlanks, !!req.anyWoodSlab);
     addItemToInventory(selectedRecipe.out, selectedRecipe.qty); playSfx('craft');
     showToast(`${_t('Đã chế tạo', 'Crafted')} ${selectedRecipe.qty}x ${_bName(selectedRecipe.out)}`);
     renderInventoryModal(); renderHotbar();
@@ -3182,7 +3195,7 @@
     }
   }
 
-  const _CREATIVE_HIDDEN_IDS = new Set([B.AIR, B.FIRE, B.SOUL_FIRE, B.BED_FOOT, B.WHEAT_0, B.WHEAT_1, B.WHEAT_2, B.WHEAT_3, B.OAK_STAIRS_S, B.OAK_STAIRS_E, B.OAK_STAIRS_W, B.STONE_STAIRS_S, B.STONE_STAIRS_E, B.STONE_STAIRS_W, B.TERRACOTTA_STAIRS_S, B.TERRACOTTA_STAIRS_E, B.TERRACOTTA_STAIRS_W, B.DEEPSLATE_STAIRS_S, B.DEEPSLATE_STAIRS_E, B.DEEPSLATE_STAIRS_W]);
+  const _CREATIVE_HIDDEN_IDS = new Set([B.AIR, B.FIRE, B.SOUL_FIRE, B.BED_FOOT, B.WHEAT_0, B.WHEAT_1, B.WHEAT_2, B.WHEAT_3, B.OAK_STAIRS_S, B.OAK_STAIRS_E, B.OAK_STAIRS_W, B.STONE_STAIRS_S, B.STONE_STAIRS_E, B.STONE_STAIRS_W, B.TERRACOTTA_STAIRS_S, B.TERRACOTTA_STAIRS_E, B.TERRACOTTA_STAIRS_W, B.DEEPSLATE_STAIRS_S, B.DEEPSLATE_STAIRS_E, B.DEEPSLATE_STAIRS_W, B.BARREL_DOWN, B.BARREL_N, B.BARREL_S, B.BARREL_E, B.BARREL_W]);
 
   let _rcDelegatedBound = false;
   function _ensureRecipeGridDelegation(rcGrid) {
@@ -4174,6 +4187,7 @@
     const titleEl = document.getElementById('chestModalTitle');
     if (titleEl) {
       if (isEnder) titleEl.textContent = 'Ender Chest (Toàn cầu)';
+      else if (BLOCK_DEF[blockId]?.isBarrel) titleEl.textContent = tr('Thùng Gỗ (Barrel)', 'Barrel');
       else if (blockId === B.CHEST) titleEl.textContent = pair ? 'Large Chest' : 'Chest';
       else {
         const cleanChestName = (BLOCK_DEF[blockId]?.name || 'Chest').replace(/\s*\(\d+\s*Ô\)\s*$/, '').trim();
@@ -4197,14 +4211,21 @@
     isPlaying = false; mining.active = false; clearMoveKeys(); resetInvDragState();
     if (document.pointerLockElement) document.exitPointerLock();
     const k = modKey(wx, wy, wz);
-    const pair = isEnderChestBlock(blockId) ? null : findDoubleChestPartner(wx, wy, wz, blockId);
+    const isBarrel = !!BLOCK_DEF[blockId]?.isBarrel;
+    const pair = (isEnderChestBlock(blockId) || isBarrel) ? null : findDoubleChestPartner(wx, wy, wz, blockId);
     const pk = pair ? pair.pk : k;
     const pCoords = pair ? [pair.px, pair.py, pair.pz] : [wx, wy, wz];
-    if (!interactiveVisuals.has(pk)) {
+    if (!isBarrel && !interactiveVisuals.has(pk)) {
       createAnimatedBlockVisual(pCoords[0], pCoords[1], pCoords[2], blockId, chunkKey(pCoords[0] >> 4, pCoords[2] >> 4));
     }
     activeChestKey = k;
     activeChestPartnerKey = pair ? (pair.pk === k ? pair.sk : pair.pk) : null;
+    if (isBarrel && typeof openBarrels !== 'undefined') {
+      openBarrels.add(k);
+      const bCh = chunks.get(chunkKey(wx >> 4, wz >> 4));
+      if (bCh) { bCh.urgentDirty = true; _urgentChunkSet.add(bCh); flushUrgentChunks(4); }
+      if (typeof emitBarrelRedstoneSignal === 'function') emitBarrelRedstoneSignal(wx, wy, wz, true);
+    }
     for (const ck of [activeChestKey, activeChestPartnerKey]) {
       const v = ck && interactiveVisuals.get(ck);
       if (v && v.group) v.group.visible = true;
@@ -4219,6 +4240,14 @@
   function closeChestModal() {
     syncActiveChestSlotsToNet();
     hideMcTooltip(); resetInvDragState();
+    if (activeChestKey && typeof openBarrels !== 'undefined' && openBarrels.has(activeChestKey)) {
+      const pts = activeChestKey.split(',');
+      const bx = +pts[0], by = +pts[1], bz = +pts[2];
+      openBarrels.delete(activeChestKey);
+      const bCh = chunks.get(chunkKey(bx >> 4, bz >> 4));
+      if (bCh) { bCh.urgentDirty = true; _urgentChunkSet.add(bCh); flushUrgentChunks(4); }
+      if (typeof emitBarrelRedstoneSignal === 'function') emitBarrelRedstoneSignal(bx, by, bz, false);
+    }
     activeChestKey = null;
     activeChestPartnerKey = null;
     _activeChestArrs = [];
@@ -4281,9 +4310,19 @@
     { costId: B.EMERALD,    costQty: 2,  giveId: B.GOLDEN_CARROT, giveQty: 3, label: 'Cà Rốt Vàng' },
     { costId: B.EMERALD,    costQty: 2,  giveId: B.COOKED_FISH,   giveQty: 4, label: 'Cá Nướng Giòn' }
   ];
+  const FISHERMAN_TRADES = [
+    { costId: B.STRING,        costQty: 16, giveId: B.EMERALD,        giveQty: 1, label: 'Ngọc Lục Bảo' },
+    { costId: B.COAL,          costQty: 10, giveId: B.EMERALD,        giveQty: 1, label: 'Ngọc Lục Bảo' },
+    { costId: B.RAW_FISH,      costQty: 12, giveId: B.EMERALD,        giveQty: 1, label: 'Ngọc Lục Bảo' },
+    { costId: B.TROPICAL_FISH, costQty: 6,  giveId: B.EMERALD,        giveQty: 1, label: 'Ngọc Lục Bảo' },
+    { costId: B.EMERALD,       costQty: 1,  giveId: B.COOKED_FISH,    giveQty: 6, label: 'Cá Nướng Giòn' },
+    { costId: B.EMERALD,       costQty: 2,  giveId: B.CAMPFIRE,       giveQty: 1, label: 'Lửa Trại' },
+    { costId: B.EMERALD,       costQty: 4,  giveId: B.FISHING_ROD,    giveQty: 1, label: 'Cần Câu Cá' },
+    { costId: B.EMERALD,       costQty: 6,  giveId: B.NAUTILUS_SHELL, giveQty: 1, label: 'Vỏ Ốc Anh Vũ' }
+  ];
   let activeTradeProf = 'villager';
   function detectVillagerProfession(mobHit = null) {
-    if (mobHit && mobHit.villagerProf) return mobHit.villagerProf;
+    if (mobHit && mobHit.villagerProf && mobHit.villagerProf !== 'villager') return mobHit.villagerProf;
     const ox = Math.floor(mobHit ? mobHit.x : player.x);
     const oy = Math.floor(mobHit ? mobHit.y : player.y);
     const oz = Math.floor(mobHit ? mobHit.z : player.z);
@@ -4291,12 +4330,16 @@
       for (let dz = -6; dz <= 6; dz++) {
         for (let dx = -6; dx <= 6; dx++) {
           const bid = getBlockWorld(ox + dx, oy + dy, oz + dz);
+          if (BLOCK_DEF[bid]?.isBarrel) {
+            if (mobHit) mobHit.villagerProf = 'fisherman';
+            return 'fisherman';
+          }
           if (bid === B.SMITHING_TABLE) return 'toolsmith';
           if (bid === B.BLAST_FURNACE) return 'armorer';
         }
       }
     }
-    return 'villager';
+    return (mobHit && mobHit.villagerProf) || 'villager';
   }
   function renderTradeModal() {
     hideMcTooltip();
@@ -4306,7 +4349,8 @@
     const trades = activeTradeProf === 'toolsmith' ? TOOLSMITH_TRADES
       : (activeTradeProf === 'armorer' ? ARMORER_TRADES
       : (activeTradeProf === 'butcher' ? BUTCHER_TRADES
-      : (activeTradeProf === 'farmer' ? FARMER_TRADES : VILLAGER_TRADES)));
+      : (activeTradeProf === 'fisherman' ? FISHERMAN_TRADES
+      : (activeTradeProf === 'farmer' ? FARMER_TRADES : VILLAGER_TRADES))));
     for (const tr of trades) {
       const have = countItem(tr.costId);
       const can = have >= tr.costQty;
@@ -4360,7 +4404,7 @@
     if (document.pointerLockElement) document.exitPointerLock();
     activeTradeProf = detectVillagerProfession(mobHit);
     const titleEl = document.getElementById('tradeModalTitle');
-    const titleMap = { toolsmith: 'Thợ Rèn (Blacksmith)', armorer: 'Thợ Giáp (Armorer)', butcher: 'Đồ Tể (Butcher)', farmer: 'Nông Dân (Farmer)', villager: 'Dân Làng' };
+    const titleMap = { toolsmith: 'Thợ Rèn (Blacksmith)', armorer: 'Thợ Giáp (Armorer)', butcher: 'Đồ Tể (Butcher)', fisherman: 'Thợ Câu Cá (Fisherman)', farmer: 'Nông Dân (Farmer)', villager: 'Dân Làng' };
     if (titleEl) titleEl.textContent = titleMap[activeTradeProf] || 'Dân Làng';
     renderTradeModal();
     document.getElementById('tradeModal').classList.remove('hidden');

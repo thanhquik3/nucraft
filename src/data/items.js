@@ -55,7 +55,7 @@
     [B.OAK_LOG]: 15, [B.SPRUCE_LOG]: 15, [B.BIRCH_LOG]: 15, [B.SAKURA_LOG]: 15,
     [B.ACACIA_LOG]: 15, [B.PALM_LOG]: 15, [B.MANGROVE_LOG]: 15, [B.AZURE_LOG]: 15,
     [B.PLANKS]: 15, [B.AZURE_PLANKS]: 15, [B.BAMBOO_PLANKS]: 15, [B.BAMBOO_BLOCK]: 15,
-    [B.CRAFT_TABLE]: 15, [B.SMITHING_TABLE]: 15, [B.CHEST]: 15, [B.BOOKSHELF]: 15,
+    [B.CRAFT_TABLE]: 15, [B.SMITHING_TABLE]: 15, [B.CHEST]: 15, [B.BARREL]: 15, [B.BOOKSHELF]: 15,
     [B.OAK_FENCE]: 15, [B.SPRUCE_FENCE]: 15, [B.BIRCH_FENCE]: 15, [B.SAKURA_FENCE]: 15, [B.BAMBOO_FENCE]: 15,
     [B.WOOD_PICK]: 10, [B.WOOD_SWORD]: 10, [B.WOOD_AXE]: 10, [B.WOOD_HOE]: 10, [B.BOAT_ITEM]: 10, [B.FISHING_ROD]: 10, [B.BOW]: 10,
     [B.OAK_DOOR]: 10, [B.SPRUCE_DOOR]: 10, [B.BIRCH_DOOR]: 10, [B.BAMBOO_DOOR]: 10,
@@ -90,6 +90,7 @@
     { cat: 'misc',   out: B.BLAST_FURNACE,   qty: 1, req: [{ id: B.IRON_INGOT, qty: 5 }, { id: B.FURNACE, qty: 1 }, { id: B.SMOOTH_STONE, qty: 3 }], grid: [B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT, B.IRON_INGOT,B.FURNACE,B.IRON_INGOT, B.SMOOTH_STONE,B.SMOOTH_STONE,B.SMOOTH_STONE] },
     { cat: 'misc',   out: B.SMOKER,          qty: 1, req: [{ anyLog: true, qty: 4 }, { id: B.FURNACE, qty: 1 }], grid: [0,B.OAK_LOG,0, B.OAK_LOG,B.FURNACE,B.OAK_LOG, 0,B.OAK_LOG,0] },
     { cat: 'misc',   out: B.CHEST,             qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 8 }], grid: [B.PLANKS,B.PLANKS,B.PLANKS, B.PLANKS,0,B.PLANKS, B.PLANKS,B.PLANKS,B.PLANKS] },
+    { cat: 'misc',   out: B.BARREL,            qty: 1, req: [{ anyPlanks: true, id: B.PLANKS, qty: 6 }, { anyWoodSlab: true, id: B.OAK_SLAB, qty: 2 }], grid: [B.PLANKS,B.OAK_SLAB,B.PLANKS, B.PLANKS,0,B.PLANKS, B.PLANKS,B.OAK_SLAB,B.PLANKS] },
     { cat: 'misc',   out: B.COPPER_BOX_CHEST,  qty: 1, req: [{ id: B.COPPER_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.COPPER_INGOT,B.COPPER_INGOT,B.COPPER_INGOT, B.COPPER_INGOT,B.CHEST,B.COPPER_INGOT, B.COPPER_INGOT,B.COPPER_INGOT,B.COPPER_INGOT] },
     { cat: 'misc',   out: B.IRON_CHEST,        qty: 1, req: [{ id: B.IRON_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT, B.IRON_INGOT,B.CHEST,B.IRON_INGOT, B.IRON_INGOT,B.IRON_INGOT,B.IRON_INGOT] },
     { cat: 'misc',   out: B.GOLD_CHEST,        qty: 1, req: [{ id: B.GOLD_INGOT, qty: 8 }, { id: B.CHEST, qty: 1 }], grid: [B.GOLD_INGOT,B.GOLD_INGOT,B.GOLD_INGOT, B.GOLD_INGOT,B.CHEST,B.GOLD_INGOT, B.GOLD_INGOT,B.GOLD_INGOT,B.GOLD_INGOT] },
@@ -220,6 +221,7 @@
     // BUILDING BLOCKS & ARCHITECTURE (COMPLETE MINECRAFT SET!)
     { cat: 'blocks', out: B.STONE_BRICK,     qty: 4, req: [{ id: B.STONE, qty: 4 }],  grid: [B.STONE,B.STONE,0, B.STONE,B.STONE,0, 0,0,0] },
     { cat: 'blocks', out: B.GLASS,           qty: 4, req: [{ id: B.SAND, qty: 3 }, { id: B.COAL, qty: 1 }], grid: [0,B.SAND,0, B.SAND,B.COAL,B.SAND, 0,0,0] },
+    { cat: 'blocks', out: B.GLASS_PANE,      qty: 16, req: [{ id: B.GLASS, qty: 6 }], grid: [B.GLASS,B.GLASS,B.GLASS, B.GLASS,B.GLASS,B.GLASS, 0,0,0] },
     { cat: 'blocks', out: B.SANDSTONE,       qty: 4, req: [{ id: B.SAND, qty: 4 }], grid: [B.SAND,B.SAND,0, B.SAND,B.SAND,0, 0,0,0] },
     { cat: 'blocks', out: B.TERRACOTTA,      qty: 4, req: [{ id: B.DIRT, qty: 2 }, { id: B.SAND, qty: 2 }], grid: [B.DIRT,B.SAND,0, B.SAND,B.DIRT,0, 0,0,0] },
     { cat: 'blocks', out: B.CONCRETE,        qty: 4, req: [{ id: B.STONE, qty: 2 }, { id: B.SAND, qty: 2 }], grid: [B.STONE,B.SAND,0, B.SAND,B.STONE,0, 0,0,0] },
@@ -2922,43 +2924,67 @@
       if (swirl > -0.7) return '#6b21a8';
       return '#4c1d95';
     });
-    // 278: End Portal Frame TOP (empty socket: teal rim + end-stone cream trim + deep dark socket)
+    // 278: Authentic Minecraft End Portal Frame TOP (Images 1,2,3,5: slate-teal frame + cream End-stone ring + dark 6x6 socket)
     tilePixels(278, (x, y) => {
-      const edge = (x === 0 || y === 0 || x === 15 || y === 15);
-      const rim = (x === 1 || y === 1 || x === 14 || y === 14);
-      const inner = (x >= 4 && x <= 11 && y >= 4 && y <= 11);
-      const innerRim = (x >= 3 && x <= 12 && y >= 3 && y <= 12);
-      if (inner) return ((x + y) & 1) ? '#0b1f22' : '#102c2f';
-      if (innerRim) return ((x ^ y) & 1) ? '#d6d49e' : '#b8b67c';
-      if (edge) return ((x + y) & 1) ? '#275754' : '#35736e';
-      if (rim) return ((x + y) & 1) ? '#428981' : '#2e6560';
-      return ((x * 3 + y * 5) % 4 === 0) ? '#3c7e77' : '#2d635d';
-    });
-    // 279: End Portal Frame SIDE (teal scalloped top + end-stone cream bottom)
-    tilePixels(279, (x, y) => {
-      if (y <= 3 || (y === 4 && (x % 3 !== 1))) return ((x + y) & 1) ? '#35736e' : '#265552';
-      if (y === 4 || (y === 5 && (x % 3 === 1))) return '#1b3f3d';
-      if (y >= 14) return '#b5b27a';
-      const h = ((x * 92821 + y * 68917) >>> 0) % 7;
-      if (h === 0) return '#b8b57d';
-      if (h === 1) return '#e4e2af';
-      return '#d5d29c';
-    });
-    // 280: End Portal Frame TOP WITH EYE OF ENDER inserted!
-    tilePixels(280, (x, y) => {
-      const dx = x - 7.5, dy = y - 7.5;
-      const inEye = (x >= 4 && x <= 11 && y >= 4 && y <= 11);
-      if (inEye) {
-        if (Math.abs(dx) < 1.1 && Math.abs(dy) < 2.6) return '#041216'; // vertical pupil slit
-        if (Math.abs(dx) < 2.2 && Math.abs(dy) < 2.2) return '#34d399'; // glowing iris
-        if (Math.hypot(dx, dy) < 3.6) return '#10b981';
-        return '#065f46';
+      const m = Math.min(x, y, 15 - x, 15 - y);
+      // Center recessed 6x6 dark obsidian-teal socket (x,y in 5..10)
+      if (m >= 5) return ((x === 5 || y === 5 || x === 10 || y === 10) ? '#081415' : (((x + y) & 1) ? '#0c1c1e' : '#0a1719'));
+      // Inner dark bezel edge around socket (m === 4)
+      if (m === 4) return ((x === 4 && y === 4) || (x === 4 && y === 11) || (x === 11 && y === 4) || (x === 11 && y === 11)) ? '#224743' : '#132828';
+      // Pale End-Stone cream ornamental square ring (m === 2..3) with authentic checkered teal corner notches
+      if (m === 3) {
+        const cornerDiag = (x === 3 || x === 12) && (y === 3 || y === 12);
+        if (cornerDiag) return '#3a6c65';
+        return ((x + y) % 3 === 0) ? '#ebe6ae' : (((x ^ y) & 1) ? '#d8d39a' : '#c6c086');
       }
-      const edge = (x === 0 || y === 0 || x === 15 || y === 15);
-      const innerRim = (x >= 3 && x <= 12 && y >= 3 && y <= 12);
-      if (innerRim) return ((x ^ y) & 1) ? '#e5e3ab' : '#c6c488';
-      if (edge) return '#275754';
-      return ((x + y) & 1) ? '#3c7e77' : '#2d635d';
+      if (m === 2) {
+        const nearCorner = (x <= 3 || x >= 12) && (y <= 3 || y >= 12);
+        if (nearCorner) return ((x + y) & 1) ? '#2f5d57' : '#4a7f76';
+        return ((x + y) & 1) ? '#cfc990' : '#b7b17a';
+      }
+      // Outer slate-teal frame (m === 0..1) with corner pale-green pixel studs (exact Image 5)
+      if (m === 1) {
+        const cornerStud = (x === 1 || x === 14) && (y === 1 || y === 14);
+        if (cornerStud) return '#8eb896';
+        return ((x + y) & 1) ? '#447971' : '#35665f';
+      }
+      return ((x + y) & 1) ? '#2e5953' : '#3d6f67';
+    });
+    // 279: Authentic Minecraft End Portal Frame SIDE (Images 1 & 5: teal border + recessed cream oval bezel on top, End Stone bottom)
+    tilePixels(279, (x, y) => {
+      if (y === 0) return ((x + y) & 1) ? '#437971' : '#33625b';
+      if (y === 1) return (x === 0 || x === 15) ? '#274d48' : ((x === 1 || x === 14) ? '#7ea688' : '#183331');
+      if (y >= 2 && y <= 6) {
+        const outerCol = (x === 0 || x === 15);
+        const frameCol = (x === 1 || x === 14);
+        if (outerCol) return (y <= 4) ? '#2c5650' : '#183331';
+        if (frameCol) return (y === 2 || y === 6) ? '#152d2c' : '#2c5953';
+        if (y === 2) return (x === 2 || x === 13) ? '#17312f' : '#9c9665';
+        if (y === 6) return (x === 2 || x === 13) ? '#142a29' : '#1b3836';
+        if (y === 5) return (x === 2 || x === 13) ? '#9a9566' : (((x + y) & 1) ? '#b5af7a' : '#c6c08a');
+        return ((x * 5 + y * 3) % 4 === 0) ? '#dfd9a2' : '#cfc991';
+      }
+      if (y === 7) return (x === 0 || x === 15) ? '#203f3c' : ((x <= 2 || x >= 13) ? '#152c2b' : '#a8a26d');
+      // Lower End Stone half (y = 8..15)
+      if (y === 8 && (x === 0 || x === 15)) return '#183331';
+      const h = ((x * 92821 + y * 68917) >>> 0) % 9;
+      if (h === 0 || h === 1) return '#b5b079';
+      if (h === 2 || h === 3) return '#e5e1ac';
+      if (h === 4) return '#c2bd84';
+      return '#d5d19b';
+    });
+    // 280: Authentic Minecraft 3D Eye of Ender Jewel (Images 1,2,3: sits cleanly on top of frame socket, dark bevel + sea-green iris + chartreuse highlight + vertical slit pupil!)
+    tilePixels(280, (x, y) => {
+      const m = Math.min(x, y, 15 - x, 15 - y);
+      if (m === 0) return ((x + y) & 1) ? '#091819' : '#0f2425';
+      if (m === 1) return ((x + y) & 1) ? '#143332' : '#1c423f';
+      if (m === 2) return ((x + y) & 1) ? '#22514b' : '#2d6359';
+      // Inner iris & vertical pupil slit (x in 6..9, y in 4..11)
+      const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
+      if (dx < 1.1 && dy < 2.9) return (dy < 1.3) ? '#071413' : '#142d26';
+      if (dx < 2.2 && dy < 3.6) return ((x + y) & 1) ? '#a6c96c' : '#89b460';
+      if (dx < 3.6 && dy < 4.5) return ((x + y) & 1) ? '#609662' : '#4a805f';
+      return ((x + y) & 1) ? '#346d5f' : '#295b52';
     });
     // 281: End Portal (deep cosmic starry void!)
     tilePixels(281, (x, y) => {
@@ -5370,6 +5396,74 @@
         paintStalactiteTile(V165_TILES.iceStalactite,       '#93c5fd', '#4f86d9', '#e0f2fe', '#ffffff', 113);
         paintStalactiteTile(V165_TILES.deepslateStalactite, '#4b5563', '#272f3b', '#64748b', '#1e293b', 127);
         paintStalactiteTile(V165_TILES.cinnabarStalactite,  '#991b1b', '#5f1111', '#dc2626', '#d97706', 139);
+      }
+      // v184: Authentic Minecraft Barrel (Image 6) + Seamless Connected Glass (16 CTM border masks, Images 7-9)
+      if (typeof V184_TILES !== 'undefined') {
+        // Barrel Top (Lid w/ darker bevel border + gray iron handle latch, exact Image 6)
+        tilePixels(V184_TILES.barrelTop, (x, y, r) => {
+          const rim = (x === 0 || y === 0 || x === 15 || y === 15);
+          const inRim = (x === 1 || y === 1 || x === 14 || y === 14);
+          if (rim) return shade('#5c3e1f', (r - 0.5) * 10);
+          if (inRim) return shade((x === 1 || y === 1) ? '#4b3117' : '#74502b', (r - 0.5) * 8);
+          if ((x === 4 || x === 5) && (y === 4 || y === 5)) return (x === 5 && y === 5) ? '#555961' : '#858a94';
+          const plankRow = (y % 4 === 0);
+          return shade(plankRow ? '#6b4a26' : (((x + y * 2) % 5 === 0) ? '#9a7144' : '#896238'), (r - 0.5) * 12);
+        });
+        // Barrel Open Top (Dark hollow interior inside wooden rim)
+        tilePixels(V184_TILES.barrelTopOpen, (x, y, r) => {
+          if (x === 0 || y === 0 || x === 15 || y === 15) return shade('#5c3e1f', (r - 0.5) * 10);
+          if (x === 1 || y === 1 || x === 14 || y === 14) return shade('#3a2512', (r - 0.5) * 8);
+          return shade(((x + y) & 1) ? '#1b1108' : '#24170c', (r - 0.5) * 6);
+        });
+        // Barrel Side (Vertical wood staves + 2 horizontal dark charcoal-iron bands, exact Image 6)
+        const _paintBarrelBody = (tile, horiz) => {
+          tilePixels(tile, (x, y, r) => {
+            const u = horiz ? y : x; // along staves
+            const v = horiz ? x : y; // across hoops
+            if (v === 2 || v === 3 || v === 12 || v === 13) {
+              const rivet = (u === 3 || u === 12);
+              if (v === 3 || v === 13) return shade(rivet ? '#17171a' : '#202024', (r - 0.5) * 8);
+              return shade(rivet ? '#44444a' : '#2f2f35', (r - 0.5) * 8);
+            }
+            if (v === 4 || v === 14) return shade('#483118', (r - 0.5) * 8);
+            const seam = (u === 0 || u === 4 || u === 8 || u === 12 || u === 15);
+            if (seam) return shade('#4e361b', (r - 0.5) * 10);
+            const hiStave = ((u >> 2) & 1) === 0;
+            return shade(hiStave ? '#7d5932' : '#6f4e2b', (r - 0.5) * 14);
+          });
+        };
+        _paintBarrelBody(V184_TILES.barrelSide, false);
+        _paintBarrelBody(V184_TILES.barrelSideH, true);
+        // Barrel Bottom
+        tilePixels(V184_TILES.barrelBottom, (x, y, r) => {
+          if (x === 0 || y === 0 || x === 15 || y === 15) return shade('#4f351a', (r - 0.5) * 8);
+          return shade((y % 4 === 0) ? '#5c3f20' : '#76532e', (r - 0.5) * 12);
+        });
+        // Glass Pane thin edge rim
+        tilePixels(V184_TILES.glassPaneEdge, (x, y) => {
+          if (x === 0 || x === 15 || y === 0 || y === 15) return '#8ecae0';
+          return ((x + y) & 1) ? '#bce8f5' : '#a4daea';
+        });
+        // 16 Seamless Connected-Glass CTM tiles (bit0=TopOpen, bit1=RightOpen, bit2=BottomOpen, bit3=LeftOpen)
+        for (let mask = 0; mask < 16; mask++) {
+          const tOpen = (mask & 1) !== 0;
+          const rOpen = (mask & 2) !== 0;
+          const bOpen = (mask & 4) !== 0;
+          const lOpen = (mask & 8) !== 0;
+          tilePixels(V184_TILES.glassCtmBase + mask, (x, y) => {
+            const onT = (y === 0 && tOpen), onB = (y === 15 && bOpen);
+            const onL = (x === 0 && lOpen), onR = (x === 15 && rOpen);
+            if (onT || onB || onL || onR) {
+              if ((x === 0 || x === 15) && (y === 0 || y === 15)) return '#92cce0';
+              if (onT || onL) return ((x + y) % 3 === 0) ? '#dbf4fc' : '#b2e2f0';
+              return ((x + y) % 3 === 0) ? '#98d0e2' : '#a8dce9';
+            }
+            // Subtle crisp Minecraft-style diagonal specular glint flecks inside clear glass (Image 9)
+            if ((x === 2 && y === 3) || (x === 3 && y === 2) || (x === 12 && y === 13) || (x === 13 && y === 12)) return '#dff7ff';
+            if ((x === 4 && y === 2) || (x === 11 && y === 13)) return '#bcecf8';
+            return null;
+          });
+        }
       }
       drawSpriteMap(V156_TILES.sulfurSlimeball, [
         '................',

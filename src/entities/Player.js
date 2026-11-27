@@ -2018,10 +2018,12 @@
   function countAnyLog() { let t = 0; for (let i = 0; i < 36; i++) if (inventory[i].count > 0 && BLOCK_DEF[inventory[i].id]?.isLog) t += inventory[i].count; return t; }
   function countAnyCoal() { let t = 0; for (let i = 0; i < 36; i++) if (inventory[i].count > 0 && BLOCK_DEF[inventory[i].id]?.isCoal) t += inventory[i].count; return t; }
   function countAnyPlanks() { let t = 0; for (let i = 0; i < 36; i++) if (inventory[i].count > 0 && BLOCK_DEF[inventory[i].id]?.isPlanks) t += inventory[i].count; return t; }
-  function consumeItem(id, qty, anyLog = false, anyCoal = false, anyPlanks = false) {
+  function isWoodSlabId(id) { const d = BLOCK_DEF[id]; return !!(d && d.slab && !d.slabTop && d.wood); }
+  function countAnyWoodSlab() { let t = 0; for (let i = 0; i < 36; i++) if (inventory[i].count > 0 && isWoodSlabId(inventory[i].id)) t += inventory[i].count; return t; }
+  function consumeItem(id, qty, anyLog = false, anyCoal = false, anyPlanks = false, anyWoodSlab = false) {
     for (let i = 0; i < 36 && qty > 0; i++) {
       const s = inventory[i]; if (s.count <= 0) continue;
-      if (anyLog ? BLOCK_DEF[s.id]?.isLog : (anyCoal ? BLOCK_DEF[s.id]?.isCoal : (anyPlanks ? BLOCK_DEF[s.id]?.isPlanks : s.id === id))) {
+      if (anyLog ? BLOCK_DEF[s.id]?.isLog : (anyCoal ? BLOCK_DEF[s.id]?.isCoal : (anyPlanks ? BLOCK_DEF[s.id]?.isPlanks : (anyWoodSlab ? isWoodSlabId(s.id) : s.id === id)))) {
         const take = Math.min(s.count, qty); s.count -= take; qty -= take;
         if (s.count <= 0) { s.id = 0; s.dur = 0; s.maxDur = 0; s.ench = false; s.trim = null; }
       }
@@ -2029,7 +2031,7 @@
   }
   function canCraftRecipe(r) {
     for (const req of r.req) {
-      if (req.anyLog ? countAnyLog() < req.qty : (req.anyCoal ? countAnyCoal() < req.qty : (req.anyPlanks ? countAnyPlanks() < req.qty : countItem(req.id) < req.qty))) return false;
+      if (req.anyLog ? countAnyLog() < req.qty : (req.anyCoal ? countAnyCoal() < req.qty : (req.anyPlanks ? countAnyPlanks() < req.qty : (req.anyWoodSlab ? countAnyWoodSlab() < req.qty : countItem(req.id) < req.qty)))) return false;
     }
     return true;
   }
@@ -5697,6 +5699,16 @@
       const fdx = -Math.sin(player.yaw), fdz = -Math.cos(player.yaw);
       const sdir = (Math.abs(fdx) >= Math.abs(fdz)) ? (fdx >= 0 ? 2 : 3) : (fdz >= 0 ? 1 : 0);
       placeId = (pdefS.stairBase || B.OAK_STAIRS_N) + sdir;
+    } else if (pdefS && pdefS.isBarrel) {
+      // 6-way directional Minecraft Barrel: lid faces toward the player along X, Y, or Z
+      const pitch = player.pitch || 0;
+      if (pitch < -0.78) placeId = B.BARREL;
+      else if (pitch > 0.78) placeId = B.BARREL_DOWN;
+      else {
+        const fdx = -Math.sin(player.yaw), fdz = -Math.cos(player.yaw);
+        if (Math.abs(fdx) >= Math.abs(fdz)) placeId = fdx >= 0 ? B.BARREL_W : B.BARREL_E;
+        else placeId = fdz >= 0 ? B.BARREL_N : B.BARREL_S;
+      }
     } else if (pdefS && pdefS.slab && !pdefS.slabTop) {
       const wantTop = (py === hit.y - 1) || (py === hit.y && (hit.hy || 0) >= 0.5);
       placeId = wantTop ? pdefS.slabTopId : slot.id;

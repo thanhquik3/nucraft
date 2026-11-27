@@ -204,7 +204,7 @@
       [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255],
       [B.SULFUR_CRYSTAL]: [255, 224, 92], [B.SULFUR_VENT]: [255, 176, 68]
     };
-    const _GLASS_SET = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
+    const _GLASS_SET = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.GLASS_PANE, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
     const _GLOSS_SET = new Set([
       B.OBSIDIAN, B.OBSIDIAN_SLAB, B.OBSIDIAN_SLAB_TOP, B.MARBLE_BRICK, B.MARBLE_BRICK_SLAB, B.MARBLE_BRICK_SLAB_TOP,
       B.COPPER_ROOF, B.COPPER_SLAB, B.COPPER_SLAB_TOP, B.PRISMARINE, B.PRISMARINE_SLAB, B.PRISMARINE_SLAB_TOP,
@@ -1458,11 +1458,36 @@
           col += mix(rb, vec3(1.0), 0.45) * glint * 0.92;
           a = mix(0.78, 0.94, clamp(mist * 0.65 + glint * 0.45, 0.0, 1.0));
         } else {
-          float s1 = fract(sin(dot(floor((vWPos.xz + vWPos.y * 0.4) * 5.0), vec2(12.9898, 78.233))) * 43758.5453);
-          float star = smoothstep(0.92, 0.995, s1) * (0.6 + 0.4 * sin(uTime * 4.2 + s1 * 40.0));
-          float swirl = 0.5 + 0.5 * sin(atan(vWPos.z, vWPos.x) * 3.0 + uTime * 1.8 - length(vWPos.xz) * 0.7);
-          col = mix(vec3(0.03, 0.04, 0.14), vec3(0.22, 0.12, 0.42), swirl * 0.65) + vec3(0.35, 0.92, 0.96) * star * 1.15 + mist * vec3(0.08, 0.06, 0.18);
-          a = 0.98;
+          // Authentic Minecraft Multi-Layer Parallax Starry Cosmic Void (End Portal — Images 1, 2, 3)
+          vec2 ePlane = (abs(vDirP.y) > 0.14) ? vWPos.xz : vec2(vWPos.x + vWPos.z, vWPos.y);
+          vec2 eRay = (abs(vDirP.y) > 0.14) ? (vDirP.xz / max(abs(vDirP.y), 0.24)) : (vec2(vDirP.x + vDirP.z, vDirP.y) / max(abs(vDirP.x) + abs(vDirP.z), 0.28));
+          vec3 voidCol = vec3(0.005, 0.009, 0.018);
+          // 7 parallax depth layers of tiny crisp pixel stars + deep teal/cobalt/violet nebula specks
+          for (int li = 0; li < 7; li++) {
+            float fl = float(li);
+            float depth = 1.0 + fl * 0.62;
+            float ang = fl * 0.87 + 0.35;
+            float ca = cos(ang), sa = sin(ang);
+            mat2 rMat = mat2(ca, -sa, sa, ca);
+            vec2 lUv = rMat * (ePlane * (0.48 + fl * 0.16) + eRay * (0.38 * depth)) + vec2(uTime * (0.045 + fl * 0.014), -uTime * (0.032 + fl * 0.011));
+            // Crisp pixel-star grid matching vanilla Minecraft End Portal dots
+            vec2 gCell = floor(lUv * 16.0);
+            float rnd = pHash(gCell + fl * 37.0);
+            float rnd2 = pHash(gCell * 1.37 + vec2(19.1, 7.3) + fl * 13.0);
+            float starOn = step(0.958 - fl * 0.004, rnd);
+            float twink = 0.62 + 0.38 * sin(uTime * (2.6 + fl * 0.45) + rnd2 * 40.0);
+            vec3 pal = (rnd2 < 0.34) ? vec3(0.24, 0.86, 0.96)
+                     : (rnd2 < 0.64) ? vec3(0.20, 0.54, 0.88)
+                     : (rnd2 < 0.86) ? vec3(0.56, 0.34, 0.88)
+                     : vec3(0.74, 0.96, 1.00);
+            float att = 1.0 / (0.85 + fl * 0.22);
+            voidCol += pal * starOn * twink * att * 0.95;
+            // Subtle faint cosmic dust nebula flecks
+            float neb = smoothstep(0.68, 0.96, pNoise(lUv * 3.2 + fl * 5.1));
+            voidCol += mix(vec3(0.02, 0.10, 0.14), vec3(0.08, 0.04, 0.18), fl / 6.0) * neb * att * 0.28;
+          }
+          col = voidCol;
+          a = 0.995;
         }
         float fogF = smoothstep(uFogStart, uFogEnd, max(length((vWPos - cameraPosition).xz), vDist * 0.88));
         gl_FragColor = vec4(mix(col, uFogColor, fogF), a);

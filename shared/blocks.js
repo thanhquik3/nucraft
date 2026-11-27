@@ -586,6 +586,15 @@
   B.DEEPSLATE_STALACTITE = _dynBlockId++;
   B.CINNABAR_STALACTITE  = _dynBlockId++;
 
+  // v184: Barrel (6-way directional storage/job-site/fuel/redstone) + Seamless Connected Glass Pane
+  B.BARREL      = _dynBlockId++;
+  B.BARREL_DOWN = _dynBlockId++;
+  B.BARREL_N    = _dynBlockId++;
+  B.BARREL_S    = _dynBlockId++;
+  B.BARREL_E    = _dynBlockId++;
+  B.BARREL_W    = _dynBlockId++;
+  B.GLASS_PANE  = _dynBlockId++;
+
   const V156_TILES = {
     sulfurBlock:       _nextTile++,
     sulfurOre:         _nextTile++,
@@ -605,10 +614,21 @@
     cinnabarStalactite:  _nextTile++
   };
 
+  const V184_TILES = {
+    barrelTop:     _nextTile++,
+    barrelTopOpen: _nextTile++,
+    barrelSide:    _nextTile++,
+    barrelSideH:   _nextTile++,
+    barrelBottom:  _nextTile++,
+    glassPaneEdge: _nextTile++,
+    glassCtmBase:  _nextTile
+  };
+  _nextTile += 16; // 16 seamless connected-glass CTM edge masks (bit0=Top, bit1=Right, bit2=Bottom, bit3=Left open)
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

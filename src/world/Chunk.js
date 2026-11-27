@@ -888,7 +888,7 @@
       [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255],
       [B.SULFUR_CRYSTAL]: [255, 224, 92], [B.SULFUR_VENT]: [255, 176, 68]
     };
-    const _rtGlassSet = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
+    const _rtGlassSet = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.GLASS_PANE, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
     const _rtGlossSet = new Set([
       B.OBSIDIAN, B.OBSIDIAN_SLAB, B.OBSIDIAN_SLAB_TOP, B.MARBLE_BRICK, B.MARBLE_BRICK_SLAB, B.MARBLE_BRICK_SLAB_TOP,
       B.COPPER_ROOF, B.COPPER_SLAB, B.COPPER_SLAB_TOP, B.PRISMARINE, B.PRISMARINE_SLAB, B.PRISMARINE_SLAB_TOP,
@@ -2195,6 +2195,41 @@
     st.vCount = curV; st.iCount = ip;
   }
 
+  function _pushSingleSolidFace(wx, wy, wz, x0, y0, z0, x1, y1, z1, f, tile, lr, lg, lb, fitUv, st) {
+    const vc = st.vCount;
+    if (vc + 4 > _sCap) _growSolidScratch(vc + 4);
+    const face = FACES[f];
+    const bx0 = wx + x0, bx1 = wx + x1, by0 = wy + y0, by1 = wy + y1, bz0 = wz + z0, bz1 = wz + z1;
+    const tu0 = TILE_U0[tile], tu1 = TILE_U1[tile], tv0 = TILE_V0[tile], tv1 = TILE_V1[tile];
+    const shadeM = f === 0 ? 1.0 : (f === 1 ? 0.68 : (f < 4 ? 0.86 : 0.92));
+    const dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
+    let vp = vc * 3, up = vc * 2, ip = st.iCount;
+    for (let c = 0; c < 4; c++) {
+      const cr = face.corners[c];
+      _sPos[vp] = cr[0] ? bx1 : bx0; _sPos[vp+1] = cr[1] ? by1 : by0; _sPos[vp+2] = cr[2] ? bz1 : bz0;
+      _sNorm[vp] = dx; _sNorm[vp+1] = dy; _sNorm[vp+2] = dz;
+      _sCols[vp] = shadeM; _sCols[vp+1] = shadeM; _sCols[vp+2] = shadeM;
+      _sBL[vp] = lr; _sBL[vp+1] = lg; _sBL[vp+2] = lb;
+      vp += 3;
+    }
+    let su0 = tu0, su1 = tu1, sv0 = tv0, sv1 = tv1;
+    if (!fitUv) {
+      if (f < 2) {
+        su0 = tu0 + (tu1 - tu0) * x0; su1 = tu0 + (tu1 - tu0) * x1;
+        sv0 = tv0 + (tv1 - tv0) * z0; sv1 = tv0 + (tv1 - tv0) * z1;
+      } else if (f < 4) {
+        su0 = tu0 + (tu1 - tu0) * z0; su1 = tu0 + (tu1 - tu0) * z1;
+        sv0 = tv0 + (tv1 - tv0) * (1 - y1); sv1 = tv0 + (tv1 - tv0) * (1 - y0);
+      } else {
+        su0 = tu0 + (tu1 - tu0) * x0; su1 = tu0 + (tu1 - tu0) * x1;
+        sv0 = tv0 + (tv1 - tv0) * (1 - y1); sv1 = tv0 + (tv1 - tv0) * (1 - y0);
+      }
+    }
+    _sUvs[up]=su0; _sUvs[up+1]=sv1; _sUvs[up+2]=su1; _sUvs[up+3]=sv1; _sUvs[up+4]=su1; _sUvs[up+5]=sv0; _sUvs[up+6]=su0; _sUvs[up+7]=sv0;
+    _sIdx[ip]=vc; _sIdx[ip+1]=vc+1; _sIdx[ip+2]=vc+2; _sIdx[ip+3]=vc; _sIdx[ip+4]=vc+2; _sIdx[ip+5]=vc+3;
+    st.vCount = vc + 4; st.iCount = ip + 6;
+  }
+
   function _isFluidMatch(id, fluidId, wy) {
     if (id === fluidId) return true;
     if (fluidId !== B.WATER) return false;
@@ -2337,8 +2372,9 @@
       const nwy = wy + face.dir[1];
       if (f === 0 && _isFluidMatch(nb, B.WATER, nwy)) continue;
       const nbGlass = !!(BLOCK_DEF_ARR[nb] && BLOCK_DEF_ARR[nb].glass);
-      if (f === 1 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
-      if (f >= 2 && (_isFluidMatch(nb, B.WATER, nwy) || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
+      // Never emit coplanar Water face against Lava (prevents Water-Lava Z-fighting / overlapping liquid artifacts)
+      if (f === 1 && (_isFluidMatch(nb, B.WATER, nwy) || nb === B.LAVA || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
+      if (f >= 2 && (_isFluidMatch(nb, B.WATER, nwy) || nb === B.LAVA || IS_OPAQUE[nb] === 1 || nbGlass)) continue;
       if (f >= 2 && IS_SLAB[nb] > 0 && waterloggedBlocks.has(modKey(wx + face.dir[0], nwy, wz + face.dir[2]))) continue;
       const vc = st.wCount;
       if (vc + 4 > fBuf.cap) _growFluidBuf(fBuf, vc + 4);
@@ -2663,8 +2699,102 @@
     const emitBox = (x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, fitUv = false) => _pushSolidBox(wx, wy, wz, x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, lr, lg, lb, fitUv, st);
     const tTop = def.tiles[0], tSide = def.tiles[1], tBot = def.tiles[2];
     if (id === B.END_PORTAL_FRAME || id === B.END_PORTAL_FRAME_EYE) {
-      emitBox(0.0, 0.0, 0.0, 1.0, 0.8125, 1.0, tTop, tSide, tBot, true);
-      if (id === B.END_PORTAL_FRAME_EYE) emitBox(0.25, 0.8125, 0.25, 0.75, 0.98, 0.75, 280, 280, 280, false);
+      // Exact Minecraft End Portal Frame: 13/16 height (0.8125) + 8x8x3px raised 3D Eye of Ender jewel on top (fitUv=true)
+      emitBox(0.0, 0.0, 0.0, 1.0, 0.8125, 1.0, 278, 279, 80, true);
+      if (id === B.END_PORTAL_FRAME_EYE) emitBox(0.25, 0.8125, 0.25, 0.75, 1.0, 0.75, 280, 280, 280, true);
+    } else if (def.isBarrel) {
+      // Exact 6-way directional Minecraft Barrel (open lid shows hollow interior when opened!)
+      const isOpen = (typeof openBarrels !== 'undefined' && openBarrels.has(modKey(wx, wy, wz)));
+      const tLid = isOpen ? V184_TILES.barrelTopOpen : V184_TILES.barrelTop;
+      const tBotB = V184_TILES.barrelBottom, tSV = V184_TILES.barrelSide, tSH = V184_TILES.barrelSideH;
+      const bDir = def.barrelDir || 'up';
+      const faceTiles = (bDir === 'up') ? [tLid, tBotB, tSV, tSV, tSV, tSV]
+        : (bDir === 'down') ? [tBotB, tLid, tSV, tSV, tSV, tSV]
+        : (bDir === 'e') ? [tSH, tSH, tLid, tBotB, tSH, tSH]
+        : (bDir === 'w') ? [tSH, tSH, tBotB, tLid, tSH, tSH]
+        : (bDir === 's') ? [tSV, tSV, tSH, tSH, tLid, tBotB]
+        : [tSV, tSV, tSH, tSH, tBotB, tLid];
+      for (let f = 0; f < 6; f++) {
+        const fc = FACES[f];
+        const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + fc.dir[0], ly + fc.dir[1], lz + fc.dir[2]);
+        if (IS_OPAQUE[nb] === 1) continue;
+        _pushSingleSolidFace(wx, wy, wz, 0, 0, 0, 1, 1, 1, f, faceTiles[f], lr, lg, lb, true, st);
+      }
+    } else if (id === B.GLASS) {
+      // Seamless Connected Glass Block (hides internal faces & internal frame borders between adjacent Glass/Glass Pane)
+      const isGlassConn = (b) => (b === B.GLASS || b === B.GLASS_PANE);
+      for (let f = 0; f < 6; f++) {
+        const fc = FACES[f];
+        const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + fc.dir[0], ly + fc.dir[1], lz + fc.dir[2]);
+        if (IS_OPAQUE[nb] === 1 || nb === B.GLASS) continue;
+        const ux = fc.uAxis[0], uy = fc.uAxis[1], uz = fc.uAxis[2];
+        const vx = fc.vAxis[0], vy = fc.vAxis[1], vz = fc.vAxis[2];
+        const nT = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + vx, ly + vy, lz + vz);
+        const nR = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + ux, ly + uy, lz + uz);
+        const nB = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - vx, ly - vy, lz - vz);
+        const nL = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - ux, ly - uy, lz - uz);
+        const mask = (isGlassConn(nT) ? 0 : 1) | (isGlassConn(nR) ? 0 : 2) | (isGlassConn(nB) ? 0 : 4) | (isGlassConn(nL) ? 0 : 8);
+        _pushSingleSolidFace(wx, wy, wz, 0, 0, 0, 1, 1, 1, f, V184_TILES.glassCtmBase + mask, lr, lg, lb, true, st);
+      }
+    } else if (def.glassPane) {
+      // Seamless Thin Glass Pane (2px thick, auto-connects horizontally & vertically with zero internal seams!)
+      const isGlassConn = (b) => (b === B.GLASS_PANE || b === B.GLASS);
+      const canPaneConn = (b) => { const d = BLOCK_DEF_ARR[b]; return !!(b === B.GLASS_PANE || b === B.GLASS || IS_OPAQUE[b] === 1 || (d && (d.wall || d.fence || d.isBarrel))); };
+      const nbPX = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz);
+      const nbNX = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz);
+      const nbPZ = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1);
+      const nbNZ = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1);
+      const nbUp = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);
+      const nbDn = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
+      const cPX = canPaneConn(nbPX), cNX = canPaneConn(nbNX), cPZ = canPaneConn(nbPZ), cNZ = canPaneConn(nbNZ);
+      const gPX = isGlassConn(nbPX), gNX = isGlassConn(nbNX), gPZ = isGlassConn(nbPZ), gNZ = isGlassConn(nbNZ);
+      const gUp = isGlassConn(nbUp), gDn = isGlassConn(nbDn);
+      const tEdge = V184_TILES.glassPaneEdge;
+      const p0 = 0.4375, p1 = 0.5625;
+      const emitPaneSeg = (x0, z0, x1, z1, alongX, hideNeg, hidePos) => {
+        // Face +Y / -Y thin top & bottom edges (hidden when stacked vertically with another glass pane/block)
+        if (!gUp && IS_OPAQUE[nbUp] !== 1) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 0, tEdge, lr, lg, lb, false, st);
+        if (!gDn && IS_OPAQUE[nbDn] !== 1) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 1, tEdge, lr, lg, lb, false, st);
+        if (alongX) {
+          // +Z face (uAxis=+X: Left=-X, Right=+X) and -Z face (uAxis=-X: Left=+X, Right=-X)
+          const mPZ = (gUp ? 0 : 1) | (hidePos ? 0 : 2) | (gDn ? 0 : 4) | (hideNeg ? 0 : 8);
+          const mNZ = (gUp ? 0 : 1) | (hideNeg ? 0 : 2) | (gDn ? 0 : 4) | (hidePos ? 0 : 8);
+          _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 4, V184_TILES.glassCtmBase + mPZ, lr, lg, lb, true, st);
+          _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 5, V184_TILES.glassCtmBase + mNZ, lr, lg, lb, true, st);
+          if (!hidePos && !(x1 === 1 && IS_OPAQUE[nbPX] === 1)) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 2, tEdge, lr, lg, lb, false, st);
+          if (!hideNeg && !(x0 === 0 && IS_OPAQUE[nbNX] === 1)) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 3, tEdge, lr, lg, lb, false, st);
+        } else {
+          // +X face (uAxis=-Z: Left=+Z, Right=-Z) and -X face (uAxis=+Z: Left=-Z, Right=+Z)
+          const mPX = (gUp ? 0 : 1) | (hideNeg ? 0 : 2) | (gDn ? 0 : 4) | (hidePos ? 0 : 8);
+          const mNX = (gUp ? 0 : 1) | (hidePos ? 0 : 2) | (gDn ? 0 : 4) | (hideNeg ? 0 : 8);
+          _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 2, V184_TILES.glassCtmBase + mPX, lr, lg, lb, true, st);
+          _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 3, V184_TILES.glassCtmBase + mNX, lr, lg, lb, true, st);
+          if (!hidePos && !(z1 === 1 && IS_OPAQUE[nbPZ] === 1)) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 4, tEdge, lr, lg, lb, false, st);
+          if (!hideNeg && !(z0 === 0 && IS_OPAQUE[nbNZ] === 1)) _pushSingleSolidFace(wx, wy, wz, x0, 0, z0, x1, 1, z1, 5, tEdge, lr, lg, lb, false, st);
+        }
+      };
+      if (!cPX && !cNX && !cPZ && !cNZ) {
+        // Standalone thin glass post
+        if (!gUp && IS_OPAQUE[nbUp] !== 1) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 0, tEdge, lr, lg, lb, false, st);
+        if (!gDn && IS_OPAQUE[nbDn] !== 1) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 1, tEdge, lr, lg, lb, false, st);
+        for (let f = 2; f < 6; f++) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, f, tEdge, lr, lg, lb, false, st);
+      } else if ((cPX || cNX) && !cPZ && !cNZ) {
+        emitPaneSeg(cNX ? 0.0 : p0, p0, cPX ? 1.0 : p1, p1, true, gNX, gPX);
+      } else if ((cPZ || cNZ) && !cPX && !cNX) {
+        emitPaneSeg(p0, cNZ ? 0.0 : p0, p1, cPZ ? 1.0 : p1, false, gNZ, gPZ);
+      } else {
+        // Corner / T / + junction: center pillar + connecting glass wings
+        if (!gUp && IS_OPAQUE[nbUp] !== 1) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 0, tEdge, lr, lg, lb, false, st);
+        if (!gDn && IS_OPAQUE[nbDn] !== 1) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 1, tEdge, lr, lg, lb, false, st);
+        if (!cPX) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 2, tEdge, lr, lg, lb, false, st);
+        if (!cNX) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 3, tEdge, lr, lg, lb, false, st);
+        if (!cPZ) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 4, tEdge, lr, lg, lb, false, st);
+        if (!cNZ) _pushSingleSolidFace(wx, wy, wz, p0, 0, p0, p1, 1, p1, 5, tEdge, lr, lg, lb, false, st);
+        if (cPX) emitPaneSeg(p1, p0, 1.0, p1, true, true, gPX);
+        if (cNX) emitPaneSeg(0.0, p0, p0, p1, true, gNX, true);
+        if (cPZ) emitPaneSeg(p0, p1, p1, 1.0, false, true, gPZ);
+        if (cNZ) emitPaneSeg(p0, 0.0, p1, p0, false, gNZ, true);
+      }
     } else if (def.endCrystal) {
       emitBox(0.12, 0.0, 0.12, 0.88, 0.22, 0.88, 84, 84, 84);
       const cu0 = TILE_U0[202], cu1 = TILE_U1[202], cv0 = TILE_V0[202], cv1 = TILE_V1[202];
@@ -2972,7 +3102,7 @@
     } else if (id === B.END_PORTAL) {
       const aboveB = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz), belowB = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
       const isUpright = (aboveB === B.END_PORTAL || aboveB === B.OBSIDIAN) && (belowB === B.END_PORTAL || belowB === B.OBSIDIAN);
-      if (!isUpright) emitPortalBox(0.0, 0.72, 0.0, 1.0, 0.80, 1.0, 2.0);
+      if (!isUpright) emitPortalBox(0.0, 0.72, 0.0, 1.0, 0.75, 1.0, 2.0);
       else {
         const hasX = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === B.OBSIDIAN || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === B.OBSIDIAN);
         const hasZ = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === B.OBSIDIAN || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === B.OBSIDIAN);

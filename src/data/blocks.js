@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -143,7 +143,7 @@ const {
     [B.FLOWER_YELLOW]: { name: 'Hoa Bồ Công Anh',     hard: 0.08, solid: false, cross: true, foliage: true, shearsOnly: true, drop: B.FLOWER_YELLOW, tiles: [53, 53, 53], mapColor: '#facc15' },
     [B.SAKURA_PETALS]: { name: 'Cánh Hoa Anh Đào',    hard: 0.08, solid: false, cross: true, foliage: true, tiles: [54, 54, 54], mapColor: '#fbcfe8' },
     [B.SEAGRASS]:      { name: 'Rong Biển Xanh',      hard: 0.08, solid: false, cross: true, underwater: true, foliage: true, tiles: [55, 55, 55], mapColor: '#22a055' },
-    [B.GLASS]:         { name: 'Kính Trong Suốt',     hard: 0.35, solid: true,  glass: true, drop: B.GLASS, tiles: [56, 56, 56], mapColor: '#bae6fd' },
+    [B.GLASS]:         { name: 'Kính Trong Suốt',     hard: 0.35, solid: true,  glass: true, drop: B.GLASS, tiles: [V184_TILES.glassCtmBase + 15, V184_TILES.glassCtmBase + 15, V184_TILES.glassCtmBase + 15], mapColor: '#bae6fd' },
     [B.TNT]:           { name: 'Thuốc Nổ TNT',        hard: 0.25, solid: true,  tnt: true, drop: B.TNT, tiles: [58, 57, 58], mapColor: '#ef4444' },
     [B.FURNACE]:       { name: 'Lò Nung Đá (Chuột Phải)', hard: 1.25, solid: true,  rock: true, reqTier: 1, furnaceType: 'furnace', interactive: true, drop: B.FURNACE, tiles: [59, 60, 59], frontTile: 439, customAtlasTex: true, mapColor: '#64748b' },
     [B.GUNPOWDER]:     { name: 'Thuốc Súng',          hard: 0,    solid: false, itemOnly: true, voxelItem: true, tiles: [61, 61, 61], mapColor: '#6b7280' },
@@ -317,7 +317,7 @@ const {
     [B.BLAZE_POWDER]:         { name: 'Bột Quỷ Lửa (Blaze Powder)', hard: 0, solid: false, voxelItem: true, tiles: [286, 286, 286] },
     [B.ENDER_EYE]:            { name: 'Mắt Ender (Eye of Ender)', hard: 0, solid: false, voxelItem: true, tiles: [287, 287, 287] },
     [B.END_PORTAL_FRAME]:     { name: 'Khung Cổng Kết Thúc',   hard: 99,   solid: true,  stone: true, trans: true, drop: B.END_PORTAL_FRAME, tiles: [278, 279, 80], mapColor: '#2d6a62' },
-    [B.END_PORTAL_FRAME_EYE]: { name: 'Khung Cổng End (Có Mắt)', hard: 99, solid: true,  stone: true, trans: true, emissive: false, light: 6, drop: B.END_PORTAL_FRAME, tiles: [280, 279, 80], mapColor: '#10b981' },
+    [B.END_PORTAL_FRAME_EYE]: { name: 'Khung Cổng End (Có Mắt)', hard: 99, solid: true,  stone: true, trans: true, emissive: false, light: 6, drop: B.END_PORTAL_FRAME, tiles: [278, 279, 80], mapColor: '#2d6a62' },
     [B.END_PORTAL]:           { name: 'Cổng Kết Thúc',         hard: 99,   solid: false, trans: true, emissive: true, light: 15, portal: 'end', drop: 0, tiles: [281, 281, 281], mapColor: '#090d16' },
     // v43 THE SIFT: Indestructible Dream Portal, Dreamy Biomes, Trees, Ores, Superior Tools & Armor
     [B.DREAM_PORTAL_FRAME]:   { name: 'Khung Cổng Giấc Mơ',    hard: 9999, solid: true,  rock: true, indestructible: true, emissive: false, light: 8, drop: 0, tiles: [288, 288, 288], mapColor: '#38bdf8' },
@@ -947,6 +947,28 @@ const {
   BLOCK_DEF[B.DEEPSLATE_STALACTITE] = { name: 'Thạch Nhũ Đá Phiến',       nameEn: 'Deepslate Stalactite', hard: 1.65, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.DEEPSLATE_STALACTITE, tiles: [V165_TILES.deepslateStalactite, V165_TILES.deepslateStalactite, V165_TILES.deepslateStalactite], mapColor: '#475569' };
   BLOCK_DEF[B.CINNABAR_STALACTITE]  = { name: 'Thạch Nhũ Chu Sa',         nameEn: 'Cinnabar Stalactite',  hard: 1.35, solid: true, rock: true, wall: true, stalactite: true, trans: true, customAtlasTex: true, drop: B.CINNABAR_STALACTITE,  tiles: [V165_TILES.cinnabarStalactite,  V165_TILES.cinnabarStalactite,  V165_TILES.cinnabarStalactite],  mapColor: '#991b1b' };
 
+  // v184: Barrel (27-slot directional storage, Fisherman job site, Furnace fuel, Redstone signal) & Seamless Glass Pane
+  const _mkBarrelDef = (dir) => ({
+    name: 'Thùng Gỗ (27 Ô)', nameEn: 'Barrel',
+    hard: 0.90, solid: true, wood: true, isBarrel: true, barrelDir: dir,
+    chest: true, chestSlots: 27, customAtlasTex: true, drop: B.BARREL,
+    tiles: [V184_TILES.barrelTop, V184_TILES.barrelSide, V184_TILES.barrelBottom],
+    mapColor: '#7a5732'
+  });
+  BLOCK_DEF[B.BARREL]      = _mkBarrelDef('up');
+  BLOCK_DEF[B.BARREL_DOWN] = _mkBarrelDef('down');
+  BLOCK_DEF[B.BARREL_N]    = _mkBarrelDef('n');
+  BLOCK_DEF[B.BARREL_S]    = _mkBarrelDef('s');
+  BLOCK_DEF[B.BARREL_E]    = _mkBarrelDef('e');
+  BLOCK_DEF[B.BARREL_W]    = _mkBarrelDef('w');
+  BLOCK_DEF[B.GLASS_PANE]  = {
+    name: 'Tấm Kính Mỏng', nameEn: 'Glass Pane',
+    hard: 0.25, solid: true, glass: true, glassPane: true, trans: true, customAtlasTex: true,
+    drop: B.GLASS_PANE,
+    tiles: [V184_TILES.glassCtmBase + 15, V184_TILES.glassCtmBase + 15, V184_TILES.glassPaneEdge],
+    mapColor: '#bae6fd'
+  };
+
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {
     const d = BLOCK_DEF[i];
     if (!d) continue;
@@ -979,8 +1001,8 @@ const {
     if (d.torch) fl |= BLK_TORCH;
     if (d.lantern) fl |= BLK_LANTERN;
     if (d.hangingFruit) fl |= BLK_HANG;
-    if (d.chest || d.door || d.trapdoor || d.endCrystal || d.dragonEgg || d.dragonHead || d.windmillHub) fl |= BLK_ANIM;
-    if (d.fence || d.wall || d.bamboo || d.cactus || d.bed || d.stairs || d.slab || d.campfire || d.subBlock || i === B.END_PORTAL_FRAME || i === B.END_PORTAL_FRAME_EYE) fl |= BLK_SUB;
+    if ((d.chest && !d.isBarrel) || d.door || d.trapdoor || d.endCrystal || d.dragonEgg || d.dragonHead || d.windmillHub) fl |= BLK_ANIM;
+    if (d.fence || d.wall || d.bamboo || d.cactus || d.bed || d.stairs || d.slab || d.campfire || d.subBlock || d.isBarrel || d.glassPane || i === B.GLASS || i === B.END_PORTAL_FRAME || i === B.END_PORTAL_FRAME_EYE) fl |= BLK_SUB;
     if (d.foliage) fl |= BLK_FOLIAGE;
     if (d.crystalCluster) fl |= BLK_CRYSTAL;
     if (d.portal) fl |= BLK_PORTAL;
