@@ -1477,6 +1477,7 @@
     const wasHighlightVis = (typeof highlightMesh !== 'undefined') ? highlightMesh.visible : false;
     const wasCrackVis = (typeof crackMesh !== 'undefined') ? crackMesh.visible : false;
     const wasPartVis = (typeof _partInstMesh !== 'undefined') ? _partInstMesh.visible : false;
+    const wasBlkPartVis = (typeof _blkPartInstMesh !== 'undefined') ? _blkPartInstMesh.visible : false;
     const wasSmokeVis = (typeof _smokeInstMesh !== 'undefined') ? _smokeInstMesh.visible : false;
     const prevShadowEnabled = renderer.shadowMap.enabled;
     heldPivot.visible = false; weatherLines.visible = false; _motePoints.visible = false;
@@ -1486,6 +1487,7 @@
     if (typeof highlightMesh !== 'undefined') highlightMesh.visible = false;
     if (typeof crackMesh !== 'undefined') crackMesh.visible = false;
     if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = false;
+    if (typeof _blkPartInstMesh !== 'undefined') _blkPartInstMesh.visible = false;
     if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.visible = false;
     renderer.shadowMap.enabled = false;
     _reflHiddenChunks.length = 0;
@@ -1563,6 +1565,7 @@
     if (typeof highlightMesh !== 'undefined') highlightMesh.visible = wasHighlightVis;
     if (typeof crackMesh !== 'undefined') crackMesh.visible = wasCrackVis;
     if (typeof _partInstMesh !== 'undefined') _partInstMesh.visible = wasPartVis;
+    if (typeof _blkPartInstMesh !== 'undefined') _blkPartInstMesh.visible = wasBlkPartVis;
     if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.visible = wasSmokeVis;
     heldPivot.visible = wasHeldVis; weatherLines.visible = wasWeatherVis; _motePoints.visible = wasMoteVis;
     if (typeof _portalMotePoints !== 'undefined') _portalMotePoints.visible = wasPortalMoteVis;
@@ -2545,6 +2548,21 @@
       sx: +highlightMesh.scale.x.toFixed(3), sy: +highlightMesh.scale.y.toFixed(3), sz: +highlightMesh.scale.z.toFixed(3),
       px: +highlightMesh.position.x.toFixed(3), py: +highlightMesh.position.y.toFixed(3), pz: +highlightMesh.position.z.toFixed(3)
     }),
+    getMiningFxDebug: () => ({
+      crackStages: crackTextures.length,
+      crackVisible: crackMesh.visible,
+      crackStageIdx: crackTextures.indexOf(crackMat.map),
+      crackTexW: crackTextures[0]?.image?.width || 0,
+      crackTexH: crackTextures[0]?.image?.height || 0,
+      blkParticleCount: blkParticles.length,
+      particleCount: particles.length,
+      pixelFxCount: pixelFxList.length
+    }),
+    spawnBlockHitParticles,
+    spawnBlockBreakParticles,
+    crackMesh,
+    crackMat,
+    crackTextures,
     getWindmillDebug: () => {
       const arr = [];
       for (const [k, v] of interactiveVisuals.entries()) {

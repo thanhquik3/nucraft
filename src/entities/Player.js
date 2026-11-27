@@ -2962,6 +2962,28 @@
         }
         if (f < 4) disc(11.5, 17.5, Math.max(1, 3.5 - f * 0.6), '#e0f2fe', true);
       });
+    } else if (kind.startsWith('ore_glint_')) {
+      const GLINT_PALS = {
+        ore_glint_cyan:    ['#ffffff', '#a5f3fc', '#22d3ee'],
+        ore_glint_gold:    ['#ffffff', '#fef08a', '#f59e0b'],
+        ore_glint_green:   ['#ffffff', '#a7f3d0', '#10b981'],
+        ore_glint_red:     ['#ffffff', '#fecaca', '#ef4444'],
+        ore_glint_purple:  ['#ffffff', '#f5d0fe', '#a855f7'],
+        ore_glint_orange:  ['#ffffff', '#fed7aa', '#f97316'],
+        ore_glint_white:   ['#ffffff', '#f1f5f9', '#cbd5e1'],
+        ore_glint_rainbow: ['#ffffff', '#fde047', '#38bdf8', '#f472b6']
+      };
+      const cols = GLINT_PALS[kind] || GLINT_PALS.ore_glint_white;
+      sheet = bakePixelSheet(6, 16, true, ({ f, star, px, hash }) => {
+        const arm = f < 3 ? (1 + f * 2) : Math.max(1, 6 - f);
+        const outer = cols[(f + 1) % cols.length];
+        star(7.5, 7.5, arm, outer, cols[0], f === 2 ? 1 : 0);
+        for (let k = 0; k < 4; k++) {
+          const a = hash(k + 3) * Math.PI * 2 + f * 0.35;
+          const d = 2.0 + f * 0.85;
+          px(7.5 + Math.cos(a) * d, 7.5 + Math.sin(a) * d, cols[(k + f) % cols.length]);
+        }
+      });
     } else {
       // Shared magic / aura / sonic / dream sheet generator
       const MAG_PALS = {
@@ -3457,8 +3479,8 @@
     return tex;
   }
 
-  // ImmediatelyFast + Zero-GC Instanced Particle Batch (1 WebGL draw call for up to 150 particles!)
-  const MAX_PARTICLES = _isWeakDevice ? 84 : 150;
+  // ImmediatelyFast + Zero-GC Instanced Particle Batch (1 WebGL draw call for up to 180 particles!)
+  const MAX_PARTICLES = _isWeakDevice ? 96 : 180;
   const particles = [], partGeo = new THREE.BoxGeometry(0.11, 0.11, 0.11);
   const particlePool = [];
   const _partDummy = new THREE.Object3D(), _partColor = new THREE.Color(0xffffff);
@@ -3470,6 +3492,74 @@
   if (_partInstMesh.instanceColor) _partInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
   _partInstMesh.count = 0;
   scene.add(_partInstMesh);
+
+  // Authentic Minecraft Textured Block-Chip InstancedMesh (1 draw call for all block dig/break chips!)
+  const MAX_BLK_PARTICLES = _isWeakDevice ? 96 : 192;
+  const blkParticles = [], blkParticlePool = [];
+  const _blkPartUvArr = new Float32Array(MAX_BLK_PARTICLES * 4);
+  const _blkPartUvAttr = new THREE.InstancedBufferAttribute(_blkPartUvArr, 4);
+  _blkPartUvAttr.setUsage(THREE.DynamicDrawUsage);
+  const _blkPartGeo = new THREE.BoxGeometry(0.115, 0.115, 0.115);
+  _blkPartGeo.setAttribute('aUvRect', _blkPartUvAttr);
+  const _blkPartMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: atlasTex },
+      uFogColor: envUniforms.uFogColor,
+      uFogStart: envUniforms.uFogStart,
+      uFogEnd: envUniforms.uFogEnd,
+      uReflClipY: envUniforms.uReflClipY
+    },
+    vertexShader: `
+      attribute vec4 aUvRect;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      varying vec3 vWPos;
+      varying float vDist;
+      void main() {
+        vUv = aUvRect.xy + vec2(uv.x, 1.0 - uv.y) * aUvRect.zw;
+        float faceShade = normal.y > 0.5 ? 1.0 : (normal.y < -0.5 ? 0.66 : (abs(normal.x) > 0.5 ? 0.80 : 0.88));
+        vec3 instCol = vec3(1.0);
+        #ifdef USE_INSTANCING_COLOR
+          instCol = instanceColor;
+        #endif
+        vColor = instCol * faceShade;
+        vec4 localPos = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          localPos = instanceMatrix * localPos;
+        #endif
+        vec4 wp = modelMatrix * localPos;
+        vWPos = wp.xyz;
+        vec4 mv = viewMatrix * wp;
+        vDist = length(mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D uMap;
+      uniform float uFogStart, uFogEnd, uReflClipY;
+      uniform vec3 uFogColor;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      varying vec3 vWPos;
+      varying float vDist;
+      void main() {
+        if (vWPos.y < uReflClipY) discard;
+        vec4 tex = texture2D(uMap, vUv);
+        if (tex.a < 0.35) discard;
+        vec3 col = tex.rgb * vColor;
+        float fogF = smoothstep(uFogStart, uFogEnd, vDist);
+        gl_FragColor = vec4(mix(col, uFogColor, clamp(fogF, 0.0, 1.0)), 1.0);
+      }`
+  });
+  const _blkPartInstMesh = new THREE.InstancedMesh(_blkPartGeo, _blkPartMat, MAX_BLK_PARTICLES);
+  _blkPartInstMesh.frustumCulled = false;
+  _blkPartInstMesh.castShadow = false;
+  _blkPartInstMesh.receiveShadow = false;
+  _blkPartInstMesh.renderOrder = 3;
+  _blkPartInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  _blkPartInstMesh.setColorAt(0, _partColor);
+  if (_blkPartInstMesh.instanceColor) _blkPartInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  _blkPartInstMesh.count = 0;
+  scene.add(_blkPartInstMesh);
 
   // BUILD v166: True 3D Minecraft Campfire Puffy Cloud-Cluster Smoke (5-box stepped voxel geometry, 1 draw call, upright vertical column, zero water/godray alpha glitches)
   const MAX_SMOKE_VOXELS = _isWeakDevice ? 140 : 320;
@@ -3623,7 +3713,8 @@
     } else {
       p = { x: 0, y: 0, z: 0, rx: 0, ry: 0, color: new THREE.Color(0xffffff), vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0.5, rise: false, kind: 'debris', grav: 14, baseScale: 1, rxSpd: 0, rySpd: 0 };
     }
-    p.color.setHex(colorHex);
+    if (typeof colorHex === 'string') p.color.set(colorHex);
+    else p.color.setHex(colorHex ?? 0xffffff);
     const sp = opts.spread ?? 0.55;
     p.x = wx + (Math.random() - 0.5) * sp;
     p.y = wy + (Math.random() - 0.5) * sp;
@@ -3717,7 +3808,257 @@
       });
     }
   }
+
+  const _ORE_FX_MAP = (() => {
+    const m = new Map();
+    const reg = (id, cols, glint, glow = false, dust = false) => { if (id) m.set(id, { cols, glint, glow, dust }); };
+    reg(B.COAL_ORE,           [0x1e293b, 0x334155, 0x475569], null, false, false);
+    reg(B.IRON_ORE,           [0xd6b296, 0xe2e8f0, 0xfef08a], 'ore_glint_white', false, false);
+    reg(B.COPPER_ORE,         [0xf97316, 0xd97742, 0x2dd4bf], 'ore_glint_orange', false, false);
+    reg(B.TIN_ORE,            [0xe2e8f0, 0x94a3b8, 0xf8fafc], 'ore_glint_white', false, false);
+    reg(B.GOLD_ORE,           [0xfacc15, 0xfbbf24, 0xfef08a], 'ore_glint_gold', true, false);
+    reg(B.LAPIS_ORE,          [0x2563eb, 0x60a5fa, 0x93c5fd], 'ore_glint_cyan', true, false);
+    reg(B.REDSTONE_ORE,       [0xef4444, 0xf87171, 0xfca5a5], 'ore_glint_red', true, true);
+    reg(B.QUARTZ_ORE,         [0xf8fafc, 0xe2e8f0, 0xfef9c3], 'ore_glint_white', true, false);
+    reg(B.DIAMOND_ORE,        [0x22d3ee, 0x67e8f9, 0xe0f2fe], 'ore_glint_cyan', true, false);
+    reg(B.EMERALD_ORE,        [0x10b981, 0x34d399, 0xa7f3d0], 'ore_glint_green', true, false);
+    reg(B.RUBY_ORE,           [0xf43f5e, 0xfb7185, 0xfecdd3], 'ore_glint_red', true, false);
+    reg(B.TITANIUM_ORE,       [0xf97316, 0xa855f7, 0xd97706], 'ore_glint_orange', true, false);
+    reg(B.DRAGON_CRYSTAL_ORE, [0xf59e0b, 0xfbbf24, 0xfef08a], 'ore_glint_gold', true, false);
+    reg(B.SULFUR_ORE,         [0xeab308, 0xfde047, 0xfef08a], 'ore_glint_gold', true, true);
+    reg(B.SULFUR_CRYSTAL,     [0xeab308, 0xfde047, 0xfef08a], 'ore_glint_gold', true, true);
+    reg(B.GLOW_CRYSTAL,       [0xc084fc, 0xe879f9, 0xf5d0fe], 'ore_glint_purple', true, false);
+    reg(B.ICHOR_ORE,          [0xf472b6, 0xfbbf24, 0xf9a8d4], 'ore_glint_gold', true, false);
+    reg(B.AETHERIUM_ORE,      [0x22d3ee, 0x818cf8, 0xe0f2fe], 'ore_glint_cyan', true, false);
+    reg(B.MOONSTONE_ORE,      [0xa5b4fc, 0xe0e7ff, 0xffffff], 'ore_glint_white', true, false);
+    reg(B.NEBULA_ORE,         [0xa855f7, 0xe879f9, 0x38bdf8], 'ore_glint_purple', true, false);
+    reg(B.DREAM_PRISM_ORE,    [0xf43f5e, 0xfacc15, 0x34d399, 0x38bdf8, 0xc084fc], 'ore_glint_rainbow', true, false);
+    reg(B.UMBRA_ORE,          [0x7c3aed, 0xa855f7, 0xc4b5fd], 'ore_glint_purple', true, false);
+    reg(B.RESONANT_ORE,       [0x06b6d4, 0x22d3ee, 0xa5f3fc], 'ore_glint_cyan', true, false);
+    reg(B.SOULFORGED_ORE,     [0x38bdf8, 0x7dd3fc, 0xf0f9ff], 'ore_glint_cyan', true, false);
+    return m;
+  })();
+
+  function _getOreFxSpec(blockId, def) {
+    const hit = _ORE_FX_MAP.get(blockId);
+    if (hit) return hit;
+    if (def && (def.oreBlock || def.siftOre || def.crystalCluster || def.stalactite)) {
+      const base = def.mapColor ? parseInt(def.mapColor.replace('#', ''), 16) : 0xe2e8f0;
+      return { cols: [isNaN(base) ? 0xe2e8f0 : base, 0xffffff], glint: 'ore_glint_white', glow: !!(def.light || def.emissive), dust: false };
+    }
+    return null;
+  }
+
+  function _extractHitNormal(hit) {
+    if (!hit || hit.px === undefined || hit.py === undefined || hit.pz === undefined) return { x: 0, y: 1, z: 0 };
+    const dx = hit.px - hit.x, dy = hit.py - hit.y, dz = hit.pz - hit.z;
+    const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+    if (ax >= ay && ax >= az && ax > 0) return { x: Math.sign(dx), y: 0, z: 0 };
+    if (az >= ax && az >= ay && az > 0) return { x: 0, y: 0, z: Math.sign(dz) };
+    if (ay > 0) return { x: 0, y: Math.sign(dy), z: 0 };
+    return { x: 0, y: 1, z: 0 };
+  }
+
+  function _sampleChipLight(wx, wy, wz, def) {
+    if (def && (def.light || def.emissive)) return 1.08;
+    const surf = (envUniforms && envUniforms.uSurfaceLight) ? envUniforms.uSurfaceLight.value : 0.95;
+    const bx = Math.floor(wx), by = Math.floor(wy), bz = Math.floor(wz);
+    const hasRoof = isSolidAt(bx, by + 2, bz) || isSolidAt(bx, by + 4, bz);
+    const base = hasRoof ? Math.max(0.55, surf * 0.72) : Math.max(0.68, surf * 0.96);
+    return Math.min(1.12, base);
+  }
+
+  function _spawnOneBlockChip(wx, wy, wz, tile, opts = {}) {
+    if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
+    const tIdx = (tile >= 0 && tile < TILE_U0.length) ? tile : 2;
+    const u0 = TILE_U0[tIdx], u1 = TILE_U1[tIdx], v0 = TILE_V0[tIdx], v1 = TILE_V1[tIdx];
+    const tw = Math.max(1e-5, u1 - u0), th = Math.max(1e-5, v1 - v0);
+    const patchPx = opts.centerCrop ? 4 : (3 + ((Math.random() * 2) | 0));
+    const maxOff = 16 - patchPx;
+    const pxX = opts.centerCrop ? (3 + ((Math.random() * 6) | 0)) : ((Math.random() * (maxOff + 1)) | 0);
+    const pxY = opts.centerCrop ? (3 + ((Math.random() * 6) | 0)) : ((Math.random() * (maxOff + 1)) | 0);
+    let p;
+    if (blkParticles.length >= MAX_BLK_PARTICLES) p = blkParticles.shift();
+    else if (blkParticlePool.length > 0) p = blkParticlePool.pop();
+    else p = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rxSpd: 0, rySpd: 0, grav: 15, life: 0.45, maxLife: 0.45, baseScale: 1, u: 0, v: 0, uw: 0.01, vw: 0.01, shade: 1 };
+    p.x = wx; p.y = wy; p.z = wz;
+    p.vx = opts.vx ?? ((Math.random() - 0.5) * 3.0);
+    p.vy = opts.vy ?? (1.6 + Math.random() * 2.2);
+    p.vz = opts.vz ?? ((Math.random() - 0.5) * 3.0);
+    p.rx = Math.random() * 3.14; p.ry = Math.random() * 3.14;
+    p.rxSpd = (Math.random() - 0.5) * 7.5; p.rySpd = (Math.random() - 0.5) * 7.5;
+    p.grav = opts.grav ?? 15.5;
+    p.life = p.maxLife = opts.life ?? (0.42 + Math.random() * 0.24);
+    p.baseScale = opts.scale ?? (0.72 + Math.random() * 0.48);
+    p.u = u0 + (pxX / 16) * tw;
+    p.v = v0 + (pxY / 16) * th;
+    p.uw = (patchPx / 16) * tw;
+    p.vw = (patchPx / 16) * th;
+    p.shade = (opts.shade ?? 0.95) * (0.88 + Math.random() * 0.20);
+    blkParticles.push(p);
+  }
+
+  function spawnBlockHitParticles(bx, by, bz, blockId, fnx = 0, fny = 1, fnz = 0, opts = {}) {
+    if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
+    const def = BLOCK_DEF[blockId] || BLOCK_DEF[B.DIRT];
+    const tiles = (def && def.tiles) ? def.tiles : [2, 2, 2];
+    const isHitPulse = !!opts.isHitPulse;
+    const cnt = opts.count ?? (isHitPulse ? (_isWeakDevice ? 3 : 5) : (_isWeakDevice ? 2 : 3));
+    const oreSpec = _getOreFxSpec(blockId, def);
+    const centerCrop = !!(def && (def.cross || def.foliage || def.glass || def.trans));
+    const light = _sampleChipLight(bx + 0.5 + fnx * 0.6, by + 0.5 + fny * 0.6, bz + 0.5 + fnz * 0.6, def);
+    const pickFaceTile = () => (fny > 0.5 ? (Math.random() < 0.75 ? tiles[0] : tiles[1]) : (fny < -0.5 ? tiles[2] : tiles[1]));
+    for (let i = 0; i < cnt; i++) {
+      const uT = (Math.random() - 0.5) * 0.68, vT = (Math.random() - 0.5) * 0.68;
+      const sx = bx + 0.5 + fnx * 0.56 + (fnx === 0 ? uT : 0);
+      const sy = by + 0.5 + fny * 0.56 + (fny === 0 ? vT : 0);
+      const sz = bz + 0.5 + fnz * 0.56 + (fnz === 0 ? (fnx !== 0 ? uT : vT) : 0);
+      const push = 1.1 + Math.random() * 1.0;
+      _spawnOneBlockChip(sx, sy, sz, pickFaceTile(), {
+        vx: fnx * push + (Math.random() - 0.5) * 1.4,
+        vy: Math.max(0.8, fny * push + 1.3 + Math.random() * 1.2),
+        vz: fnz * push + (Math.random() - 0.5) * 1.4,
+        scale: 0.62 + Math.random() * 0.36,
+        life: 0.34 + Math.random() * 0.18,
+        shade: light,
+        centerCrop
+      });
+    }
+    const faceX = bx + 0.5 + fnx * 0.58, faceY = by + 0.5 + fny * 0.58, faceZ = bz + 0.5 + fnz * 0.58;
+    if (oreSpec && (isHitPulse || Math.random() < 0.5)) {
+      const mCnt = isHitPulse ? 3 : 2;
+      for (let i = 0; i < mCnt; i++) {
+        const col = oreSpec.cols[(Math.random() * oreSpec.cols.length) | 0];
+        _spawnOneParticle(faceX, faceY, faceZ, col, {
+          kind: oreSpec.dust ? 'rise' : 'debris',
+          rise: !!oreSpec.dust,
+          spread: 0.42,
+          scale: 0.48 + Math.random() * 0.24,
+          vx: fnx * 1.3 + (Math.random() - 0.5) * 1.6,
+          vy: (oreSpec.dust ? 1.1 : 1.5) + Math.random() * 1.3,
+          vz: fnz * 1.3 + (Math.random() - 0.5) * 1.6,
+          life: 0.34 + Math.random() * 0.16,
+          grav: oreSpec.dust ? -0.9 : 11
+        });
+      }
+      if (isHitPulse && oreSpec.glint && (oreSpec.glow || Math.random() < 0.65)) {
+        spawnPixelFx(oreSpec.glint, faceX, faceY, faceZ, {
+          count: 1, scale: 0.34 + Math.random() * 0.12, life: 0.30 + Math.random() * 0.10, grow: 0.15, riseV: 0.35, randV: 0.4, spread: 0.14
+        });
+      }
+    }
+    if (isHitPulse && opts.selDef && opts.selDef.tool === 'pick' && def && def.rock) {
+      const sCol = opts.selDef.rainbow ? 0x38e8e1 : 0xfef08a;
+      for (let i = 0; i < 2; i++) {
+        _spawnOneParticle(faceX, faceY + 0.08, faceZ, sCol, {
+          kind: 'debris', rise: false, spread: 0.28, scale: 0.42,
+          vx: fnx * 1.4 + (Math.random() - 0.5) * 1.8, vy: 1.5 + Math.random() * 1.2, vz: fnz * 1.4 + (Math.random() - 0.5) * 1.8,
+          life: 0.26, grav: 9.5
+        });
+      }
+    }
+  }
+
+  function spawnBlockBreakParticles(bx, by, bz, blockId, opts = {}) {
+    if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
+    const def = BLOCK_DEF[blockId] || BLOCK_DEF[B.DIRT];
+    const tiles = (def && def.tiles) ? def.tiles : [2, 2, 2];
+    const tilePool = [tiles[0], tiles[1], tiles[1], tiles[2]];
+    const oreSpec = _getOreFxSpec(blockId, def);
+    const centerCrop = !!(def && (def.cross || def.foliage || def.glass || def.trans));
+    const light = _sampleChipLight(bx + 0.5, by + 0.5, bz + 0.5, def);
+    const total = opts.count ?? (_isWeakDevice ? 14 : (def && def.cross ? 14 : (oreSpec ? 26 : 22)));
+    for (let i = 0; i < total; i++) {
+      const gx = (i % 3) * 0.34 + 0.16 + (Math.random() - 0.5) * 0.12;
+      const gy = (((i / 3) | 0) % 3) * 0.34 + 0.16 + (Math.random() - 0.5) * 0.12;
+      const gz = (((i / 9) | 0) % 3) * 0.34 + 0.16 + (Math.random() - 0.5) * 0.12;
+      const ox = gx - 0.5, oy = gy - 0.5, oz = gz - 0.5;
+      _spawnOneBlockChip(bx + gx, by + gy, bz + gz, tilePool[i & 3], {
+        vx: ox * 4.2 + (Math.random() - 0.5) * 2.1,
+        vy: 1.8 + Math.max(0, oy * 2.2) + Math.random() * 2.0,
+        vz: oz * 4.2 + (Math.random() - 0.5) * 2.1,
+        scale: 0.72 + Math.random() * 0.48,
+        life: 0.44 + Math.random() * 0.24,
+        shade: light,
+        centerCrop
+      });
+    }
+    if (oreSpec) {
+      const nFlecks = _isWeakDevice ? 7 : 12;
+      for (let i = 0; i < nFlecks; i++) {
+        const isRise = oreSpec.dust || (i % 3 === 0);
+        const col = oreSpec.cols[i % oreSpec.cols.length];
+        _spawnOneParticle(bx + 0.5, by + 0.5, bz + 0.5, col, {
+          kind: isRise ? 'rise' : 'debris',
+          rise: isRise,
+          spread: 0.65,
+          scale: 0.48 + Math.random() * 0.34,
+          vx: (Math.random() - 0.5) * (isRise ? 1.8 : 3.6),
+          vy: (isRise ? 1.5 : 2.1) + Math.random() * 2.2,
+          vz: (Math.random() - 0.5) * (isRise ? 1.8 : 3.6),
+          life: isRise ? 0.52 : 0.48,
+          grav: isRise ? -0.6 : 12
+        });
+      }
+      if (oreSpec.glint) {
+        spawnPixelFx(oreSpec.glint, bx + 0.5, by + 0.55, bz + 0.5, {
+          count: oreSpec.glow ? 3 : 1, scale: 0.46, life: 0.42, grow: 0.2, riseV: 0.55, randV: 0.85, spread: 0.48
+        });
+      }
+    }
+    if ((def && def.glass) || blockId === B.ICE) {
+      for (let i = 0; i < 5; i++) {
+        _spawnOneParticle(bx + 0.5, by + 0.5, bz + 0.5, (i & 1) ? 0xffffff : 0xe0f2fe, {
+          kind: 'debris', rise: false, spread: 0.6, scale: 0.46,
+          vx: (Math.random() - 0.5) * 3.4, vy: 1.9 + Math.random() * 2.0, vz: (Math.random() - 0.5) * 3.4,
+          life: 0.42, grav: 13
+        });
+      }
+    }
+  }
+
+  function updateBlockParticles(dt) {
+    for (let i = blkParticles.length - 1; i >= 0; i--) {
+      const p = blkParticles[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        blkParticlePool.push(p);
+        blkParticles[i] = blkParticles[blkParticles.length - 1];
+        blkParticles.pop();
+        continue;
+      }
+      if (p.grav) p.vy -= p.grav * dt;
+      const nx = p.x + p.vx * dt;
+      const ny = p.y + p.vy * dt;
+      const nz = p.z + p.vz * dt;
+      if (p.vy < -0.9 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
+        p.vy = -p.vy * 0.32; p.vx *= 0.58; p.vz *= 0.58;
+      } else {
+        p.x = nx; p.y = ny; p.z = nz;
+      }
+      p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
+      const t = Math.max(0.01, p.life / (p.maxLife || 0.45));
+      const sc = p.baseScale * (t < 0.30 ? Math.max(0.05, t / 0.30) : 1.0);
+      _partDummy.position.set(p.x, p.y, p.z);
+      _partDummy.rotation.set(p.rx, p.ry, 0);
+      _partDummy.scale.setScalar(sc);
+      _partDummy.updateMatrix();
+      _blkPartInstMesh.setMatrixAt(i, _partDummy.matrix);
+      _partColor.setRGB(p.shade, p.shade, p.shade);
+      _blkPartInstMesh.setColorAt(i, _partColor);
+      const ub = i * 4;
+      _blkPartUvArr[ub] = p.u; _blkPartUvArr[ub + 1] = p.v; _blkPartUvArr[ub + 2] = p.uw; _blkPartUvArr[ub + 3] = p.vw;
+    }
+    _blkPartInstMesh.count = blkParticles.length;
+    if (blkParticles.length > 0) {
+      _blkPartInstMesh.instanceMatrix.needsUpdate = true;
+      if (_blkPartInstMesh.instanceColor) _blkPartInstMesh.instanceColor.needsUpdate = true;
+      _blkPartUvAttr.needsUpdate = true;
+    }
+  }
+
   function updateParticles(dt) {
+    updateBlockParticles(dt);
     updatePixelFx(dt);
     update3DSmoke(dt);
     updateSwordSlashes(dt);
@@ -4187,7 +4528,7 @@
     return best;
   }
 
-  const mining = { active: false, swinging: false, key: '', progress: 0, sfxTimer: 0, touchX: null, touchY: null };
+  const mining = { active: false, swinging: false, key: '', progress: 0, sfxTimer: 0, partTimer: 0, touchX: null, touchY: null };
   const eatState = { active: false, slotIdx: -1, itemId: 0, timer: 0, duration: 1.60, nextChomp: 0 };
   function syncEatBarUI() {
     const wrap = document.getElementById('eatProgressWrap'), fill = document.getElementById('eatProgressFill');
@@ -4344,7 +4685,8 @@
     if (typeof startHandSwing === 'function') startHandSwing(0.22, 'attack');
     else player.swingT = 0.22;
     playBlockSfx(hit.id, true);
-    spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, targetDef.mapColor || '#8a623c', 10, false);
+    const fn = _extractHitNormal(hit);
+    spawnBlockHitParticles(hit.x, hit.y, hit.z, hit.id, fn.x, fn.y, fn.z, { isHitPulse: true, selDef, count: 10 });
     emitSculkVibration(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 'mine', 8);
     if (gameMode !== 'creative') damageHeldTool(1);
     mining.active = false; mining.progress = 0;
@@ -5168,8 +5510,8 @@
     } else highlightMesh.visible = false;
     const mineArc = _elMineArc;
     if (mining.breakCd > 0) mining.breakCd = Math.max(0, mining.breakCd - dt);
-    if (!mining.active || player.dead) { mining.progress = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
-    if (mining.breakCd > 0) { mining.progress = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
+    if (!mining.active || player.dead) { mining.progress = 0; mining.partTimer = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
+    if (mining.breakCd > 0) { mining.progress = 0; mining.partTimer = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
 
     if (mining.sfxTimer > 0) mining.sfxTimer -= dt;
     if (raycastMob(4.4, rx, ry)) {
@@ -5177,11 +5519,12 @@
       if ((player.atkCd || 0) <= 0.01) attackTargetMob(rx, ry);
       return;
     }
-    if (!hit) { mining.progress = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
+    if (!hit) { mining.progress = 0; mining.partTimer = 0; player.mineSwingPhase = 0; crackMesh.visible = false; _setMineRing(false); return; }
     if (hit.id === B.END_CRYSTAL_BLOCK) {
       startHandSwing(0.25, 'attack');
       mining.active = false;
       mining.progress = 0;
+      mining.partTimer = 0;
       crackMesh.visible = false;
       _setMineRing(false);
       detonateEndCrystalAt(hit.x, hit.y, hit.z);
@@ -5190,6 +5533,7 @@
     const def = BLOCK_DEF[hit.id] || BLOCK_DEF[B.DIRT];
     if (hit.id === B.BEDROCK || def.unbreakable) {
       mining.progress = 0;
+      mining.partTimer = 0;
       player.mineSwingPhase = 0;
       crackMesh.visible = false;
       _setMineRing(false);
@@ -5197,7 +5541,7 @@
       return;
     }
     const k = modKey(hit.x, hit.y, hit.z);
-    if (mining.key !== k) { mining.key = k; mining.progress = 0; }
+    if (mining.key !== k) { mining.key = k; mining.progress = 0; mining.partTimer = 0; }
 
     const sel = inventory[player.selectedSlot], selDef = (sel && sel.count > 0) ? BLOCK_DEF[sel.id] : null;
     const reqTier = def.reqTier || 0;
@@ -5205,7 +5549,9 @@
     const tierOk = (gameMode === 'creative') || (reqTier === 0) || (heldPickTier >= reqTier);
     if (def.indestructible) {
       mining.progress = 0;
+      mining.partTimer = 0;
       player.mineSwingPhase = 0;
+      crackMesh.visible = false;
       _setMineRing(false);
       if (mining.sfxTimer <= 0) { showToast('🛡️ Cổng Giấc Mơ bất tử — không thể bị phá hủy!'); mining.sfxTimer = 1.6; }
       return;
@@ -5256,17 +5602,41 @@
     } else {
       mining.progress += (gameMode === 'creative') ? (dt / 0.11) : ((dt * speedMul) / Math.max(0.08, def.hard));
     }
+    const fn = _extractHitNormal(hit);
+    if (mining.progress > 0 && mining.progress < 1.0) {
+      mining.partTimer -= dt;
+      if (mining.partTimer <= 0) {
+        mining.partTimer = _isWeakDevice ? 0.14 : 0.105;
+        spawnBlockHitParticles(hit.x, hit.y, hit.z, hit.id, fn.x, fn.y, fn.z, { isHitPulse: false, selDef, tierOk });
+      }
+    }
     if (!player._mineHitFired && _mU >= 0.40) {
       player._mineHitFired = true;
       playBlockSfx(hit.id, false);
-      spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, def.mapColor || '#aaa', 3, false);
-      if (selDef && selDef.tool === 'pick' && def.rock) spawnParticles(hit.x + 0.5, hit.y + 0.65, hit.z + 0.5, selDef.rainbow ? 0x38e8e1 : 0xfef08a, 3, true);
-      else if (selDef && selDef.tool === 'axe' && def.wood) spawnParticles(hit.x + 0.5, hit.y + 0.55, hit.z + 0.5, 0xd97706, 3, false);
+      spawnBlockHitParticles(hit.x, hit.y, hit.z, hit.id, fn.x, fn.y, fn.z, { isHitPulse: true, selDef, tierOk });
     }
 
     const pct = Math.min(1, mining.progress);
     _setMineRing(true); mineArc.setAttribute('stroke-dashoffset', (87.96 * (1 - pct)).toFixed(2));
-    if (!def.cross && !def.torch) { crackMesh.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5); crackMat.map = crackTextures[Math.min(4, Math.floor(pct * 5))]; crackMesh.visible = true; }
+    if (!def.cross && !def.torch) {
+      if (IS_FENCE_WALL[hit.id] === 1) {
+        const bnd = getFenceWallUnionBounds(hit.x, hit.y, hit.z, hit.id);
+        crackMesh.scale.set(bnd.sx, bnd.sy, bnd.sz);
+        crackMesh.position.set(hit.x + bnd.cx, hit.y + bnd.cy, hit.z + bnd.cz);
+      } else {
+        const slT = IS_SLAB[hit.id];
+        crackMesh.scale.set(1, slT > 0 ? 0.5 : 1, 1);
+        crackMesh.position.set(hit.x + 0.5, hit.y + (slT === 1 ? 0.25 : (slT === 2 ? 0.75 : 0.5)), hit.z + 0.5);
+      }
+      const stIdx = Math.min(crackTextures.length - 1, Math.floor(pct * crackTextures.length));
+      if (crackMat.map !== crackTextures[stIdx]) {
+        crackMat.map = crackTextures[stIdx];
+        crackMat.needsUpdate = true;
+      }
+      crackMesh.visible = true;
+    } else {
+      crackMesh.visible = false;
+    }
     if (mining.progress >= 1.0) {
       const brokenId = hit.id;
       // Lá cây chỉ rơi khi CẮT BẰNG KÉO (giống Minecraft). Đập tay / cuốc / rìu thì lá mất, không rơi.
@@ -5286,14 +5656,12 @@
       doorOpenState.delete(bk);
       incubatingEggs.delete(bk);
       plantedSaplings.delete(bk); saplingFertilizeCount.delete(bk);
-      spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, def.mapColor || '#999', 8, false);
+      spawnBlockBreakParticles(hit.x, hit.y, hit.z, brokenId, { tierOk, silk: _hasSilkPick, selDef });
       if (brokenId === B.REDSTONE_ORE && tierOk && !_hasSilkPick) {
         const extraRed = 3 + ((Math.random() * 2) | 0);
         spawnDroppedItem(hit.x, hit.y, hit.z, B.REDSTONE, { count: extraRed });
-        spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 0xef4444, 6, true);
       } else if (brokenId === B.DRAGON_CRYSTAL_ORE && tierOk && !_hasSilkPick) {
         if (Math.random() < 0.6) spawnDroppedItem(hit.x, hit.y, hit.z, B.DRAGON_CRYSTAL, { count: 1 });
-        spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 0xfbbf24, 8, true);
       }
       // Authentic Minecraft Grass -> Wheat Seeds Drop (~28%), Ripe Wheat -> 1-2 Wheat + 1-3 Seeds, Melon -> 3-6 Slices!
       if (brokenId === B.TALL_GRASS || brokenId === B.AUTUMN_GRASS) {
@@ -5338,7 +5706,7 @@
         let cy = hit.y + 1, cascaded = 0;
         while (cy <= MAX_Y && getBlockWorld(hit.x, cy, hit.z) === brokenId) {
           setBlockWorld(hit.x, cy, hit.z, B.AIR, true);
-          spawnParticles(hit.x + 0.5, cy + 0.5, hit.z + 0.5, '#6db52f', 5, false);
+          spawnBlockBreakParticles(hit.x, cy, hit.z, brokenId, { count: 8 });
           spawnDroppedItem(hit.x, cy, hit.z, brokenId);
           cy++; cascaded++;
         }
@@ -5368,7 +5736,7 @@
       flushUrgentChunks(32);
       emitSculkVibration(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 'break', 9);
       damageHeldTool(1);
-      playBlockSfx(brokenId, true); mining.progress = 0; mining.breakCd = 0.20; crackMesh.visible = false; _setMineRing(false);
+      playBlockSfx(brokenId, true); mining.progress = 0; mining.partTimer = 0; mining.breakCd = 0.20; crackMesh.visible = false; _setMineRing(false);
     }
   }
 
@@ -6179,6 +6547,9 @@
         }
         if (crackMesh.visible) crackMesh.position.y += dyShift;
         if (highlightMesh.visible) highlightMesh.position.y += dyShift;
+        for (let i = 0; i < blkParticles.length; i++) {
+          if (blkParticles[i]) blkParticles[i].y += dyShift;
+        }
         for (let i = 0; i < droppedItems.length; i++) {
           const it = droppedItems[i];
           if (it) {

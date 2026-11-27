@@ -2457,20 +2457,60 @@
   );
   highlightMesh.visible = false; scene.add(highlightMesh);
 
+  const _CRACK_STAGE_GRID = [
+    '....9.........9.',
+    '..9..8...9...8..',
+    '...8.77...8..7..',
+    '..9.6..6.7..6.9.',
+    '.8..5...56.5..8.',
+    '9..64....4.45.7.',
+    '...43.3.2.3..6..',
+    '..65..2.01.3.78.',
+    '.7..30.0.2.4..9.',
+    '9..54.1.023.6...',
+    '..7..3.2.245.79.',
+    '.8..54.3.5..6...',
+    '9..7..5.6.7..89.',
+    '..8.7..6..8...9.',
+    '.9..89..7..9....',
+    '........89......'
+  ];
   const crackTextures = [];
-  for (let stage = 0; stage < 5; stage++) {
-    const cc = document.createElement('canvas'); cc.width = 32; cc.height = 32;
-    const cctx = cc.getContext('2d'); cctx.strokeStyle = 'rgba(0,0,0,0.85)'; cctx.lineWidth = 1.8;
-    for (let i = 0; i < 3 + stage * 3; i++) {
-      const ang = (i / (3 + stage * 3)) * Math.PI * 2 + stage * 0.4, len = 5 + stage * 3.2;
-      cctx.beginPath(); cctx.moveTo(16, 16);
-      cctx.lineTo(16 + Math.cos(ang) * len * 0.5, 16 + Math.sin(ang) * len * 0.5);
-      cctx.lineTo(16 + Math.cos(ang + 0.28) * len, 16 + Math.sin(ang + 0.28) * len); cctx.stroke();
+  for (let stage = 0; stage < 10; stage++) {
+    const cc = document.createElement('canvas'); cc.width = 16; cc.height = 16;
+    const cctx = cc.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+    for (let y = 0; y < 16; y++) {
+      const row = _CRACK_STAGE_GRID[y];
+      for (let x = 0; x < 16; x++) {
+        const ch = row[x];
+        const val = ch === '.' ? 99 : (ch.charCodeAt(0) - 48);
+        if (val <= stage) {
+          const age = stage - val;
+          cctx.fillStyle = age === 0 ? 'rgba(0,0,0,0.44)' : (age === 1 ? 'rgba(0,0,0,0.64)' : 'rgba(0,0,0,0.78)');
+          cctx.fillRect(x, y, 1, 1);
+        } else if (val === stage + 1 && stage >= 1 && ((x ^ y) & 1) === 0) {
+          cctx.fillStyle = 'rgba(0,0,0,0.20)';
+          cctx.fillRect(x, y, 1, 1);
+        }
+      }
     }
-    const ct = new THREE.CanvasTexture(cc); ct.magFilter = THREE.NearestFilter; crackTextures.push(ct);
+    const ct = new THREE.CanvasTexture(cc);
+    ct.magFilter = THREE.NearestFilter; ct.minFilter = THREE.NearestFilter;
+    ct.generateMipmaps = false; ct.needsUpdate = true;
+    crackTextures.push(ct);
   }
-  const crackMat = new THREE.MeshBasicMaterial({ map: crackTextures[0], transparent: true, depthTest: true, polygonOffset: true, polygonOffsetFactor: -2 });
-  const crackMesh = new THREE.Mesh(new THREE.BoxGeometry(1.01, 1.01, 1.01), crackMat);
+  const crackMat = new THREE.MeshBasicMaterial({
+    map: crackTextures[0],
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3
+  });
+  const crackMesh = new THREE.Mesh(new THREE.BoxGeometry(1.004, 1.004, 1.004), crackMat);
+  crackMesh.renderOrder = 3;
   crackMesh.visible = false; scene.add(crackMesh);
 
   // Item-Only 3D First-Person Viewmodel (Crisp 16x16 Voxel Items & Bump-Mapped Blocks!)
