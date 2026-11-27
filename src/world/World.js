@@ -702,20 +702,22 @@
         if (hash2i(wx + bxOff, wz + bzOff, worldSeed + 397) > 0.42) placeLeafBushCluster(data, lx + bxOff, baseWy, lz + bzOff, wx + bxOff, wz + bzOff, isTall ? B.OAK_LEAVES : B.MANGROVE_LEAVES);
       }
     } else if (style === 'giant_redwood') {
-      // Towering Cathedral Sequoia / Redwood: thick 3x3 tapered trunk + wide root buttresses + high layered canopy
-      const th = Math.min(MAX_Y - baseWy - 8, 25 + Math.floor(r0 * 11));
+      // Towering Cathedral Sequoia / Redwood: thick 3x3-4x4 tapered trunk + wide stepped root buttresses + high layered dark canopy
+      const th = Math.min(MAX_Y - baseWy - 7, 30 + Math.floor(r0 * 14));
       const rootFlares = [
         [-2,0],[2,0],[0,-2],[0,2],[-2,-1],[-2,1],[2,-1],[2,1],[-1,-2],[1,-2],[-1,2],[1,2],
-        [-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0],[0,-1],[0,1]
+        [-2,-2],[2,-2],[-2,2],[2,2],[-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0],[0,-1],[0,1]
       ];
       for (const [rx, rz] of rootFlares) {
         const dMan = Math.abs(rx) + Math.abs(rz);
-        const rh = dMan >= 3
-          ? (hash2i(wx + rx, wz + rz, worldSeed + 419) > 0.42 ? 1 + Math.floor(hash2i(wx + rx * 3, wz + rz * 3, worldSeed + 421) * 2) : 0)
-          : (2 + Math.floor(hash2i(wx + rx, wz + rz, worldSeed + 423) * (dMan === 2 ? 3 : 4)));
-        for (let ry = -1; ry < rh; ry++) setLocalSafe(data, lx + rx, baseWy + ry, lz + rz, B.SPRUCE_LOG, true);
+        const rh = dMan >= 4
+          ? (hash2i(wx + rx, wz + rz, worldSeed + 417) > 0.58 ? 1 : 0)
+          : (dMan === 3
+            ? (hash2i(wx + rx, wz + rz, worldSeed + 419) > 0.34 ? 1 + Math.floor(hash2i(wx + rx * 3, wz + rz * 3, worldSeed + 421) * 3) : 0)
+            : (2 + Math.floor(hash2i(wx + rx, wz + rz, worldSeed + 423) * (dMan === 2 ? 4 : 5))));
+        for (let ry = -2; ry < rh; ry++) setLocalSafe(data, lx + rx, baseWy + ry, lz + rz, B.SPRUCE_LOG, true);
       }
-      const taperY = Math.floor(th * 0.64);
+      const taperY = Math.floor(th * 0.68);
       for (let i = 0; i < th; i++) {
         if (i < taperY) {
           for (let tx = -1; tx <= 1; tx++) for (let tz = -1; tz <= 1; tz++) {
@@ -728,8 +730,8 @@
           setLocalSafe(data, lx + 1, baseWy + i, lz + 1, B.SPRUCE_LOG, true);
         }
       }
-      // Lush dark tiered crown strictly on the upper 38% (open floor sightlines below)
-      const crownStart = -Math.max(8, Math.floor(th * 0.36));
+      // Dense dark layered crown strictly on the upper 32-38% (wide cathedral sightlines below)
+      const crownStart = -Math.max(9, Math.floor(th * 0.35));
       for (let dy = crownStart; dy <= 5; dy++) {
         const wy = baseWy + th + dy;
         let rad = 4;
@@ -741,7 +743,7 @@
         for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
           const dist = Math.hypot(dx, dz);
           if (dist > rad + 0.35) continue;
-          if (dist > rad - 0.6 && hash3i(wx + dx, wy, wz + dz, worldSeed + 431) < 0.36) continue;
+          if (dist > rad - 0.6 && hash3i(wx + dx, wy, wz + dz, worldSeed + 431) < 0.32) continue;
           setLocalSafe(data, lx + dx, wy, lz + dz, B.SPRUCE_LEAVES, false);
         }
       }
@@ -3222,25 +3224,26 @@
 
         if (isPlains) {
           if (baseId === B.GRASS) {
-            if (tMicro > 0.90 && edgeR > 0.76) data[idx] = B.GRAVEL;
-            else if (patchVal > 0.725 || (patchVal > 0.69 && edgeR > 0.68)) data[idx] = B.DIRT;
+            if (tMicro > 0.91 && edgeR > 0.78) data[idx] = B.GRAVEL;
+            else if (patchVal > 0.73 || (patchVal > 0.695 && edgeR > 0.65)) data[idx] = B.DIRT;
           }
         } else if (isForest || isAutumn) {
-          const thr = isAutumn ? 0.47 : 0.555;
-          if (tMicro > 0.80 && edgeR > 0.56) {
-            data[idx] = edgeR > 0.78 ? B.MOSS_BLOCK : (edgeR > 0.67 ? B.STONE : B.GRAVEL);
-          } else if (patchVal > thr || (patchVal > (thr - 0.045) && edgeR > 0.54)) {
+          const thr = isAutumn ? 0.48 : 0.56;
+          if (tMicro > 0.79 && edgeR > 0.54) {
+            data[idx] = edgeR > 0.80 ? B.MOSS_BLOCK : (edgeR > 0.69 ? B.STONE_BRICK : (edgeR > 0.60 ? B.STONE : B.GRAVEL));
+          } else if (patchVal > thr || (patchVal > (thr - 0.055) && edgeR > 0.52)) {
             if (bioId === BIOMES.LUSH_GROVE.id || bioId === BIOMES.WEEPING_GROVE.id || bioId === BIOMES.GIANT_JUNGLE.id || bioId === BIOMES.BAMBOO_JUNGLE.id) {
               data[idx] = edgeR > 0.54 ? B.AUTUMN_PODZOL : (edgeR > 0.26 ? B.MOSS_BLOCK : B.MUD);
             } else {
-              data[idx] = edgeR > 0.30 ? B.AUTUMN_PODZOL : B.DIRT;
+              // Ragged reddish-brown podzol + dirt mix matching the diagonal patch pattern in reference images
+              data[idx] = (((wx + wz) & 1) ? edgeR > 0.26 : edgeR > 0.42) ? B.AUTUMN_PODZOL : B.DIRT;
             }
           }
         } else if (isSwamp && baseId === B.GRASS) {
-          if (tMicro > 0.79 && edgeR > 0.55) data[idx] = B.MOSS_BLOCK;
+          if (tMicro > 0.79 && edgeR > 0.55) data[idx] = edgeR > 0.72 ? B.MOSS_BLOCK : B.STONE_BRICK;
           else if (patchVal > 0.58) data[idx] = edgeR > 0.35 ? B.MUD : B.DIRT;
         } else if (isSnow && (baseId === B.SNOW || baseId === B.SNOWY_DIRT)) {
-          if (tMicro > 0.81 && edgeR > 0.55) data[idx] = edgeR > 0.75 ? B.STONE : B.GRAVEL;
+          if (tMicro > 0.81 && edgeR > 0.55) data[idx] = edgeR > 0.80 ? B.ICE : (edgeR > 0.68 ? B.STONE : B.GRAVEL);
           else if (patchVal > 0.68) data[idx] = edgeR > 0.50 ? B.DIRT : B.AUTUMN_PODZOL;
         } else if (isDesert && baseId === B.SAND) {
           if (tMicro > 0.82 && edgeR > 0.58) data[idx] = edgeR > 0.74 ? B.SANDSTONE : B.GRAVEL;
@@ -3253,19 +3256,39 @@
           else if (patchVal > 0.68) data[idx] = B.MOSS_BLOCK;
         }
 
-        // Sparse weathered boulders & fallen logs along forest ground (matching cathedral forest floor refs)
-        if (rockDecor.has(bioId) && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
+        // Sparse weathered mossy boulders, fallen logs, short stumps & rare tiny ruin fragments (matching forest floor refs)
+        if (rockDecor.has(bioId) && lx >= 2 && lx <= 12 && lz >= 2 && lz <= 12) {
           const decR = hash2i(wx, wz, worldSeed + 1493);
-          if (decR > 0.9968 && data[((ly + 1) << 8) | ci] === B.AIR) {
-            setLocalSafe(data, lx, h + 1, lz, decR > 0.9984 ? B.MOSS_BLOCK : B.STONE, true);
-            if (decR > 0.9978) setLocalSafe(data, lx + 1, h + 1, lz, B.STONE, true);
+          if (decR > 0.9964 && data[((ly + 1) << 8) | ci] === B.AIR) {
+            const bBase = decR > 0.9982 ? B.STONE_BRICK : B.STONE;
+            setLocalSafe(data, lx, h + 1, lz, bBase, true);
+            if (decR > 0.9974) setLocalSafe(data, lx + 1, h + 1, lz, decR > 0.9986 ? B.MOSS_BLOCK : B.STONE, true);
+            if (decR > 0.9984) {
+              setLocalSafe(data, lx, h + 1, lz + 1, B.MOSS_BLOCK, true);
+              setLocalSafe(data, lx, h + 2, lz, B.STONE, true);
+              if ((ly + 2) > maxLy) maxLy = ly + 2;
+            }
             if ((ly + 1) > maxLy) maxLy = ly + 1;
-          } else if (decR < 0.0022 && data[((ly + 1) << 8) | ci] === B.AIR) {
+          } else if (decR < 0.0020 && data[((ly + 1) << 8) | ci] === B.AIR) {
             const logB = (bioId === BIOMES.REDWOOD_ANCIENT.id || bioId === BIOMES.TAIGA.id || bioId === BIOMES.PINE_VALLEY.id || bioId === BIOMES.GIANT_TREES.id) ? B.SPRUCE_LOG : B.OAK_LOG;
             setLocalSafe(data, lx, h + 1, lz, logB, true);
             setLocalSafe(data, lx + 1, h + 1, lz, logB, true);
-            setLocalSafe(data, lx + 2, h + 1, lz, B.MOSS_BLOCK, true);
+            setLocalSafe(data, lx + 2, h + 1, lz, decR < 0.0010 ? logB : B.MOSS_BLOCK, true);
             if ((ly + 1) > maxLy) maxLy = ly + 1;
+          } else if (decR >= 0.0020 && decR < 0.0030 && data[((ly + 1) << 8) | ci] === B.AIR) {
+            // Short weathered stump
+            const stumpLog = (bioId === BIOMES.REDWOOD_ANCIENT.id || bioId === BIOMES.TAIGA.id || bioId === BIOMES.PINE_VALLEY.id || bioId === BIOMES.GIANT_TREES.id) ? B.SPRUCE_LOG : B.OAK_LOG;
+            setLocalSafe(data, lx, h + 1, lz, stumpLog, true);
+            if (decR < 0.0025) { setLocalSafe(data, lx, h + 2, lz, stumpLog, true); if ((ly + 2) > maxLy) maxLy = ly + 2; }
+            if ((ly + 1) > maxLy) maxLy = ly + 1;
+          } else if (decR > 0.9958 && decR <= 0.9962 && data[((ly + 1) << 8) | ci] === B.AIR) {
+            // Tiny weathered stone-brick ruin wall segment (very sparse edge-of-frame detail)
+            setLocalSafe(data, lx, h + 1, lz, B.STONE_BRICK, true);
+            setLocalSafe(data, lx + 1, h + 1, lz, B.STONE_BRICK, true);
+            setLocalSafe(data, lx + 2, h + 1, lz, B.MOSS_BLOCK, true);
+            setLocalSafe(data, lx, h + 2, lz, B.STONE_BRICK, true);
+            setLocalSafe(data, lx + 1, h + 2, lz, B.STONE, true);
+            if ((ly + 2) > maxLy) maxLy = ly + 2;
           }
         }
       }
@@ -3808,11 +3831,11 @@
               setLocalSafe(data, lx, h + 1, lz, B.SNOWY_GRASS, false);
               const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
             }
-          } else if ((biome !== BIOMES.CLOUD_PEAKS && biome !== BIOMES.ALPINE_PEAKS || surfTopId === B.GRASS) && rf > grassGate) {
-            let pid = rf > 0.90 ? B.WILD_TALL_GRASS : (rf > 0.82 ? B.TALL_GRASS : (rf > 0.76 ? B.FERN : B.SHORT_GRASS));
+          } else if ((biome !== BIOMES.CLOUD_PEAKS && biome !== BIOMES.ALPINE_PEAKS || surfTopId === B.GRASS) && rf > (isPatchSoil ? 0.92 : (gClump > 0.48 ? 0.62 : 0.90))) {
+            let pid = rf > 0.89 ? B.WILD_TALL_GRASS : (rf > 0.78 ? B.TALL_GRASS : (rf > 0.71 ? B.FERN : B.SHORT_GRASS));
             if (biome === BIOMES.TAIGA && rf > 0.986) pid = B.BLUEBERRY;
             else if (rf > 0.994) pid = B.BERRY_BUSH;
-            else if (flPocket > 0.80 && rf > 0.958) pid = (rf > 0.978 ? B.FLOWER_YELLOW : B.OXEYE_DAISY);
+            else if (flPocket > 0.72 && rf > 0.935) pid = (rf > 0.968 ? B.FLOWER_YELLOW : B.OXEYE_DAISY);
             setLocalSafe(data, lx, h + 1, lz, pid, false);
             const ply = (h + 1) - MIN_Y; if (ply > maxLy) maxLy = ply;
           }
@@ -3820,16 +3843,21 @@
         if (!placedSugarCane && lx >= 3 && lx <= CHUNK_W - 4 && lz >= 3 && lz <= CHUNK_W - 4) {
           const rTree = hash2i(wx, wz, worldSeed + 909);
           const inGiantSafe = (lx >= 4 && lx <= 10 && lz >= 4 && lz <= 10);
+          // Cathedral spacing grid (12-block cells -> 8-16 block gap between giant redwood trunks)
+          const rwCellX = Math.floor(wx / 12), rwCellZ = Math.floor(wz / 12);
+          const rwAx = rwCellX * 12 + 2 + ((hash2i(rwCellX, rwCellZ, worldSeed + 1901) * 8) | 0);
+          const rwAz = rwCellZ * 12 + 2 + ((hash2i(rwCellX, rwCellZ, worldSeed + 1907) * 8) | 0);
+          const isRedwoodAnchor = (wx === rwAx && wz === rwAz && hash2i(rwCellX, rwCellZ, worldSeed + 1913) > 0.16);
           let placed = false;
           if (biome === BIOMES.GLOWSHROOM_GROVE && inGiantSafe && rTree > 0.84) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'giant_mushroom'); placed = true; }
           else if (biome === BIOMES.DAPPLED_FOREST && rTree > 0.946) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'autumn_maple'); placed = true; }
           else if (biome === BIOMES.MARSH_RUINS && rTree > 0.952) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 933) > 0.5 ? 'willow' : 'mangrove'); placed = true; }
           else if (biome === BIOMES.TROPICAL_COAST && rTree > 0.938) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 935) > 0.52 ? 'palm' : 'canopy_jungle'); placed = true; }
-          else if (biome === BIOMES.GIANT_TREES && inGiantSafe && rTree > 0.962) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, rTree > 0.986 ? 'tall_pine' : 'giant_redwood'); placed = true; }
+          else if (biome === BIOMES.GIANT_TREES && ((inGiantSafe && isRedwoodAnchor) || rTree > 0.986)) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && isRedwoodAnchor) ? 'giant_redwood' : 'tall_pine'); placed = true; }
           else if (biome === BIOMES.MANOR_GARDEN && rTree > 0.972) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 937) > 0.5 ? 'sculpted_birch' : 'apple'); placed = true; }
           else if (biome === BIOMES.BADLANDS_SPIRES && surfTopId === B.RED_SAND && rTree > 0.992) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'cactus'); placed = true; }
           else if (biome === BIOMES.BAMBOO_JUNGLE && rTree > 0.86) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && rTree > 0.972) ? 'canopy_jungle' : 'bamboo'); placed = true; }
-          else if (biome === BIOMES.REDWOOD_ANCIENT && inGiantSafe && rTree > 0.962) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, rTree > 0.986 ? 'tall_pine' : 'giant_redwood'); placed = true; }
+          else if (biome === BIOMES.REDWOOD_ANCIENT && ((inGiantSafe && isRedwoodAnchor) || rTree > 0.985)) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && isRedwoodAnchor) ? 'giant_redwood' : 'tall_pine'); placed = true; }
           else if (biome === BIOMES.WEEPING_GROVE && inGiantSafe && rTree > 0.958) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 939) > 0.55 ? 'canopy_jungle' : 'ancient_vine_tree'); placed = true; }
           else if (biome === BIOMES.BIRCH_ANCIENT && rTree > 0.956) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 941) > 0.55 ? 'birch_bent' : 'sculpted_birch'); placed = true; }
           else if (biome === BIOMES.MUSHROOM_ISLAND && inGiantSafe && rTree > 0.956) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'giant_mushroom'); placed = true; }
@@ -3839,8 +3867,8 @@
           else if ((biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && h <= 22 && surfTopId === B.GRASS && rTree > 0.968) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'pine'); placed = true; }
           else if (biome === BIOMES.HIGHLAND_PLATEAU && rTree > 0.978) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 913) > 0.5 ? 'baobab' : 'sculpted_birch'); placed = true; }
           else if (biome === BIOMES.FOREST && rTree > 0.956) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && rTree > 0.988) ? 'broadleaf' : (hash2i(wx, wz, worldSeed + 911) > 0.72 ? 'canopy_jungle' : (hash2i(wx, wz, worldSeed + 912) > 0.44 ? 'sculpted_birch' : 'apple'))); placed = true; }
-          else if (biome === BIOMES.PLAINS && surfTopId === B.GRASS && rTree > 0.9992) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
-          else if (biome === BIOMES.GREEN_PLAINS && surfTopId === B.GRASS && rTree > 0.9994) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
+          else if (biome === BIOMES.PLAINS && surfTopId === B.GRASS && rTree > 0.9997) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
+          else if (biome === BIOMES.GREEN_PLAINS && surfTopId === B.GRASS && rTree > 0.9998) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
           else if (biome === BIOMES.SAKURA && rTree > 0.946) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'sakura'); placed = true; }
           else if ((biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP) && rTree > 0.950) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, biome === BIOMES.AUTUMN_GOLDEN ? 'acacia' : (hash2i(wx, wz, worldSeed + 917) > 0.30 ? 'autumn_maple' : 'acacia')); placed = true; }
           else if (biome === BIOMES.LUSH_GROVE && rTree > 0.950) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && hash2i(wx, wz, worldSeed + 919) > 0.55) ? 'ancient_vine_tree' : 'canopy_jungle'); placed = true; }

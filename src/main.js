@@ -129,12 +129,11 @@
     } else if (preset === 'dlss_ultra') {
       envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.48;
     } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.09; envUniforms.uContrast.value = 0.07; envUniforms.uCloudCover.value = 0.50;
-      if (envUniforms.uGrassRadius) envUniforms.uGrassRadius.value = _initMobile ? 22.0 : 38.0;
+      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.11; envUniforms.uWarmth.value = 0.24; envUniforms.uContrast.value = 0.075; envUniforms.uCloudCover.value = 0.48;
     } else if (preset === 'cartoon_barebones') {
       envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.44;
     }
-    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.97 : (preset === 'cartoon_barebones' ? 0.90 : 0.95);
+    renderer.toneMappingExposure = (preset === 'eclipse') ? 0.99 : (preset === 'cartoon_barebones' ? 0.90 : 0.95);
     window._eclipseGrassDirty = true;
     if (typeof updateEclipseGrass === 'function') updateEclipseGrass(true);
     if (persist && CFG.saveGfxPrefs && preset !== 'cartoon_barebones') CFG.saveGfxPrefs({ shaderPreset: preset });
@@ -179,7 +178,7 @@
   /* ============================================================================
    * 13. MAIN GAME LOOP (2048px SHADOWS, WATER MIRROR, WEATHER, BLOCK-LIGHTS & BLOOM!)
    * ============================================================================ */
-  let dayTime = 0.31, lastFrame = performance.now(), elapsed = 0, hudTimer = 0, frameCounter = 0;
+  let dayTime = 0.29, lastFrame = performance.now(), elapsed = 0, hudTimer = 0, frameCounter = 0;
   let hungerTick = 0, drownTick = 0, lavaTick = 0, fireTick = 0, voidTick = 0;
 
   const colDayTop = new THREE.Color(0x1f63c8), colDayHor = new THREE.Color(0x7fb2e6);
@@ -329,9 +328,11 @@
   const _colSandFog = new THREE.Color(0xc89b5c), _colSandHor = new THREE.Color(0xdcb478);
   const _colBlizzHor = new THREE.Color(0xcbdcf0), _colDenseFog = new THREE.Color(0x8fa0b2);
   const _colDlssTop = new THREE.Color(0x1f63c8), _colDlssHor = new THREE.Color(0x7fb2e6), _colDlssSun = new THREE.Color(0xfff5e0);
-  const _colEclipseTop = new THREE.Color(0x2268d0), _colEclipseHor = new THREE.Color(0x82b4e6);
+  const _colEclipseTop = new THREE.Color(0x4679c4), _colEclipseHor = new THREE.Color(0xf0b284);
+  const _colEclipseNoonTop = new THREE.Color(0x2f74cc), _colEclipseNoonHor = new THREE.Color(0xa8cae8);
   const _colEclipseNightTop = new THREE.Color(0x050914), _colEclipseNightHor = new THREE.Color(0x111d33);
-  const _colEclipseSun = new THREE.Color(0xfff5e0);
+  const _colEclipseSun = new THREE.Color(0xffd088);
+  const _colEclipseNoonSun = new THREE.Color(0xfff0d2);
 
   let _wakeIdx = 0, _wakeCooldown = 0, _wasInWaterWake = false, _lastWakeX = 1e9, _lastWakeZ = 1e9;
   function updateWaterWakes(dt) {
@@ -1061,10 +1062,11 @@
       _tmpTop.lerp(_colDlssTop, 0.34 * dlssClear);
       _tmpHor.lerp(_colDlssHor, 0.30 * dlssClear);
     } else if (shaderPreset === 'eclipse') {
-      const ecDay = dayWeight * (1 - rainIntensity * 0.60);
+      const ecDay = dayWeight * (1 - rainIntensity * 0.65);
       const ecNight = (1.0 - dayWeight) * (1 - rainIntensity * 0.50);
-      _tmpTop.lerp(_colEclipseTop, 0.55 * ecDay).lerp(_colEclipseNightTop, 0.55 * ecNight);
-      _tmpHor.lerp(_colEclipseHor, 0.48 * ecDay).lerp(_colEclipseNightHor, 0.45 * ecNight);
+      const ecGold = Math.min(1.0, 0.35 + sunsetWeight * 0.85);
+      _tmpTop.lerp(_colEclipseNoonTop, 0.42 * ecDay).lerp(_colEclipseTop, 0.52 * ecDay * ecGold).lerp(_colEclipseNightTop, 0.55 * ecNight);
+      _tmpHor.lerp(_colEclipseNoonHor, 0.32 * ecDay).lerp(_colEclipseHor, 0.68 * ecDay * ecGold).lerp(_colEclipseNightHor, 0.45 * ecNight);
     }
     if (activeWeatherKind === 'blizzard') {
       _tmpTop.lerp(_colBlizzHor, 0.78 * rainIntensity);
@@ -1197,7 +1199,8 @@
       envUniforms.uSunColor.value.copy(_colDlssSun);
       if (sunsetWeight > 0.18) envUniforms.uSunColor.value.lerp(_colSunsetSun, Math.min(0.85, sunsetWeight * 0.95));
     } else if (shaderPreset === 'eclipse') {
-      envUniforms.uSunColor.value.copy(_colEclipseSun).lerp(_colSunsetSun, Math.min(0.68, sunsetWeight * 0.82));
+      const noonAmt = Math.max(0, Math.min(1, (sunY - 0.38) / 0.48));
+      envUniforms.uSunColor.value.copy(_colEclipseSun).lerp(_colEclipseNoonSun, noonAmt * 0.65).lerp(_colSunsetSun, Math.min(0.72, sunsetWeight * 0.85));
     } else if (sunsetWeight > 0.16) {
       envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.15));
     } else {
@@ -1285,14 +1288,14 @@
           : (1.0 - 0.55 * Math.max(0, (sunY - 0.55) / 0.45));
         const baseStr = isNightShadow ? 0.30 : ((0.24 + sunsetWeight * 0.28) * dayWeight * noonRayDamp);
         const uwAtten = player.eyesInWater ? Math.max(0, 1.0 - diveDepth / 58) * (shaderPreset === 'eclipse' ? 1.28 : 0.82) : 1.0;
-        const chillRayBoost = (!player.eyesInWater && shaderPreset === 'chill_sunset') ? 1.22 : ((!player.eyesInWater && shaderPreset === 'eclipse') ? 1.18 : 1.0);
+        const chillRayBoost = (!player.eyesInWater && shaderPreset === 'chill_sunset') ? 1.22 : ((!player.eyesInWater && shaderPreset === 'eclipse') ? 1.32 : 1.0);
         const rtRayMul = _rtRaysOn ? 1.20 : 1.0;
-        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.28 : 0.24), lookAlign * baseStr * chillRayBoost * rtRayMul * weatherDim * uwAtten);
+        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.34 : 0.24), lookAlign * baseStr * chillRayBoost * rtRayMul * weatherDim * uwAtten);
         envUniforms.uSunScreenPos.value.set(u, v);
         envUniforms.uSunVis.value = shaftAmt;
         envUniforms.uLightScreenPos.value.set(u, v);
         envUniforms.uShaftStrength.value = shaftAmt;
-        envUniforms.uShaftColor.value.setHex(player.eyesInWater ? (shaderPreset === 'eclipse' ? (diveDepth < 6 ? 0x8af8f2 : 0x56f0e4) : 0x7ee8fa) : (isNightShadow ? 0x70b4ff : (shaderPreset === 'chill_sunset' ? 0xffb85c : (sunsetWeight > 0.26 ? 0xffac54 : 0xfff5e0))));
+        envUniforms.uShaftColor.value.setHex(player.eyesInWater ? (shaderPreset === 'eclipse' ? (diveDepth < 6 ? 0x8af8f2 : 0x56f0e4) : 0x7ee8fa) : (isNightShadow ? 0x70b4ff : (shaderPreset === 'chill_sunset' ? 0xffb85c : ((shaderPreset === 'eclipse' && sunsetWeight > 0.14) ? 0xffbe74 : (sunsetWeight > 0.26 ? 0xffac54 : 0xfff0d4)))));
       } else {
         envUniforms.uSunVis.value = 0; envUniforms.uShaftStrength.value = 0;
       }

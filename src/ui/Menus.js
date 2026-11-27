@@ -1241,7 +1241,7 @@
     '🌿 Xanh Tươi Mát': '🌿 Fresh Lush',
     'Đêm Trăng': 'Moonlit Silver',
     '✨ DLSS Siêu Thực': '✨ DLSS Ultra',
-    '🌘 Eclipse Shader': '🌘 Eclipse Shader',
+    '☀️ Shader Thường': '☀️ Standard Shader',
     'Mây 3D': '3D Clouds',
     '☁️ Mây Volumetric': '☁️ Volumetric Clouds',
     '🧊 Mây Khối Luanti': '🧊 Luanti Block Clouds',
@@ -1372,6 +1372,7 @@
     blue_forest:    { label: '💙 Cerulean Forest',  desc: 'Mystic blue-foliage woods dotted with giant red mushrooms, teal grass, and lantern-lit trails.' },
     wheat_valley:   { label: '🌾 Wheat Fields',     desc: 'Endless golden wheat fields glowing in warm chill sunlight beside wooden windmills.' },
     pine_valley:    { label: '🏡 Pine Valley',      desc: 'Deep spruce valley with a cozy blacksmith cottage, warm forge hearth, and terracotta roof.' },
+    redwood:        { label: '🌲 Redwood Cathedral', desc: 'Towering ancient redwood trunks over a sunlit rolling floor with russet dirt patches, tall grass, and wildflowers.' },
     giant_jungle:   { label: '🌴 Giant Jungle',     desc: 'Towering tropical canopy trees stretching over calm rivers with hanging green vines.' },
     ancient_city:   { label: '👁️ Ancient City',     desc: 'Deep mountain cavern city with the ancient stone portal, soul lanterns, wool carpets, and Wardens.' },
     highland:       { label: '⛰️ Highland Plateau', desc: 'Sweeping high plateaus and clay mountain cliffs rising into sunlit clouds.' },
@@ -1635,6 +1636,7 @@ const ORE_BIOME_PREVIEWS = {
   blue_forest:    { label: '💙 Rừng Xanh Lam',    desc: 'Rừng cây lá xanh lam huyền ảo xen lẫn nấm đỏ khổng lồ, thảm cỏ ngọc lam và đèn lồng dọc lối mòn.',                   sky1: '#1a6fd6', sky2: '#9fe8f8', grass: '#25a89d', dirt: '#5c6e8a', water: '#1e88e5', tree: '#1d8cf8', trunk: '#788ba3', accent: '#dc2626', kind: 'trees' },
   wheat_valley:   { label: '🌾 Cánh Đồng Lúa',    desc: 'Cánh đồng lúa mì chín vàng bất tận hòa cùng ánh hoàng hôn ấm chill và những chiếc cối xay gió cổ kính.', sky1: '#1c244f', sky2: '#f59f63', grass: '#d99e26', dirt: '#6b4423', water: '#2563eb', tree: '#eab308', trunk: '#5c3a21', accent: '#fde047', kind: 'trees' },
   pine_valley:    { label: '🏡 Thung Lũng Thông', desc: 'Thung lũng thông xanh thẫm cùng căn nhà thợ rèn cổ kính ống khói cao mái ngói cam và hiên lò ấm.',                   sky1: '#2b7be0', sky2: '#cfe7fa', grass: '#4fa832', dirt: '#7a5230', water: '#2584c6', tree: '#295748', trunk: '#4a3525', accent: '#b85c3e', kind: 'trees' },
+  redwood:        { label: '🌲 Rừng Hồng Tùng',   desc: 'Rừng đại thụ Hồng Tùng cổ thụ thân lớn, thảm cỏ xanh xen mảng đất đỏ nâu, hoa dại và ánh nắng giờ vàng ấm áp.',      sky1: '#4679c4', sky2: '#f0b284', grass: '#539e36', dirt: '#8c3f1c', water: '#2584c6', tree: '#235930', trunk: '#6e3a1f', accent: '#facc15', kind: 'trees' },
   giant_jungle:   { label: '🌴 Rừng Đại Thụ',     desc: 'Rừng nhiệt đới cây đại thụ tán dù cao vút bên dòng sông êm đềm với những màn dây leo xanh rủ dài.',                  sky1: '#1d75d8', sky2: '#b8e8f5', grass: '#3fa334', dirt: '#5c4228', water: '#1e7fb8', tree: '#3a7d34', trunk: '#6d4c2f', accent: '#84cc16', kind: 'trees' },
   ancient_city:   { label: '👁️ Thành Phố Cổ',     desc: 'Thành phố cổ đại sâu dưới lòng núi với đại cổng đá cổ, lửa xanh, thảm len và Warden canh giữ.', sky1: '#040911', sky2: '#0c2736', grass: '#09242e', dirt: '#1f222b', water: '#0891b2', tree: '#22d3ee', trunk: '#2a2e38', accent: '#22d3ee', kind: 'sift' },
   highland:       { label: '⛰️ Cao Nguyên',        desc: 'Vùng cao nguyên rộng lớn với vách núi đất sét, thảm cỏ cao và tầm nhìn bao quát biển mây.',                 sky1: '#2672d6', sky2: '#c5e2fa', grass: '#65a30d', dirt: '#a16244', water: '#2584c6', tree: '#4d7c0f', trunk: '#6d4c2f', accent: '#e7e5e4', kind: 'trees' },
@@ -2549,7 +2551,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   // Minecraft Dungeons Settings Navigation (Q/E tabs, Audio tab, Live Inspector, X Reset section)
   const _GM_TAB_DEFAULTS = {
     play:     { t: 'CÀI ĐẶT CHUNG',       d: 'Điều chỉnh ngôn ngữ, sơ đồ điều khiển PC/Mobile, tọa độ HUD, bộ lọc chat và quyền quản trị.', f: 'Tiếng Việt' },
-    graphics: { t: 'ĐỒ HỌA & SHADER',     d: 'Cấu hình tầm nhìn chunk, chất lượng RTX, Eclipse Shader bản chuẩn Merlin1809 và các tùy chọn Sodium/Culling.', f: 'Eclipse Shader' },
+    graphics: { t: 'ĐỒ HỌA & SHADER',     d: 'Cấu hình tầm nhìn chunk, chất lượng RTX, Shader Thường ánh nắng giờ vàng (giữ nước Eclipse, cỏ tự nhiên) và các tùy chọn Sodium/Culling.', f: 'Shader Thường' },
     audio:    { t: 'ÂM THANH',            d: 'Điều chỉnh âm lượng tổng, nhạc nền khám phá, hiệu ứng đào/đặt khối và âm thanh quái vật.', f: '78%' },
     world:    { t: 'VÙNG ĐẤT & CHIỀU',     d: 'Dịch chuyển nhanh tới các quần xã, công trình và chiều không gian khác nhau (dành cho Admin).', f: 'Thế Giới Chính' },
     mobs:     { t: 'ĐỘNG VẬT & QUÁI VẬT', d: 'Triệu hồi thú voxel dễ thương hoặc Boss Blender 3D vào trước mặt bạn ở chế độ Sáng tạo.', f: 'Sáng tạo' }
@@ -2641,7 +2643,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
           if (k && sodiumOpts[k] === false) b.click();
         });
       }
-      showToast(tr('Đã đặt lại Đồ họa về mặc định (Eclipse + Ultra)', 'Video settings reset to defaults'));
+      showToast(tr('Đã đặt lại Đồ họa về mặc định (Shader Thường + Ultra)', 'Video settings reset to defaults'));
     } else if (act === 'play') {
       document.querySelector('#uiScaleSeg .seg-btn[data-uiscale="auto"]')?.click();
       document.getElementById('btnMobileMode1')?.click();
@@ -3648,6 +3650,7 @@ function _buildBiomeDioramaScene(biomeKey) {
     blue_forest:    { skyTop: '#156cd6', skyMid: '#4eb3f2', skyBot: '#b6f0f8', fog: 0x89d6eb, sun: 0xffe9c4, amb: 0x8ce2f7, gnd: 0x1b4d52, fluid: 0x1e88e5, fluidSpec: 0xd8f3ff, fluidAlpha: 0.78, clouds: true, sunX: 0.68, sunY: 0.20, rayTint: 'rgba(180,240,255,0.24)', mistRgba: 'rgba(165,236,245,0.22)' },
     wheat_valley:   { skyTop: '#1c244f', skyMid: '#7d4d68', skyBot: '#f59f63', fog: 0xd98e62, sun: 0xffc675, amb: 0xf4a872, gnd: 0x4d3418, fluid: null, fluidSpec: 0xffe4a0, fluidAlpha: 0, clouds: true, sunX: 0.42, sunY: 0.30, rayTint: 'rgba(255,196,120,0.34)', mistRgba: 'rgba(245,180,120,0.26)', fireflies: true },
     pine_valley:    { skyTop: '#2672d6', skyMid: '#72b3e8', skyBot: '#d9ecfa', fog: 0xc4ddf2, sun: 0xffe9c4, amb: 0xaad2f5, gnd: 0x384d2a, fluid: 0x2584c6, fluidSpec: 0xfff0c4, fluidAlpha: 0.78, clouds: true, sunX: 0.70, sunY: 0.20, rayTint: 'rgba(255,226,168,0.25)', mistRgba: 'rgba(218,236,250,0.20)' },
+    redwood:        { skyTop: '#4679c4', skyMid: '#d99e82', skyBot: '#f5be8a', fog: 0xe8b58a, sun: 0xffcf82, amb: 0xf4c392, gnd: 0x4a351d, fluid: 0x2584c6, fluidSpec: 0xffdfa8, fluidAlpha: 0.78, clouds: true, sunX: 0.68, sunY: 0.24, rayTint: 'rgba(255,204,128,0.34)', mistRgba: 'rgba(245,190,138,0.26)' },
     giant_jungle:   { skyTop: '#1a6fd6', skyMid: '#68bee8', skyBot: '#d4f0e8', fog: 0xbadfd8, sun: 0xffe9c4, amb: 0x99dec8, gnd: 0x284722, fluid: 0x1c7db8, fluidSpec: 0xffe9c4, fluidAlpha: 0.76, clouds: true, sunX: 0.66, sunY: 0.19, rayTint: 'rgba(255,228,165,0.24)', mistRgba: 'rgba(205,238,228,0.22)' },
     highland:       { skyTop: '#1f70db', skyMid: '#72b8f5', skyBot: '#e3f1ff', fog: 0xcbe3fa, sun: 0xffefc4, amb: 0xb0d8ff, gnd: 0x5c4028, fluid: 0x2584c6, fluidSpec: 0xffffff, fluidAlpha: 0.78, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,240,190,0.26)', mistRgba: 'rgba(220,238,255,0.24)' },
     lush_steppe:    { skyTop: '#217ef0', skyMid: '#7accff', skyBot: '#eef9ff', fog: 0xd4f0ff, sun: 0xfff1c4, amb: 0xb7e4ff, gnd: 0x42662b, fluid: 0x269be6, fluidSpec: 0xffffff, fluidAlpha: 0.76, clouds: true, sunX: 0.70, sunY: 0.18, rayTint: 'rgba(255,244,185,0.28)', mistRgba: 'rgba(232,248,255,0.22)' },

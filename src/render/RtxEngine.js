@@ -51,7 +51,7 @@
   renderer.localClippingEnabled = (shaderQuality !== 'low');
   const _useDirectRender = () => ((shaderQuality === 'low' || !!window._cartoonAddonActive || (shaderQuality === 'high' && (!window.sodiumOpts || window.sodiumOpts.sodium !== false))) && !(window.sodiumOpts && (window.sodiumOpts.rayTracing || (window.sodiumOpts.frameGen | 0) > 1)));
   renderer.toneMapping = _useDirectRender() ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-  renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.97 : 0.95;
+  renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.99 : 0.95;
   renderer.setClearColor(0x9bc4e8, 1);
 
   const scene = new THREE.Scene();
@@ -60,21 +60,21 @@
   const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 1150);
   scene.add(camera);
 
-  const sunLight = new THREE.DirectionalLight(0xffe9c4, 1.04);
+  const sunLight = new THREE.DirectionalLight(0xffd28a, 1.08);
   sunLight.castShadow = (shaderQuality !== 'low');
   const _shadowRes = 1024;
   sunLight.shadow.mapSize.width = _shadowRes;
   sunLight.shadow.mapSize.height = _shadowRes;
   sunLight.shadow.camera.near = 4;
-  sunLight.shadow.camera.far = 110;
-  const shadowRad = 24;
+  sunLight.shadow.camera.far = 136;
+  const shadowRad = 34;
   sunLight.shadow.camera.left = -shadowRad;
   sunLight.shadow.camera.right = shadowRad;
   sunLight.shadow.camera.top = shadowRad;
   sunLight.shadow.camera.bottom = -shadowRad;
-  sunLight.shadow.bias = -0.00025;
-  sunLight.shadow.normalBias = 0.058;
-  sunLight.shadow.radius = 2.4;
+  sunLight.shadow.bias = -0.00028;
+  sunLight.shadow.normalBias = 0.062;
+  sunLight.shadow.radius = 2.8;
   scene.add(sunLight);
   scene.add(sunLight.target);
 
@@ -646,16 +646,9 @@
         diffuseColor *= texelColor;
       #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        // True original terrain block colors (preserve green grass, warm soil, autumn podzol & blue grass natively)
+        // True original terrain block colors (preserve every biome's native grass, warm soil, podzol & sand cleanly)
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
-        float greenDom = max(0.0, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
         float orangeDom = max(0.0, diffuseColor.r - diffuseColor.b) * smoothstep(0.14, 0.58, diffuseColor.g) * step(diffuseColor.g, diffuseColor.r);
-        if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && (greenDom > 0.03 || orangeDom > 0.08)) {
-          float gDistFade = smoothstep(-30.0, 25.0, length(vWPos - cameraPosition));
-          float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.58, length(vWPos.xz - uPlayerPos.xz));
-          float rootTint = orangeDom > 0.08 ? mix(0.76, 1.0, gDistFade) : gDistFade;
-          diffuseColor.rgb *= mix(1.0, rootTint, inGrassRad);
-        }
         float upW = clamp(vWNorm.y, 0.0, 1.0);
         float shoreWet = smoothstep(1.35, 0.72, vWPos.y) * smoothstep(-3.0, 0.0, vWPos.y);
         float wetAmt = clamp(max(shoreWet, uRainWetness * upW * 0.85), 0.0, 1.0) * (1.0 - uCartoonMode);
@@ -675,11 +668,11 @@
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         float upR = clamp(vWNorm.y, 0.0, 1.0);
-        float wetR = clamp(max(smoothstep(1.35, 0.72, vWPos.y), uRainWetness * upR * 0.9), 0.0, 1.0);
+        float wetR = clamp(max(smoothstep(1.35, 0.72, vWPos.y), uRainWetness * upR * 0.75), 0.0, 1.0);
         float surfMaskR = clamp(uSurfaceLight, 0.0, 1.0);
-        float puddleMaskR = smoothstep(-0.15, 0.55, sin(vWPos.x * 0.42 + cos(vWPos.z * 0.37)) * cos(vWPos.z * 0.48 - sin(vWPos.x * 0.31))) * upR * uRainWetness * surfMaskR;
-        roughnessFactor = mix(roughnessFactor, 0.22, clamp(wetR * 0.72 * surfMaskR + puddleMaskR * 0.55, 0.0, 0.86));
-        roughnessFactor = mix(roughnessFactor, max(0.18, roughnessFactor * 0.72), uRayTracing * 0.45);`)
+        float puddleMaskR = smoothstep(0.15, 0.72, sin(vWPos.x * 0.42 + cos(vWPos.z * 0.37)) * cos(vWPos.z * 0.48 - sin(vWPos.x * 0.31))) * upR * uRainWetness * surfMaskR;
+        roughnessFactor = mix(roughnessFactor, 0.62, clamp(wetR * 0.45 * surfMaskR + puddleMaskR * 0.25, 0.0, 0.65));
+        roughnessFactor = mix(roughnessFactor, max(0.32, roughnessFactor * 0.78), uRayTracing * 0.45);`)
       .replace('#include <opaque_fragment>', `
         vec3 sunL = normalize(uSunDir);
         vec3 nrmW = normalize(vWNorm);
@@ -693,15 +686,15 @@
         float albLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
         float whiteDamp = 1.0 - smoothstep(0.58, 0.94, albLum) * 0.30 * sunUpB;
         float shadeCool = pow(1.0 - dirWrap, 1.35) * mix(0.08 + 0.11 * sunUpB, 0.06 + 0.11 * sunUpB, uCartoonMode);
-        vec3 baseShTint = isUltraQ ? vec3(0.80, 0.88, 1.05) : vec3(0.82, 0.89, 1.04);
+        vec3 baseShTint = isUltraQ ? vec3(0.80, 0.87, 1.00) : vec3(0.82, 0.88, 1.00);
         vec3 calmRegShTint = isUltraQ ? vec3(0.78, 0.86, 1.04) : vec3(0.80, 0.88, 1.04);
         vec3 shadowTint = mix(mix(calmRegShTint, baseShTint, uEclipseMode), vec3(0.74, 0.81, 1.05), uChillMode);
         shadowTint = mix(shadowTint, vec3(0.78, 0.86, 1.06), uDlssMode * 0.60);
-        shadowTint = mix(shadowTint, vec3(0.76, 0.85, 1.06), uEclipseMode * 0.75);
-        outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.18 : 1.05) * (1.0 + uDlssMode * 0.10 + uEclipseMode * 0.12));
+        shadowTint = mix(shadowTint, vec3(0.77, 0.84, 0.96), uEclipseMode * 0.68);
+        outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.16 : 1.04) * (1.0 + uDlssMode * 0.10 + uEclipseMode * 0.10));
         float extSun = sunUpB * clamp(uSurfaceLight, 0.0, 1.0);
         float skyHemi = clamp(nrmW.y * 0.5 + 0.5, 0.0, 1.0);
-        vec3 bounceGnd = mix(vec3(0.56, 0.39, 0.24), vec3(0.62, 0.36, 0.18), uChillMode);
+        vec3 bounceGnd = mix(vec3(0.56, 0.39, 0.24), vec3(0.64, 0.40, 0.21), max(uChillMode, uEclipseMode * 0.85));
         float rtFade = 0.0;
         vec4 rtGiOut = vec4(0.0, 0.0, 0.0, 1.0);
         vec3 rtShCol = vec3(1.0);
@@ -820,15 +813,15 @@
         } else {
           float fogDist = max(length(viewVecF.xz), distF * 0.88);
           float fogFactor = smoothstep(uFogStart, uFogEnd, fogDist);
-          float mistLow = exp(-max(vWPos.y - 2.0, 0.0) * 0.12) * smoothstep(uFogStart * 0.55, uFogEnd * 0.92, fogDist) * mix(0.14, 0.20, max(uChillMode, uEclipseMode));
+          float mistLow = exp(-max(vWPos.y - 2.0, 0.0) * 0.11) * smoothstep(uFogStart * 0.42, uFogEnd * 0.90, fogDist) * mix(0.14, 0.26, max(uChillMode, uEclipseMode));
           float horizonLock = smoothstep(0.68, 1.0, fogFactor);
           float scatterAmt = clamp(max(fogFactor, mistLow), 0.0, 1.0);
           vec3 fSun = normalize(uSunDir);
           vec3 activeSunF = fSun.y > -0.05 ? fSun : -fSun;
           vec3 activeColF = fSun.y > -0.05 ? uSunColor : vec3(0.42, 0.62, 0.96);
-          float noonTame = 1.0 - smoothstep(0.45, 0.92, fSun.y) * mix(0.68, 0.42, uEclipseMode);
-          float sunScatter = pow(max(dot(viewDirF, activeSunF), 0.0), mix(7.0, 4.4, max(uChillMode, uEclipseMode))) * (fSun.y > -0.05 ? smoothstep(-0.1, 0.25, fSun.y) * noonTame : 0.35);
-          vec3 midFogCol = mix(uFogColor, min(activeColF * mix(0.94, 1.06, max(uChillMode, uEclipseMode)), vec3(1.0, 0.95, 0.86)), sunScatter * mix(0.14, 0.34, max(uChillMode, uEclipseMode)));
+          float noonTame = 1.0 - smoothstep(0.45, 0.92, fSun.y) * mix(0.68, 0.36, uEclipseMode);
+          float sunScatter = pow(max(dot(viewDirF, activeSunF), 0.0), mix(7.0, 3.6, max(uChillMode, uEclipseMode))) * (fSun.y > -0.05 ? smoothstep(-0.1, 0.25, fSun.y) * noonTame : 0.35);
+          vec3 midFogCol = mix(uFogColor, min(activeColF * mix(0.94, 1.10, max(uChillMode, uEclipseMode)), vec3(1.0, 0.88, 0.72)), sunScatter * mix(0.16, 0.48, max(uChillMode, uEclipseMode)));
           vec3 scatterCol = mix(midFogCol, uFogColor, horizonLock);
           float blLumaT = max(vBlockLight.r, max(vBlockLight.g, vBlockLight.b));
           float lightFogResistT = mix(1.0 - clamp(blLumaT * 0.72, 0.0, 0.76), 1.0, horizonLock);
@@ -1049,8 +1042,8 @@
           vec3 pCol = mix(vec3(pL), diffuseColor.rgb, 1.00);
           pCol = clamp(pCol * 0.94, 0.0, 1.0);
           float tipBand = smoothstep(0.35, 1.0, vPlantTip);
-          float rootShadeN = mix(0.56, 0.84, isGoldCrop * 0.75);
-          vec3 tipTint = mix(vec3(1.0), vec3(1.03, 1.02, 0.94), tipBand * dayPlant * (1.0 - isGoldCrop * 0.5));
+          float rootShadeN = mix(0.72, 0.88, isGoldCrop * 0.75);
+          vec3 tipTint = mix(vec3(1.0), vec3(1.05, 1.02, 0.90), tipBand * dayPlant * (1.0 - isGoldCrop * 0.5));
           diffuseColor.rgb = pCol * tipTint * vSkyShade * mix(rootShadeN, mix(0.94, 1.04, dayPlant), smoothstep(0.0, 0.82, vPlantTip));
         }`)
       .replace('#include <opaque_fragment>', `
@@ -1071,14 +1064,14 @@
             }
           }
         }
-        float chillPlantMul = 1.0 + uChillMode * 0.30 + uDlssMode * 0.16 + uEclipseMode * 0.22 + rtFadeP * 0.36;
-        float pSSS = (pow(max(dot(vDirP, sDirP), 0.0), 3.0) * (uQuality > 1.5 ? 0.22 : 0.16) + 0.02 * (1.0 - uChillMode)) * chillPlantMul * smoothstep(0.15, 1.0, vPlantTip) * sUpP * vSkyShade * mix(1.0, rtShLumP, rtFadeP * 0.92);
-        float tipRimP = pow(1.0 - abs(vDirP.y), 2.4) * smoothstep(0.32, 1.0, vPlantTip) * (0.04 + 0.12 * uChillMode + 0.08 * uDlssMode + 0.10 * uEclipseMode + rtFadeP * 0.10) * sUpP * mix(1.0, rtShLumP, rtFadeP * 0.90);
-        outgoingLight *= mix(0.46, mix(mix(0.88, 1.0, uEclipseMode), 0.84, uChillMode), sUpP);
+        float chillPlantMul = 1.0 + uChillMode * 0.30 + uDlssMode * 0.16 + uEclipseMode * 0.42 + rtFadeP * 0.36;
+        float pSSS = (pow(max(dot(vDirP, sDirP), 0.0), 2.5) * (uQuality > 1.5 ? 0.32 : 0.24) + 0.04 * (1.0 - uChillMode)) * chillPlantMul * smoothstep(0.10, 1.0, vPlantTip) * sUpP * vSkyShade * mix(1.0, rtShLumP, rtFadeP * 0.92);
+        float tipRimP = pow(1.0 - abs(vDirP.y), 2.2) * smoothstep(0.24, 1.0, vPlantTip) * (0.05 + 0.12 * uChillMode + 0.08 * uDlssMode + 0.16 * uEclipseMode + rtFadeP * 0.10) * sUpP * mix(1.0, rtShLumP, rtFadeP * 0.90);
+        outgoingLight *= mix(0.46, mix(mix(0.88, 1.02, uEclipseMode), 0.84, uChillMode), sUpP);
         outgoingLight *= mix(vec3(1.0), clamp(rtShP * 1.15 + vec3(0.32), 0.34, 1.0), rtFadeP * 0.85);
-        vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.76, 0.78, 0.96), max(uChillMode, uEclipseMode * 0.55));
+        vec3 plantShTint = mix(vec3(0.92, 0.96, 1.03), vec3(0.78, 0.83, 0.94), max(uChillMode, uEclipseMode * 0.55));
         outgoingLight = mix(outgoingLight * plantShTint, outgoingLight, vSkyShade);
-        vec3 plantSunBal = mix(uSunColor, vec3(0.95, 0.99, 1.02), mix(0.56, 0.72, uEclipseMode));
+        vec3 plantSunBal = mix(uSunColor, vec3(1.04, 0.97, 0.82), mix(0.38, 0.52, uEclipseMode));
         outgoingLight += diffuseColor.rgb * plantSunBal * (pSSS + tipRimP) + diffuseColor.rgb * uSunColor * (0.08 * rtShLumP * rtFadeP * sUpP) + plantSunBal * (uRainWetness * 0.07 * vPlantTip * sUpP);
         if (uDimension < 0.5 && vWPos.y < 0.86) {
           float wDepthP = max(0.0, 0.86 - vWPos.y);
@@ -1531,18 +1524,18 @@
           gl_FragColor = vec4(cSky, 0.0);
           return;
         }
-        vec3 col = mix(uSkyHorizon, uSkyTop, pow(max(h, 0.0001), mix(0.56, 0.36, uChillMode)));
+        vec3 col = mix(uSkyHorizon, uSkyTop, pow(max(h, 0.0001), mix(0.54, 0.38, max(uChillMode, uEclipseMode * 0.55))));
         vec3 sunN = normalize(uSunDir);
         float sunDot = max(dot(d, sunN), 0.0), sunUp = smoothstep(-0.14, 0.25, sunN.y);
         float horClip = smoothstep(-0.025, 0.045, d.y);
-        float sunsetK = smoothstep(-0.12, 0.16, sunN.y) * (1.0 - smoothstep(0.18, 0.52, sunN.y));
-        // Rayleigh + Mie golden sunset belt & deep twilight violet mid-sky
-        float chillBand = max(uChillMode, sunsetK * 0.72) * exp(-max(h, 0.0) * 7.8) * sunUp;
-        col = mix(col, vec3(0.48, 0.27, 0.44), uChillMode * exp(-pow((h - 0.14) * 5.6, 2.0)) * 0.46 * sunUp);
-        col += mix(vec3(0.95, 0.52, 0.24), vec3(1.0, 0.44, 0.18), sunsetK) * chillBand * (0.14 + 0.34 * pow(sunDot, 2.0));
-        // Clean Solar Disc with faint subtle bloom only (zero heavy haze)
-        float mieBoost = 1.0 + uChillMode * 0.35 + sunsetK * 0.28;
-        col += uSunColor * (pow(sunDot, 5.0) * 0.08 + pow(sunDot, 22.0) * 0.14) * sunUp * mieBoost * horClip;
+        float sunsetK = smoothstep(-0.12, 0.18, sunN.y) * (1.0 - smoothstep(0.22, 0.58, sunN.y));
+        // Rayleigh + Mie warm orange-pink golden-hour horizon haze & soft peach sky gradient
+        float goldenHaze = max(uChillMode, max(sunsetK * 0.82, uEclipseMode * (0.34 + sunsetK * 0.66))) * exp(-max(h, 0.0) * 6.4) * sunUp;
+        col = mix(col, vec3(0.68, 0.45, 0.56), max(uChillMode * 0.46, uEclipseMode * sunsetK * 0.28) * exp(-pow((h - 0.13) * 5.2, 2.0)) * sunUp);
+        col += mix(vec3(0.98, 0.64, 0.40), vec3(1.0, 0.52, 0.26), sunsetK) * goldenHaze * (0.16 + 0.36 * pow(sunDot, 2.0));
+        // Warm Solar Disc with gentle golden-hour Mie halo
+        float mieBoost = 1.0 + uChillMode * 0.35 + sunsetK * 0.36 + uEclipseMode * 0.24;
+        col += uSunColor * (pow(sunDot, 4.5) * 0.11 + pow(sunDot, 20.0) * 0.18) * sunUp * mieBoost * horClip;
         col += uSunColor * (pow(sunDot, 140.0) * 0.42 + pow(sunDot, 520.0) * 0.75) * sunUp * horClip;
         float sunDisc = smoothstep(0.9984, 0.99935, sunDot) * horClip;
         if (sunDisc > 0.005) {
@@ -1613,8 +1606,8 @@
           float horFade = smoothstep(0.015, 0.16, d.y);
           vec3 cAccum = vec3(0.0);
           float cTrans = 1.0;
-          vec3 litDayC = mix(vec3(0.910, 0.933, 0.961), uSunColor * 0.98, 0.16 + sunsetK * 0.30);
-          vec3 shDayC  = mix(vec3(0.682, 0.733, 0.816), mix(vec3(0.42, 0.36, 0.52), uSkyHorizon * 0.84, 0.35), max(uChillMode * 0.65, sunsetK * 0.55));
+          vec3 litDayC = mix(vec3(0.955, 0.945, 0.940), uSunColor * 1.02, 0.24 + sunsetK * 0.40 + uEclipseMode * 0.14);
+          vec3 shDayC  = mix(vec3(0.710, 0.728, 0.820), mix(vec3(0.56, 0.46, 0.58), uSkyHorizon * 0.88, 0.45), max(uChillMode * 0.65, max(sunsetK * 0.62, uEclipseMode * 0.40)));
           vec3 litNightC = vec3(0.20, 0.29, 0.44);
           vec3 shNightC  = vec3(0.06, 0.10, 0.18);
           vec3 baseLitC = mix(litNightC, litDayC, sunUp);
@@ -2436,11 +2429,11 @@
             }
           }
         }
-        // Subtle crisp Bloom, Atmospheric Golden Halo & Volumetric God-Rays
-        float bloomBoost = max(uChillMode, max(uDlssMode * 0.72, uEclipseMode * 0.64));
-        float bloomCalm = mix(0.68, 1.0, uEclipseMode);
-        float bloomMix1 = mix(isUltraC ? 0.032 : 0.024, isUltraC ? 0.046 : 0.034, bloomBoost) * mix(1.0, 1.25, uRayTracing) * bloomCalm;
-        float bloomMix2 = mix(isUltraC ? 0.014 : 0.008, isUltraC ? 0.022 : 0.014, bloomBoost) * mix(1.0, 1.30, uRayTracing) * bloomCalm;
+        // Soft Golden-Hour Bloom, Volumetric God-Rays & Atmospheric Sun Halo
+        float bloomBoost = max(uChillMode, max(uDlssMode * 0.72, uEclipseMode * 0.85));
+        float bloomCalm = mix(0.68, 1.06, uEclipseMode);
+        float bloomMix1 = mix(isUltraC ? 0.032 : 0.024, isUltraC ? 0.056 : 0.042, bloomBoost) * mix(1.0, 1.25, uRayTracing) * bloomCalm;
+        float bloomMix2 = mix(isUltraC ? 0.014 : 0.008, isUltraC ? 0.028 : 0.018, bloomBoost) * mix(1.0, 1.30, uRayTracing) * bloomCalm;
         float hasBloom = step(0.5, max(uQuality, uRayTracing));
         col += (texture2D(tBloom, uv).rgb * bloomMix1 + texture2D(tBloomWide, uv).rgb * bloomMix2) * hasBloom;
         if (uUnderwater > 0.5) {
@@ -2453,12 +2446,12 @@
         if (uHasGodRays > 0.5) {
           float rayGain = (uUnderwater > 0.5
             ? mix(0.65, 0.98, uEclipseMode)
-            : mix(isUltraC ? 0.22 : 0.18, isUltraC ? 0.28 : 0.22, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode * 0.85)))) * mix(1.0, 1.32, uRayTracing);
+            : mix(isUltraC ? 0.22 : 0.18, isUltraC ? 0.36 : 0.28, max(uChillMode, max(uDlssMode * 0.85, uEclipseMode)))) * mix(1.0, 1.32, uRayTracing);
           col += texture2D(tGodRays, uv).rgb * rayGain;
         }
         if (uUnderwater < 0.5 && (uChillMode > 0.5 || uEclipseMode > 0.5) && uSunVis > 0.02) {
-          float sunRad = exp(-length((uv - uLightScreen) * vec2(1.45, 1.0)) * mix(3.1, 2.7, uEclipseMode));
-          col += vec3(1.0, 0.82, 0.56) * sunRad * clamp(uSunVis * 2.0, 0.0, 1.0) * mix(0.035, 0.055, uEclipseMode);
+          float sunRad = exp(-length((uv - uLightScreen) * vec2(1.45, 1.0)) * mix(3.1, 2.3, uEclipseMode));
+          col += vec3(1.0, 0.78, 0.50) * sunRad * clamp(uSunVis * 2.2, 0.0, 1.0) * mix(0.035, 0.085, uEclipseMode);
         }
         if (uRayTracing > 0.5 && uUnderwater < 0.5 && uInLava < 0.5) {
           float rtxLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -2482,10 +2475,10 @@
             col += vec3(0.022, 0.021, 0.024) * (1.0 - smoothstep(0.0, 0.24, shL));
           }
           float ecLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          vec3 ecCoolSh = mix(vec3(0.90, 0.95, 1.05), vec3(1.0), smoothstep(0.06, 0.36, ecLum));
+          vec3 ecCoolSh = mix(vec3(0.92, 0.95, 1.03), vec3(1.0), smoothstep(0.06, 0.34, ecLum));
           col *= mix(ecCoolSh, vec3(1.0), uUnderwater * 0.75);
-          vec3 ecWarmHi = vec3(1.0 + uWarmth * 0.14, 1.0 + uWarmth * 0.02, 1.0 - uWarmth * 0.16);
-          float ecWarmMask = smoothstep(0.26, 0.80, ecLum) * (1.0 - uUnderwater * 0.85);
+          vec3 ecWarmHi = vec3(1.0 + uWarmth * 0.22, 1.0 + uWarmth * 0.05, 1.0 - uWarmth * 0.22);
+          float ecWarmMask = smoothstep(0.20, 0.78, ecLum) * (1.0 - uUnderwater * 0.85) * (1.0 - uMoonBoost * 0.85);
           col = mix(col, col * ecWarmHi, ecWarmMask);
           vec3 ecCurve = col * col * (3.0 - 2.0 * col);
           col = mix(col, ecCurve, uContrast * (1.0 - uUnderwater * 0.45));
@@ -4801,178 +4794,12 @@
     mesh.visible = (cnt > 0);
   }
   function updateEclipseGrass(force = false) {
-    if (window._cartoonAddonActive || shaderPreset !== 'eclipse' ||
-        typeof chunks === 'undefined' || typeof B === 'undefined' || typeof player === 'undefined' ||
-        currentDimension === 'nether' || currentDimension === 'end' || currentDimension === 'warden' || depthOffset > 0 || player.y < -10) {
-      if (eclipseGrassMesh.visible) eclipseGrassMesh.visible = false;
-      if (eclipseGrassFarMesh.visible) eclipseGrassFarMesh.visible = false;
-      return;
-    }
-    if (force) { _egLastX = 1e9; _egLastZ = 1e9; }
-    if (currentDimension !== _egLastDim || _egBiomeCache.size > 4096) _egBiomeCache.clear();
-    if (!force && !window._eclipseGrassDirty && window._chunkBuiltThisFrame) return;
-    const moved = Math.hypot(player.x - _egLastX, player.z - _egLastZ);
-    if (!force && !window._eclipseGrassDirty && moved < 3.0 && currentDimension === _egLastDim) return;
-    _egLastX = player.x; _egLastZ = player.z; _egLastDim = currentDimension;
+    // Standard shader uses normal Minecraft blocky grass + crossed-quad grass (special 3D Merlin grass disabled; Eclipse water preserved)
+    if (eclipseGrassMesh.visible) eclipseGrassMesh.visible = false;
+    if (eclipseGrassFarMesh.visible) eclipseGrassFarMesh.visible = false;
+    _egLastNearCount = 0;
+    _egLastFarCount = 0;
     window._eclipseGrassDirty = false;
-
-    const pTier = typeof _autoPerfTier !== 'undefined' ? _autoPerfTier : 0;
-    const scaleT = pTier >= 2 ? 0.50 : (pTier === 1 ? 0.72 : 1.0);
-    const nearMax = Math.floor(ECLIPSE_GRASS_NEAR_MAX * scaleT);
-    const farMax  = Math.floor(ECLIPSE_GRASS_FAR_MAX * scaleT);
-    const hasBiomeFn = (typeof getBiomeAt === 'function');
-    const hasWorldGet = (typeof getBlockWorld === 'function');
-
-    const rad = envUniforms.uGrassRadius ? envUniforms.uGrassRadius.value : (_isMobilePerf ? 22 : 38);
-    const nearRad = (_isMobilePerf || _isLiteGrass) ? 12.0 : 17.5;
-    const nearRadSq = nearRad * nearRad;
-    const radI = Math.floor(rad), radSq = rad * rad;
-    const px = Math.floor(player.x), pz = Math.floor(player.z);
-    const minLy = Math.max(0, Math.floor(player.y - 12) - MIN_Y);
-    const maxCapLy = WORLD_H - 2;
-    let nearCnt = 0, farCnt = 0, maxEmitD2 = 0;
-    let cacheCx = 999999, cacheCz = 999999, cacheCh = null;
-
-    const isGrassSurface = (bid) => (bid === B.GRASS || bid === B.SIFT_GRASS || bid === B.LULLABY_GRASS || bid === B.SPORE_TURF || bid === B.BLUE_GRASS || bid === B.MOSS_BLOCK || bid === B.AUTUMN_PODZOL);
-    const isShortGrassTop = (tid) => (tid === B.TALL_GRASS || tid === B.SHORT_GRASS || tid === B.BUSH_GRASS || tid === B.WILD_TALL_GRASS || tid === B.AUTUMN_GRASS);
-    const isAutumnBio = (bio) => (typeof BIOMES !== 'undefined' && (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST));
-    const checkSideDir = (data, lx, ly, lz, wx, wy, wz) => {
-      if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) {
-        const upB = data[((ly + 1) << 8) | (lz << 4) | lx];
-        if (IS_SOLID[upB] === 1 || isShortGrassTop(upB)) return 1.0;
-        const lvB = data[(ly << 8) | (lz << 4) | lx];
-        return isGrassSurface(lvB) ? 0.0 : -1.0;
-      }
-      if (!hasWorldGet) return 0.0;
-      const upW = getBlockWorld(wx, wy + 1, wz);
-      if (IS_SOLID[upW] === 1 || isShortGrassTop(upW)) return 1.0;
-      return isGrassSurface(getBlockWorld(wx, wy, wz)) ? 0.0 : -1.0;
-    };
-
-    const emitColumn = (wx, wz, d2) => {
-      const cx = wx >> 4, cz = wz >> 4;
-      if (cx !== cacheCx || cz !== cacheCz) {
-        cacheCx = cx; cacheCz = cz;
-        cacheCh = chunks.get(chunkKey(cx, cz));
-      }
-      const ch = cacheCh;
-      if (!ch || !ch.data || !ch.meshed) return;
-      const data = ch.data;
-      const maxLy = Math.min(maxCapLy, ch.maxLy, Math.floor(player.y + 14) - MIN_Y);
-      if (maxLy < minLy) return;
-      const lx = wx & 15, lz = wz & 15;
-      const colOff = (lz << 4) | lx;
-      for (let ly = maxLy; ly >= minLy && (nearCnt < nearMax || farCnt < farMax); ly--) {
-        const id = data[(ly << 8) | colOff];
-        if (id === B.STONE || id === B.DEEPSLATE || id === B.WATER || id === B.SANDSTONE) break;
-        if (!isGrassSurface(id)) continue;
-        if (id === B.SPORE_TURF) {
-          if (ly <= 0) continue;
-          const belowId = data[((ly - 1) << 8) | colOff];
-          if (IS_SOLID[belowId] !== 1 || belowId === B.SIFT_LOG || belowId === B.SPORE_TURF) continue;
-        }
-        const wy = MIN_Y + ly;
-        if (wy < WATER_LEVEL - 1) continue;
-        const topId = data[((ly + 1) << 8) | colOff];
-        if (topId !== 0 && (topId === B.SEAGRASS || topId === B.WHEAT_CROP || (BLOCK_FLAGS[topId] & BLK_CROSS) === 0)) continue;
-
-        let skyAO = 1.0;
-        if (ly < ch.maxLy) {
-          const topScanMax = Math.min(ch.maxLy, ly + 18);
-          for (let sy = ly + 1; sy <= topScanMax; sy++) {
-            const ab = data[(sy << 8) | colOff];
-            if (ab !== 0 && (BLOCK_FLAGS[ab] & BLK_CROSS) === 0) { skyAO = 0.42; break; }
-          }
-        }
-
-        let bio = null;
-        if ((id === B.GRASS || id === B.AUTUMN_PODZOL) && hasBiomeFn) {
-          const bqx = wx >> 2, bqz = wz >> 2;
-          const bqk = (bqx + 131072) * 262144 + (bqz + 131072);
-          bio = _egBiomeCache.get(bqk);
-          if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
-        }
-        // Keep reddish-brown forest dirt/podzol ground patches cleanly visible in Redwood/Forest/Plains!
-        if (id === B.AUTUMN_PODZOL && !isAutumnBio(bio)) continue;
-        // Clumped natural 3D grass ("cho co, cho khong") boosting FPS & matching cathedral floor refs
-        const egClump = Math.sin(wx * 0.14 + Math.cos(wz * 0.11) * 1.5) * Math.cos(wz * 0.13 - Math.sin(wx * 0.12) * 1.3);
-        if (id === B.GRASS && !isShortGrassTop(topId) && egClump < -0.08) continue;
-        let cr = 0.36, cg = 0.64, cb = 0.24;
-        if (id === B.AUTUMN_PODZOL) {
-          if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.95; cg = 0.58; cb = 0.12; }
-          else { cr = 0.90; cg = 0.44; cb = 0.09; }
-        } else if (id === B.SIFT_GRASS) { cr = 0.24; cg = 0.68; cb = 0.54; }
-        else if (id === B.LULLABY_GRASS) { cr = 0.84; cg = 0.44; cb = 0.64; }
-        else if (id === B.SPORE_TURF) { cr = 0.52; cg = 0.36; cb = 0.88; }
-        else if (id === B.BLUE_GRASS) { cr = 0.18; cg = 0.62; cb = 0.58; }
-        else if (id === B.MOSS_BLOCK) { cr = 0.30; cg = 0.54; cb = 0.18; }
-        else if (typeof BIOMES !== 'undefined' && bio) {
-          if (bio === BIOMES.PLAINS || bio === BIOMES.GREEN_PLAINS || bio === BIOMES.LUSH_STEPPE || bio === BIOMES.FLOWER_MEADOW || bio === BIOMES.HIGHLAND_PLATEAU) {
-            cr = 0.38; cg = 0.68; cb = 0.24;
-          } else if (bio === BIOMES.DARK_FOREST) { cr = 0.24; cg = 0.48; cb = 0.18; }
-          else if (bio === BIOMES.PALE_GARDEN) { cr = 0.46; cg = 0.52; cb = 0.48; }
-          else if (bio === BIOMES.NIGHTMARE_WOODS) { cr = 0.36; cg = 0.20; cb = 0.32; }
-          else if (bio === BIOMES.SNOW || bio === BIOMES.SNOWY_PLAINS || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.MEGA_SNOW_PEAKS || bio === BIOMES.TAIGA) { cr = 0.30; cg = 0.54; cb = 0.34; }
-          else if (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST) {
-            cr = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.95 : 0.90;
-            cg = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.58 : 0.44;
-            cb = (bio === BIOMES.AUTUMN_GOLDEN) ? 0.12 : 0.09;
-          }
-          else if (bio === BIOMES.SAVANNA || bio === BIOMES.MESA || bio === BIOMES.DESERT) { cr = 0.56; cg = 0.58; cb = 0.22; }
-        }
-
-        let sE = 0.0, sW = 0.0, sS = 0.0, sN = 0.0;
-        if (isShortGrassTop(topId)) {
-          sE = 2.0; sW = 2.0; sS = 2.0; sN = 2.0;
-        } else {
-          sE = checkSideDir(data, lx + 1, ly, lz, wx + 1, wy, wz);
-          sW = checkSideDir(data, lx - 1, ly, lz, wx - 1, wy, wz);
-          sS = checkSideDir(data, lx, ly, lz + 1, wx, wy, wz + 1);
-          sN = checkSideDir(data, lx, ly, lz - 1, wx, wy, wz - 1);
-        }
-
-        if (d2 > maxEmitD2) maxEmitD2 = d2;
-        let h = Math.imul(wx * 374761 + wz * 668265 + wy * 214748, 0x85ebca6b) >>> 0;
-        const baseAng = (h & 3) * (Math.PI * 0.5); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
-        const baseSc = 0.85 + ((h & 255) / 255) * 0.26; h >>>= 8;
-        const hueShift = (((h & 63) / 63) - 0.5) * 0.07;
-        const rc = Math.max(0.05, Math.min(1.0, cr + hueShift));
-        const gc = Math.max(0.08, Math.min(1.0, cg + hueShift * 0.6));
-        const bc = Math.max(0.04, Math.min(1.0, cb - hueShift * 0.2));
-
-        if (d2 <= nearRadSq && nearCnt < nearMax) {
-          _writeEgSlot(_egNear, nearCnt++, wx, wy, wz, baseSc, rc, gc, bc, baseAng, sE, sW, sS, sN, skyAO);
-        } else if (farCnt < farMax) {
-          _writeEgSlot(_egFar, farCnt++, wx, wy, wz, baseSc, rc, gc, bc, baseAng, sE, sW, sS, sN, skyAO);
-        }
-      }
-    };
-
-    emitColumn(px, pz, 0);
-    for (let ring = 1; ring <= radI && (nearCnt < nearMax || farCnt < farMax); ring++) {
-      const rz2 = ring * ring;
-      for (let dx = -ring; dx <= ring && (nearCnt < nearMax || farCnt < farMax); dx++) {
-        const d2 = dx * dx + rz2;
-        if (d2 <= radSq) {
-          emitColumn(px + dx, pz - ring, d2);
-          emitColumn(px + dx, pz + ring, d2);
-        }
-      }
-      for (let dz = -ring + 1; dz <= ring - 1 && (nearCnt < nearMax || farCnt < farMax); dz++) {
-        const d2 = rz2 + dz * dz;
-        if (d2 <= radSq) {
-          emitColumn(px - ring, pz + dz, d2);
-          emitColumn(px + ring, pz + dz, d2);
-        }
-      }
-    }
-    _egLastNearCount = nearCnt;
-    _egLastFarCount = farCnt;
-    _commitEgTier(eclipseGrassMesh, _egNear, nearCnt);
-    _commitEgTier(eclipseGrassFarMesh, _egFar, farCnt);
-    if (envUniforms.uGrassSoilRadius) {
-      envUniforms.uGrassSoilRadius.value = (nearCnt + farCnt) > 0 ? Math.max(8.0, Math.sqrt(maxEmitD2)) : 0.0;
-    }
   }
 
 

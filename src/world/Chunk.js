@@ -3579,7 +3579,7 @@
       pGeo.setIndex(_makeIdxAttr(pIndices, pIndices.length, st.pCount));
       _assignChunkBounds(pGeo, wx0, wz0, maxLy);
       ch.plantMesh = new THREE.Mesh(pGeo, plantMat);
-      ch.plantMesh.castShadow = false; ch.plantMesh.receiveShadow = false; ch.plantMesh.frustumCulled = true;
+      ch.plantMesh.castShadow = false; ch.plantMesh.receiveShadow = !_effLow; ch.plantMesh.frustumCulled = true;
       ch.plantMesh.matrixAutoUpdate = false; ch.plantMesh.updateMatrix();
       scene.add(ch.plantMesh);
     }

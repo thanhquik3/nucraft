@@ -1654,7 +1654,7 @@
       return dirtColor(x, y, r);
     });
     tilePixels(11, (x, y, r) => (((x + y) % 7 === 0) ? '#d6f2ff' : shade('#84ccf5', (r - 0.5) * 18)));
-    tilePixels(12, (x, y, r) => barkColor(x, y, r, { c: '#543a1f', a: '#3e2915', b: '#2f1e0e', d: '#211408' }));
+    tilePixels(12, (x, y, r) => barkColor(x, y, r, { c: '#6e3a1f', a: '#562c16', b: '#401f0f', d: '#2d1409' }));
     // Cây Thông (Spruce): dùng mask cụm dày lá thu nhuộm xanh thông đậm mượt mọi mức đồ họa!
     drawFancyLeaf(13, { H: '#3f914e', M: '#286e39', S: '#1a4f28', D: '#11361b' }, AUTUMN_LEAF_MASK);
     tilePixels(14, (x, y, r) => {
@@ -2424,8 +2424,8 @@
       if (Math.hypot(x - 7.5, y - 9.5) < 6.2 && ((x * 3 + y * 5) % 7 !== 0)) return shade(r > 0.5 ? '#ea580c' : '#c2410c', (r - 0.5) * 20);
       return null;
     });
-    tilePixels(218, (x, y, r) => shade(r > 0.68 ? '#ea580c' : (r > 0.30 ? '#c2410c' : '#9a3412'), (r - 0.5) * 18));
-    tilePixels(219, (x, y, r) => y < 4 ? shade(r > 0.5 ? '#ea580c' : '#c2410c', (r - 0.5) * 16) : shade('#7c4e2d', (r - 0.5) * 14));
+    tilePixels(218, (x, y, r) => shade(r > 0.68 ? '#a85024' : (r > 0.30 ? '#8c3f1c' : '#6f3015'), (r - 0.5) * 16));
+    tilePixels(219, (x, y, r) => y < 4 ? shade(r > 0.5 ? '#a85024' : '#8c3f1c', (r - 0.5) * 14) : shade('#7a4d2c', (r - 0.5) * 14));
     // Tiles 220-222: Iron, Gold & Copper Ingots
     const INGOT_SPRITE = [
       '................','................','................','......dddd......',
