@@ -948,7 +948,7 @@
       _tmpTop.setHex(isBasalt ? 0x241d2e : (isSoulV ? 0x0b1c24 : (isWarped ? 0x0e1c28 : 0x26080b)));
       _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : 0x451216)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
-      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.42 * dayWeight * (1 - rainIntensity * 0.5));
+      envUniforms.uFogColor.value.copy(_tmpHor);
       const _shF = (renderDistance <= 2);
       const _nEnd = _shF ? Math.min(20.0, (renderDistance + 0.35) * (isBasalt ? 14.0 : 15.5)) : renderDistance * (isBasalt ? 14.5 : 16.5);
       envUniforms.uFogStart.value = _shF ? Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.52) : (isBasalt ? 11.0 : 14.0);
@@ -977,7 +977,7 @@
     if (currentDimension === 'end') {
       _tmpTop.setHex(0x090414); _tmpHor.setHex(0x1b0e2e);
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
-      envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.42 * dayWeight * (1 - rainIntensity * 0.5));
+      envUniforms.uFogColor.value.copy(_tmpHor);
       const _shF = (renderDistance <= 2);
       const _eEnd = _shF ? (renderDistance + 0.35) * 16.0 : renderDistance * 24.0;
       envUniforms.uFogStart.value = _shF ? Math.min(26.0, _eEnd * 0.52) : 26.0;
@@ -1828,7 +1828,7 @@
       }
       if (typeof updateEclipseGrass === 'function' && (!window._chunkBuiltThisFrame || window._eclipseGrassDirty)) updateEclipseGrass(false);
       _atmoAcc += dt;
-      if (_atmoAcc >= 0.033) { updateAtmosphere(_atmoAcc); _atmoAcc = 0; }
+      if (_atmoAcc >= 0.033) { const _aDt = _atmoAcc; _atmoAcc = 0; updateAtmosphere(_aDt); }
     }
     _previewAcc += rawDt;
     const _runPreviewThisFrame = (_previewAcc >= 0.016);

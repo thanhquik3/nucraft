@@ -8367,6 +8367,7 @@
       showToast(reasonToast || '🩵 CHÀO MỪNG TỚI THẾ GIỚI WARDEN! Săn Quặng Tier 6 & Hạ Boss Sculk 1000HP!');
     } else if (targetDim === 'dragon_realm') {
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) generateChunk(dx, dz);
+      generateChunk(1, 3);
       for (let dz = 7; dz <= 10; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(dx, dz);
       const ly = Math.max(16, getTerrainHeight(0, 0, BIOMES.DR_PLAINS));
       buildDragonRealmPortal(0, ly, -10);
@@ -8376,9 +8377,11 @@
       player.x = 0.5; player.y = ly + 1.3; player.z = 2.5; player.yaw = Math.PI; player.pitch = 0.04;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof spawnMobOfType === 'function') {
-        spawnMobOfType('void_end_dragon', -28, ly + 8, 42);
-        spawnMobOfType('amethyst_end_dragon', 30, ly + 9, 54);
-        spawnMobOfType('sovereign_end_dragon', 0.5, 22.0, 136.5);
+        const safeDrgY = (wx, wz, clr = 16) => (typeof _getSafeDragonSkyY === 'function') ? _getSafeDragonSkyY(wx, wz, clr) : Math.max(ly + clr, getTerrainHeight(Math.floor(wx), Math.floor(wz), getBiomeAt(Math.floor(wx), Math.floor(wz))) + clr);
+        spawnMobOfType('void_end_dragon', -28, safeDrgY(-28, 42, 16), 42);
+        spawnMobOfType('amethyst_end_dragon', 30, safeDrgY(30, 54, 16), 54);
+        const sovY = safeDrgY(0.5, 136.5, 16);
+        spawnMobOfType('sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52 });
       }
       mobSpawnTimer = 2.0;
       playSfx('roar');

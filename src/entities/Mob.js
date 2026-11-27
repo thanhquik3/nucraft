@@ -479,6 +479,21 @@
     }
     return bestY;
   }
+  function _getSafeDragonSkyY(wx, wz, clearance = 14) {
+    const pts = [[wx, wz], [wx + 3, wz], [wx - 3, wz], [wx, wz + 3], [wx, wz - 3]];
+    let maxTop = WATER_LEVEL + 2;
+    for (let pi = 0; pi < 5; pi++) {
+      const ix = Math.floor(pts[pi][0]), iz = Math.floor(pts[pi][1]);
+      const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(ix, iz) : WATER_LEVEL;
+      const tTop = getTerrainHeight(ix, iz, getBiomeAt(ix, iz));
+      if (cTop > maxTop) maxTop = cTop;
+      if (tTop > maxTop) maxTop = tTop;
+    }
+    let y = Math.min(MAX_Y - 6, maxTop + clearance);
+    const fx = Math.floor(wx), fz = Math.floor(wz);
+    while (y < MAX_Y - 6 && (isSolidAt(fx, Math.floor(y), fz) || isSolidAt(fx, Math.floor(y + 1), fz))) y += 2;
+    return Math.min(MAX_Y - 6, y);
+  }
   function _syncDragonOverlayMetrics(m) {
     if (!m) return;
     const sc = Math.max(0.30, m.dragonScale || m.baseScale || 1);
@@ -4384,11 +4399,17 @@
       : (woolSpec ? { woolSpec } : opts);
     const built = sp ? buildAnimalSpeciesMesh(sp) : buildMobMesh(type, wx, wz, mobOpts);
     const hpBar = null; // Lazy-created in updateMobHpBar() only when mob actually takes damage!
+    const _isDrgType = IS_DRAGON_MOB.has(type);
+    if (_isDrgType && st.flying && !(opts && opts.tamed)) {
+      const minAirY = _getSafeDragonSkyY(wx, wz, 8);
+      if (wy < minAirY || isSolidAt(Math.floor(wx), Math.floor(wy), Math.floor(wz)) || isSolidAt(Math.floor(wx), Math.floor(wy + 1), Math.floor(wz))) {
+        wy = _getSafeDragonSkyY(wx, wz, 14);
+      }
+    }
     built.group.position.set(wx, wy, wz);
     scene.add(built.group);
     const _rvName = (type === 'spider_jockey') ? (built.riderVariant === 'stray' ? 'Stray Cưỡi Nhện' : (built.riderVariant === 'bogged' ? 'Bogged Cưỡi Nhện' : (built.riderVariant === 'desert_skeleton' ? 'Skeleton Sa Mạc Cưỡi Nhện' : 'Skeleton Cưỡi Nhện'))) : null;
     const _rvRange = (type === 'spider_jockey' && built.riderVariant === 'stray') ? 'frost' : ((type === 'spider_jockey' && built.riderVariant === 'bogged') ? 'poison_arrow' : null);
-    const _isDrgType = IS_DRAGON_MOB.has(type);
     const _drgScInit = built.group.userData.dragonScale || built.group.scale.x || 1;
     const _drgHbInit = _isDrgType ? _calcDragonHitbox(_drgScInit) : null;
     const m = {
@@ -5283,7 +5304,7 @@
       if (wildEndDrgCnt < 3 && r > 0.76) {
         const pool = ['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon'];
         type = pool[Math.floor(Math.random() * pool.length)];
-        spawnY += 9.0;
+        spawnY = _getSafeDragonSkyY(wx + 0.5, wz + 0.5, 16);
       } else if (r < 0.48) type = 'void_stalker';
       else if (r < 0.76) type = 'shulker';
       else { type = 'end_phantom'; spawnY += 6.0; }
@@ -7115,7 +7136,9 @@
       const dyAbs = Math.abs(mdy);
       const dist3D = Math.sqrt(dist2 + mdy * mdy);
       // Never despawn mobs while player is dead; keep mobs persistent near death/active areas just like Minecraft!
-      const keepDist = (m.isBoss || m.tamed) ? Math.max((renderDistance + 2) * CHUNK_W + 24, 96) : Math.max(renderDistance * CHUNK_W + 16, 56);
+      const keepDist = m.sovereignBoss
+        ? Math.max((renderDistance + 2) * CHUNK_W + 24, 220)
+        : ((m.isBoss || m.tamed) ? Math.max((renderDistance + 2) * CHUNK_W + 24, 96) : Math.max(renderDistance * CHUNK_W + 16, 56));
       let minPeerD = dist;
       if (_mobSimAuth && activeRoomId && typeof remotePlayers !== 'undefined') {
         for (const rp of remotePlayers.values()) {
@@ -7662,21 +7685,37 @@
             m.y = Math.min(MAX_Y - 4, m.y + dt * (inLeaf ? 4.8 : 2.4));
           }
         }
-      } else if (m.flying || (m.tamed && m.elemDragon)) {
+      } else if (m.flying || m._perchState || (m.tamed && m.elemDragon)) {
         // Flying Mobs & EPIC 600-HP ENDER DRAGON / ELEMENTAL DRAGONS!
         const isDragon = IS_DRAGON_MOB.has(m.type), isGhast = (m.type === 'ghast'), isBlaze = (m.type === 'blaze' || m.type === 'soul_wisp' || m.type === 'wildfire');
         const isPassiveFlyer = (!m.hostile && !m.neutral && !m.skyBird);
         const cruiseOffset = isDragon ? (11.5 + (m.dragonScale || 1) * 2.2) : (isGhast ? 7.5 : (isBlaze ? 3.8 : (isPassiveFlyer ? 3.6 : 6.0)));
         if (!m._groundCacheT || m._groundCacheT <= 0) {
-          m._groundCacheT = 0.6;
-          const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(Math.floor(m.x), Math.floor(m.z)) : getTerrainHeight(Math.floor(m.x), Math.floor(m.z), getBiomeAt(Math.floor(m.x), Math.floor(m.z)));
-          m._groundY = Math.max(WATER_LEVEL + 1, cTop);
+          if (isDragon) {
+            m._groundCacheT = 0.25;
+            m._groundY = Math.max(_getSafeDragonSkyY(m.x, m.z, 0), _getSafeDragonSkyY(m.x + Math.sin(m.yaw) * 8, m.z + Math.cos(m.yaw) * 8, 0));
+          } else {
+            m._groundCacheT = 0.6;
+            const cTop = (typeof getCanopyTopY === 'function') ? getCanopyTopY(Math.floor(m.x), Math.floor(m.z)) : getTerrainHeight(Math.floor(m.x), Math.floor(m.z), getBiomeAt(Math.floor(m.x), Math.floor(m.z)));
+            m._groundY = Math.max(WATER_LEVEL + 1, cTop);
+          }
         } else m._groundCacheT -= dt;
         const targetH = Math.min(MAX_Y - 5, Math.max(m._groundY + cruiseOffset, player.y + cruiseOffset));
         if (m.atkCd > 0) m.atkCd -= dt;
         if (m._sk2Cd > 0) m._sk2Cd = Math.max(0, m._sk2Cd - dt);
         if (m._sk3Cd > 0) m._sk3Cd = Math.max(0, m._sk3Cd - dt);
         if (m._sk4Cd > 0) m._sk4Cd = Math.max(0, m._sk4Cd - dt);
+        const _drgSolidAt = (qx, qy, qz) => isSolidAt(Math.floor(qx), Math.floor(qy), Math.floor(qz)) || isSolidAt(Math.floor(qx), Math.floor(qy + 1.0), Math.floor(qz));
+        const _applyDrgY = (ny) => {
+          if (ny > m.y && _drgSolidAt(m.x, m.y, m.z)) {
+            m.y = Math.min(MAX_Y - 5, ny);
+          } else if (!_drgSolidAt(m.x, ny, m.z)) {
+            m.y = ny;
+          } else if (isDragon && ny > m.y) {
+            m._flyAvoidT = Math.max(m._flyAvoidT || 0, 1.1);
+            if (m._flyAvoidYaw === undefined) m._flyAvoidYaw = m.yaw + Math.PI * 0.75;
+          }
+        };
 
         // End Crystal Healing Beam & Orbiting Purple Void Aura for Ender Dragon!
         if (m.type === 'ender_dragon') {
@@ -7724,6 +7763,7 @@
               if (m._perchCd <= 0) { m._perchState = 'approach'; m._perchT = 7.5; }
             }
             if (m._perchState === 'approach') {
+              m._perchT = (m._perchT || 7.5) - dt;
               const fy = Math.max(9.5, getTerrainHeight(0, 0, BIOMES.THE_END) + 3.2);
               const pxT = 0.5, pyT = fy, pzT = 0.5;
               const pdx = pxT - m.x, pdy = pyT - m.y, pdz = pzT - m.z;
@@ -7734,6 +7774,7 @@
               m.z += (pdz / pDist) * Math.min(pDist, 14.0 * dt);
               m.rx = m.x; m.ry = m.y; m.rz = m.z;
               if (pDist < 2.2) { m._perchState = 'perched'; m._perchT = 7.5; m.flying = false; m._roarT = 1.5; playSfx('roar'); m.lastSkillLabel = '⛩️ RỒNG ENDER ĐẬU ĐÀI LỆNH!'; }
+              else if (m._perchT <= 0) { m._perchState = null; m._perchCd = 18; m.flying = true; }
             } else if (m._perchState === 'perched') {
               m.flying = false; m.vx = 0; m.vz = 0; m._flyPitch = 0;
               m.yaw = _turnAngleTowards(m.yaw, Math.atan2(player.x - m.x, player.z - m.z), 3.6, dt);
@@ -7922,6 +7963,14 @@
         if (m._perchState) {
           speed = 0; m.vx = 0; m.vz = 0;
         } else {
+        if (isDragon && !m.tamed && !(m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground'))) {
+          m.vy *= 0.85;
+          if (_drgSolidAt(m.x, m.y, m.z)) {
+            m.swoopT = 0;
+            m.y = Math.min(MAX_Y - 5, m.y + Math.max(12.0 * dt, 0.45));
+            m.flyVy = Math.max(m.flyVy || 0, 7.5);
+          }
+        }
         if (m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground')) {
           m.swoopT = 0;
           const landTargetX = hasTarget ? aimX : (typeof m.homeX === 'number' ? m.homeX : aimX);
@@ -7963,8 +8012,19 @@
             m.flyVy = (m.flyVy || 0) + (desVyS - (m.flyVy || 0)) * fkS;
             m.flyVz = (m.flyVz || 0) + (desVzS - (m.flyVz || 0)) * fkS;
             const nyS = m.y + m.flyVy * dt;
-            if (!isSolidAt(Math.floor(m.x), Math.floor(nyS), Math.floor(m.z))) m.y = nyS;
-            else m.swoopT = 0;
+            if (isDragon) {
+              const minSwoopY = Math.max((m._groundY || 2) + 3.2, aimY + 1.8);
+              if (nyS <= minSwoopY || _drgSolidAt(m.x, nyS, m.z)) {
+                m.y = Math.max(m.y, minSwoopY);
+                m.swoopT = 0;
+                m.flyVy = Math.max(6.5, (m.flyVy || 0) + 8.0);
+              } else {
+                m.y = nyS;
+              }
+            } else {
+              if (!isSolidAt(Math.floor(m.x), Math.floor(nyS), Math.floor(m.z))) m.y = nyS;
+              else m.swoopT = 0;
+            }
             m._flyPitch = Math.max(-0.42, Math.min(0.42, -m.flyVy * 0.05));
             if (m.type === 'ender_dragon' && (frameCounter % 2) === 0) {
               spawnParticles(m.x, m.y + 1.5, m.z, 0xd946ef, 3, true);
@@ -8006,7 +8066,7 @@
               m.flyVy = (m.flyVy || 0) + (desVyO - (m.flyVy || 0)) * fkO;
               m.flyVz = (m.flyVz || 0) + (desVzO - (m.flyVz || 0)) * fkO;
               const nyO = m.y + m.flyVy * dt;
-              if (!isSolidAt(Math.floor(m.x), Math.floor(nyO), Math.floor(m.z))) m.y = nyO;
+              _applyDrgY(nyO);
               m._flyPitch = Math.max(-0.34, Math.min(0.34, -m.flyVy * 0.045));
             } else {
               const nextY = m.y + (targetH - m.y) * dt * 1.5;
@@ -8108,7 +8168,7 @@
             m.flyVy = (m.flyVy || 0) + (desVyW - (m.flyVy || 0)) * fkW;
             m.flyVz = (m.flyVz || 0) + (desVzW - (m.flyVz || 0)) * fkW;
             const nyW = m.y + m.flyVy * dt;
-            if (!isSolidAt(Math.floor(m.x), Math.floor(nyW), Math.floor(m.z))) m.y = nyW;
+            _applyDrgY(nyW);
             m._flyPitch = Math.max(-0.28, Math.min(0.28, -m.flyVy * 0.04));
           } else if (isDragon) {
             m.yaw = _turnAngleTowards(m.yaw, m._wanderYaw ?? m.yaw, 2.8, dt);
@@ -8118,7 +8178,7 @@
             m.flyVy = (m.flyVy || 0) + (desVyW - (m.flyVy || 0)) * fkW;
             m.flyVz = (m.flyVz || 0) + (desVzW - (m.flyVz || 0)) * fkW;
             const nyW = m.y + m.flyVy * dt;
-            if (!isSolidAt(Math.floor(m.x), Math.floor(nyW), Math.floor(m.z))) m.y = nyW;
+            _applyDrgY(nyW);
             m._flyPitch = Math.max(-0.28, Math.min(0.28, -m.flyVy * 0.04));
           } else {
             m.yaw = m._wanderYaw ?? m.yaw;
@@ -8127,6 +8187,15 @@
           }
         }
         if (!(m.elemDragon && (m.dragonMode === 'land' || m.dragonMode === 'ground'))) {
+          if (isDragon && (m._flyAvoidT || 0) > 0) {
+            m._flyAvoidT = Math.max(0, m._flyAvoidT - dt);
+            const avYaw = (m._flyAvoidYaw !== undefined) ? m._flyAvoidYaw : (m.yaw + Math.PI * 0.75);
+            m.yaw = _turnAngleTowards(m.yaw, avYaw, 6.0, dt);
+            const avK = 1 - Math.exp(-6.0 * dt);
+            m.flyVx = (m.flyVx || 0) + (Math.sin(avYaw) * speed - (m.flyVx || 0)) * avK;
+            m.flyVz = (m.flyVz || 0) + (Math.cos(avYaw) * speed - (m.flyVz || 0)) * avK;
+            m.flyVy = Math.max(m.flyVy || 0, 4.5);
+          }
           const mvX = (isDragon && m.flyVx !== undefined) ? m.flyVx : Math.sin(m.yaw) * speed;
           const mvZ = (isDragon && m.flyVz !== undefined) ? m.flyVz : Math.cos(m.yaw) * speed;
           const fnx = m.x + (mvX + m.vx) * dt, fnz = m.z + (mvZ + m.vz) * dt;
@@ -8135,12 +8204,50 @@
             m.yaw = _turnAngleTowards(m.yaw, toHYaw, 6.5, dt);
             m.flyVx = Math.sin(toHYaw) * speed * 0.9; m.flyVz = Math.cos(toHYaw) * speed * 0.9;
             m.x += m.flyVx * dt; m.z += m.flyVz * dt;
+          } else if (isDragon) {
+            if (!_drgSolidAt(fnx, m.y, fnz)) {
+              m.x = fnx; m.z = fnz;
+            } else {
+              let hitObs = false;
+              if (!_drgSolidAt(fnx, m.y, m.z)) m.x = fnx; else hitObs = true;
+              if (!_drgSolidAt(m.x, m.y, fnz)) m.z = fnz; else hitObs = true;
+              if (hitObs) {
+                const probes = [0.8, -0.8, 1.6, -1.6, Math.PI];
+                let escYaw = m.yaw + Math.PI * 0.75;
+                for (let pi = 0; pi < probes.length; pi++) {
+                  const cy = m.yaw + probes[pi];
+                  if (!_drgSolidAt(m.x + Math.sin(cy) * 3.5, m.y + 1.5, m.z + Math.cos(cy) * 3.5)) { escYaw = cy; break; }
+                }
+                m.yaw = escYaw; m._wanderYaw = escYaw; m._flyAvoidYaw = escYaw; m._flyAvoidT = 1.4;
+                m.flyVx = Math.sin(escYaw) * speed; m.flyVz = Math.cos(escYaw) * speed;
+                m.flyVy = Math.max(m.flyVy || 0, 6.5);
+                if (!_drgSolidAt(m.x, m.y + 1.5, m.z)) m.y = Math.min(MAX_Y - 5, m.y + 4.5 * dt);
+              }
+            }
           } else if (!isSolidAt(Math.floor(fnx), Math.floor(m.y + 0.5), Math.floor(fnz))) { m.x = fnx; m.z = fnz; }
           else {
             m.yaw += Math.PI * 0.6;
-            if (isDragon) { m.flyVx = Math.sin(m.yaw) * speed; m.flyVz = Math.cos(m.yaw) * speed; }
           }
           m.vx *= 0.9; m.vz *= 0.9;
+          if (isDragon && !m.tamed && !m._perchState) {
+            m._flyStuckCheckT = (m._flyStuckCheckT || 0) + dt;
+            if (m._flyStuckCheckT >= 1.0) {
+              const movedF = Math.hypot(m.x - (m._flyLastX ?? m.x), m.y - (m._flyLastY ?? m.y), m.z - (m._flyLastZ ?? m.z));
+              m._flyStuckT = movedF < 1.2 ? ((m._flyStuckT || 0) + m._flyStuckCheckT) : 0;
+              m._flyLastX = m.x; m._flyLastY = m.y; m._flyLastZ = m.z;
+              m._flyStuckCheckT = 0;
+              if (m._flyStuckT >= 1.5) {
+                m._flyStuckT = 0; m.swoopT = 0;
+                const safeSky = _getSafeDragonSkyY(m.x, m.z, 14);
+                m.y = Math.min(MAX_Y - 6, Math.max(m.y + 4.0, safeSky));
+                const escYaw = m.yaw + Math.PI * 0.75;
+                m.yaw = m._wanderYaw = m._flyAvoidYaw = escYaw;
+                m._flyAvoidT = 1.6;
+                m.flyVx = Math.sin(escYaw) * speed; m.flyVz = Math.cos(escYaw) * speed;
+                m.flyVy = 5.0;
+              }
+            }
+          }
         }
         }
         } // end wild/hostile flyer branch
@@ -8346,7 +8453,7 @@
       }
 
       visualTargetYaw = m.yaw;
-      if (!m.flying && !m.aqua && !m.skyBird && !(m.tamed && m.elemDragon)) {
+      if (!m.flying && !m._perchState && !m.aqua && !m.skyBird && !(m.tamed && m.elemDragon)) {
         if (m.onGround === undefined) m.onGround = mobFootprintSolidAtY(m.x, Math.floor(m.y - 0.08), m.z, m.hitboxR);
         if (m.avoidSide === undefined) m.avoidSide = (i & 1) ? 1 : -1;
         if (m.steerYaw === undefined) m.steerYaw = m.yaw;
@@ -8788,13 +8895,14 @@
 
         if (isSkinnedDragon) {
           const actions = m.anim.actions;
-          const spdDrg = isRidingThis ? (player.curSpeed || 0) : Math.hypot(m.vx || 0, m.vz || 0);
+          const spdDrg = isRidingThis ? (player.curSpeed || 0) : Math.hypot(m.flyVx || m.vx || 0, m.flyVz || m.vz || 0);
+          const drgVy = (m.flyVy !== undefined ? m.flyVy : (m.vy || 0));
           const swooping = isRidingThis
             ? !!(m.flying && (m._drgDiving || (m._diveBoost || 0) > 0.14))
-            : (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
+            : (m.flying && (m.swoopT > 0 || drgVy < -4.2));
           const gliding = isRidingThis
             ? swooping
-            : (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
+            : (m.flying && !swooping && spdDrg > 3.6 && drgVy > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
           m._drgSwooping = swooping;
           m._drgGliding = gliding;
           let desiredClip = 'Idle';
@@ -9059,9 +9167,10 @@
           if (!wg || !wg.p || !wg.p.rotation) continue;
           if (wg.isDragonWing) {
             const perched = (!m.flying || m.sitting);
-            const spdDrg = Math.hypot(m.vx || 0, m.vz || 0);
-            const swooping = (m.flying && (m.swoopT > 0 || (m.vy || 0) < -2.2));
-            const gliding = (m.flying && !swooping && spdDrg > 3.6 && (m.vy || 0) > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
+            const spdDrg = isRidingThis ? (player.curSpeed || 0) : Math.hypot(m.flyVx || m.vx || 0, m.flyVz || m.vz || 0);
+            const drgVy = (m.flyVy !== undefined ? m.flyVy : (m.vy || 0));
+            const swooping = (m.flying && (m.swoopT > 0 || drgVy < -4.2));
+            const gliding = (m.flying && !swooping && spdDrg > 3.6 && drgVy > -1.0 && atkPhase < 0.05 && Math.sin(elapsed * 0.45 + i * 1.7) > 0.25);
             if (wi === 0) {
               const drgFreq = perched ? 1.9 : (gliding ? 1.8 : (swooping ? 2.6 : 4.8));
               m._drgWingPhase = (m._drgWingPhase || (i * 1.37)) + dt * drgFreq;
