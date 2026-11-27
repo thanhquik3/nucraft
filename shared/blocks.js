@@ -595,6 +595,18 @@
   B.BARREL_W    = _dynBlockId++;
   B.GLASS_PANE  = _dynBlockId++;
 
+  // v186: Dedicated Dragon Realm block palette (100% disjoint from Dream Biome / The Sift palette)
+  B.DRAGON_RED_STONE      = _dynBlockId++;
+  B.DRAGON_RED_TERRACOTTA = _dynBlockId++;
+  B.DRAGON_SAND_STONE     = _dynBlockId++;
+  B.DRAGON_CAP_GRASS      = _dynBlockId++;
+  B.DRAGON_MINT_CRYSTAL   = _dynBlockId++;
+  B.DRAGON_FERN           = _dynBlockId++;
+  B.DRAGON_MUSHROOM       = _dynBlockId++;
+  // v186: Dream Biome cyan vines & cyan crystal clusters (matching Ref 1, 2, 7)
+  B.SIFT_VINE             = _dynBlockId++;
+  B.SIFT_CYAN_CRYSTAL     = _dynBlockId++;
+
   const V156_TILES = {
     sulfurBlock:       _nextTile++,
     sulfurOre:         _nextTile++,
@@ -625,10 +637,23 @@
   };
   _nextTile += 16; // 16 seamless connected-glass CTM edge masks (bit0=Top, bit1=Right, bit2=Bottom, bit3=Left open)
 
+  const V186_TILES = {
+    dragonRedStone:      _nextTile++,
+    dragonRedTerracotta: _nextTile++,
+    dragonSandStone:     _nextTile++,
+    dragonCapGrassTop:   _nextTile++,
+    dragonCapGrassSide:  _nextTile++,
+    dragonMintCrystal:   _nextTile++,
+    dragonFern:          _nextTile++,
+    dragonMushroom:      _nextTile++,
+    siftVine:            _nextTile++,
+    siftCyanCrystal:     _nextTile++
+  };
+
   const exported = {
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES, WOOD_NEXT_TILE: _nextTile
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES, V186_TILES, WOOD_NEXT_TILE: _nextTile
   };
 
   if (typeof module !== 'undefined' && module.exports) {

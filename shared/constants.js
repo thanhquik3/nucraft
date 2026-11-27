@@ -12,7 +12,7 @@
   const SPRINT_SPEED = 7.4;
   const SNEAK_SPEED = 2.1;
 
-  const BUILD_TAG = 'BUILD v185';
+  const BUILD_TAG = 'BUILD v186';
   const PLAYER_RADIUS = 0.30;
   const PLAYER_HEIGHT = 1.72;
   const EYE_HEIGHT = 1.54;

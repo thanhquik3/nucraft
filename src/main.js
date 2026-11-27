@@ -697,6 +697,18 @@
       const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.28 : 0.19;
       if (_sulfurSteamAcc >= _steamStep) {
         _sulfurSteamAcc = 0;
+        // Lightweight ambient Dream Water surface sparkle particles when in The Sift (Refs 9 & 12)
+        if (currentDimension === 'sift') {
+          const dwCfg = (window.NUCRAFT_REALM_CONFIG && window.NUCRAFT_REALM_CONFIG.dreamWater) || { sparkleRadius: 14 };
+          const sRad = Math.max(6, Number(dwCfg.sparkleRadius) || 14);
+          for (let spI = 0; spI < 2; spI++) {
+            const sx = Math.floor(player.x + (Math.random() - 0.5) * sRad * 2);
+            const sz = Math.floor(player.z + (Math.random() - 0.5) * sRad * 2);
+            if (getBlockWorld(sx, WATER_LEVEL, sz) === B.WATER && getBlockWorld(sx, WATER_LEVEL + 1, sz) === B.AIR) {
+              spawnPixelFx('magic_dream', sx + Math.random(), WATER_LEVEL + 0.96, sz + Math.random(), { count: 1, scale: 0.52, life: 0.65, riseV: 0.42, randV: 0.14, spread: 0.22 });
+            }
+          }
+        }
         _smokePlumeTick = (_smokePlumeTick + 1) % 3;
         const emitSmokeNow = (_smokePlumeTick === 0);
         const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
@@ -922,69 +934,70 @@
       return;
     }
 
-    // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE =====================
+    // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE (DENSE HAZY PINK FOG — REFS 9, 10, 11) =====================
     if (currentDimension === 'dragon_realm') {
-      _tmpTop.setHex(_isNcr2 ? 0x130b2e : 0x09041c);
-      _tmpHor.setHex(_isNcr2 ? 0x452072 : 0x341159);
-      _tmpFog.setHex(_isNcr2 ? 0x29154c : 0x1f0c3a);
+      _tmpTop.setHex(_isNcr2 ? 0xdec0c4 : 0xd6b4b9);
+      _tmpHor.setHex(_isNcr2 ? 0xf2d9d6 : 0xebd1ce);
+      _tmpFog.setHex(_isNcr2 ? 0xebd0ce : 0xe4c6c5);
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
       const _drEnd = loadedEdge;
-      const _drStart = Math.min(28.0, _drEnd * 0.52);
+      const _drStart = Math.min(24.0, _drEnd * 0.34);
       scene.fog.near = _drStart; scene.fog.far = _drEnd;
       envUniforms.uFogStart.value = _drStart; envUniforms.uFogEnd.value = _drEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(_isNcr2 ? 0xf0e0ff : 0xe9d5ff);
-      sunLight.intensity = _isNcr2 ? 1.06 : 1.02;
-      hemiLight.color.setHex(_isNcr2 ? 0xb87cfa : 0xa855f7);
-      hemiLight.groundColor.setHex(_isNcr2 ? 0x22103b : 0x1a0b2e);
-      hemiLight.intensity = _isNcr2 ? 0.68 : 0.56;
-      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xf0e0ff : 0xe9d5ff);
+      sunLight.color.setHex(_isNcr2 ? 0xffebe0 : 0xffe4d6);
+      sunLight.intensity = _isNcr2 ? 1.06 : 1.00;
+      hemiLight.color.setHex(_isNcr2 ? 0xf6d4d4 : 0xf0c7c8);
+      hemiLight.groundColor.setHex(_isNcr2 ? 0x99524c : 0x8a4540);
+      hemiLight.intensity = _isNcr2 ? 0.72 : 0.66;
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffebe0 : 0xffe4d6);
       envUniforms.uSunDir.value.set(0.36, 0.84, 0.40).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
       sunLight.target.updateMatrixWorld();
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.85;
-      envUniforms.uMoonBoost.value = 0.25; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.92;
+      envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
       cloudMesh.visible = false;
-      updateShootingStars(dt, 1, false);
-      updateAirMotesBatch(dt, shaderQuality !== 'low', 'end');
+      updateShootingStars(dt, 0, false);
+      updateAirMotesBatch(dt, shaderQuality !== 'low', 'dragon');
       applyLavaAtmo();
       return;
     }
 
-    // ===================== DIMENSION 4: THE SIFT (MOODY TWILIGHT AURORA ATMOSPHERE — MATCHING REF) =====================
+    // ===================== DIMENSION 4: THE SIFT (PASTEL AURORA SKY & DREAM WATER — REFS 1-8, 12) =====================
     if (currentDimension === 'sift') {
-      _tmpTop.setHex(_isNcr2 ? 0x247c94 : 0x1c6878);
-      _tmpHor.setHex(_isNcr2 ? 0xb684a8 : 0x9c5d7c);
-      _tmpFog.setHex(_isNcr2 ? 0x626685 : 0x52526d);
+      const inDreamUw = !!(player && player.eyesInWater);
+      _tmpTop.setHex(inDreamUw ? 0x4db6d6 : (_isNcr2 ? 0x3098b2 : 0x26829c));
+      _tmpHor.setHex(inDreamUw ? 0xc48cd6 : (_isNcr2 ? 0xe0a6cc : 0xd092bc));
+      _tmpFog.setHex(inDreamUw ? 0x86c8de : (_isNcr2 ? 0x968cb2 : 0x847a9e));
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      const _sfEnd = loadedEdge;
-      const _sfStart = Math.min(36.0, _sfEnd * 0.50);
+      const _sfEnd = inDreamUw ? Math.min(loadedEdge, 34.0) : loadedEdge;
+      const _sfStart = inDreamUw ? 6.0 : Math.min(34.0, _sfEnd * 0.46);
       scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
       envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(_isNcr2 ? 0xffe0cc : 0xffccb8);
-      sunLight.intensity = _isNcr2 ? 0.98 : 0.94;
-      hemiLight.color.setHex(_isNcr2 ? 0x7ae2ea : 0x64ced8);
-      hemiLight.groundColor.setHex(_isNcr2 ? 0x45314d : 0x3b2540);
-      hemiLight.intensity = _isNcr2 ? 0.56 : 0.42;
-      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffe0cc : 0xffccb8);
+      sunLight.color.setHex(_isNcr2 ? 0xffe8de : 0xffd8cc);
+      sunLight.intensity = _isNcr2 ? 1.02 : 0.98;
+      hemiLight.color.setHex(_isNcr2 ? 0x8ef2f6 : 0x76e2ea);
+      hemiLight.groundColor.setHex(_isNcr2 ? 0x5c3e5e : 0x4c3050);
+      hemiLight.intensity = _isNcr2 ? 0.64 : 0.56;
+      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffe8de : 0xffd8cc);
       envUniforms.uSunDir.value.set(0.35, 0.82, 0.42).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
       sunLight.target.updateMatrixWorld();
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.88;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.92;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
-      envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
+      envUniforms.uUnderwater.value = inDreamUw ? 1.0 : 0.0;
       cloudMesh.visible = false;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', 'sift');

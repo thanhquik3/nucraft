@@ -202,10 +202,88 @@
     }
   }
 
+  // Configurable worldgen, Dream water healing & strictly separated realm palettes (Dream Biome vs Dragon Realm)
+  const REALM_GEN_CONFIG = {
+    dreamWater: {
+      healAmount: 1,            // HP restored per heal tick (player maxHp = 20)
+      healIntervalSec: 1.75,    // Seconds between heal ticks while standing/submerged in Dream water (default 1.5-2.0s)
+      sparkleIntervalSec: 0.26, // Lightweight throttle interval for ambient water-surface sparkles
+      sparkleRadius: 14         // Radius around player for ambient water-surface sparkles
+    },
+    sharedTerrain: {
+      warpScale: 0.0046,
+      warpAmp: 22.0,
+      continentalScale: 0.0085,
+      continentalOctaves: 4,
+      erosionScale: 0.012,
+      erosionOctaves: 3,
+      detailScale: 0.048,
+      mesaStepHeight: 3,
+      overhangScale: 0.056,
+      overhangThreshold: 0.62,
+      overhangCarveDepth: 3,
+      archCellSize: 46,
+      archChance: 0.22
+    },
+    dreamRealm: {
+      waterLevel: 0,
+      baseMinY: -5,
+      baseMaxY: 32,
+      pondThreshold: 0.34,
+      spireCellSize: 22,
+      spireChance: 0.38,
+      spireMinH: 13,
+      spireMaxH: 27,
+      spireBaseRMin: 2.6,
+      spireBaseRMax: 4.5,
+      spireCapFlare: 1.45,
+      treeChance: 0.036,
+      treeMinH: 8,
+      treeMaxH: 22
+    },
+    dragonRealm: {
+      baseMinY: 12,
+      baseMaxY: 46,
+      spireCellSize: 18,
+      spireChance: 0.46,
+      spireMinH: 16,
+      spireMaxH: 36,
+      spireBaseRMin: 2.5,
+      spireBaseRMax: 4.4,
+      spireCapFlare: 1.55,
+      sandAccentThreshold: 0.63,
+      mintCrystalChance: 0.024,
+      mintCrystalMinH: 3,
+      mintCrystalMaxH: 7
+    },
+    palettes: {
+      dream: {
+        surfaceGrass: ['SIFT_GRASS', 'LULLABY_GRASS', 'SPORE_TURF'],
+        terracotta: ['TERRACOTTA', 'TERRACOTTA_RED', 'TERRACOTTA_ORANGE', 'TERRACOTTA_WHITE', 'HUSK_SOIL'],
+        deepStone: 'SIFT_STONE',
+        crystal: 'SIFT_CYAN_CRYSTAL',
+        trees: ['SIFT_LOG', 'SIFT_LEAVES', 'LULLABY_LEAVES'],
+        flora: ['SIFT_VINE', 'CORAL_BLUE', 'TEAL_FERN', 'SIFT_FLOWER', 'SIFT_BERRY_BUSH', 'SPORE_SHROOM', 'MUSHROOM_GLOW'],
+        fluid: 'WATER'
+      },
+      dragon: {
+        surfaceCap: 'DRAGON_CAP_GRASS',
+        redStone: ['DRAGON_RED_STONE', 'DRAGON_RED_TERRACOTTA'],
+        sandAccent: 'DRAGON_SAND_STONE',
+        crystal: 'DRAGON_MINT_CRYSTAL',
+        flora: ['DRAGON_FERN', 'DRAGON_MUSHROOM'],
+        ore: 'DRAGON_CRYSTAL_ORE',
+        peakAccent: 'OBSIDIAN'
+      }
+    }
+  };
+
+  root.NUCRAFT_REALM_CONFIG = REALM_GEN_CONFIG;
   root.NUCRAFT_CONFIG = {
     GFX_PREFS_KEY,
     CRASH_GUARD_KEY,
     GFX_PRESETS,
+    REALM_GEN_CONFIG,
     detectGpuTier,
     detectHardwareProfile,
     normalizeQuality,

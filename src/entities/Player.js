@@ -4568,7 +4568,7 @@
         player.hp = 10;
         player.invuln = 3.2;
         player.burnTime = 0;
-        player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false;
+        player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false; player._dreamHealT = 0;
         player._darknessT = 0;
         recalcPlayerArmor(); renderHotbar(); renderEquipmentUI(); renderStatusBars();
         const tf = document.getElementById('totemFlash');
@@ -4579,7 +4579,7 @@
         showToast('🗿 Totem Bất Tử đã cứu mạng bạn!');
         return;
       }
-      player.dead = true; player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false; if (player.ridingDragon) dismountDragon(); player._wardenWarningLevel = 0; if (document.pointerLockElement) document.exitPointerLock();
+      player.dead = true; player._sulfurSoakT = 0; player._sulfurDmgTick = 0; player._sulfurWarned = false; player._dreamHealT = 0; if (player.ridingDragon) dismountDragon(); player._wardenWarningLevel = 0; if (document.pointerLockElement) document.exitPointerLock();
       isPlaying = false; mining.active = false;
       if (typeof clearMoveKeys === 'function') clearMoveKeys();
       if (typeof chatOpen !== 'undefined' && chatOpen && typeof closeChatBox === 'function') { closeChatBox(); isPlaying = false; }
@@ -6140,6 +6140,25 @@
         player._sulfurDmgTick = 0;
         player._sulfurWarned = false;
       }
+    }
+
+    // Dream Water (The Sift): periodic health regeneration while standing/submerged in Dream fluid (configurable via NUCRAFT_REALM_CONFIG.dreamWater)
+    const _inDreamWater = (currentDimension === 'sift' && player.inWater && !player.inBoat && !player.dead);
+    if (_inDreamWater) {
+      const dwCfg = (window.NUCRAFT_REALM_CONFIG && window.NUCRAFT_REALM_CONFIG.dreamWater) || { healAmount: 1, healIntervalSec: 1.75 };
+      const healInterval = Math.max(0.25, Number(dwCfg.healIntervalSec) || 1.75);
+      const healAmt = Math.max(0.5, Number(dwCfg.healAmount) || 1);
+      player._dreamHealT = (player._dreamHealT || 0) + dt;
+      if (player._dreamHealT >= healInterval) {
+        player._dreamHealT -= healInterval;
+        if (player.hp < player.maxHp) {
+          player.hp = Math.min(player.maxHp, player.hp + healAmt);
+          renderStatusBars();
+          spawnPixelFx('magic_dream', player.x, player.y + 0.85, player.z, { count: 2, scale: 0.72, life: 0.52, riseV: 0.72, randV: 0.35, spread: 0.45 });
+        }
+      }
+    } else if (player._dreamHealT) {
+      player._dreamHealT = 0;
     }
 
     if (gameMode === 'creative' || player.inWater || _isFireImmuneEquip) {

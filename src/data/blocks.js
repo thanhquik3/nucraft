@@ -6,7 +6,7 @@ const {
     PLAYER_HEIGHT, EYE_HEIGHT, ITEM_DESPAWN_SEC, DAY_LENGTH_SEC,
     B, WOOL_COLORS, WOOL_COLOR_TOTAL_W, pickRandomWoolColor,
     _DYN_COLORED_ENTRIES, SLAB_SPECS, WOOD_FAMILIES,
-    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES
+    BONE_TILES, JUNGLE_LOG_TILES, DARK_OAK_LOG_TILES, V142_TILES, V143_TILES, DRAGON_ARMOR_TILES, V153_TILES, V156_TILES, V165_TILES, V184_TILES, V186_TILES
   } = window.NUCRAFT_SHARED;
   const CFG = window.NUCRAFT_CONFIG || {};
 
@@ -967,6 +967,62 @@ const {
     drop: B.GLASS_PANE,
     tiles: [V184_TILES.glassCtmBase + 15, V184_TILES.glassCtmBase + 15, V184_TILES.glassPaneEdge],
     mapColor: '#bae6fd'
+  };
+
+  // v186: Dedicated Dragon Realm blocks (strictly separated from Dream Biome / The Sift palette)
+  BLOCK_DEF[B.DRAGON_RED_STONE] = {
+    name: 'Đá Trụ Đỏ Thế Giới Rồng', nameEn: 'Dragon Red Spire Stone',
+    hard: 1.55, solid: true, rock: true, customAtlasTex: true, drop: B.DRAGON_RED_STONE,
+    tiles: [V186_TILES.dragonRedStone, V186_TILES.dragonRedStone, V186_TILES.dragonRedStone],
+    mapColor: '#b83e32'
+  };
+  BLOCK_DEF[B.DRAGON_RED_TERRACOTTA] = {
+    name: 'Đất Đỏ Hồng Thế Giới Rồng', nameEn: 'Dragon Rose Terracotta',
+    hard: 1.35, solid: true, rock: true, customAtlasTex: true, drop: B.DRAGON_RED_TERRACOTTA,
+    tiles: [V186_TILES.dragonRedTerracotta, V186_TILES.dragonRedTerracotta, V186_TILES.dragonRedTerracotta],
+    mapColor: '#c95c52'
+  };
+  BLOCK_DEF[B.DRAGON_SAND_STONE] = {
+    name: 'Đá Cát Sáng Thế Giới Rồng', nameEn: 'Dragon Pale Sand Rock',
+    hard: 1.15, solid: true, rock: true, customAtlasTex: true, drop: B.DRAGON_SAND_STONE,
+    tiles: [V186_TILES.dragonSandStone, V186_TILES.dragonSandStone, V186_TILES.dragonSandStone],
+    mapColor: '#e6be98'
+  };
+  BLOCK_DEF[B.DRAGON_CAP_GRASS] = {
+    name: 'Cỏ Đỉnh Trụ Thế Giới Rồng', nameEn: 'Dragon Spire Cap Grass',
+    hard: 0.60, solid: true, dirt: true, customAtlasTex: true, drop: B.DRAGON_CAP_GRASS,
+    tiles: [V186_TILES.dragonCapGrassTop, V186_TILES.dragonCapGrassSide, V186_TILES.dragonRedStone],
+    mapColor: '#7eb892'
+  };
+  BLOCK_DEF[B.DRAGON_MINT_CRYSTAL] = {
+    name: 'Tinh Thể Bạc Hà Thế Giới Rồng', nameEn: 'Dragon Mint Crystal',
+    hard: 1.85, solid: true, rock: true, emissive: 0.24, light: 6, customAtlasTex: true, drop: B.DRAGON_MINT_CRYSTAL,
+    tiles: [V186_TILES.dragonMintCrystal, V186_TILES.dragonMintCrystal, V186_TILES.dragonMintCrystal],
+    mapColor: '#b8ece2'
+  };
+  BLOCK_DEF[B.DRAGON_FERN] = {
+    name: 'Dương Xỉ Thế Giới Rồng', nameEn: 'Dragon Realm Fern',
+    hard: 0.08, solid: false, cross: true, foliage: true, trans: true, customAtlasTex: true, drop: B.DRAGON_FERN,
+    tiles: [V186_TILES.dragonFern, V186_TILES.dragonFern, V186_TILES.dragonFern],
+    mapColor: '#7ec49c'
+  };
+  BLOCK_DEF[B.DRAGON_MUSHROOM] = {
+    name: 'Nấm Nhỏ Thế Giới Rồng', nameEn: 'Dragon Realm Mushroom',
+    hard: 0.08, solid: false, cross: true, trans: true, emissive: 0.42, light: 6, customAtlasTex: true, drop: B.DRAGON_MUSHROOM,
+    tiles: [V186_TILES.dragonMushroom, V186_TILES.dragonMushroom, V186_TILES.dragonMushroom],
+    mapColor: '#f4c5a3'
+  };
+  BLOCK_DEF[B.SIFT_VINE] = {
+    name: 'Dây Leo Ngọc Lam Giấc Mơ', nameEn: 'Dream Cyan Vine',
+    hard: 0.10, solid: false, cross: true, foliage: true, trans: true, emissive: 0.45, light: 8, hanging: true, customAtlasTex: true, drop: B.SIFT_VINE,
+    tiles: [V186_TILES.siftVine, V186_TILES.siftVine, V186_TILES.siftVine],
+    mapColor: '#22d3ee'
+  };
+  BLOCK_DEF[B.SIFT_CYAN_CRYSTAL] = {
+    name: 'Tinh Thể Lam Giấc Mơ', nameEn: 'Dream Cyan Crystal',
+    hard: 0.85, solid: true, rock: true, trans: true, crystalCluster: true, emissive: true, light: 11, customAtlasTex: true, drop: B.SIFT_CYAN_CRYSTAL,
+    tiles: [V186_TILES.siftCyanCrystal, V186_TILES.siftCyanCrystal, V186_TILES.siftCyanCrystal],
+    mapColor: '#38f2ff'
   };
 
   for (let i = 0; i < BLOCK_LUT_CAP; i++) {

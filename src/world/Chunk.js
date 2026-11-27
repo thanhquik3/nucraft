@@ -405,32 +405,29 @@
       return BIOMES.WARDEN_REALM;
     }
     if (currentDimension === 'sift') {
-      const swx = wx + (valueNoise2D(wx * 0.0018, wz * 0.0018, worldSeed + 4199) - 0.5) * 90.0;
-      const swz = wz + (valueNoise2D(wx * 0.0018 + 31.3, wz * 0.0018 - 17.7, worldSeed + 4211) - 0.5) * 90.0;
-      const n1 = fbm2D(swx * 0.0012, swz * 0.0012, 2, 0.5, 2.0, worldSeed + 4101);
-      const n2 = fbm2D(swx * 0.0015, swz * 0.0015, 2, 0.5, 2.0, worldSeed + 4202);
-      const n3 = fbm2D(swx * 0.0020, swz * 0.0020, 2, 0.5, 2.0, worldSeed + 4303);
-      if (Math.hypot(wx, wz) < 32) return BIOMES.SIFT_MEADOW;
-      if (n3 < 0.23) return n1 < 0.45 ? BIOMES.SIFT_OCEAN : BIOMES.SIFT_ICHOR_PONDS;
-      if (n2 > 0.74) return BIOMES.SIFT_PEAKS;
-      if (n1 < 0.25) return BIOMES.SIFT_HUSKLAND;
-      if (n1 > 0.74) return n2 > 0.54 ? BIOMES.SIFT_GIANT_FOREST : BIOMES.SIFT_SPOREFIELDS;
-      if (n2 > 0.64) return (n3 > 0.62) ? BIOMES.SIFT_LULLABY_TOP : BIOMES.SIFT_LULLABY;
-      if (n2 < 0.26) return n3 < 0.45 ? BIOMES.SIFT_SKY_ISLANDS : BIOMES.SIFT_CANYON;
-      if (n3 > 0.68) return BIOMES.SIFT_CHORAL_GLEN;
-      if (n1 >= 0.36 && n1 <= 0.52 && n2 >= 0.34 && n2 <= 0.56) return BIOMES.SIFT_PLAINS;
-      if (n1 > 0.52 && n1 < 0.64 && n2 > 0.45) return BIOMES.SIFT_WILD;
+      const swx = wx + (valueNoise2D(wx * 0.0022, wz * 0.0022, worldSeed + 4199) - 0.5) * 68.0;
+      const swz = wz + (valueNoise2D(wx * 0.0022 + 31.3, wz * 0.0022 - 17.7, worldSeed + 4211) - 0.5) * 68.0;
+      const n1 = fbm2D(swx * 0.0024, swz * 0.0024, 3, 0.5, 2.0, worldSeed + 4101);
+      const n2 = fbm2D(swx * 0.0028, swz * 0.0028, 3, 0.5, 2.0, worldSeed + 4202);
+      const n3 = fbm2D(swx * 0.0036, swz * 0.0036, 2, 0.5, 2.0, worldSeed + 4303);
+      if (Math.hypot(wx, wz) < 20) return BIOMES.SIFT_MEADOW;
+      if (n3 < 0.27) return n1 < 0.42 ? BIOMES.SIFT_OCEAN : BIOMES.SIFT_ICHOR_PONDS;
+      if (n1 < 0.30) return n2 < 0.46 ? BIOMES.SIFT_CANYON : BIOMES.SIFT_HUSKLAND;
+      if (n2 > 0.67) return n3 > 0.56 ? BIOMES.SIFT_LULLABY_TOP : BIOMES.SIFT_LULLABY;
+      if (n1 > 0.72) return n2 > 0.50 ? BIOMES.SIFT_GIANT_FOREST : BIOMES.SIFT_SPOREFIELDS;
+      if (n2 < 0.24) return BIOMES.SIFT_PEAKS;
+      if (n3 > 0.72) return BIOMES.SIFT_CHORAL_GLEN;
       return BIOMES.SIFT_MEADOW;
     }
     if (currentDimension === 'dragon_realm') {
-      const dC = Math.hypot(wx, wz);
-      const dB = Math.hypot(wx, wz - 136);
-      if (dC < 30 || dB < 30) return BIOMES.DR_PLAINS;
-      const n1 = fbm2D(wx * 0.0042, wz * 0.0042, 2, 0.5, 2.0, worldSeed + 8101);
-      const n2 = fbm2D(wx * 0.0050 + 23.1, wz * 0.0050 - 11.7, 2, 0.5, 2.0, worldSeed + 8209);
-      if (n1 > 0.65) return BIOMES.DR_PEAKS;
-      if (n2 > 0.64) return BIOMES.DR_JUNGLE;
-      if (n1 < 0.35) return BIOMES.DR_CAVERNS;
+      const swx = wx + (valueNoise2D(wx * 0.0024, wz * 0.0024, worldSeed + 8111) - 0.5) * 64.0;
+      const swz = wz + (valueNoise2D(wx * 0.0024 + 19.7, wz * 0.0024 - 23.3, worldSeed + 8123) - 0.5) * 64.0;
+      const n1 = fbm2D(swx * 0.0030, swz * 0.0030, 3, 0.5, 2.0, worldSeed + 8101);
+      const n2 = fbm2D(swx * 0.0036 + 23.1, swz * 0.0036 - 11.7, 3, 0.5, 2.0, worldSeed + 8209);
+      if (Math.hypot(wx, wz) < 18 || Math.hypot(wx, wz - 136) < 24) return BIOMES.DR_PLAINS;
+      if (n1 > 0.66) return BIOMES.DR_PEAKS;
+      if (n2 > 0.63) return BIOMES.DR_JUNGLE;
+      if (n1 < 0.34) return BIOMES.DR_CAVERNS;
       if (n2 < 0.38) return BIOMES.DR_PLATEAU;
       return BIOMES.DR_PLAINS;
     }
@@ -616,6 +613,199 @@
     }
     return h;
   }
+  // Shared procedural layered mesa / stepped terrace / tall spire terrain math (used by BOTH Dream Biome & Dragon Realm with strictly separate palettes!)
+  function getRealmGenCfg() {
+    return (typeof window !== 'undefined' && window.NUCRAFT_REALM_CONFIG) ? window.NUCRAFT_REALM_CONFIG : {
+      dreamWater: { healAmount: 1, healIntervalSec: 1.75, sparkleIntervalSec: 0.26, sparkleRadius: 14 },
+      sharedTerrain: { warpScale: 0.0046, warpAmp: 22.0, continentalScale: 0.0085, continentalOctaves: 4, erosionScale: 0.012, erosionOctaves: 3, detailScale: 0.048, mesaStepHeight: 3, overhangScale: 0.056, overhangThreshold: 0.62, overhangCarveDepth: 3, archCellSize: 46, archChance: 0.22 },
+      dreamRealm: { waterLevel: 0, baseMinY: -5, baseMaxY: 32, pondThreshold: 0.34, spireCellSize: 22, spireChance: 0.38, spireMinH: 13, spireMaxH: 27, spireBaseRMin: 2.6, spireBaseRMax: 4.5, spireCapFlare: 1.45, treeChance: 0.036, treeMinH: 8, treeMaxH: 22 },
+      dragonRealm: { baseMinY: 12, baseMaxY: 46, spireCellSize: 18, spireChance: 0.46, spireMinH: 16, spireMaxH: 36, spireBaseRMin: 2.5, spireBaseRMax: 4.4, spireCapFlare: 1.55, sandAccentThreshold: 0.63, mintCrystalChance: 0.044, mintCrystalMinH: 3, mintCrystalMaxH: 8 }
+    };
+  }
+
+  function sampleSharedMesaBase(wx, wz, realmKind, biome) {
+    const cfg = getRealmGenCfg();
+    const sh = cfg.sharedTerrain;
+    const isDream = (realmKind === 'sift');
+    const rc = isDream ? cfg.dreamRealm : cfg.dragonRealm;
+    const sOff = isDream ? 4400 : 8300;
+    const warpX = (valueNoise2D(wx * sh.warpScale, wz * sh.warpScale, worldSeed + sOff + 13) - 0.5) * sh.warpAmp;
+    const warpZ = (valueNoise2D(wx * sh.warpScale + 27.3, wz * sh.warpScale - 19.1, worldSeed + sOff + 29) - 0.5) * sh.warpAmp;
+    const swx = wx + warpX, swz = wz + warpZ;
+    // Multi-octave Overworld-style continentalness + erosion + detail + ridge noise
+    const cont = fbm2D(swx * sh.continentalScale, swz * sh.continentalScale, sh.continentalOctaves, 0.52, 2.05, worldSeed + sOff + 101);
+    const erosion = fbm2D(swx * sh.erosionScale + 17.7, swz * sh.erosionScale - 13.3, sh.erosionOctaves, 0.5, 2.0, worldSeed + sOff + 211);
+    const mesaRidge = fbm2D(swx * 0.017 - 9.4, swz * 0.017 + 14.2, 3, 0.5, 2.0, worldSeed + sOff + 307);
+    const detail = valueNoise2D(wx * sh.detailScale, wz * sh.detailScale, worldSeed + sOff + 409);
+    const stepH = Math.max(2, sh.mesaStepHeight | 0);
+    const rangeY = rc.baseMaxY - rc.baseMinY;
+
+    let rawY = rc.baseMinY;
+    let isMesaPlateau = false;
+    let isPondBasin = false;
+    let isSteppingStone = false;
+
+    if (isDream) {
+      // Shimmering Dream Water valleys/ponds with occasional terraced stepping-stone islets (like Ref 9 & 12)
+      const basinScore = cont * 0.62 + (1.0 - erosion) * 0.38;
+      const inPondBiome = (biome === BIOMES.SIFT_ICHOR_PONDS || biome === BIOMES.SIFT_OCEAN);
+      const pondCut = inPondBiome ? 0.54 : (biome === BIOMES.SIFT_CANYON ? 0.36 : rc.pondThreshold);
+      if (basinScore < pondCut) {
+        isPondBasin = true;
+        const isletN = valueNoise2D(wx * 0.145, wz * 0.145, worldSeed + sOff + 521);
+        if (isletN > 0.79 && biome !== BIOMES.SIFT_OCEAN) {
+          isSteppingStone = true;
+          rawY = WATER_LEVEL + 1 + (isletN > 0.89 ? 1 : 0);
+        } else {
+          const depthT = Math.min(1, (pondCut - basinScore) / Math.max(0.08, pondCut));
+          rawY = WATER_LEVEL - (biome === BIOMES.SIFT_OCEAN ? (4 + depthT * 8) : (1.5 + depthT * 3.5)) + detail * 0.6;
+        }
+      } else {
+        const dryT = (basinScore - pondCut) / Math.max(0.12, 1.0 - pondCut);
+        const mesaBoost = Math.max(0, (1.0 - erosion) * 0.65 + mesaRidge * 0.35 - 0.34);
+        if (mesaBoost > 0.18 || biome === BIOMES.SIFT_HUSKLAND || biome === BIOMES.SIFT_CANYON || biome === BIOMES.SIFT_PEAKS) {
+          isMesaPlateau = (mesaBoost > 0.16);
+          const rawElev = 2.0 + dryT * (rangeY * 0.55) + Math.pow(mesaBoost, 1.15) * (rangeY * 0.72);
+          const stepped = Math.floor(rawElev / stepH) * stepH;
+          rawY = WATER_LEVEL + stepped + (detail > 0.72 ? 1 : 0);
+        } else {
+          // Gentle stepped meadows (Singer's Meadow / Lullaby Hills)
+          const gentle = 2.0 + dryT * 10.0 + detail * 1.6;
+          rawY = WATER_LEVEL + Math.floor(gentle * 0.65) * 1.5 + (gentle % 1.5) * 0.35;
+        }
+      }
+      if (biome === BIOMES.SIFT_PEAKS) rawY += Math.floor(Math.max(0, mesaRidge - 0.35) * 22);
+    } else {
+      // Dragon Realm: EXACT SAME stepped mesa/terrace build method, elevated dry terraced red-rock badlands & valleys
+      const elevScore = cont * 0.56 + (1.0 - erosion) * 0.44;
+      const mesaBoost = Math.max(0, (1.0 - erosion) * 0.58 + mesaRidge * 0.42 - 0.28);
+      if (mesaBoost > 0.16 || biome === BIOMES.DR_PLATEAU || biome === BIOMES.DR_PEAKS) {
+        isMesaPlateau = true;
+        const rawElev = rc.baseMinY + elevScore * (rangeY * 0.52) + Math.pow(mesaBoost, 1.12) * (rangeY * 0.68);
+        rawY = Math.floor(rawElev / stepH) * stepH + (detail > 0.74 ? 1 : 0);
+      } else {
+        const gentle = rc.baseMinY + 2.0 + elevScore * (rangeY * 0.36) + detail * 1.8;
+        rawY = Math.floor(gentle / 2) * 2 + (detail > 0.62 ? 1 : 0);
+      }
+      if (biome === BIOMES.DR_PEAKS) rawY += Math.floor(Math.max(0, mesaRidge - 0.32) * 16);
+    }
+
+    const baseH = Math.max(MIN_Y + 6, Math.min(MAX_Y - 46, Math.floor(rawY)));
+    return { baseH, cont, erosion, mesaRidge, detail, isMesaPlateau, isPondBasin, isSteppingStone };
+  }
+
+  function sampleSharedSpireAt(wx, wz, realmKind) {
+    const cfg = getRealmGenCfg();
+    const isDream = (realmKind === 'sift');
+    const rc = isDream ? cfg.dreamRealm : cfg.dragonRealm;
+    const sOff = isDream ? 4400 : 8300;
+    const cell = rc.spireCellSize;
+    const cgx = Math.floor(wx / cell), cgz = Math.floor(wz / cell);
+    let best = null;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const gx = cgx + dx, gz = cgz + dz;
+        const rExist = hash2i(gx, gz, worldSeed + sOff + 601);
+        if (rExist > rc.spireChance) continue;
+        const jx = hash2i(gx, gz, worldSeed + sOff + 613);
+        const jz = hash2i(gx, gz, worldSeed + sOff + 619);
+        const sx = Math.floor((gx + 0.18 + jx * 0.64) * cell);
+        const sz = Math.floor((gz + 0.18 + jz * 0.64) * cell);
+        // Keep arrival portal & boss arena pads clean without hardcoding chunk layouts
+        if (Math.hypot(sx, sz) < (isDream ? 19 : 22)) continue;
+        if (!isDream && Math.hypot(sx, sz - 136) < 26) continue;
+        const rBase = rc.spireBaseRMin + hash2i(gx, gz, worldSeed + sOff + 631) * (rc.spireBaseRMax - rc.spireBaseRMin);
+        const capFlare = 0.85 + hash2i(gx, gz, worldSeed + sOff + 641) * (rc.spireCapFlare - 0.85);
+        const maxFootprint = rBase * 1.35 + capFlare + 1.2;
+        const dist = Math.hypot(wx - sx, wz - sz);
+        if (dist > maxFootprint) continue;
+        const anchorBio = getBiomeAt(sx, sz);
+        const anchorSample = sampleSharedMesaBase(sx, sz, realmKind, anchorBio);
+        if (isDream && (anchorSample.isPondBasin && !anchorSample.isSteppingStone || anchorSample.baseH < WATER_LEVEL)) continue;
+        const rH = hash2i(gx, gz, worldSeed + sOff + 653);
+        const height = Math.floor(rc.spireMinH + rH * (rc.spireMaxH - rc.spireMinH + 1));
+        const rStyle = hash2i(gx, gz, worldSeed + sOff + 661);
+        const isSandSpire = (!isDream && rStyle > 0.82);
+        const hasVolcanicCap = (!isDream && !isSandSpire && rStyle < 0.16 && height >= 26);
+        const leanX = (hash2i(gx, gz, worldSeed + sOff + 673) - 0.5) * 0.08;
+        const leanZ = (hash2i(gx, gz, worldSeed + sOff + 677) - 0.5) * 0.08;
+        const topY = Math.min(MAX_Y - 6, anchorSample.baseH + height);
+        const cand = {
+          sx, sz, gx, gz, anchorY: anchorSample.baseH, topY, height,
+          baseR: isSandSpire ? rBase * 0.92 : rBase,
+          capFlare: isSandSpire ? 0.0 : capFlare,
+          leanX, leanZ, isSandSpire, hasVolcanicCap,
+          seedH: hash2i(gx, gz, worldSeed + sOff + 683)
+        };
+        if (!best || cand.topY > best.topY) best = cand;
+      }
+    }
+    return best;
+  }
+
+  function evalSharedSpireRadiusAtY(sp, wy, wx, wz, realmKind) {
+    const relY = wy - sp.anchorY;
+    if (relY < -3 || wy > sp.topY) return -1;
+    const t = Math.max(0, Math.min(1, relY / Math.max(1, sp.height)));
+    const sOff = (realmKind === 'sift') ? 4400 : 8300;
+    const tier = Math.floor(relY / 3);
+    const tierStep = (hash2i(sp.gx * 13 + tier, sp.gz * 17 - tier, worldSeed + sOff + 701) - 0.5) * 0.95;
+    const crag = (valueNoise2D(wx * 0.34 + wy * 0.19, wz * 0.34 - wy * 0.15, worldSeed + sOff + 709) - 0.5) * 0.95;
+    if (sp.isSandSpire) {
+      // Conical pale-sand spire accent (Refs 9, 10, 11)
+      return Math.max(0.55, sp.baseR * (1.18 - t * 0.96) + tierStep * 0.45 + crag * 0.5);
+    }
+    // Tall stacked rock spire with flared base, stepped narrow waist, and flared flat overhanging cap (Refs 1, 3, 6, 9, 10, 11)
+    let r;
+    if (wy >= sp.topY - 1) {
+      // Flared flat overhanging grass-topped cap!
+      r = sp.baseR * 0.80 + sp.capFlare * (wy === sp.topY ? 1.0 : 0.72) + crag * 0.45;
+    } else if (t < 0.18) {
+      r = sp.baseR * (1.26 - t * 1.65) + crag * 0.55;
+    } else {
+      const waist = 0.96 - 0.40 * Math.sin(t * Math.PI * 0.85);
+      r = sp.baseR * waist + tierStep * 0.55 + crag * 0.55;
+    }
+    return Math.max(1.15, r);
+  }
+
+  function sampleSharedArchAt(wx, wy, wz, realmKind) {
+    const cfg = getRealmGenCfg();
+    const sh = cfg.sharedTerrain;
+    const isDream = (realmKind === 'sift');
+    const sOff = isDream ? 4400 : 8300;
+    const cell = sh.archCellSize;
+    const cgx = Math.floor(wx / cell), cgz = Math.floor(wz / cell);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const gx = cgx + dx, gz = cgz + dz;
+        if (hash2i(gx, gz, worldSeed + sOff + 811) > sh.archChance) continue;
+        const ax = (gx + 0.25 + hash2i(gx, gz, worldSeed + sOff + 821) * 0.5) * cell;
+        const az = (gz + 0.25 + hash2i(gx, gz, worldSeed + sOff + 827) * 0.5) * cell;
+        if (Math.hypot(ax, az) < 28) continue;
+        if (!isDream && Math.hypot(ax, az - 136) < 32) continue;
+        const halfSpan = 6.5 + hash2i(gx, gz, worldSeed + sOff + 839) * 4.5;
+        const ddx = wx - ax, ddz = wz - az;
+        if (ddx * ddx + ddz * ddz > (halfSpan + 3.0) * (halfSpan + 3.0)) continue;
+        const ang = hash2i(gx, gz, worldSeed + sOff + 853) * Math.PI;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const along = ddx * ca + ddz * sa;
+        const across = -ddx * sa + ddz * ca;
+        const thick = 1.65 + hash2i(gx, gz, worldSeed + sOff + 859) * 0.75;
+        if (Math.abs(across) > thick || Math.abs(along) > halfSpan + 1.4) continue;
+        const anchorS = sampleSharedMesaBase(Math.floor(ax), Math.floor(az), realmKind, getBiomeAt(Math.floor(ax), Math.floor(az)));
+        if (isDream && anchorS.baseH < WATER_LEVEL) continue;
+        const rise = 7.5 + hash2i(gx, gz, worldSeed + sOff + 863) * 5.5;
+        const u = along / halfSpan;
+        const archY = anchorS.baseH - 1.0 + rise * (1.0 - u * u);
+        if (wy >= anchorS.baseH - 3 && Math.abs(wy - archY) <= 1.55) {
+          return { hit: true, isTop: (wy >= Math.floor(archY + 0.65)) };
+        }
+      }
+    }
+    return null;
+  }
+
   function getTerrainHeight(wx, wz, biome) {
     if (currentDimension === 'warden') {
       const dist0 = Math.hypot(wx, wz);
@@ -632,71 +822,25 @@
       const ridge = Math.pow(Math.max(0, wr - 0.35), 1.35) * 24;
       return Math.floor(WATER_LEVEL + 3 + wb * 12 + ridge + wd * 2.2);
     }
-    if (currentDimension === 'sift') {
-      // v59: Địa hình The Sift chuẩn ảnh mẫu (trụ đá đỏ Terracotta Mesa bậc thang, hồ Ichor cầu vồng + đảo đá bước chân, đồng cỏ xanh ngọc & Lullaby hồng)
-      const base = fbm2D(wx * 0.016, wz * 0.016, 2, 0.5, 2.0, worldSeed + 4404);
-      const det  = valueNoise2D(wx * 0.06, wz * 0.06, worldSeed + 4505);
-      const mesa = valueNoise2D(wx * 0.032, wz * 0.032, worldSeed + 4808);
-      // Hồ Ichor cảnh quan gần cổng spawn (0, 16) có đảo đá nhỏ nổi lên giữa nước cầu vồng
-      const pondD = Math.hypot((wx - 1) * 0.9, (wz - 16) * 1.05);
-      if (pondD < 10.5) {
-        if ((Math.hypot(wx - 1, wz - 15) < 2.2) || (Math.hypot(wx + 4, wz - 18) < 1.9) || (Math.hypot(wx - 5, wz - 13) < 1.8)) {
-          return WATER_LEVEL + 1;
+    if (currentDimension === 'sift' || currentDimension === 'dragon_realm') {
+      const realmKind = currentDimension;
+      if (realmKind === 'dragon_realm') {
+        const dC = Math.hypot(wx, wz);
+        const dB = Math.hypot(wx, wz - 136);
+        if (dC < 16) return 18;
+        if (dB < 22) return 20;
+      }
+      const baseSample = sampleSharedMesaBase(wx, wz, realmKind, biome);
+      let topH = baseSample.baseH;
+      const sp = sampleSharedSpireAt(wx, wz, realmKind);
+      if (sp) {
+        const rCap = evalSharedSpireRadiusAtY(sp, sp.topY, wx, wz, realmKind);
+        const cxTop = sp.sx + sp.leanX * sp.height, czTop = sp.sz + sp.leanZ * sp.height;
+        if (Math.hypot(wx - cxTop, wz - czTop) <= rCap) {
+          topH = Math.max(topH, sp.topY);
         }
-        return pondD < 8.6 ? WATER_LEVEL - 2 : WATER_LEVEL - 1;
       }
-      if (biome === BIOMES.SIFT_OCEAN) {
-        return Math.floor(WATER_LEVEL - 14 + base * 5 + det * 1.4);
-      }
-      if (biome === BIOMES.SIFT_SKY_ISLANDS) {
-        return Math.floor(WATER_LEVEL - 11 + base * 4);
-      }
-      if (biome === BIOMES.SIFT_PEAKS) {
-        const peak = Math.pow(Math.max(0, base * 1.25 - 0.1), 1.25);
-        return Math.floor(WATER_LEVEL + 16 + peak * 42 + det * 3.0);
-      }
-      if (biome === BIOMES.SIFT_PLAINS) {
-        return Math.floor(WATER_LEVEL + 2 + base * 2.8 + det * 0.8);
-      }
-      if (biome === BIOMES.SIFT_GIANT_FOREST) {
-        return Math.floor(WATER_LEVEL + 4 + base * 8.5 + det * 1.8);
-      }
-      if (biome === BIOMES.SIFT_ICHOR_PONDS) {
-        return (det > 0.68) ? Math.floor(WATER_LEVEL + 1 + (det - 0.68) * 6) : Math.floor(WATER_LEVEL - 2);
-      }
-      if (biome === BIOMES.SIFT_CANYON) {
-        const ridge = Math.abs(mesa - 0.5);
-        return ridge < 0.11 ? Math.floor(WATER_LEVEL - 3) : Math.floor(WATER_LEVEL + 9 + Math.floor(base * 3) * 3);
-      }
-      if (biome === BIOMES.SIFT_LULLABY_TOP) return Math.floor(WATER_LEVEL + 8 + Math.floor(base * 4) * 2 + det * 2);
-      if (biome === BIOMES.SIFT_LULLABY) return Math.floor(WATER_LEVEL + 3 + base * 7 + det * 1.8);
-      if (biome === BIOMES.SIFT_HUSKLAND) {
-        if (mesa > 0.62) return Math.floor(WATER_LEVEL + 12 + Math.floor((mesa - 0.62) * 24));
-        return Math.floor(WATER_LEVEL + 2 + base * 4 + det * 1.2);
-      }
-      if (biome === BIOMES.SIFT_SPOREFIELDS) return Math.floor(WATER_LEVEL + 2 + base * 5 + det * 1.6);
-      // Singer's Meadow: thung lũng cỏ xanh ngọc xen kẽ trụ đá Terracotta nổi bật quanh tầm nhìn
-      if (mesa > 0.72 && Math.hypot(wx, wz) > 16) return Math.floor(WATER_LEVEL + 11 + Math.floor((mesa - 0.72) * 26));
-      return Math.floor(WATER_LEVEL + 2 + Math.floor(base * 3) * 2 + det * 1.5);
-    }
-    if (currentDimension === 'dragon_realm') {
-      const dC = Math.hypot(wx, wz);
-      const dB = Math.hypot(wx, wz - 136);
-      if (dC < 26) return 18;
-      if (dB < 26) return 20;
-      const base = fbm2D(wx * 0.014, wz * 0.014, 3, 0.5, 2.0, worldSeed + 8311);
-      const det  = valueNoise2D(wx * 0.055, wz * 0.055, worldSeed + 8423);
-      if (biome === BIOMES.DR_PEAKS) {
-        const ridge = Math.max(0, 1.0 - Math.abs(base - 0.5) * 3.4);
-        return Math.floor(24 + ridge * 32 + base * 12 + det * 3);
-      }
-      if (biome === BIOMES.DR_PLATEAU) {
-        const step = Math.floor(base * 4.5) * 5;
-        return Math.floor(18 + step + det * 1.5);
-      }
-      if (biome === BIOMES.DR_JUNGLE) return Math.floor(15 + base * 9 + det * 2.5);
-      if (biome === BIOMES.DR_CAVERNS) return Math.floor(20 + base * 10 + det * 2);
-      return Math.floor(16 + base * 6 + det * 1.8);
+      return topH;
     }
     if (currentDimension === 'end') {
       const d0 = Math.hypot(wx, wz);
@@ -1898,8 +2042,11 @@
         [B.MAGMA_BLOCK]: { col: 0xff6b1a, int: 0.72, cap: 14 },
         [B.LAVA]: { col: 0xff6b1a, int: 0.72, cap: 12 },
         [B.GLOW_CRYSTAL]: { col: 0x4cc9ff, int: 0.68, cap: 16 },
+        [B.SIFT_CYAN_CRYSTAL]: { col: 0x38f2ff, int: 0.72, cap: 16 },
         [B.ELEVATOR_BLOCK]: { col: 0x4fd1ff, int: 0.62, cap: 14 },
         [B.GLOW_VINES]: { col: 0xffc44d, int: 0.62, cap: 14 },
+        [B.SIFT_VINE]: { col: 0x22d3ee, int: 0.56, cap: 14 },
+        [B.DRAGON_MINT_CRYSTAL]: { col: 0x8ef5e4, int: 0.44, cap: 14 },
         [B.MUSHROOM_GLOW]: { col: 0x38f2ff, int: 0.55, cap: 12 },
         [B.SPORE_SHROOM]: { col: 0x38f2ff, int: 0.55, cap: 12 }
       };
@@ -2455,7 +2602,7 @@
     const tile = def.tiles[0], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
     const isFlat = (id === B.SAKURA_PETALS || id === B.LILY_PAD || !!def.flatTrack);
     const flatY = (id === B.LILY_PAD) ? -0.085 : (def.flatTrack ? 0.04 : 0.03);
-    const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.MANGROVE_PROPAGULE || id === B.WEEPING_VINES);
+    const isHanging = (id === B.VINE || id === B.GLOW_VINES || id === B.SIFT_VINE || id === B.MANGROVE_PROPAGULE || id === B.WEEPING_VINES);
     let stackBelow = 0, stackAbove = 0;
     if (!isFlat) {
       if (isHanging) {

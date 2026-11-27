@@ -1004,7 +1004,10 @@
         vec3 leafSunBal = mix(uSunColor, vec3(1.02, 0.99, 0.92), mix(0.42, 0.72, max(uCartoonMode, rtFadeL * 0.90)));
         vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * mix(0.064 + 0.015 * uEclipseMode, 0.13, uCartoonMode);
         float crownGlow = pow(canopyWrap, 2.4) * mix(0.06, 0.0, step(0.5, uCartoonMode));
-        outgoingLight += diffuseColor.rgb * (canopyAmb + vec3(0.045 * rtFadeL)) * sUpG + diffuseColor.rgb * leafSunBal * (sssFwd * (chillLeafSss + mix(0.06, 0.0, step(0.5, uCartoonMode))) + sssBroad * mix(0.04, 0.10, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95))) + crownGlow + leafRim) * sUpG + leafSunBal * (uRainWetness * 0.04 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
+        vec3 siftLeafEmit = (uDimension > 2.5 && uDimension < 3.5)
+          ? vec3(0.32, 0.96, 0.98) * (0.06 + 0.14 * pow(1.0 - abs(dot(nDirL, vDirL)), 1.9) + 0.08 * smoothstep(0.52, 0.94, diffuseColor.b)) * diffuseColor.rgb
+          : vec3(0.0);
+        outgoingLight += siftLeafEmit + diffuseColor.rgb * (canopyAmb + vec3(0.045 * rtFadeL)) * sUpG + diffuseColor.rgb * leafSunBal * (sssFwd * (chillLeafSss + mix(0.06, 0.0, step(0.5, uCartoonMode))) + sssBroad * mix(0.04, 0.10, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95))) + crownGlow + leafRim) * sUpG + leafSunBal * (uRainWetness * 0.04 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
         float hiMetricL = mix(outLumL, outPeakL, 0.45);
@@ -1585,26 +1588,54 @@
           gl_FragColor = vec4(colW, 0.0);
           return;
         }
-        // Dimension 3 = THE SIFT (Moody Turquoise-to-Rose Twilight Sky + Luminous Cyan/Pink/Gold Aurora Ribbons!)
+        // Dimension 3 = THE SIFT (Pastel Aurora Sky with diagonal pink, mint-green & cyan light streaks + starlight!)
         if (uDimension > 2.5) {
-          vec3 colS = mix(uSkyHorizon, uSkyTop, pow(clamp(d.y * 0.88 + 0.12, 0.0, 1.0), 0.55));
+          vec3 colS = mix(uSkyHorizon, uSkyTop, pow(clamp(d.y * 0.85 + 0.15, 0.0, 1.0), 0.58));
           vec3 sunS = normalize(uSunDir);
           float sDot = max(dot(d, sunS), 0.0);
-          colS += vec3(1.0, 0.80, 0.72) * (pow(sDot, 6.0) * 0.14 + pow(sDot, 28.0) * 0.22);
-          if (d.y > -0.02) {
-            vec2 aUv = d.xz / (max(d.y, 0.05) + 0.36);
-            float w1 = sin(aUv.x * 2.1 + aUv.y * 0.8 + uTime * 0.22 + sin(aUv.y * 1.4 - uTime * 0.14) * 1.2);
-            float w2 = cos(aUv.x * 3.4 - aUv.y * 1.9 - uTime * 0.18 + sin(aUv.x * 1.1) * 0.9);
-            float band1 = pow(smoothstep(0.24, 0.94, 0.48 + 0.34 * w1 + 0.20 * w2), 1.45);
-            float band2 = pow(smoothstep(0.34, 0.96, 0.45 - 0.30 * w2 + 0.24 * sin(aUv.x * 1.6 - aUv.y * 2.2 + uTime * 0.16)), 1.55);
-            float elevMask = smoothstep(-0.02, 0.16, d.y) * smoothstep(0.96, 0.25, d.y);
-            vec3 aurCyan = vec3(0.40, 0.98, 0.90);
-            vec3 aurPink = vec3(0.98, 0.52, 0.80);
-            vec3 aurGold = vec3(0.98, 0.86, 0.58);
-            vec3 aurMix = mix(aurCyan, aurPink, smoothstep(-0.55, 0.65, sin(aUv.x * 1.3 + aUv.y * 0.9)));
-            colS += aurMix * band1 * elevMask * 0.46 + aurGold * band2 * elevMask * 0.18;
+          colS += vec3(1.0, 0.88, 0.84) * (pow(sDot, 5.0) * 0.16 + pow(sDot, 22.0) * 0.22);
+          if (d.y > -0.04) {
+            vec2 aUv = d.xz / (max(d.y, 0.06) + 0.34);
+            // Diagonal sweeping aurora curtains (pink, mint-green, cyan — Refs 1, 2, 7)
+            float diag1 = aUv.x * 1.9 + aUv.y * 1.35;
+            float diag2 = aUv.x * 2.8 - aUv.y * 1.65;
+            float w1 = sin(diag1 * 1.35 + uTime * 0.22 + sin(aUv.y * 1.5 - uTime * 0.15) * 1.15);
+            float w2 = cos(diag2 * 1.20 - uTime * 0.18 + sin(aUv.x * 1.3 + uTime * 0.12) * 0.95);
+            float w3 = sin((aUv.x * 0.9 - aUv.y * 2.1) * 1.4 + uTime * 0.16);
+            float streak1 = pow(smoothstep(0.18, 0.92, 0.50 + 0.34 * w1 + 0.18 * w2), 1.35);
+            float streak2 = pow(smoothstep(0.24, 0.95, 0.48 - 0.28 * w2 + 0.24 * w3), 1.45);
+            float elevMask = smoothstep(-0.02, 0.09, d.y) * smoothstep(0.98, 0.18, d.y);
+            vec3 aurPink  = vec3(1.00, 0.60, 0.86);
+            vec3 aurMint  = vec3(0.42, 1.00, 0.76);
+            vec3 aurCyan  = vec3(0.32, 0.98, 1.00);
+            float phaseMix = 0.5 + 0.5 * sin(diag1 * 0.65 + uTime * 0.08);
+            vec3 ribbonA = mix(aurPink, aurMint, smoothstep(0.18, 0.62, phaseMix));
+            ribbonA = mix(ribbonA, aurCyan, smoothstep(0.58, 0.92, phaseMix));
+            vec3 ribbonB = mix(aurCyan, aurPink, 0.5 + 0.5 * cos(diag2 * 0.55 - uTime * 0.07));
+            colS += ribbonA * streak1 * elevMask * 0.74 + ribbonB * streak2 * elevMask * 0.46;
+            // Subtle twinkling pastel sky sparkles (Ref 1)
+            float stS = cHash(floor(aUv * 26.0));
+            if (stS > 0.986) {
+              float tw = 0.55 + 0.45 * sin(uTime * 2.8 + stS * 90.0);
+              colS += vec3(0.96, 0.98, 1.0) * tw * smoothstep(0.08, 0.38, d.y) * 0.72;
+            }
           }
+          colS = mix(colS, uFogColor, smoothstep(0.10, -0.05, d.y));
           gl_FragColor = vec4(colS, 0.0);
+          return;
+        }
+        // Dimension 2.15 = DRAGON REALM (Dense Hazy Pink Atmospheric Sky + Soft Dusty-Rose Clouds — Refs 9, 10, 11)
+        if (uDimension > 2.05) {
+          vec3 colDR = mix(uSkyHorizon, uSkyTop, pow(clamp(d.y * 0.92 + 0.08, 0.0, 1.0), 0.68));
+          if (d.y > 0.0) {
+            vec2 cUv = d.xz / (d.y + 0.38) * 1.15;
+            float cl1 = fbmFast(cUv + vec2(uTime * 0.012, uTime * 0.006));
+            float cl2 = fbmFast(cUv * 2.1 - vec2(uTime * 0.009, 0.0));
+            float hazeBand = smoothstep(0.34, 0.82, cl1 * 0.65 + cl2 * 0.35) * smoothstep(0.02, 0.28, d.y) * smoothstep(0.95, 0.35, d.y);
+            colDR = mix(colDR, vec3(0.96, 0.87, 0.86), hazeBand * 0.42);
+          }
+          colDR = mix(colDR, uFogColor, smoothstep(0.28, -0.02, d.y));
+          gl_FragColor = vec4(colDR, 0.0);
           return;
         }
         // Dimension 1 = The Nether (smoldering crimson cavern haze), Dimension 2 = The End (luminous magenta-violet nebula void!)
@@ -2043,6 +2074,48 @@
         vec3 col = baseWater;
         float alpha = clamp(0.76 + vColDepth * 0.18, 0.76, 0.96);
         bool fromBelow = (cameraPosition.y < vWorldPos.y - 0.05);
+
+        // DREAM WATER (The Sift): Shimmering translucent pastel swirling pink, magenta, cyan, purple & pale-cream patches + sparkles!
+        // Identical visual style in BOTH shallow and deep states, across all quality/cartoon modes (Refs 9 & 12).
+        if (uDimension > 2.5 && uDimension < 3.5) {
+          vec2 ip = vWorldPos.xz * 0.24 + n.xz * 0.38;
+          float tW = uTime * 0.72;
+          float qx = sin(ip.x * 1.15 + tW * 0.95 + cos(ip.y * 1.05 - tW * 0.75) * 1.65);
+          float qy = cos(ip.y * 1.22 - tW * 0.84 + sin(ip.x * 0.98 + tW * 0.62) * 1.55);
+          float swirlA = sin((ip.x + qx * 0.75) * 1.08 - (ip.y - qy * 0.70) * 0.92 + tW * 0.55);
+          float swirlB = cos((ip.x - qy * 0.65) * 0.88 + (ip.y + qx * 0.68) * 1.18 - tW * 0.62);
+          float lightPatch = smoothstep(0.46, 0.95, 0.5 + 0.5 * sin((ip.x * 0.92 + ip.y * 0.78) * 1.35 + qx * 1.15 + tW * 0.45));
+          vec3 cCyan    = vec3(0.08, 0.98, 0.99);
+          vec3 cPink    = vec3(1.00, 0.38, 0.84);
+          vec3 cMagenta = vec3(0.98, 0.14, 0.74);
+          vec3 cPurple  = vec3(0.66, 0.38, 1.00);
+          vec3 cCream   = vec3(1.00, 0.95, 0.80);
+          vec3 dCol = mix(cCyan, cPink, smoothstep(-0.70, 0.70, swirlA));
+          dCol = mix(dCol, cMagenta, smoothstep(0.08, 0.84, swirlB * 0.5 + 0.5) * 0.62);
+          dCol = mix(dCol, cPurple, smoothstep(-0.18, 0.82, qx * qy) * 0.48);
+          dCol = mix(dCol, cCream, lightPatch * 0.44);
+          // Crisp animated twinkling sparkle flecks across the fluid surface
+          vec2 spCell = floor(vWorldPos.xz * 2.4 + vec2(uTime * 0.22, -uTime * 0.16));
+          vec2 spF = fract(vWorldPos.xz * 2.4 + vec2(uTime * 0.22, -uTime * 0.16)) - 0.5;
+          float spH = fract(sin(dot(spCell, vec2(127.1, 311.7))) * 43758.5453);
+          float spTw = smoothstep(0.76, 0.99, spH) * (0.5 + 0.5 * sin(uTime * 4.4 + spH * 62.8));
+          float spDot = smoothstep(0.24, 0.04, length(spF)) * spTw;
+          float specS = pow(max(dot(n, normalize(activeLightDir + viewDir)), 0.0), 42.0) * 0.34;
+          vec3 shoreGlow = vec3(0.92, 0.96, 1.00) * smoothstep(0.72, 1.0, vShore) * 0.24;
+          col = dCol * (0.92 + n.x * 0.08 + n.z * 0.08) + vec3(spDot * 0.95 + specS) + shoreGlow;
+          // Uniform translucent shimmer in both shallow and deep water (subtle Fresnel brightening at grazing angles)
+          alpha = fromBelow ? 0.62 : clamp(0.70 + fresnel * 0.14 + spDot * 0.12, 0.68, 0.84);
+          if (uUnderwater > 0.5) {
+            float uwFogD = (1.0 - exp(-vDist * 0.045)) * ((fromBelow && vIsTop > 0.5) ? 0.32 : 1.0);
+            gl_FragColor = vec4(mix(col, uFogColor, clamp(uwFogD, 0.0, 0.90)), alpha);
+          } else {
+            float fogDistD = max(length((vWorldPos - cameraPosition).xz), vDist * 0.88);
+            float fogFD = smoothstep(uFogStart, uFogEnd, fogDistD);
+            float horLockD = smoothstep(0.68, 1.0, fogFD);
+            gl_FragColor = vec4(mix(col, uFogColor, fogFD), mix(alpha, 1.0, horLockD));
+          }
+          return;
+        }
         if (vIsTop > 0.5 && fromBelow) {
           // Physical Snell's Window looking UP from underwater (incident ray -viewDir to water normal nUw)
           vec3 nUw = normalize(vec3(n.x * 2.1, n.y, n.z * 2.1));
@@ -2140,24 +2213,6 @@
           if (uEclipseMode > 0.5 || uNcr2Mode > 0.5) alpha = max(alpha, clamp(wakeFoam * 0.58, 0.0, 0.95));
         }
 
-        // v59 THE SIFT: Vivid Swirling Rainbow Ichor Water (matches ref pond: cyan/magenta/pink/gold iridescence!)
-        if (uDimension > 2.5 && uDimension < 3.5) {
-          vec2 ip = vWorldPos.xz * 0.26;
-          float sw1 = sin(ip.x * 1.15 + uTime * 0.95 + cos(ip.y * 1.05 - uTime * 0.68) * 1.75);
-          float sw2 = cos(ip.y * 1.25 - uTime * 0.82 + sin(ip.x * 0.95 + uTime * 0.58) * 1.65);
-          float sw3 = sin((ip.x - ip.y) * 0.85 + uTime * 0.72 + sw1 * 0.8);
-          vec3 cCyan = vec3(0.14, 0.96, 0.99);
-          vec3 cPink = vec3(1.00, 0.42, 0.86);
-          vec3 cMint = vec3(0.36, 0.99, 0.76);
-          vec3 cGold = vec3(1.00, 0.94, 0.56);
-          vec3 cLav  = vec3(0.78, 0.54, 1.00);
-          vec3 ichor = mix(cCyan, cPink, smoothstep(-0.8, 0.8, sw1));
-          ichor = mix(ichor, cMint, smoothstep(0.0, 0.95, sw2 * 0.5 + 0.5) * 0.55);
-          ichor = mix(ichor, mix(cLav, cGold, sw3 * 0.5 + 0.5), 0.38);
-          float sparkle = pow(max(0.0, sin(vWorldPos.x * 3.4 + uTime * 2.2) * cos(vWorldPos.z * 3.3 - uTime * 1.9)), 6.0);
-          col = mix(col, ichor + vec3(sparkle * 0.55) + vec3(0.18, 0.22, 0.25) * vShore, 0.90);
-          alpha = clamp(alpha + 0.18, 0.78, 0.96);
-        }
         if (uInLava > 0.5) {
           float lvFogW = clamp(smoothstep(0.30, 3.05, vDist), 0.0, 0.995);
           gl_FragColor = vec4(mix(col * vec3(1.10, 0.54, 0.30), uFogColor, lvFogW), alpha);
@@ -2683,13 +2738,15 @@
             vec3 coolShadows = mix(baseCool, vec3(0.88, 0.93, 1.06), uChillMode * (1.0 - uUnderwater));
             coolShadows = mix(coolShadows, vec3(0.90, 0.95, 1.05), uDlssMode * (1.0 - uUnderwater) * 0.72);
             if (uDimension > 3.5) coolShadows = vec3(0.76, 0.96, 1.04);
-            else if (uDimension > 2.5) coolShadows = vec3(0.88, 0.89, 1.01);
+            else if (uDimension > 2.5) coolShadows = vec3(0.90, 0.93, 1.03);
+            else if (uDimension > 2.05) coolShadows = vec3(1.02, 0.92, 0.93);
             else if (uDimension > 1.5) coolShadows = vec3(0.96, 0.88, 1.08);
             else if (uDimension > 0.5) coolShadows = vec3(1.03, 0.90, 0.86);
             col = mix(col * coolShadows, col, smoothstep(0.06, 0.36, lum));
             vec3 warmHigh = vec3(1.0 + uWarmth * 0.14, 1.0 + uWarmth * 0.02, 1.0 - uWarmth * 0.16);
             if (uDimension > 3.5) warmHigh = vec3(0.92, 1.04, 1.08);
-            else if (uDimension > 2.5) warmHigh = vec3(1.05, 0.97, 0.99);
+            else if (uDimension > 2.5) warmHigh = vec3(1.04, 0.98, 1.01);
+            else if (uDimension > 2.05) warmHigh = vec3(1.04, 0.96, 0.96);
             else if (uDimension > 1.5) warmHigh = vec3(1.06, 0.95, 1.12);
             float warmMask = smoothstep(0.24, 0.82, lum) * (1.0 - smoothstep(0.84, 0.98, lum) * mix(0.55, 0.78, uNcr2Mode));
             col = mix(col, col * warmHigh, warmMask * (1.0 - uUnderwater * 0.88));
@@ -4539,6 +4596,13 @@
         if (needCol) {
           if (mode === 'nether_warped') { _moteColArr[b] = 0.18; _moteColArr[b + 1] = 0.83; _moteColArr[b + 2] = 0.75; }
           else { _moteColArr[b] = 1.0; _moteColArr[b + 1] = 0.48; _moteColArr[b + 2] = 0.16; }
+        }
+      } else if (mode === 'dragon') {
+        m.wy += Math.sin(m.ph) * dt * 0.24;
+        if (needCol) {
+          if (m.isPink) { _moteColArr[b] = 0.98; _moteColArr[b + 1] = 0.78; _moteColArr[b + 2] = 0.78; }
+          else if (m.isCyan) { _moteColArr[b] = 0.74; _moteColArr[b + 1] = 0.95; _moteColArr[b + 2] = 0.90; }
+          else { _moteColArr[b] = 0.96; _moteColArr[b + 1] = 0.86; _moteColArr[b + 2] = 0.76; }
         }
       } else if (mode === 'end') {
         m.wy += Math.sin(m.ph) * dt * 0.35;

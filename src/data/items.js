@@ -3192,22 +3192,22 @@
       if (h > 0.20) return '#3b244e';
       return '#2c193c';
     });
-    // 297: Sift Log TOP
+    // 297: Sift Log TOP (deep sculpted slate-teal heartwood rings matching ref trees)
     tilePixels(297, (x, y) => {
       const d = Math.hypot(x - 7.5, y - 7.5);
-      if (d > 6.2) return '#4c5f70';
-      return (Math.floor(d) % 2 === 0) ? '#b8ccd6' : '#9ab2bf';
+      if (d > 6.2) return '#1c333c';
+      return (Math.floor(d) % 2 === 0) ? '#4f7c86' : '#385d66';
     });
-    // 298: Sift Log SIDE (pale silver-teal dreamwood bark)
+    // 298: Sift Log SIDE (deep sculpted dark-teal bark with glowing silver-cyan crevices)
     tilePixels(298, (x, y) => {
       const h = _siftH(x, y, 2981);
-      if (x % 4 === 0) return '#5f7688';
-      return h > 0.65 ? '#c6d8e0' : (h > 0.28 ? '#9fb5c2' : '#7e97a6');
+      if (x % 4 === 0) return h > 0.72 ? '#4c8894' : '#1b313a';
+      return h > 0.68 ? '#3a616d' : (h > 0.28 ? '#2b4a54' : '#1f3942');
     });
-    // 299: Sift Leaves (harmonious layered cyan-emerald leaf clusters)
-    drawFancyLeaf(299, { H: '#74ebd6', M: '#39baaa', S: '#238e83', D: '#155d59' }, BOTANICAL_LEAF_MASK);
-    // 300: Lullaby Leaves (soft frosted mint-aqua clusters, cohesive palette)
-    drawFancyLeaf(300, { H: '#d4f6f1', M: '#92dad4', S: '#62b3b0', D: '#418688' }, BOTANICAL_LEAF_MASK);
+    // 299: Sift Leaves (layered teal-cyan crystalline leaf clusters with subtle icy highlights)
+    drawFancyLeaf(299, { H: '#9cfbf0', M: '#45d0c4', S: '#229a94', D: '#136064' }, BOTANICAL_LEAF_MASK);
+    // 300: Lullaby Leaves (frosted icy-cyan crystal leaf clusters matching ref drooping canopies)
+    drawFancyLeaf(300, { H: '#ecfffe', M: '#a9eee8', S: '#6dc8c8', D: '#448e96' }, BOTANICAL_LEAF_MASK);
     // 301: Sift Pink Dream Grass/Flower (like image 4!)
     drawSpriteMap(301, [
       '................',
@@ -5464,6 +5464,94 @@
             return null;
           });
         }
+      }
+      // v186: Dedicated Dragon Realm Palette + Dream Cyan Vine & Crystal Textures
+      if (typeof V186_TILES !== 'undefined') {
+        tilePixels(V186_TILES.dragonRedStone, (x, y, r) => {
+          const band = ((y + ((x >> 2) & 1)) % 4 === 0);
+          return shade(band ? '#af3f34' : (r > 0.72 ? '#db6050' : (r > 0.26 ? '#c84d3f' : '#9f342b')), (r - 0.5) * 14);
+        });
+        tilePixels(V186_TILES.dragonRedTerracotta, (x, y, r) => {
+          const stripe = (y === 3 || y === 4 || y === 11 || y === 12);
+          return shade(stripe ? '#e37e72' : (r > 0.65 ? '#d66d62' : (r > 0.25 ? '#c65a50' : '#ad473f')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.dragonSandStone, (x, y, r) => {
+          const strata = (y % 5 === 0);
+          return shade(strata ? '#d6a882' : (r > 0.70 ? '#f2d3b4' : (r > 0.28 ? '#e6be98' : '#cfa078')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.dragonCapGrassTop, (x, y, r) => {
+          return shade(r > 0.78 ? '#9ed4ae' : (r > 0.45 ? '#80bc94' : (r > 0.18 ? '#6aa47f' : '#578c6c')), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.dragonCapGrassSide, (x, y, r) => {
+          const lip = 3 + (((x * 7 + 3) ^ (x * 13)) & 1) + (x % 3 === 0 ? 1 : 0);
+          if (y < lip) return shade(r > 0.55 ? '#8dc79f' : '#6ca680', (r - 0.5) * 10);
+          return shade((y % 4 === 0) ? '#af3f34' : (r > 0.5 ? '#c84d3f' : '#b23f34'), (r - 0.5) * 12);
+        });
+        tilePixels(V186_TILES.dragonMintCrystal, (x, y, r) => {
+          const diag = ((x + y) % 7 === 0) || ((x - y + 16) % 9 === 0);
+          const edge = (x === 0 || y === 0 || x === 15 || y === 15);
+          if (edge) return shade('#88cfc4', (r - 0.5) * 10);
+          if (diag && r > 0.35) return '#e8fffb';
+          return shade(r > 0.74 ? '#d2faf2' : (r > 0.36 ? '#b4eae0' : '#93d8cd'), (r - 0.5) * 12);
+        });
+        drawSpriteMap(V186_TILES.dragonFern, [
+          '................',
+          '......g..g......',
+          '....ggG..Ggg....',
+          '...gGGg..gGGg...',
+          '..gGggG..GggGg..',
+          '....gGGggGGg....',
+          '..ggGGGGGGGGgg..',
+          '.gGggGGggGGggGg.',
+          '...ggGGGGGGgg...',
+          '..gGGggGGggGGg..',
+          '....gGGGGGGg....',
+          '.....gGddGg.....',
+          '.....ggddgg.....',
+          '......gddg......',
+          '......dddd......',
+          '................'
+        ], { G: '#a4e3bc', g: '#74b890', d: '#487d60' });
+        drawSpriteMap(V186_TILES.dragonMushroom, [
+          '................',
+          '................',
+          '................',
+          '.....cccccc.....',
+          '...ccCCWWCCcc...',
+          '..cCCCWWWWCCCc..',
+          '..cCCcCCCCcCCc..',
+          '..cccccccccccc..',
+          '......sSSs......',
+          '......sSSs......',
+          '.....ssSSss.....',
+          '.....sSSSSs.....',
+          '.....sSSSSs.....',
+          '....ssSSSSss....',
+          '....ssssssss....',
+          '................'
+        ], { c: '#b85346', C: '#e68c74', W: '#fef0d6', s: '#d9c6b4', S: '#f7ece0' });
+        drawSpriteMap(V186_TILES.siftVine, [
+          '....tT....Tt....',
+          '...tTTt..tTTt...',
+          '....tCT..TCt....',
+          '...tTCT..TCTt...',
+          '....tT....Tt....',
+          '...tTCt..tCTt...',
+          '..tTCTt..tTCTt..',
+          '...tCWt..tWCt...',
+          '....tT....Tt....',
+          '...tCTt..tTCt...',
+          '...tCWt..tWCt...',
+          '....tC....Ct....',
+          '....tT....Tt....',
+          '.....C....C.....',
+          '.....W....W.....',
+          '................'
+        ], { t: '#0f766e', T: '#2dd4bf', C: '#67e8f9', W: '#e0faff' });
+        tilePixels(V186_TILES.siftCyanCrystal, (x, y, r) => {
+          const streak = ((x + y) % 5 === 0);
+          return shade(streak ? '#d6feff' : (r > 0.65 ? '#5ef2ff' : (r > 0.25 ? '#22d3ee' : '#0891b2')), (r - 0.5) * 14);
+        });
       }
       drawSpriteMap(V156_TILES.sulfurSlimeball, [
         '................',
