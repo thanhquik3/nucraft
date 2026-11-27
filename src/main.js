@@ -545,6 +545,7 @@
   }
 
   let _dynLightFound = 0;
+  const _tmpLightPos = new THREE.Vector3();
   function _offerDynLight(need, x, y, z, col, int, d2, prio, dist = 20) {
     const score = d2 - (prio ? 64 : 0);
     if (_dynLightFound === need && score >= _topLights[need - 1].score) return;
@@ -668,10 +669,10 @@
       }
     }
 
-    // BUILD v166: Deterministic 3D Minecraft campfire-style smoke ONLY from Sulfur Steam Vents & Campfires (zero water-surface smoke -> zero FPS drop!)
+    // Unified 2D PixelFX Plumes & Fire Licks (Sulfur Steam Vents, Campfires, Fire, Soul Fire)
     if (isPlaying && !isWorldLoading && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false)) {
       _sulfurSteamAcc += dt;
-      const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.30 : 0.21;
+      const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.28 : 0.19;
       if (_sulfurSteamAcc >= _steamStep) {
         _sulfurSteamAcc = 0;
         const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
@@ -685,20 +686,38 @@
             for (let vi = 0; vi < nodes.length; vi++) {
               const vn = nodes[vi];
               const ddx = vn.x + 0.5 - player.x, ddz = vn.z + 0.5 - player.z;
-              if (ddx * ddx + ddz * ddz > maxDistSq) continue;
+              const d2 = ddx * ddx + ddz * ddz;
+              if (d2 > maxDistSq) continue;
               if (getBlockWorld(vn.x, vn.y + 1, vn.z) !== B.AIR) continue;
-              const isCf = (vn.kind === 'campfire');
-              spawn3DSmoke(vn.x + 0.5, vn.y + (isCf ? 0.78 : 1.04), vn.z + 0.5, {
-                style: 'campfire', campfire: true, count: 1,
-                scale: isCf ? 1.02 : 1.12, spread: 0.14, randV: 0.03,
-                grow: 0.38, vy: isCf ? 0.96 : 1.08, life: isCf ? 5.8 : 6.8
-              });
-              if (Math.random() < 0.35) {
-                spawn3DSmoke(vn.x + 0.5, vn.y + (isCf ? 0.92 : 1.18), vn.z + 0.5, {
-                  style: 'campfire', campfire: true, count: 1,
-                  scale: 0.52, spread: 0.34, randV: 0.05,
-                  grow: 0.25, vy: isCf ? 1.04 : 1.16, life: 4.8
+              if (vn.kind === 'fire' || vn.kind === 'soul_fire') {
+                if (d2 > 676.0) continue;
+                const isSoul = (vn.kind === 'soul_fire');
+                if (Math.random() < 0.78) {
+                  spawn2DPixelPlume(isSoul ? 'soul_flame' : 'fire_flame', vn.x + 0.5, vn.y + 0.45, vn.z + 0.5, {
+                    count: 1, scale: 1.08, grow: 0.18, vy: 1.22, randV: 0.16, spread: 0.44, life: 0.48
+                  });
+                }
+                if (!isSoul && Math.random() < 0.32) {
+                  spawn2DPixelPlume('smoke_puff', vn.x + 0.5, vn.y + 0.95, vn.z + 0.5, {
+                    count: 1, scale: 0.96, grow: 0.55, vy: 1.14, randV: 0.10, spread: 0.30, life: 1.85
+                  });
+                }
+              } else {
+                const isCf = (vn.kind === 'campfire');
+                spawn2DPixelPlume(isCf ? 'campfire_smoke' : 'sulfur_steam', vn.x + 0.5, vn.y + (isCf ? 0.88 : 1.12), vn.z + 0.5, {
+                  count: 1, scale: isCf ? 1.40 : 1.56, spread: isCf ? 0.18 : 0.22, randV: 0.05,
+                  grow: isCf ? 0.65 : 0.72, vy: isCf ? 1.24 : 1.38, life: isCf ? 3.4 : 3.6
                 });
+                if (isCf && d2 <= 900.0) {
+                  spawn2DPixelPlume('fire_flame', vn.x + 0.5, vn.y + 0.56, vn.z + 0.5, {
+                    count: 1, scale: 1.02, grow: 0.14, vy: 1.12, randV: 0.10, spread: 0.26, life: 0.48
+                  });
+                } else if (!isCf && Math.random() < 0.48) {
+                  spawn2DPixelPlume('sulfur_steam', vn.x + 0.5, vn.y + 1.28, vn.z + 0.5, {
+                    count: 1, scale: 0.95, spread: 0.42, randV: 0.07,
+                    grow: 0.55, vy: 1.46, life: 3.0
+                  });
+                }
               }
             }
           }
@@ -753,7 +772,15 @@
           const m = mobs[i];
           if (m.isBoss || m.fusing || m.burning || m.type === 'blaze') {
             const dx = m.x - player.x, dz = m.z - player.z, d2 = dx * dx + dz * dz;
-            if (d2 <= 576) _offerDynLight(need, m.x, m.y + 1.4, m.z, m.fusing ? 0xd9f99d : 0xff7b28, 0.85, d2, 1);
+            const isEndDrg = (m.type === 'ender_dragon' || m.type === 'sovereign_end_dragon');
+            if (d2 <= (isEndDrg ? 2304 : 576)) {
+              let lx = m.x, ly = m.y + 1.4, lz = m.z;
+              if (isEndDrg && typeof window._getDragonBodyCenterWorldPos === 'function') {
+                const bc = window._getDragonBodyCenterWorldPos(m, _tmpLightPos);
+                lx = bc.x; ly = bc.y; lz = bc.z;
+              }
+              _offerDynLight(need, lx, ly, lz, m.fusing ? 0xd9f99d : (isEndDrg ? 0xd946ef : 0xff7b28), isEndDrg ? 1.15 : 0.85, d2, 1, isEndDrg ? 32 : 20);
+            }
           }
         }
         for (let i = 0; i < primedTnts.length; i++) {

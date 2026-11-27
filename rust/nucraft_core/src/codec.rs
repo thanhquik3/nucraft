@@ -4,7 +4,7 @@ pub const CODEC_CAP_BYTES: usize = 2_097_152;
 pub const ENTRY_STRIDE: usize = 13; // dim(u8) + x(i32) + y(i16) + z(i32) + bid(u16)
 pub const MAX_CODEC_ENTRIES: usize = CODEC_CAP_BYTES / ENTRY_STRIDE; // 161319
 
-static mut CODEC_IN: [u8; CODEC_CAP_BYTES] = [0; CODEC_CAP_BYTES];
+pub(crate) static mut CODEC_IN: [u8; CODEC_CAP_BYTES] = [0; CODEC_CAP_BYTES];
 static mut CODEC_OUT: [u8; CODEC_CAP_BYTES] = [0; CODEC_CAP_BYTES];
 static mut SORT_ORDER: [u32; MAX_CODEC_ENTRIES] = [0; MAX_CODEC_ENTRIES];
 

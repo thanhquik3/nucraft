@@ -78,7 +78,7 @@
     terrainMat.bumpScale = isLow ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
     leavesMat.bumpScale = 0.0;
     const btn = document.getElementById('btnTexFilter');
-    if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? '✨ Bump PBR: Bật' : '🧱 Pixel Phẳng'; }
+    if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? tr('✨ Bump: BẬT', '✨ Bump: ON') : tr('🧱 Phẳng', '🧱 Flat'); }
   }
 
   function teleportToScenicBiome(targetKey, opts = null) {
@@ -753,7 +753,7 @@
   document.getElementById('btnCloudMode').addEventListener('click', (e) => {
     volumetricClouds = !volumetricClouds;
     e.currentTarget.classList.toggle('active', volumetricClouds);
-    e.currentTarget.textContent = volumetricClouds ? tr('☁️ Mây Volumetric', '☁️ Volumetric Clouds') : tr('🧊 Mây Khối Luanti', '🧊 Luanti Block Clouds');
+    e.currentTarget.textContent = volumetricClouds ? tr('☁️ Mây 3D', '☁️ 3D Clouds') : tr('🧊 Mây khối', '🧊 Block Clouds');
     if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ volumetricClouds });
     showToast(volumetricClouds ? tr('Đã bật Mây Volumetric 3D', 'Volumetric 3D Clouds enabled') : tr('Đã bật Mây Khối Luanti', 'Luanti Block Clouds enabled'));
   });
@@ -916,8 +916,8 @@
         if (typeof _partInstMesh !== 'undefined') _partInstMesh.count = 0;
         if (typeof blkParticles !== 'undefined') blkParticles.length = 0;
         if (typeof _blkPartInstMesh !== 'undefined') _blkPartInstMesh.count = 0;
-        if (typeof smokeVoxels !== 'undefined') smokeVoxels.length = 0;
-        if (typeof _smokeInstMesh !== 'undefined') _smokeInstMesh.count = 0;
+        if (typeof plume2DList !== 'undefined') plume2DList.length = 0;
+        if (typeof _plume2DInstMesh !== 'undefined') _plume2DInstMesh.count = 0;
       }
       if (key === 'clouds' || key === 'fog') {
         try { updateAtmosphere(0.016); } catch (_) {}
@@ -1120,11 +1120,13 @@
     'Quản lý Thế giới': 'World Management',
     'Chọn thế giới đã lưu để chơi tiếp hoặc tạo một thế giới hoàn toàn mới.': 'Pick a saved world to resume or create a brand-new adventure.',
     '+ Tạo thế giới mới': '+ Create New World',
+    '+ Tạo mới': '+ New World',
     '🟢 Thế giới của bạn bè đang mở': '🟢 Active Friends Worlds',
     'Thế giới của bạn': 'Your Worlds',
     '✨ Khu Giấc Mơ — The Sift (Mới!)': '✨ Dream Realm — The Sift (New!)',
     'Chiều không gian mộng mơ với cực quang ngọc lục bảo, đồi ru ngủ, hồ Ichor và các sinh vật dễ thương độc quyền.': 'A dreamy emerald-aurora dimension with Lullaby Hills, Ichor pools, and exclusive cute creatures.',
     '▶ Vào Ngay The Sift': '▶ Enter The Sift Now',
+    '▶ The Sift': '▶ Enter Sift',
     'Khám phá Quần Xã & Thế Giới Mở': 'Explore Biomes & Open World',
     'Chọn quần xã khởi đầu ngay tại mục': 'Select your starting biome right in the',
     'để xem trước hình ảnh Shader sắc nét ở góc trên bên trái. (Khu Giấc Mơ chỉ mở khóa bằng Admin hoặc sau khi đánh bại toàn bộ quái tại Khu Tàn Tích.)': 'tab to preview crisp Shader scenery in the top-left card. (The Sift unlocks via Admin or after clearing the Ruins.)',
@@ -1135,23 +1137,26 @@
     'NHẬP MÃ PHÒNG CỦA BẠN BÈ': 'ENTER FRIEND ROOM CODE',
     'Vào Phòng': 'Join Room',
     'PHÒNG ĐANG MỞ TRÊN MÁY CHỦ': 'OPEN ROOMS ON SERVER',
-    'Chưa có phòng nào — bấm "Tạo Phòng Mới" để lấy Mã Phòng chia sẻ cho bạn bè!': 'No active rooms yet — click "Create New Room" to get a Room Code to share!',
+    'Chưa có phòng nào — bấm "Tạo Phòng Mới" để lấy Mã Phòng chia sẻ cho bạn bè!': 'No active rooms yet — click "Create Room" to get a Room Code to share!',
     'Tạo Phòng Mới & Lấy Mã': 'Create Room & Get Code',
+    '+ Tạo phòng': '+ Create Room',
     'Làm Mới Danh Sách': 'Refresh List',
+    '🔄 Làm mới': '🔄 Refresh',
     'Bạn bè & Lời mời (': 'Friends & Invites (',
-    '🧩 Quản Lý Mod & Voxel Add-on': '🧩 Mod & Voxel Add-on Manager',
-    'Hỗ trợ nạp gói tài nguyên định dạng mở (': 'Load open-format resource/add-on packs (',
-    '— texture, âm thanh, công thức crafting, chỉ số mob) hoặc Mod NUCRAFT (': '— textures, sounds, crafting recipes, mob stats) or NUCRAFT Mods (',
-    '). File': '). Files like',
-    'xương phức tạp được bỏ qua an toàn không gây lỗi game.': 'with complex skeletal rigs are skipped safely without crashing.',
-    'Kéo thả file Mod / Add-on vào đây hoặc chọn từ máy (lưu bền vững trong trình duyệt)': 'Drag & drop Mod / Add-on files here or pick from device (saved in browser storage)',
-    '+ Tải Mod / Add-on (.mcpack / .mcaddon / .zip / .json / .js)': '+ Load Mod / Add-on (.mcpack / .mcaddon / .zip / .json / .js)',
-    '✨ Cài Add-on Mẫu': '✨ Install Sample Add-on',
+    '👥 Bạn bè (': '👥 Friends (',
+    '🧩 Mod & Add-on': '🧩 Mods & Add-ons',
+    'Chọn hoặc kéo thả file': 'Pick or drag & drop',
+    '— tự động áp dụng hình khối, vật phẩm, âm thanh, công thức và mob.': '— automatically applies blocks, items, sounds, recipes, and mobs.',
+    'Kéo thả file vào đây hoặc chọn từ máy': 'Drag & drop files here or browse device',
+    '+ Thêm Mod': '+ Add Mod',
+    '✨ Gói Mẫu': '✨ Sample',
+    '🎨 Hoạt Hình': '🎨 Cartoon',
     'Danh sách Mod & Add-on đã cài': 'Installed Mods & Add-ons',
     'Xoay 3D': 'Spin 3D',
     'Tải .PNG': 'Upload .PNG',
     'Xác Nhận': 'Confirm',
     'Quay Lại Màn Hình Chính': 'Back to Title Screen',
+    'Quay lại Sảnh': 'Back to Lobby',
     '✓ Chọn Skin Này': '✓ Select This Skin',
     'CLASSIC SKINS — CHỌN SKIN NHÂN VẬT': 'CLASSIC SKINS — CHOOSE CHARACTER SKIN',
     'Tiếp tục trò chơi': 'Resume Game',
@@ -1161,6 +1166,7 @@
     'Chơi chung • Không tạm dừng': 'Multiplayer • World Live',
     'Phòng thay đồ': 'Dressing Room',
     'Mời tham gia trò chơi': 'Invite to Game',
+    'Mời bạn bè': 'Invite Friends',
     'Người chơi trong Thế giới': 'Players in World',
     '← Quay lại': '← Back',
     'Quay lại': 'Back',
@@ -1169,24 +1175,42 @@
     'Đồ họa': 'Graphics',
     'Vùng đất': 'Worlds / Realms',
     'Quái vật': 'Mobs & Spawns',
+    'Tỷ lệ giao diện': 'UI Scale',
     'Điều Khiển, Tọa Độ & Bộ Lọc Chat (###)': 'Controls, Coordinates & Chat Filter (###)',
     'Góc Nhìn F5 (3D)': 'F5 View (3D)',
+    'Góc nhìn F5': 'F5 View',
     'Tùy Chỉnh Nút & Tọa Độ': 'Customize HUD & Coords',
+    'Sửa HUD': 'Edit HUD',
     'Bật/Tắt Nút Mobile': 'Toggle Mobile Controls',
+    'Nút Mobile': 'Touch UI',
     'Gọi Bạn Đồng Hành': 'Summon Companion',
+    'Đồng hành AI': 'AI Buddy',
+    'Kiểu 1': 'Mode 1',
+    'Kiểu 2': 'Mode 2',
+    'Kiểu 3': 'Mode 3',
     '🎮 Kiểu Mobile 1': '🎮 Touch Layout 1',
     '🎮 Kiểu Mobile 2': '🎮 Touch Layout 2',
     '🎮 Kiểu Mobile 3': '🎮 Touch Layout 3',
     'Lưu Từ Cấm': 'Save Blocked Words',
+    'Lưu': 'Save',
     'Chơi Chung Qua Internet (Mọi Mạng Wi-Fi / 4G)': 'Play Together Online (Any Wi-Fi / 4G)',
-    'Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè ở bất kỳ đâu!': 'Host a room to get a 6-character online Room Code and share it with friends anywhere!',
+    'Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè qua Wi-Fi / 4G!': 'Host a room to get a 6-character online Room Code and share it with friends anywhere!',
     'Mở Phòng Online & Lấy Mã': 'Open Online Room & Get Code',
+    '🌐 Mở phòng': '🌐 Host Room',
     'Về Sảnh / Đổi Skin': 'Lobby / Change Skin',
+    'Về Sảnh': 'Lobby',
     'Lưu Trữ Thế Giới': 'World Storage',
+    '💾 Lưu map': '💾 Save World',
+    '🔄 Map mới': '🔄 New World',
     '💾 Lưu Thế Giới': '💾 Save World',
     '🔄 Tạo Map Mới': '🔄 New World',
     'Quyền Quản Trị (Admin • Mở Khóa Tab Vùng Đất)': 'Admin Access (Unlock Realms Tab)',
     '👑 Mở Khóa Admin': '👑 Unlock Admin',
+    '👑 Mở Admin': '👑 Admin',
+    'Tắt (x1)': 'Off (x1)',
+    '⚡ AI x2': '⚡ AI x2',
+    '🚀 AI x4': '🚀 AI x4',
+    'HỒI SINH': 'RESPAWN',
     '🌐 Ngôn Ngữ / Language': '🌐 Language / Ngôn Ngữ',
     '🎵 Âm Thanh & Nhạc Nền Voxel Chill': '🎵 Sound Effects & Chill Background Music',
     'Âm thanh': 'Audio',
@@ -1421,15 +1445,15 @@
         : ch.dataset.viHtml;
     }
     const coordsBtn = document.getElementById('btnToggleCoords');
-    if (coordsBtn && typeof coordsVisible !== 'undefined') coordsBtn.textContent = coordsVisible ? tr('📍 Tọa Độ HUD: BẬT', '📍 HUD Coords: ON') : tr('📍 Tọa Độ HUD: TẮT', '📍 HUD Coords: OFF');
+    if (coordsBtn && typeof showCoordsHud !== 'undefined') coordsBtn.textContent = showCoordsHud ? tr('📍 Tọa độ: BẬT', '📍 Coords: ON') : tr('📍 Tọa độ: TẮT', '📍 Coords: OFF');
     const profBtn = document.getElementById('btnToggleProfanity');
-    if (profBtn && typeof profanityFilterOn !== 'undefined') profBtn.textContent = profanityFilterOn ? tr('🛡️ Lọc Từ Thô Tục: BẬT', '🛡️ Chat Filter: ON') : tr('🛡️ Lọc Từ Thô Tục: TẮT', '🛡️ Chat Filter: OFF');
+    if (profBtn && typeof profanityFilterEnabled !== 'undefined') profBtn.textContent = profanityFilterEnabled ? tr('🛡️ Lọc chat: BẬT', '🛡️ Filter: ON') : tr('🛡️ Lọc chat: TẮT', '🛡️ Filter: OFF');
     const rtBtn = document.getElementById('btnRayTracing');
     if (rtBtn && typeof sodiumOpts !== 'undefined') rtBtn.textContent = sodiumOpts.rayTracing ? tr('BẬT', 'ON') : tr('TẮT', 'OFF');
     const cloudBtn = document.getElementById('btnCloudMode');
-    if (cloudBtn && typeof volumetricClouds !== 'undefined') cloudBtn.textContent = volumetricClouds ? tr('☁️ Mây Volumetric', '☁️ Volumetric Clouds') : tr('🧊 Mây Khối Luanti', '🧊 Luanti Block Clouds');
+    if (cloudBtn && typeof volumetricClouds !== 'undefined') cloudBtn.textContent = volumetricClouds ? tr('☁️ Mây 3D', '☁️ 3D Clouds') : tr('🧊 Mây khối', '🧊 Block Clouds');
     const texBtn = document.getElementById('btnTexFilter');
-    if (texBtn && typeof bumpEnabled !== 'undefined') texBtn.textContent = bumpEnabled ? tr('Bump PBR: Bật', 'Bump PBR: On') : tr('Bump PBR: Tắt', 'Bump PBR: Off');
+    if (texBtn && typeof bumpEnabled !== 'undefined') texBtn.textContent = bumpEnabled ? tr('✨ Bump: BẬT', '✨ Bump: ON') : tr('🧱 Phẳng', '🧱 Flat');
   }
 
   function _applyAllI18n(lang) {
@@ -1520,14 +1544,28 @@
         : tr('▶ Tiếp Tục Chơi', '▶ Resume Game');
     }
     const btnSave = document.getElementById('btnSave');
-    if (btnSave) btnSave.textContent = tr('💾 Lưu Thế Giới', '💾 Save World');
+    if (btnSave) btnSave.textContent = tr('💾 Lưu map', '💾 Save World');
     const btnReset = document.getElementById('btnResetWorld');
-    if (btnReset) btnReset.textContent = tr('🔄 Tạo Map Mới', '🔄 New World');
+    if (btnReset) btnReset.textContent = tr('🔄 Map mới', '🔄 New World');
     if (notify) showToast(tr('🇻🇳 Đã chuyển ngôn ngữ sang Tiếng Việt!', '🇬🇧 Switched language to English!'));
   }
   document.querySelectorAll('#langSegLobby .seg-btn, #langSegMenu .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => applyLanguage(btn.dataset.lang, true));
   });
+  function syncUiScaleButtons(prefVal) {
+    const cur = prefVal || (typeof window.getUiScalePref === 'function' ? window.getUiScalePref() : 'auto');
+    document.querySelectorAll('#uiScaleSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.uiscale === cur));
+  }
+  document.querySelectorAll('#uiScaleSeg .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.uiscale || 'auto';
+      const chosen = (typeof window.setUiScalePref === 'function') ? window.setUiScalePref(val) : val;
+      syncUiScaleButtons(chosen);
+      const scalePct = Math.round((typeof window.getComputedUiScale === 'function' ? window.getComputedUiScale() : 1) * 100);
+      showToast(tr(`🖥️ Tỷ lệ giao diện: ${chosen === 'auto' ? 'Tự động (' + scalePct + '%)' : scalePct + '%'}`, `🖥️ UI Scale: ${chosen === 'auto' ? 'Auto (' + scalePct + '%)' : scalePct + '%'}`));
+    });
+  });
+  syncUiScaleButtons();
 
 
   /* ============================================================================
@@ -2603,6 +2641,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
       }
       showToast(tr('Đã đặt lại Đồ họa về mặc định (Eclipse + Ultra)', 'Video settings reset to defaults'));
     } else if (act === 'play') {
+      document.querySelector('#uiScaleSeg .seg-btn[data-uiscale="auto"]')?.click();
       document.getElementById('btnMobileMode1')?.click();
       const cb = document.getElementById('btnToggleCoords');
       if (cb && !cb.classList.contains('mc-btn-green')) cb.click();
@@ -3122,17 +3161,17 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
             activeCx = cx; activeCz = cz;
             genOps++;
           }
-          // Phase 2: Parallel Worker Mesh Fan-out + Direct Near-Chunk Meshing (45%..86%)
-          if (genIdx >= totalGen && chunkWorkerPool.active) {
-            const fanLimit = Math.min(totalMesh, meshIdx + (_isMobilePerf ? 8 : 16));
+          // Overlapped worker meshing: dispatch inner chunks as soon as 4 cardinal neighbors exist during Phase 1!
+          if (chunkWorkerPool.active) {
+            const fanLimit = genIdx < totalGen ? Math.min(totalMesh, meshIdx + (_isMobilePerf ? 6 : 12)) : Math.min(totalMesh, meshIdx + (_isMobilePerf ? 8 : 16));
             for (let mi = meshIdx; mi < fanLimit; mi++) {
               const [fcx, fcz] = meshRings[mi];
               const d2 = (fcx - pcx) * (fcx - pcx) + (fcz - pcz) * (fcz - pcz);
               if (d2 <= 1) continue;
               const fch = chunks.get(chunkKey(fcx, fcz));
-              if (fch && (fch.dirty || fch.urgentDirty || !fch.meshed) && !fch._pendingSlice) {
-                _dispatchChunkMeshToWorker(fch);
-              }
+              if (!fch || !(fch.dirty || fch.urgentDirty || !fch.meshed) || fch._pendingSlice || fch._meshInFlightGen === (fch._meshGen || 0)) continue;
+              if (genIdx < totalGen && (!chunks.has(chunkKey(fcx + 1, fcz)) || !chunks.has(chunkKey(fcx - 1, fcz)) || !chunks.has(chunkKey(fcx, fcz + 1)) || !chunks.has(chunkKey(fcx, fcz - 1)))) continue;
+              _dispatchChunkMeshToWorker(fch);
             }
           }
           while (genIdx >= totalGen && meshIdx < totalMesh && meshOps < 2 && (meshOps === 0 || performance.now() < frameDeadline)) {

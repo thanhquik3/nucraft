@@ -489,7 +489,7 @@ async function main() {
 
   const { instance } = await WebAssembly.instantiate(bytes, {});
   const w = instance.exports;
-  assert.strictEqual(w.wasm_abi_version(), 4);
+  assert.strictEqual(w.wasm_abi_version(), 5);
 
   const mem = () => w.memory.buffer;
   const coarseView = new Float32Array(mem(), w.coarse_grid_ptr(), 1625);
@@ -532,6 +532,24 @@ async function main() {
   const lodColView = new Float32Array(mem(), w.lod_col_ptr(), 49152 * 3);
   const lodIdxView = new Uint32Array(mem(), w.lod_idx_ptr(), 73728);
   const lodMetaView = new Uint32Array(mem(), w.lod_meta_ptr(), 4);
+
+  // ABI v5 views
+  const lutEmitInfoView = new Float32Array(mem(), w.lut_emit_info_ptr(), 2048 * 4);
+  const lutEmitMetaView = new Uint8Array(mem(), w.lut_emit_meta_ptr(), 2048);
+  const lutMapU32View = new Uint32Array(mem(), w.lut_map_u32_ptr(), 2048);
+  const lutRtPackView = new Uint8Array(mem(), w.lut_rt_pack_ptr(), 2048 * 4);
+  const scanEmitOutView = new Float32Array(mem(), w.scan_emitters_out_ptr(), 160 * 8);
+  const scanSpecOutView = new Float32Array(mem(), w.scan_spec_out_ptr(), 96 * 4);
+  const scanTopHView = new Int16Array(mem(), w.scan_topmap_h_ptr(), 256);
+  const scanMapU32View = new Uint32Array(mem(), w.scan_minimap_u32_ptr(), 256);
+  const scanMetaView = new Uint32Array(mem(), w.scan_meta_out_ptr(), 4);
+  const rtVolOutView = new Uint8Array(mem(), w.rt_vol_out_ptr(), 512 * 256 * 4);
+  const itemRgbaInView = new Uint8Array(mem(), w.item_rgba_in_ptr(), 16 * 16 * 4);
+  const itemPosOutView = new Float32Array(mem(), w.item_pos_out_ptr(), 6144 * 3);
+  const itemNormOutView = new Float32Array(mem(), w.item_norm_out_ptr(), 6144 * 3);
+  const itemColOutView = new Float32Array(mem(), w.item_col_out_ptr(), 6144 * 3);
+  const itemIdxOutView = new Uint32Array(mem(), w.item_idx_out_ptr(), 9216);
+  const itemMetaOutView = new Uint32Array(mem(), w.item_meta_out_ptr(), 2);
 
   // 1) Noise parity
   for (let s = -5; s <= 5; s++) {
@@ -794,8 +812,125 @@ async function main() {
     }
   }
 
+  // 9) ABI v5: Fused Scan (Emitters + TopMap + Minimap), RT Pack, 3D Item Extrude, Solid Atlas, CRC32
+  lutEmitInfoView.fill(0); lutEmitMetaView.fill(0); lutMapU32View.fill(0xff80726b);
+  lutMapU32View[B.GRASS] = 0xff49944f; lutMapU32View[B.STONE] = 0xff7b7b7b;
+  lutEmitInfoView.set([1.18, 0.88, 0.48, 324.0], B.TORCH_BLOCK * 4);
+  lutEmitMetaView[B.TORCH_BLOCK] = 1;
+  lutEmitInfoView.set([0.82, 0.36, 0.12, 144.0], B.LAVA * 4);
+  lutEmitMetaView[B.LAVA] = 3; // sampled lava
+  chunkDataView.fill(0);
+  chunkDataView[(12 << 8) | (5 << 4) | 7] = B.STONE;
+  chunkDataView[(40 << 8) | (2 << 4) | 3] = B.GRASS;
+  chunkDataView[(41 << 8) | (2 << 4) | 3] = B.TORCH_BLOCK; // cross block emitter above GRASS
+  chunkDataView[(8 << 8) | (4 << 4) | 4] = B.LAVA;   // (4&3)==0 && (4&3)==0 && (8&1)==0 -> kept
+  chunkDataView[(9 << 8) | (4 << 4) | 4] = B.LAVA;   // (9&1)==1 -> skipped
+  const emFound = w.scan_chunk_emitters_and_topmap(50, 160, 8, 0xff271811) >>> 0;
+  assert.strictEqual(emFound, 2);
+  assert.strictEqual(scanMetaView[0], 1); // primary torch first
+  assert.strictEqual(scanMetaView[1], 2);
+  assert.strictEqual(Math.round(scanEmitOutView[7]), B.TORCH_BLOCK);
+  assert.strictEqual(Math.round(scanEmitOutView[8 + 7]), B.LAVA);
+  assert.strictEqual(scanTopHView[(2 << 4) | 3], 40); // skipped cross torch at 41, picked GRASS at 40
+  assert.strictEqual(scanMapU32View[(2 << 4) | 3] >>> 0, 0xff49944f);
+  assert.strictEqual(scanMapU32View[(0 << 4) | 0] >>> 0, 0xff271811);
+  assert.strictEqual(scanSpecOutView.length, 96 * 4);
+
+  // RT Voxel Packer parity check
+  lutRtPackView.fill(0);
+  lutRtPackView.set([122, 128, 134, 32], B.STONE * 4);
+  lutRtPackView.set([255, 112, 22, 224], B.LAVA * 4);
+  w.rt_vol_clear();
+  const packedN = w.pack_rt_chunk_into_vol(0, 0, MIN_Y, -32, MIN_Y + 8, -32, MAX_Y) >>> 0;
+  assert.strictEqual(packedN, 3); // STONE@12, GRASS@40(kind=0 skipped), TORCH@41(0), LAVA@8, LAVA@9
+  // Check STONE at (lx=7, ly=12, lz=5) -> wx=7, wy=MIN_Y+12, wz=5 -> vx=39, vy=4, vz=37
+  const vyS = 4, tXS = vyS & 7, tYS = vyS >> 3;
+  const pIdxS = ((tYS * 64 + 37) * 512 + (tXS * 64 + 39)) * 4;
+  assert.strictEqual(rtVolOutView[pIdxS], 122);
+  assert.strictEqual(rtVolOutView[pIdxS + 3], 32);
+
+  // 16x16 3D Voxel Item Extruder check (2x2 opaque block with bevel -> 0 interior pixels -> known quads)
+  itemRgbaInView.fill(0);
+  for (let y = 6; y < 9; y++) for (let x = 6; x < 9; x++) {
+    const o = (y * 16 + x) * 4;
+    itemRgbaInView[o] = 200; itemRgbaInView[o + 1] = 100; itemRgbaInView[o + 2] = 50; itemRgbaInView[o + 3] = 255;
+  }
+  const exIdxCnt = w.extrude_voxel_item_16x16(0.028, 0.022, 0.008) >>> 0;
+  // 3x3 grid: 9 front + 9 back + 12 outerperimeter sides + 4*2 bevel steps around center pixel (7,7) = 38 quads -> 152 verts, 228 idx
+  assert.strictEqual(itemMetaOutView[0], 152);
+  assert.strictEqual(itemMetaOutView[1], 228);
+  assert.strictEqual(exIdxCnt, 228);
+  assert(Math.abs(itemPosOutView[0] - (-2 * 0.028)) < 1e-5);
+  assert.strictEqual(itemNormOutView[2], 1.0);
+  assert(Math.abs(itemColOutView[0] - 200 / 255) < 1e-4);
+  assert.strictEqual(itemIdxOutView[5], 3);
+
+  // Solid Atlas builder check (transparent pixels filled with dimmed tile average)
+  atlasRgbaView.fill(0);
+  atlasRgbaView[0] = 100; atlasRgbaView[1] = 200; atlasRgbaView[2] = 100; atlasRgbaView[3] = 255;
+  assert.strictEqual(w.build_solid_atlas_rgba(32, 16, 16), 1);
+  assert.strictEqual(atlasBumpView[0], 100);
+  assert.strictEqual(atlasBumpView[4], 62);  // Math.trunc(100 * 0.62)
+  assert.strictEqual(atlasBumpView[5], 132); // Math.trunc(200 * 0.66)
+  assert.strictEqual(atlasBumpView[7], 255);
+
+  // IEEE CRC32 known test vector ("123456789" -> 0xCBF43926)
+  const crcTestBytes = Buffer.from('123456789', 'ascii');
+  codecInView.set(crcTestBytes, 0);
+  assert.strictEqual(w.crc32_bytes(crcTestBytes.length) >>> 0, 0xCBF43926);
+
+  // 10) Rust/WASM 2D PixelFX Strip Baker & Plume Stepper checks
+  const pfxSpecs = [
+    [0, 24, 10, 1], // fire_flame
+    [1, 24, 10, 2], // soul_flame
+    [2, 24, 12, 3], // sulfur_steam
+    [3, 24, 12, 4], // campfire_smoke
+    [4, 20, 8, 5],  // smoke_puff
+    [5, 24, 10, 6]  // dragon_impact_glow
+  ];
+  for (const [kind, sz, fr, seed] of pfxSpecs) {
+    const written = w.bake_pixelfx_strip_rgba(kind, sz, fr, seed) >>> 0;
+    assert.strictEqual(written, fr * sz * sz * 4, `Unexpected byte size for pixelfx kind ${kind}`);
+    const stripW = fr * sz;
+    const rgbSet = new Set();
+    let opaqueCnt = 0;
+    let firstFrameAlphaSum = 0;
+    let lastFrameAlphaSum = 0;
+    for (let y = 0; y < sz; y++) {
+      for (let fIdx = 0; fIdx < fr; fIdx++) {
+        for (let x = 0; x < sz; x++) {
+          const off = (y * stripW + fIdx * sz + x) * 4;
+          const a = atlasRgbaView[off + 3];
+          if (fIdx === 0) firstFrameAlphaSum += a;
+          if (fIdx === fr - 1) lastFrameAlphaSum += a;
+          if (a > 16) {
+            opaqueCnt++;
+            rgbSet.add((atlasRgbaView[off] << 16) | (atlasRgbaView[off + 1] << 8) | atlasRgbaView[off + 2]);
+          }
+        }
+      }
+    }
+    assert(opaqueCnt > 40, `Too few opaque pixels in pixelfx kind ${kind}: ${opaqueCnt}`);
+    assert(rgbSet.size >= 3, `Expected >= 3 distinct tones for pixelfx kind ${kind}, got ${rgbSet.size}`);
+    if (kind === 2 || kind === 3 || kind === 4) {
+      assert(lastFrameAlphaSum < firstFrameAlphaSum, `Expected smoke kind ${kind} to thin in final frame (${lastFrameAlphaSum} vs ${firstFrameAlphaSum})`);
+    }
+  }
+  assert.strictEqual(w.bake_pixelfx_strip_rgba(99, 24, 8, 1) >>> 0, 0);
+  assert.strictEqual(w.bake_pixelfx_strip_rgba(0, 4, 8, 1) >>> 0, 0);
+
+  partView.fill(0);
+  partView.set([1.0, 2.0, 3.0, 0.0, 1.5, 0.0, 0.7, 2.0], 0);
+  partView.set([-2.0, 0.5, 4.0, 0.2, 2.0, -0.1, 2.1, 1.5], 8);
+  const pOut = w.step_pixelfx_plumes(2, 0.1, 1.25, 0.25, 0.4) >>> 0;
+  assert.strictEqual(pOut, 2);
+  assert(Number.isFinite(partView[0]) && Number.isFinite(partView[1]) && Number.isFinite(partView[2]));
+  assert(partView[1] > 2.0 && partView[4] < 1.5, 'Expected positive Y rise with drag');
+  assert(Math.abs(partView[0] - 1.0) > 1e-4 || Math.abs(partView[2] - 3.0) > 1e-4, 'Expected horizontal wind-curl drift');
+  assert(Math.abs(partView[7] - 1.9) < 1e-5 && Math.abs(partView[15] - 1.4) < 1e-5);
+
   console.log(
-    `[NUCRAFT wasm test] PASS | ABI v4 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
+    `[NUCRAFT wasm test] PASS | ABI v5 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
     `40-chunk solid: JS=${jsMeshMs.toFixed(1)}ms, WASM=${wasmMeshMs.toFixed(1)}ms, Greedy=${wasmGreedyMs.toFixed(1)}ms (-${greedySavePct.toFixed(1)}% / flat -${flatSavePct.toFixed(1)}% verts) | ` +
     `32-chunk OW gen=${wasmGenMs.toFixed(1)}ms | ` +
     `NCW1 50k=${encBytes}B (${(jsonBytes / encBytes).toFixed(1)}x) | ` +

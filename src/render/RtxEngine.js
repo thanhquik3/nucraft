@@ -101,7 +101,12 @@
   const reflCam = new THREE.PerspectiveCamera(72, 16 / 9, 0.1, 420);
   const reflClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(WATER_LEVEL + 0.855));
 
-  const { tex: atlasTex, bumpTex, canvas: atlasCanvas, getSolidTex: getAtlasSolidTex } = buildTextureAtlas();
+  const { tex: atlasTex, bumpTex, canvas: atlasCanvas, getSolidTex: getAtlasSolidTex, rebuildBumpMap: rebuildAtlasBumpMap, invalidateSolidTex: invalidateAtlasSolidTex } = buildTextureAtlas();
+  if (typeof window !== 'undefined') {
+    window._rebuildAtlasBumpMap = () => rebuildAtlasBumpMap(true);
+    window._invalidateAtlasSolidTex = invalidateAtlasSolidTex;
+    window._invalidateRtLut = () => { _rtLutReady = false; window._rtVolDirty = true; };
+  }
   const atlasCtx = atlasCanvas.getContext('2d');
 
   const envUniforms = {
@@ -248,41 +253,59 @@
     if (!force && (now - _rtLastBuildMs) < 42) return false;
 
     const t0 = performance.now();
-    rtVoxelBytes.fill(0);
     let activeVoxels = 0;
     const minWy = Math.max(MIN_Y + 1, oy);
     const maxWy = Math.min(MAX_Y, oy + RT_VOL_H - 1);
     const cMinX = ox >> 4, cMaxX = (ox + RT_VOL_W - 1) >> 4;
     const cMinZ = oz >> 4, cMaxZ = (oz + RT_VOL_D - 1) >> 4;
-    for (let cz = cMinZ; cz <= cMaxZ; cz++) {
-      for (let cx = cMinX; cx <= cMaxX; cx++) {
-        const ch = (typeof _getChunkFast === 'function') ? _getChunkFast(cx, cz) : chunks.get(`${cx},${cz}`);
-        if (!ch || !ch.data) continue;
-        const data = ch.data;
-        const wxBase = cx << 4, wzBase = cz << 4;
-        const x0 = Math.max(ox, wxBase), x1 = Math.min(ox + RT_VOL_W - 1, wxBase + 15);
-        const z0 = Math.max(oz, wzBase), z1 = Math.min(oz + RT_VOL_D - 1, wzBase + 15);
-        const topWy = Math.min(maxWy, MIN_Y + (ch.maxLy || (WORLD_H - 1)));
-        for (let wy = minWy; wy <= topWy; wy++) {
-          const ly = wy - MIN_Y, vy = wy - oy;
-          const tileX = vy & 7, tileY = vy >> 3;
-          const lyOff = ly << 8;
-          const baseTexX = tileX * 64 + (x0 - ox);
-          const baseTexY = tileY * 64;
-          for (let wz = z0; wz <= z1; wz++) {
-            const lz = wz - wzBase, vz = wz - oz;
-            const cRow = lyOff | (lz << 4);
-            let pIdx = ((baseTexY + vz) * 512 + baseTexX) * 4;
-            for (let wx = x0; wx <= x1; wx++, pIdx += 4) {
-              const id = data[cRow | (wx - wxBase)];
-              if (!id) continue;
-              const kind = _rtLutKind[id];
-              if (!kind) continue;
-              rtVoxelBytes[pIdx]     = _rtLutR[id];
-              rtVoxelBytes[pIdx + 1] = _rtLutG[id];
-              rtVoxelBytes[pIdx + 2] = _rtLutB[id];
-              rtVoxelBytes[pIdx + 3] = kind;
-              activeVoxels++;
+    const _wCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    if (_wCore && _wCore.exports && _wCore.exports.pack_rt_chunk_into_vol && _wCore.chunkData && _wCore.rtVolOut) {
+      _wCore.exports.rt_vol_clear();
+      for (let cz = cMinZ; cz <= cMaxZ; cz++) {
+        for (let cx = cMinX; cx <= cMaxX; cx++) {
+          const ch = (typeof _getChunkFast === 'function') ? _getChunkFast(cx, cz) : chunks.get(`${cx},${cz}`);
+          if (!ch || !ch.data) continue;
+          const topWy = Math.min(maxWy, MIN_Y + (ch.maxLy || (WORLD_H - 1)));
+          if (minWy > topWy) continue;
+          const copyWords = Math.min(ch.data.length, (Math.min(WORLD_H - 1, topWy - MIN_Y) + 1) << 8);
+          _wCore.chunkData.set(ch.data.subarray(0, copyWords));
+          activeVoxels += _wCore.exports.pack_rt_chunk_into_vol(cx << 4, cz << 4, MIN_Y | 0, ox | 0, oy | 0, oz | 0, topWy | 0) >>> 0;
+        }
+      }
+      rtVoxelBytes.set(_wCore.rtVolOut);
+      _wCore.state.rtPackCalls++;
+    } else {
+      rtVoxelBytes.fill(0);
+      for (let cz = cMinZ; cz <= cMaxZ; cz++) {
+        for (let cx = cMinX; cx <= cMaxX; cx++) {
+          const ch = (typeof _getChunkFast === 'function') ? _getChunkFast(cx, cz) : chunks.get(`${cx},${cz}`);
+          if (!ch || !ch.data) continue;
+          const data = ch.data;
+          const wxBase = cx << 4, wzBase = cz << 4;
+          const x0 = Math.max(ox, wxBase), x1 = Math.min(ox + RT_VOL_W - 1, wxBase + 15);
+          const z0 = Math.max(oz, wzBase), z1 = Math.min(oz + RT_VOL_D - 1, wzBase + 15);
+          const topWy = Math.min(maxWy, MIN_Y + (ch.maxLy || (WORLD_H - 1)));
+          for (let wy = minWy; wy <= topWy; wy++) {
+            const ly = wy - MIN_Y, vy = wy - oy;
+            const tileX = vy & 7, tileY = vy >> 3;
+            const lyOff = ly << 8;
+            const baseTexX = tileX * 64 + (x0 - ox);
+            const baseTexY = tileY * 64;
+            for (let wz = z0; wz <= z1; wz++) {
+              const lz = wz - wzBase, vz = wz - oz;
+              const cRow = lyOff | (lz << 4);
+              let pIdx = ((baseTexY + vz) * 512 + baseTexX) * 4;
+              for (let wx = x0; wx <= x1; wx++, pIdx += 4) {
+                const id = data[cRow | (wx - wxBase)];
+                if (!id) continue;
+                const kind = _rtLutKind[id];
+                if (!kind) continue;
+                rtVoxelBytes[pIdx]     = _rtLutR[id];
+                rtVoxelBytes[pIdx + 1] = _rtLutG[id];
+                rtVoxelBytes[pIdx + 2] = _rtLutB[id];
+                rtVoxelBytes[pIdx + 3] = kind;
+                activeVoxels++;
+              }
             }
           }
         }
@@ -3831,7 +3854,9 @@
     let imgData = null;
     let usedOfficialIcon = false;
     const _vKey = (typeof BLOCK_ID_TO_KEY !== 'undefined') ? BLOCK_ID_TO_KEY[blockId] : null;
-    const _vIm = (_vKey && !def.customAtlasTex && !isCastRod && typeof _mcItemImgs !== 'undefined') ? _mcItemImgs.get(_vKey) : null;
+    const _vIm = (_vKey && !def.customAtlasTex && !isCastRod)
+      ? (typeof getMcItemImg === 'function' ? getMcItemImg(_vKey) : (typeof _mcItemImgs !== 'undefined' ? _mcItemImgs.get(_vKey) : null))
+      : null;
     if (def.tool === 'bow' && typeof window.getBowStageSprite === 'function') {
       const bStage = (meta && typeof meta.bowStage === 'number') ? meta.bowStage : 0;
       const sp = window.getBowStageSprite(blockId, bStage);
@@ -3864,8 +3889,6 @@
       const tx = (tile % ATLAS_COLS) * TILE_PX, ty = Math.floor(tile / ATLAS_COLS) * TILE_PX;
       imgData = atlasCtx.getImageData(tx, ty, TILE_PX, TILE_PX).data;
     }
-    const pos = [], norm = [], cols = [], idx = [];
-    let vc = 0;
     const isTool = !!def.tool;
     const isChunky = !isTool && !def.cross && (
       def.food || def.bucket || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION ||
@@ -3879,44 +3902,61 @@
       blockId === B.DRAGON_SCALE || blockId === B.DRAGON_BONE || blockId === B.DRAGON_SADDLE || blockId === B.DRAGON_CRYSTAL || !!def.smithTemplate || !!def.dragonArmorSlot ||
       (_vKey && /INGOT$/.test(_vKey))
     );
-    // Volumetric 16x16 3D extruded item model (embossed thicker center bevel on meats, foods, ingots & gems!)
+    // Volumetric 16x16 3D extruded item model (Rust/WASM zero-array fast path + JS fallback)
     const px = isTool ? 0.030 : (isChunky ? 0.028 : 0.026);
     const halfD = (isTool ? 0.016 : (isChunky ? 0.022 : 0.014));
     const bevel = isChunky ? 0.008 : 0.0;
-    const pushQuad = (a, b, c, d, n, r, g, bl) => {
-      pos.push(...a, ...b, ...c, ...d); norm.push(...n, ...n, ...n, ...n);
-      cols.push(r, g, bl, r, g, bl, r, g, bl, r, g, bl);
-      idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3); vc += 4;
-    };
-    const getPxIdx = (x, y) => (y * 16 + x) * 4;
-    const isOpaque = (x, y) => (x >= 0 && x < 16 && y >= 0 && y < 16 && imgData[getPxIdx(x, y) + 3] > 32);
-    const isInteriorPx = (x, y) => bevel > 0 && isOpaque(x, y) && isOpaque(x - 1, y) && isOpaque(x + 1, y) && isOpaque(x, y - 1) && isOpaque(x, y + 1);
-    const isRainbowItem = !!(def && def.rainbow);
-    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-      if (!isOpaque(x, y)) continue;
-      const pi = getPxIdx(x, y);
-      const r = imgData[pi] / 255, g = imgData[pi + 1] / 255, bl = imgData[pi + 2] / 255;
-      const intr = isInteriorPx(x, y);
-      const x0 = (x - 8) * px, x1 = x0 + px, y0 = (8 - y - 1) * px, y1 = y0 + px;
-      const z0 = -(halfD + (intr ? bevel : 0)), z1 = (halfD + (intr ? bevel : 0));
-      pushQuad([x0,y0,z1], [x1,y0,z1], [x1,y1,z1], [x0,y1,z1], [0,0,1], r, g, bl);
-      pushQuad([x1,y0,z0], [x0,y0,z0], [x0,y1,z0], [x1,y1,z0], [0,0,-1], r*0.95, g*0.95, bl*0.95);
-      const emitSide = (dir, zLo, zHi) => {
-        if (dir === 0) pushQuad([x0,y1,zHi], [x1,y1,zHi], [x1,y1,zLo], [x0,y1,zLo], [0,1,0], Math.min(1,r*1.06), Math.min(1,g*1.06), Math.min(1,bl*1.06));
-        else if (dir === 1) pushQuad([x0,y0,zLo], [x1,y0,zLo], [x1,y0,zHi], [x0,y0,zHi], [0,-1,0], r*0.78, g*0.78, bl*0.78);
-        else if (dir === 2) pushQuad([x1,y0,zHi], [x1,y0,zLo], [x1,y1,zLo], [x1,y1,zHi], [1,0,0], r*0.90, g*0.90, bl*0.90);
-        else pushQuad([x0,y0,zLo], [x0,y0,zHi], [x0,y1,zHi], [x0,y1,zLo], [-1,0,0], r*0.86, g*0.86, bl*0.86);
-      };
-      const nbD = [[0,-1],[0,1],[1,0],[-1,0]];
-      for (let d = 0; d < 4; d++) {
-        const nx = x + nbD[d][0], ny = y + nbD[d][1];
-        if (!isOpaque(nx, ny)) emitSide(d, z0, z1);
-        else if (intr && !isInteriorPx(nx, ny)) { emitSide(d, halfD, z1); emitSide(d, z0, -halfD); }
-      }
-    }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.setIndex(idx);
+    const _wItemCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    if (_wItemCore && _wItemCore.exports && _wItemCore.exports.extrude_voxel_item_16x16 && _wItemCore.itemRgbaIn && imgData.length === 1024) {
+      _wItemCore.itemRgbaIn.set(imgData);
+      const ic = _wItemCore.exports.extrude_voxel_item_16x16(px, halfD, bevel) >>> 0;
+      const vcW = _wItemCore.itemMetaOut[0] >>> 0;
+      geo.setAttribute('position', new THREE.BufferAttribute(_wItemCore.itemPosOut.slice(0, vcW * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(_wItemCore.itemNormOut.slice(0, vcW * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(_wItemCore.itemColOut.slice(0, vcW * 3), 3));
+      const idxAttr = (vcW <= 65535)
+        ? new THREE.BufferAttribute(new Uint16Array(_wItemCore.itemIdxOut.subarray(0, ic)), 1)
+        : new THREE.BufferAttribute(_wItemCore.itemIdxOut.slice(0, ic), 1);
+      geo.setIndex(idxAttr);
+      _wItemCore.state.itemExtrudeCalls++;
+    } else {
+      const pos = [], norm = [], cols = [], idx = [];
+      let vc = 0;
+      const pushQuad = (a, b, c, d, n, r, g, bl) => {
+        pos.push(...a, ...b, ...c, ...d); norm.push(...n, ...n, ...n, ...n);
+        cols.push(r, g, bl, r, g, bl, r, g, bl, r, g, bl);
+        idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3); vc += 4;
+      };
+      const getPxIdx = (x, y) => (y * 16 + x) * 4;
+      const isOpaque = (x, y) => (x >= 0 && x < 16 && y >= 0 && y < 16 && imgData[getPxIdx(x, y) + 3] > 32);
+      const isInteriorPx = (x, y) => bevel > 0 && isOpaque(x, y) && isOpaque(x - 1, y) && isOpaque(x + 1, y) && isOpaque(x, y - 1) && isOpaque(x, y + 1);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (!isOpaque(x, y)) continue;
+        const pi = getPxIdx(x, y);
+        const r = imgData[pi] / 255, g = imgData[pi + 1] / 255, bl = imgData[pi + 2] / 255;
+        const intr = isInteriorPx(x, y);
+        const x0 = (x - 8) * px, x1 = x0 + px, y0 = (8 - y - 1) * px, y1 = y0 + px;
+        const z0 = -(halfD + (intr ? bevel : 0)), z1 = (halfD + (intr ? bevel : 0));
+        pushQuad([x0,y0,z1], [x1,y0,z1], [x1,y1,z1], [x0,y1,z1], [0,0,1], r, g, bl);
+        pushQuad([x1,y0,z0], [x0,y0,z0], [x0,y1,z0], [x1,y1,z0], [0,0,-1], r*0.95, g*0.95, bl*0.95);
+        const emitSide = (dir, zLo, zHi) => {
+          if (dir === 0) pushQuad([x0,y1,zHi], [x1,y1,zHi], [x1,y1,zLo], [x0,y1,zLo], [0,1,0], Math.min(1,r*1.06), Math.min(1,g*1.06), Math.min(1,bl*1.06));
+          else if (dir === 1) pushQuad([x0,y0,zLo], [x1,y0,zLo], [x1,y0,zHi], [x0,y0,zHi], [0,-1,0], r*0.78, g*0.78, bl*0.78);
+          else if (dir === 2) pushQuad([x1,y0,zHi], [x1,y0,zLo], [x1,y1,zLo], [x1,y1,zHi], [1,0,0], r*0.90, g*0.90, bl*0.90);
+          else pushQuad([x0,y0,zLo], [x0,y0,zHi], [x0,y1,zHi], [x0,y1,zLo], [-1,0,0], r*0.86, g*0.86, bl*0.86);
+        };
+        const nbD = [[0,-1],[0,1],[1,0],[-1,0]];
+        for (let d = 0; d < 4; d++) {
+          const nx = x + nbD[d][0], ny = y + nbD[d][1];
+          if (!isOpaque(nx, ny)) emitSide(d, z0, z1);
+          else if (intr && !isInteriorPx(nx, ny)) { emitSide(d, halfD, z1); emitSide(d, z0, -halfD); }
+        }
+      }
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); geo.setIndex(idx);
+    }
+    const isRainbowItem = !!(def && def.rainbow);
     const isWarmGlow = (blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.END_DRAGON_SCALE || blockId === B.END_DRAGON_BONE || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_BOW || blockId === B.ENCHANTED_BOOK || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
     const isEnch = !!(meta && meta.ench);
     const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.ENCHANTED_BOOK || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_PICK || blockId === B.END_DRAGON_AXE || blockId === B.END_DRAGON_SHOVEL || blockId === B.END_DRAGON_HOE || blockId === B.END_DRAGON_BOW);
@@ -3995,7 +4035,7 @@
   const _heldMcTexCache = new Map();
   function _getHeldMcTex(texKey) {
     if (_heldMcTexCache.has(texKey)) return _heldMcTexCache.get(texKey);
-    const im = (typeof _mcTexImgs !== 'undefined') ? _mcTexImgs.get(texKey) : null;
+    const im = (typeof getMcTexImg === 'function') ? getMcTexImg(texKey) : ((typeof _mcTexImgs !== 'undefined') ? _mcTexImgs.get(texKey) : null);
     if (!im || !im.complete || im.naturalWidth <= 0) return null;
     const t = new THREE.Texture(im);
     t.magFilter = THREE.NearestFilter;

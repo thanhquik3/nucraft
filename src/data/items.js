@@ -3329,79 +3329,79 @@
     _mkChest(321, '#155e75', '#22d3ee', '#e0f2fe');
     _mkLegs(322,  '#155e75', '#22d3ee', '#e0f2fe');
     _mkBoots(323, '#155e75', '#22d3ee', '#e0f2fe');
-    // 324..327: 4-Frame Animated Voxel Flame Strip (row 40, cols 4..7 — authentic Minecraft/Luanti pixel fire!)
-    const firePal = { R: '#dc2626', E: '#ea580c', O: '#f97316', Y: '#facc15', L: '#fef08a', W: '#ffffff' };
+    // 324..327: 4-Frame Animated PixelFX Voxel Flame Strip (crisp dark rim + multi-tongue hot heart!)
+    const firePal = { K: '#7f1d1d', R: '#dc2626', O: '#ff8a2a', Y: '#ffc23d', L: '#fff3a6', W: '#ffffff' };
     drawSpriteMap(324, [
-      '.......R........',
-      '......EO........',
-      '..R...OY....R...',
-      '..EO..OYO..ER...',
-      '.EOY..OYO..OO...',
-      '.EOY.OOYYO.OYO..',
-      '.EOYYOYYYO.YYO..',
-      'ROYYLLYYLLOYLLO.',
-      'EOYLLLLLLLLLLYO.',
-      'ROYLWWWWWWLLYYOR',
-      'ROYLWWWWWWWLYYOR',
-      'EOYYLWWWWWWLLYYR',
-      '.RYYLWWWWWWLYYO.',
-      '.EOYLLWWWWLLYYO.',
-      '..ROYYLLLLYYOOR.',
-      '..RROOYYYYOORR..'
+      '.......K........',
+      '......KR........',
+      '..K...OY....K...',
+      '..KO..OYO..KR...',
+      '.KOY..OYO..RO...',
+      '.KOY.ROYYO.OYO..',
+      '.KOYYOYYYO.YYO..',
+      'KOYYLLYYLLOYLLK.',
+      'ROYLLLLLLLLLLYOK',
+      'ROYLWWWWWWLLYYOK',
+      'ROYLWWWWWWWLYYOK',
+      'KOYYLWWWWWWLLYYK',
+      '.KYYLWWWWWWLYYO.',
+      '.KOYLLWWWWLLYYK.',
+      '..ROYYLLLLYYOOK.',
+      '..KKOOYYYYOOKK..'
     ], firePal);
     drawSpriteMap(325, [
-      '..R........R....',
-      '..EO.......OE...',
-      '..OY...R...OY...',
-      '.EOY...EO..OYO..',
-      '.OYO..EOYO.YYO..',
+      '..K........K....',
+      '..KR.......OK...',
+      '..OY...K...OY...',
+      '.KOY...KO..OYO..',
+      '.OYO..KOYO.YYO..',
       '.OYYO.OYYO.OYO..',
-      'EOYYYOYYLYOOYYO.',
-      'EOLLLLYYLLLYLLOR',
-      'OYLLWWWWWWLLLYYR',
-      'OYLWWWWWWWWLYYOR',
-      'ROYLWWWWWWLLYYOR',
-      'ROYYLWWWWWWLYYOR',
-      '.EOYYLLWWLLYYOR.',
+      'KOYYYOYYLYOOYYK.',
+      'KOLLLLYYLLLYLLOK',
+      'OYLLWWWWWWLLLYYK',
+      'OYLWWWWWWWWLYYOK',
+      'ROYLWWWWWWLLYYOK',
+      'ROYYLWWWWWWLYYOK',
+      '.KOYYLLWWLLYYOK.',
       '.ROYYLLLLLLYYO..',
-      '..EOOYYYYYYOOR..',
-      '..RROOYYYYOORR..'
+      '..KOOYYYYYYOOK..',
+      '..KKOOYYYYOOKK..'
     ], firePal);
     drawSpriteMap(326, [
-      '....R......R....',
-      '....EO........E.',
-      '.R..OYO...R..EO.',
-      '.EO.OYY..EO..OY.',
+      '....K......K....',
+      '....KR........K.',
+      '.K..OYO...K..KO.',
+      '.KO.OYY..KO..OY.',
       '.OYOOYY..OYO.OY.',
       '.OYYOYYO.OYYOOYO',
-      'EOYYLYYYOOYYLLYR',
-      'ROYLLLLLLLYLLYYR',
-      'ROYLWWWWWWWLLYYR',
-      'EOYLWWWWWWLLLYOR',
-      'EOYYLWWWWWWLYYOR',
-      '.RYYLLWWWWLLYYO.',
-      '.ROYYLWWWWLYYYO.',
-      '..EOYLLLLLLYYO..',
-      '..ROOYYYYYYOOR..',
-      '..RROOYYYYOORR..'
+      'KOYYLYYYOOYYLLYK',
+      'ROYLLLLLLLYLLYYK',
+      'ROYLWWWWWWWLLYYK',
+      'KOYLWWWWWWLLLYOK',
+      'KOYYLWWWWWWLYYOK',
+      '.KYYLLWWWWLLYYO.',
+      '.ROYYLWWWWLYYYK.',
+      '..KOYLLLLLLYYO..',
+      '..ROOYYYYYYOOK..',
+      '..KKOOYYYYOOKK..'
     ], firePal);
     drawSpriteMap(327, [
-      '.........R......',
-      '....R...EO......',
-      '...EO...OY...R..',
-      '..EOY..EOYO..EO.',
+      '.........K......',
+      '....K...KR......',
+      '...KO...OY...K..',
+      '..KOY..KOYO..KO.',
       '..OYO..OYYO..OY.',
-      '.EOYYO.OYYO.OOY.',
-      '.OYYLYOYYLYOOYYO',
-      'ROYYLLYYLLLYLLOR',
-      'OYLLWWWWWWWLLYYR',
-      'OYLWWWWWWWLLLYOR',
-      'EOYLWWWWWWLLYYOR',
-      'ROYYLWWWWWWLYYOR',
-      '.ROYYLLWWLLYYOR.',
-      '..EOYLLLLLLYYO..',
-      '..ROOYYYYYYOOR..',
-      '..RROOYYYYOORR..'
+      '.KOYYO.OYYO.OOY.',
+      '.OYYLYOYYLYOOYYK',
+      'ROYYLLYYLLLYLLOK',
+      'OYLLWWWWWWWLLYYK',
+      'OYLWWWWWWWLLLYOK',
+      'KOYLWWWWWWLLYYOK',
+      'ROYYLWWWWWWLYYOK',
+      '.KOYYLLWWLLYYOK.',
+      '..KOYLLLLLLYYO..',
+      '..ROOYYYYYYOOK..',
+      '..KKOOYYYYOOKK..'
     ], firePal);
 
     // ===== v67 Tiles 328-345: New Sift Ores, Dream Materials & Moonstone / Nebula / Dream Prism Tools =====
@@ -3968,16 +3968,32 @@
       if (x >= 7 && x <= 8 && y >= 2 && y <= 4) return y === 2 ? '#fef08a' : '#f59e0b';
       return null;
     });
-    // 472..475 (Row 59, cols 0..3): Soul Fire 4 animated frames!
-    for (let f = 0; f < 4; f++) {
-      tilePixels(472 + f, (x, y, r) => {
-        const wave = Math.sin(y * 0.45 + f * 1.57 + x * 0.4) * 1.4;
-        const hCol = 15 - (3 + Math.abs(Math.sin(x * 0.72 + f * 1.4)) * 9 + wave);
-        if (y < hCol) return null;
-        const t = (y - hCol) / Math.max(1, 15 - hCol);
-        return t > 0.68 ? '#ecfeff' : (t > 0.36 ? '#22d3ee' : shade('#0284c7', (r - 0.5) * 8));
-      });
-    }
+    // 472..475 (Row 59, cols 0..3): Soul Fire 4 animated PixelFX frames!
+    const soulPal = { K: '#0c4a6e', R: '#0284c7', O: '#06b6d4', Y: '#67e8f9', L: '#ecfeff', W: '#ffffff' };
+    drawSpriteMap(472, [
+      '.......K........', '......KR........', '..K...OY....K...', '..KO..OYO..KR...',
+      '.KOY..OYO..RO...', '.KOY.ROYYO.OYO..', '.KOYYOYYYO.YYO..', 'KOYYLLYYLLOYLLK.',
+      'ROYLLLLLLLLLLYOK', 'ROYLWWWWWWLLYYOK', 'ROYLWWWWWWWLYYOK', 'KOYYLWWWWWWLLYYK',
+      '.KYYLWWWWWWLYYO.', '.KOYLLWWWWLLYYK.', '..ROYYLLLLYYOOK.', '..KKOOYYYYOOKK..'
+    ], soulPal);
+    drawSpriteMap(473, [
+      '..K........K....', '..KR.......OK...', '..OY...K...OY...', '.KOY...KO..OYO..',
+      '.OYO..KOYO.YYO..', '.OYYO.OYYO.OYO..', 'KOYYYOYYLYOOYYK.', 'KOLLLLYYLLLYLLOK',
+      'OYLLWWWWWWLLLYYK', 'OYLWWWWWWWWLYYOK', 'ROYLWWWWWWLLYYOK', 'ROYYLWWWWWWLYYOK',
+      '.KOYYLLWWLLYYOK.', '.ROYYLLLLLLYYO..', '..KOOYYYYYYOOK..', '..KKOOYYYYOOKK..'
+    ], soulPal);
+    drawSpriteMap(474, [
+      '....K......K....', '....KR........K.', '.K..OYO...K..KO.', '.KO.OYY..KO..OY.',
+      '.OYOOYY..OYO.OY.', '.OYYOYYO.OYYOOYO', 'KOYYLYYYOOYYLLYK', 'ROYLLLLLLLYLLYYK',
+      'ROYLWWWWWWWLLYYK', 'KOYLWWWWWWLLLYOK', 'KOYYLWWWWWWLYYOK', '.KYYLLWWWWLLYYO.',
+      '.ROYYLWWWWLYYYK.', '..KOYLLLLLLYYO..', '..ROOYYYYYYOOK..', '..KKOOYYYYOOKK..'
+    ], soulPal);
+    drawSpriteMap(475, [
+      '.........K......', '....K...KR......', '...KO...OY...K..', '..KOY..KOYO..KO.',
+      '..OYO..OYYO..OY.', '.KOYYO.OYYO.OOY.', '.OYYLYOYYLYOOYYK', 'ROYYLLYYLLLYLLOK',
+      'OYLLWWWWWWWLLYYK', 'OYLWWWWWWWLLLYOK', 'KOYLWWWWWWLLYYOK', 'ROYYLWWWWWWLYYOK',
+      '.KOYYLLWWLLYYOK.', '..KOYLLLLLLYYO..', '..ROOYYYYYYOOK..', '..KKOOYYYYOOKK..'
+    ], soulPal);
     // 476: Ender Chest texture
     tilePixels(476, (x, y, r) => {
       if (x === 0 || y === 0 || x === 15 || y === 15) return '#090d16';
@@ -5385,18 +5401,11 @@
       ], { o: '#713f12', W: '#fefce8', H: '#fde047', Y: '#eab308', D: '#ca8a04' });
     }
 
-    // Crisp PBR Luminance Bump Map (NearestFilter, zero blur)
+    // Crisp PBR Luminance Bump Map (NearestFilter, zero blur — integer BT.601 bitshift on boot, WASM on live mod rebuild)
     const bumpCanvas = document.createElement('canvas');
     bumpCanvas.width = canvas.width; bumpCanvas.height = canvas.height;
     const bCtx = bumpCanvas.getContext('2d');
-    const srcImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const bImg = bCtx.createImageData(canvas.width, canvas.height);
-    for (let i = 0; i < srcImg.data.length; i += 4) {
-      const lum = Math.min(255, Math.round(srcImg.data[i] * 0.3 + srcImg.data[i + 1] * 0.59 + srcImg.data[i + 2] * 0.11));
-      bImg.data[i] = bImg.data[i + 1] = bImg.data[i + 2] = lum;
-      bImg.data[i + 3] = 255;
-    }
-    bCtx.putImageData(bImg, 0, 0);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
@@ -5406,8 +5415,35 @@
     bumpTex.magFilter = THREE.NearestFilter; bumpTex.minFilter = THREE.NearestFilter;
     bumpTex.generateMipmaps = false; bumpTex.flipY = false;
 
-    // ===== Atlas "lá đặc" cho đồ họa THẤP (lazy QuickPack: chỉ tạo khi bật Low Graphics để tiết kiệm RAM + cold boot) =====
+    const rebuildBumpMap = (useWasm = false) => {
+      const srcImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const sd = srcImg.data, bd = bImg.data, len = sd.length;
+      const wc = (useWasm && typeof window !== 'undefined' && typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+      if (wc && wc.exports && wc.exports.build_bump_map_rgba && wc.atlasRgba && wc.atlasBump && len <= wc.atlasRgba.length) {
+        wc.atlasRgba.set(sd.subarray(0, len));
+        wc.exports.build_bump_map_rgba((len >> 2) >>> 0);
+        bd.set(wc.atlasBump.subarray(0, len));
+        wc.state.atlasCalls++;
+      } else {
+        for (let i = 0; i < len; i += 4) {
+          const lum = Math.min(255, (sd[i] * 77 + sd[i + 1] * 151 + sd[i + 2] * 28) >> 8);
+          bd[i] = bd[i + 1] = bd[i + 2] = lum;
+          bd[i + 3] = 255;
+        }
+      }
+      bCtx.putImageData(bImg, 0, 0);
+      bumpTex.needsUpdate = true;
+    };
+    rebuildBumpMap(false);
+
+    // ===== Atlas "lá đặc" cho đồ họa THẤP (lazy QuickPack + Rust build_solid_atlas_rgba) =====
     let _solidTexCache = null;
+    const invalidateSolidTex = () => {
+      if (_solidTexCache) {
+        try { _solidTexCache.dispose(); } catch (_) {}
+        _solidTexCache = null;
+      }
+    };
     const getSolidTex = () => {
       if (_solidTexCache) return _solidTexCache;
       const solidCanvas = document.createElement('canvas');
@@ -5416,18 +5452,26 @@
       sctx.drawImage(canvas, 0, 0);
       const sImg = sctx.getImageData(0, 0, canvas.width, canvas.height);
       const sD = sImg.data, SW = canvas.width, SH = canvas.height;
-      for (let ty = 0; ty < SH; ty += TILE_PX) {
-        for (let tx = 0; tx < SW; tx += TILE_PX) {
-          let r0 = 0, g0 = 0, b0 = 0, n = 0;
-          for (let y = 0; y < TILE_PX; y++) for (let x = 0; x < TILE_PX; x++) {
-            const i = ((ty + y) * SW + (tx + x)) * 4;
-            if (sD[i + 3] > 40) { r0 += sD[i]; g0 += sD[i + 1]; b0 += sD[i + 2]; n++; }
-          }
-          if (!n) continue;
-          const ar = (r0 / n) * 0.62, ag = (g0 / n) * 0.66, ab = (b0 / n) * 0.62;
-          for (let y = 0; y < TILE_PX; y++) for (let x = 0; x < TILE_PX; x++) {
-            const i = ((ty + y) * SW + (tx + x)) * 4;
-            if (sD[i + 3] <= 40) { sD[i] = ar; sD[i + 1] = ag; sD[i + 2] = ab; sD[i + 3] = 255; }
+      const wc = (typeof window !== 'undefined' && typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+      if (wc && wc.exports && wc.exports.build_solid_atlas_rgba && wc.atlasRgba && wc.atlasBump && sD.length <= wc.atlasRgba.length) {
+        wc.atlasRgba.set(sD);
+        wc.exports.build_solid_atlas_rgba(SW >>> 0, SH >>> 0, TILE_PX >>> 0);
+        sD.set(wc.atlasBump.subarray(0, sD.length));
+        wc.state.atlasCalls++;
+      } else {
+        for (let ty = 0; ty < SH; ty += TILE_PX) {
+          for (let tx = 0; tx < SW; tx += TILE_PX) {
+            let r0 = 0, g0 = 0, b0 = 0, n = 0;
+            for (let y = 0; y < TILE_PX; y++) for (let x = 0; x < TILE_PX; x++) {
+              const i = ((ty + y) * SW + (tx + x)) * 4;
+              if (sD[i + 3] > 40) { r0 += sD[i]; g0 += sD[i + 1]; b0 += sD[i + 2]; n++; }
+            }
+            if (!n) continue;
+            const ar = (r0 / n) * 0.62, ag = (g0 / n) * 0.66, ab = (b0 / n) * 0.62;
+            for (let y = 0; y < TILE_PX; y++) for (let x = 0; x < TILE_PX; x++) {
+              const i = ((ty + y) * SW + (tx + x)) * 4;
+              if (sD[i + 3] <= 40) { sD[i] = ar; sD[i + 1] = ag; sD[i + 2] = ab; sD[i + 3] = 255; }
+            }
           }
         }
       }
@@ -5439,6 +5483,6 @@
       return solidTex;
     };
 
-    return { tex, bumpTex, canvas, getSolidTex };
+    return { tex, bumpTex, canvas, getSolidTex, rebuildBumpMap, invalidateSolidTex };
   }
 

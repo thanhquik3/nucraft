@@ -4,6 +4,8 @@ mod mesher;
 mod terrain;
 mod codec;
 mod lod;
+mod ops;
+mod pixelfx;
 
 const CAVE_GRID_X: usize = 5;
 const CAVE_GRID_Y: usize = 65;
@@ -11,21 +13,21 @@ const CAVE_GRID_Z: usize = 5;
 const COARSE_LEN: usize = CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z; // 1625
 pub(crate) const MAX_EMITTERS_LEN: usize = 3584; // up to 512 emitters * 7 floats
 const FRAME_OUT_LEN: usize = 16;
-const MAX_PARTICLES: usize = 512;
-const PARTICLE_STRIDE: usize = 8; // x, y, z, vx, vy, vz, grav, life
+pub(crate) const MAX_PARTICLES: usize = 512;
+pub(crate) const PARTICLE_STRIDE: usize = 8; // x, y, z, vx, vy, vz, grav, life
 const MAX_SPHERES: usize = 256;
-const MAX_ATLAS_BYTES: usize = 1_048_576; // fits up to 128 x 1664 x 4 RGBA8888 atlas
+pub(crate) const MAX_ATLAS_BYTES: usize = 1_048_576; // fits up to 128 x 1664 x 4 RGBA8888 atlas
 const MAX_TILES: usize = 1024;
 
 static mut COARSE_GRID: [f32; COARSE_LEN] = [0.0; COARSE_LEN];
 pub(crate) static mut EMITTERS_BUF: [f32; MAX_EMITTERS_LEN] = [0.0; MAX_EMITTERS_LEN];
 static mut LIGHT_OUT: [f32; 3] = [0.0; 3];
 static mut FRAME_OUT: [f32; FRAME_OUT_LEN] = [0.0; FRAME_OUT_LEN];
-static mut PARTICLE_BUF: [f32; MAX_PARTICLES * PARTICLE_STRIDE] = [0.0; MAX_PARTICLES * PARTICLE_STRIDE];
+pub(crate) static mut PARTICLE_BUF: [f32; MAX_PARTICLES * PARTICLE_STRIDE] = [0.0; MAX_PARTICLES * PARTICLE_STRIDE];
 static mut SPHERE_IN: [f32; MAX_SPHERES * 4] = [0.0; MAX_SPHERES * 4];
 static mut SPHERE_OUT: [u8; MAX_SPHERES] = [0; MAX_SPHERES];
-static mut ATLAS_RGBA_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
-static mut ATLAS_BUMP_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
+pub(crate) static mut ATLAS_RGBA_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
+pub(crate) static mut ATLAS_BUMP_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
 static mut TILE_MODE_BUF: [u8; MAX_TILES] = [0; MAX_TILES];
 
 #[inline(always)]
@@ -34,7 +36,7 @@ fn js_floor(x: f64) -> i32 {
 }
 
 #[inline(always)]
-fn sin_approx(x: f64) -> f64 {
+pub(crate) fn sin_approx(x: f64) -> f64 {
     const PI: f64 = 3.14159265358979323846;
     const TWO_PI: f64 = 6.28318530717958647692;
     let mut t = x - (x / TWO_PI).round() * TWO_PI;
@@ -48,7 +50,7 @@ fn sin_approx(x: f64) -> f64 {
 }
 
 #[inline(always)]
-fn cos_approx(x: f64) -> f64 {
+pub(crate) fn cos_approx(x: f64) -> f64 {
     sin_approx(x + 1.5707963267948966)
 }
 
@@ -79,7 +81,7 @@ pub(crate) fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn wasm_abi_version() -> u32 {
-    4
+    5
 }
 
 #[no_mangle]

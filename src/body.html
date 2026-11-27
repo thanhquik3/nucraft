@@ -935,7 +935,7 @@
                         <div class="ore-setting-label">Quản lý Thế giới</div>
                         <div class="ore-setting-desc">Chọn thế giới đã lưu để chơi tiếp hoặc tạo một thế giới hoàn toàn mới.</div>
                       </div>
-                      <button class="mc-java-btn mc-java-green" id="btnPlayCreateShortcut" type="button">+ Tạo thế giới mới</button>
+                      <button class="mc-java-btn mc-java-green" id="btnPlayCreateShortcut" type="button">+ Tạo mới</button>
                     </div>
                   </div>
                 </div>
@@ -964,7 +964,7 @@
                         <h3>✨ Khu Giấc Mơ — The Sift (Mới!)</h3>
                         <p>Chiều không gian mộng mơ với cực quang ngọc lục bảo, đồi ru ngủ, hồ Ichor và các sinh vật dễ thương độc quyền.</p>
                       </div>
-                      <button class="mc-java-btn mc-java-green" id="btnQuickPlaySift" type="button">▶ Vào Ngay The Sift</button>
+                      <button class="mc-java-btn mc-java-green" id="btnQuickPlaySift" type="button">▶ The Sift</button>
                     </div>
                   </div>
                 </div>
@@ -1016,9 +1016,9 @@
                       </div>
                     </div>
                     <div class="modal-actions" style="margin-top:4px;">
-                      <button class="mc-java-btn mc-java-green" id="btnHostNewRoom" type="button">Tạo Phòng Mới &amp; Lấy Mã</button>
-                      <button class="mc-java-btn" id="btnRefreshRooms" type="button">Làm Mới Danh Sách</button>
-                      <button class="mc-java-btn" id="btnCoopOpenFriends" type="button">Bạn bè &amp; Lời mời (<span id="coopFriendsReqBadge">0</span>)</button>
+                      <button class="mc-java-btn mc-java-green" id="btnHostNewRoom" type="button">+ Tạo phòng</button>
+                      <button class="mc-java-btn" id="btnRefreshRooms" type="button">🔄 Làm mới</button>
+                      <button class="mc-java-btn" id="btnCoopOpenFriends" type="button">👥 Bạn bè (<span id="coopFriendsReqBadge">0</span>)</button>
                     </div>
                   </div>
                 </div>
@@ -1028,14 +1028,14 @@
               <div class="lobby-pane" id="lobbyPaneMods">
                 <div class="ore-setting-row">
                   <div class="ore-row-inner">
-                    <div class="ore-setting-label">🧩 Quản Lý Mod &amp; Voxel Add-on</div>
-                    <div class="ore-setting-desc">Hỗ trợ nạp gói tài nguyên định dạng mở (<code>.mcpack</code>, <code>.mcaddon</code>, <code>.zip</code> — texture, âm thanh, công thức crafting, chỉ số mob) hoặc Mod NUCRAFT (<code>.json</code>, <code>.js</code>). File <code>.jar</code>/<code>.geo.json</code> xương phức tạp được bỏ qua an toàn không gây lỗi game.</div>
+                    <div class="ore-setting-label">🧩 Mod &amp; Add-on</div>
+                    <div class="ore-setting-desc">Chọn hoặc kéo thả file <code>.mcpack</code>, <code>.mcaddon</code>, <code>.zip</code>, <code>.json</code>, <code>.js</code> — tự động áp dụng hình khối, vật phẩm, âm thanh, công thức và mob.</div>
                     <div class="mod-dropzone" id="modDropZone">
-                      <div class="mod-drop-hint">Kéo thả file Mod / Add-on vào đây hoặc chọn từ máy (lưu bền vững trong trình duyệt)</div>
-                      <div class="mod-drop-actions" style="flex-wrap:wrap;justify-content:center;gap:8px;max-width:100%;">
-                        <button class="mc-java-btn mc-java-green" id="btnPickModFile" type="button" style="max-width:100%;white-space:normal;word-break:break-word;line-height:1.25;text-align:center;">+ Tải Mod / Add-on (.mcpack / .mcaddon / .zip / .json / .js)</button>
-                        <button class="mc-bedrock-btn" id="btnInstallSampleMod" type="button">✨ Cài Add-on Mẫu</button>
-                        <button class="mc-bedrock-btn" id="btnInstallCartoonAddon" type="button">🎨 Thêm Add-on Đồ Họa Hoạt Hình</button>
+                      <div class="mod-drop-hint">Kéo thả file vào đây hoặc chọn từ máy</div>
+                      <div class="mod-drop-actions">
+                        <button class="mc-java-btn mc-java-green" id="btnPickModFile" type="button">+ Thêm Mod</button>
+                        <button class="mc-bedrock-btn" id="btnInstallSampleMod" type="button">✨ Gói Mẫu</button>
+                        <button class="mc-bedrock-btn" id="btnInstallCartoonAddon" type="button">🎨 Hoạt Hình</button>
                         <input id="inpModFile" type="file" multiple accept=".mcpack,.mcaddon,.zip,.json,.js" style="display:none;" />
                       </div>
                     </div>
@@ -1081,7 +1081,7 @@
 
       <!-- Preserved legacy footer ID (Ore UI uses top-left < Back chevron) -->
       <div class="mc-sub-footer">
-        <button class="mc-java-btn" id="btnLobbySubBack" type="button">Quay Lại Màn Hình Chính</button>
+        <button class="mc-java-btn" id="btnLobbySubBack" type="button">Quay lại Sảnh</button>
       </div>
     </div>
     <!-- Authentic Minecraft Bedrock Dressing Room Screen -->
@@ -1236,7 +1236,7 @@
               <rect x="7" y="6" width="2" height="2" fill="#ef4444"/>
             </svg>
           </span>
-          <span>Mời tham gia trò chơi</span>
+          <span>Mời bạn bè</span>
         </button>
         <div class="pause-players-hdr" id="pauseWorldPlayersTitle">Người chơi trong Thế giới</div>
         <div id="pausePlayersList"></div>
@@ -1273,33 +1273,43 @@
 
             <div class="gm-section">
               <div class="gm-section-title">ĐIỀU KHIỂN &amp; GIAO DIỆN</div>
+              <div class="mcd-row mcd-row-col" data-title="TỶ LỆ GIAO DIỆN (UI SCALE)" data-desc="Phóng to hoặc thu nhỏ toàn bộ menu và HUD cho vừa màn hình, không làm nhòe thế giới 3D." data-def="Tự động">
+                <div class="mcd-row-lbl">Tỷ lệ giao diện</div>
+                <div class="seg-group mcd-inline-seg" id="uiScaleSeg">
+                  <button class="seg-btn active" data-uiscale="auto" type="button">Tự động</button>
+                  <button class="seg-btn" data-uiscale="0.85" type="button">85%</button>
+                  <button class="seg-btn" data-uiscale="1.0" type="button">100%</button>
+                  <button class="seg-btn" data-uiscale="1.15" type="button">115%</button>
+                  <button class="seg-btn" data-uiscale="1.3" type="button">130%</button>
+                </div>
+              </div>
               <div class="mcd-row" data-title="GÓC NHÌN F5 (3D)" data-desc="Chuyển nhanh giữa góc nhìn thứ nhất (1P) và góc nhìn thứ ba (3D sau / trước)." data-def="Thứ nhất (1P)">
                 <div class="mcd-row-lbl">Góc nhìn nhân vật</div>
-                <button class="mc-btn mcd-act-btn" id="btnToggleCamMenu" type="button">Góc Nhìn F5 (3D)</button>
+                <button class="mc-btn mcd-act-btn" id="btnToggleCamMenu" type="button">Góc nhìn F5</button>
               </div>
               <div class="mcd-row" data-title="TÙY CHỈNH NÚT &amp; TỌA ĐỘ" data-desc="Mở trình kéo thả để sắp xếp lại vị trí các nút điều khiển cảm ứng và khung tọa độ." data-def="Mặc định">
                 <div class="mcd-row-lbl">Bố cục HUD &amp; Phím cảm ứng</div>
-                <button class="mc-btn mcd-act-btn" id="btnMenuEditHud" type="button">Tùy Chỉnh Nút &amp; Tọa Độ</button>
+                <button class="mc-btn mcd-act-btn" id="btnMenuEditHud" type="button">Sửa HUD</button>
               </div>
               <div class="mcd-row" data-title="NÚT ĐIỀU KHIỂN MOBILE" data-desc="Bật hoặc ẩn bộ nút cảm ứng trên màn hình khi chơi trên PC hoặc điện thoại." data-def="Tự động">
                 <div class="mcd-row-lbl">Hiển thị nút cảm ứng</div>
-                <button class="mc-btn mcd-act-btn" id="btnToggleTouch" type="button">Bật/Tắt Nút Mobile</button>
+                <button class="mc-btn mcd-act-btn" id="btnToggleTouch" type="button">Nút Mobile</button>
               </div>
               <div class="mcd-row" data-title="TỌA ĐỘ HUD" data-desc="Hiển thị bảng tọa độ X, Y, Z, ngày chơi và khu vực biome ở góc trên màn hình." data-def="BẬT">
                 <div class="mcd-row-lbl">Hiển thị tọa độ &amp; FPS</div>
-                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleCoords" type="button">📍 Tọa Độ HUD: BẬT</button>
+                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleCoords" type="button">📍 Tọa độ: BẬT</button>
               </div>
               <div class="mcd-row mcd-row-col" data-title="KIỂU ĐIỀU KHIỂN MOBILE" data-desc="Chọn giữa 3 sơ đồ Joystick / D-Pad / Chạm màn hình phù hợp với thiết bị di động." data-def="Kiểu 1">
                 <div class="mcd-row-lbl">Chế độ điều khiển Mobile</div>
                 <div class="mcd-tri-grid">
-                  <button class="mc-btn" id="btnMobileMode1" type="button" title="Joystick + Đánh / Đặt khối">Kiểu Mobile 1</button>
-                  <button class="mc-btn" id="btnMobileMode2" type="button" title="D-Pad cổ điển (Chạm đặt / Giữ đào)">Kiểu Mobile 2</button>
-                  <button class="mc-btn" id="btnMobileMode3" type="button" title="Chạm màn hình (Chỉ Joystick + Nhảy &amp; Ngồi)">Kiểu Mobile 3</button>
+                  <button class="mc-btn" id="btnMobileMode1" type="button" title="Joystick + Đánh / Đặt khối">Kiểu 1</button>
+                  <button class="mc-btn" id="btnMobileMode2" type="button" title="D-Pad cổ điển (Chạm đặt / Giữ đào)">Kiểu 2</button>
+                  <button class="mc-btn" id="btnMobileMode3" type="button" title="Chạm màn hình (Chỉ Joystick + Nhảy &amp; Ngồi)">Kiểu 3</button>
                 </div>
               </div>
               <div class="mcd-row" data-title="BẠN ĐỒNG HÀNH AI" data-desc="Gọi hoặc thu hồi nhân vật bạn đồng hành hỗ trợ chiến đấu và đi cùng bạn." data-def="TẮT">
                 <div class="mcd-row-lbl">Bạn đồng hành</div>
-                <button class="mc-btn mcd-act-btn" id="btnToggleBuddy" type="button">Gọi Bạn Đồng Hành</button>
+                <button class="mc-btn mcd-act-btn" id="btnToggleBuddy" type="button">Đồng hành AI</button>
               </div>
               <div id="controlsHintText" data-i18n="controls_hint" class="mcd-hint-box">
                 Phím <b>E</b>: Balo 2×2 &amp; Giáp 3D • Đặt <b>Bàn Chế Tạo</b> mở lưới 3×3 • Phím <b>T / Enter</b>: Chat • Phím <b>M</b>: Bản Đồ • Phím <b>F1</b>: Ẩn/Hiện Giao Diện • Phím <b>F5</b>: Đổi Góc Nhìn • Phím <b>F / Space×2</b>: Bay Tự Do (<i>Chỉ Sáng Tạo</i>) • Đào sâu <b>-1000m</b> xuống Địa Ngục → tiếp <b>-1000m</b> tới Khu Kết Thúc!
@@ -1310,12 +1320,12 @@
               <div class="gm-section-title">TRÒ CHUYỆN &amp; BỘ LỌC (###)</div>
               <div class="mcd-row" data-title="LỌC TỪ THÔ TỤC" data-desc="Tự động ẩn các từ ngữ không phù hợp trong khung chat thành ký tự ###." data-def="BẬT">
                 <div class="mcd-row-lbl">Bộ lọc chat an toàn</div>
-                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleProfanity" type="button">🛡️ Lọc Từ Thô Tục: BẬT</button>
+                <button class="mc-btn mc-btn-green mcd-toggle" id="btnToggleProfanity" type="button">🛡️ Lọc chat: BẬT</button>
               </div>
               <div class="mcd-row mcd-row-col" data-title="DANH SÁCH TỪ CẤM TÙY CHỈNH" data-desc="Thêm các từ khóa cần lọc riêng, ngăn cách bởi dấu phẩy (VD: ngu, ga) rồi bấm Lưu." data-def="Trống">
                 <div style="display:flex;gap:8px;align-items:center;width:100%;">
                   <input id="inpBlockedWords" class="mc-input" style="flex:1;height:34px;font-size:12px;" placeholder="Thêm từ cấm chat cách nhau bởi dấu phẩy (VD: ngu, ga)..." />
-                  <button class="mc-btn mcd-act-btn" id="btnSaveBlockedWords" type="button" style="white-space:nowrap;">Lưu Từ Cấm</button>
+                  <button class="mc-btn mcd-act-btn" id="btnSaveBlockedWords" type="button" style="white-space:nowrap;">Lưu</button>
                 </div>
               </div>
             </div>
@@ -1325,14 +1335,14 @@
               <div class="mcd-row mcd-row-col" data-title="MỞ PHÒNG ONLINE" data-desc="Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè qua Wi-Fi / 4G." data-def="Đóng">
                 <div id="menuCoopStatus" style="font-size:12.5px;color:#bfe4ee;">Mở phòng để nhận Mã Phòng Internet 6 ký tự và gửi cho bạn bè ở bất kỳ đâu!</div>
                 <div style="display:flex;gap:8px;width:100%;flex-wrap:wrap;">
-                  <button class="mc-btn mc-btn-green" id="btnMenuHostInternet" type="button" style="flex:1;">Mở Phòng Online &amp; Lấy Mã</button>
-                  <button class="mc-btn" id="btnBackLobby" type="button" style="flex:1;">Về Sảnh / Đổi Skin</button>
+                  <button class="mc-btn mc-btn-green" id="btnMenuHostInternet" type="button" style="flex:1;">🌐 Mở phòng</button>
+                  <button class="mc-btn" id="btnBackLobby" type="button" style="flex:1;">Về Sảnh</button>
                 </div>
               </div>
               <div class="mcd-row mcd-row-col" data-title="LƯU &amp; TẠO LẠI BẢN ĐỒ" data-desc="Lưu bản đồ hiện tại vào bộ nhớ trình duyệt hoặc tạo thế giới mới từ đầu." data-def="Tự động lưu">
                 <div style="display:flex;gap:8px;width:100%;">
-                  <button class="mc-btn" id="btnSave" type="button" style="flex:1;">Lưu Thế Giới</button>
-                  <button class="mc-btn mc-btn-red" id="btnResetWorld" type="button" style="flex:1;">Tạo Bản Đồ Mới</button>
+                  <button class="mc-btn" id="btnSave" type="button" style="flex:1;">💾 Lưu map</button>
+                  <button class="mc-btn mc-btn-red" id="btnResetWorld" type="button" style="flex:1;">🔄 Map mới</button>
                 </div>
               </div>
             </div>
@@ -1342,7 +1352,7 @@
               <div class="mcd-row mcd-row-col" data-title="MỞ KHÓA QUYỀN ADMIN" data-desc="Nhập mã quản trị để mở khóa Tab Vùng Đất, chỉnh đồng hồ thế giới và thay đổi thời tiết." data-def="Chỉ xem">
                 <div style="display:flex;gap:8px;align-items:center;width:100%;">
                   <input id="inpAdminCode" class="mc-input" type="password" maxlength="24" placeholder="Nhập mã quản trị..." style="flex:1;height:34px;font-size:12px;" />
-                  <button class="mc-btn mcd-act-btn" id="btnAdminUnlock" type="button" style="white-space:nowrap;">👑 Mở Khóa Admin</button>
+                  <button class="mc-btn mcd-act-btn" id="btnAdminUnlock" type="button" style="white-space:nowrap;">👑 Mở Admin</button>
                 </div>
               </div>
             </div>
@@ -1374,9 +1384,9 @@
               <div class="mcd-row mcd-row-col" data-title="FRAME ẢO AI (TĂNG FPS + LÀM NÉT)" data-desc="Sử dụng tái chiếu chuyển động AI &amp; nâng cấp độ nét RCAS để dựng khung hình trung gian siêu nhẹ, giúp tăng FPS thực tế và làm hình ảnh sắc nét, trong trẻo hơn." data-def="Tắt (x1)">
                 <div class="mcd-row-lbl">Tạo khung hình ảo AI (FPS Boost)</div>
                 <div class="seg-group" id="frameGenSeg">
-                  <button class="seg-btn active" data-fg="1" type="button">AI Frame Ảo: Tắt (x1)</button>
-                  <button class="seg-btn" data-fg="2" type="button">⚡ AI Frame Ảo x2</button>
-                  <button class="seg-btn" data-fg="4" type="button">🚀 AI Frame Ảo x4</button>
+                  <button class="seg-btn active" data-fg="1" type="button">Tắt (x1)</button>
+                  <button class="seg-btn" data-fg="2" type="button">⚡ AI x2</button>
+                  <button class="seg-btn" data-fg="4" type="button">🚀 AI x4</button>
                 </div>
               </div>
             </div>
@@ -1401,11 +1411,11 @@
               </div>
               <div class="mcd-row" data-title="MÂY 3D VOLUMETRIC" data-desc="Chuyển đổi giữa mây khối 3D Volumetric và mây khối cổ điển phong cách Luanti." data-def="BẬT">
                 <div class="mcd-row-lbl">Tầng mây bầu trời</div>
-                <button class="seg-btn active mcd-toggle" id="btnCloudMode" type="button">Mây 3D</button>
+                <button class="seg-btn active mcd-toggle" id="btnCloudMode" type="button">☁️ Mây 3D</button>
               </div>
               <div class="mcd-row" data-title="BUMP RELIEF PBR" data-desc="Tạo độ nổi vật lý 3D cho bề mặt khối đá, gỗ và lá cây dưới ánh nắng." data-def="BẬT">
                 <div class="mcd-row-lbl">Bề mặt nổi PBR</div>
-                <button class="seg-btn active mcd-toggle" id="btnTexFilter" type="button">Bump PBR: Bật</button>
+                <button class="seg-btn active mcd-toggle" id="btnTexFilter" type="button">✨ Bump: BẬT</button>
               </div>
             </div>
 
@@ -1725,7 +1735,7 @@
       <h1 class="mc-title" style="justify-content:center;color:#b02e26;">BẠN ĐÃ GỤC NGÃ!</h1>
       <p class="mc-sub" id="deathReason">Bạn đã hết máu trong thế giới sinh tồn.</p>
       <div class="modal-actions">
-        <button class="mc-btn mc-btn-green" id="btnRespawn">HỒI SINH TẠI ĐIỂM XUẤT PHÁT</button>
+        <button class="mc-btn mc-btn-green" id="btnRespawn">HỒI SINH</button>
       </div>
     </div>
   </div>

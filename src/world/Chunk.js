@@ -768,12 +768,13 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
-  // Zero-GC Rust WebAssembly acceleration core (ABI v4: cave density, emitter light, wind/shadow snap, particles, culling, atlas/bump, solid mesher, overworld terrain, NCW1 binary codec, far LOD)
+  // Zero-GC Rust WebAssembly acceleration core (ABI v5: terrain/cave/mesher/LOD + fused emitter/topmap scan, RT pack, 3D item extrude, solid atlas, CRC32)
   const _nucraftWasmState = {
     ready: false, abi: 0,
     caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0, atlasCalls: 0,
     meshCalls: 0, workerMeshHits: 0, terrainCalls: 0, workerTerrainHits: 0,
-    codecCalls: 0, lodBuilds: 0, lodTriangles: 0, lodVisible: false
+    codecCalls: 0, lodBuilds: 0, lodTriangles: 0, lodVisible: false,
+    scanCalls: 0, rtPackCalls: 0, itemExtrudeCalls: 0, crcCalls: 0
   };
   if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
   let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
@@ -785,6 +786,10 @@
   let _nwTerrainBids = null, _nwAcCoords = null, _nwColHeights = null, _nwColBiomes = null, _nwTerrainMeta = null;
   let _nwCodecIn = null, _nwCodecOut = null;
   let _nwLodMask = null, _nwLodPos = null, _nwLodNorm = null, _nwLodCol = null, _nwLodIdx = null, _nwLodMeta = null;
+  let _nwLutEmitInfo = null, _nwLutEmitMeta = null, _nwLutMapU32 = null, _nwLutRtPack = null;
+  let _nwScanEmitOut = null, _nwScanSpecOut = null, _nwScanTopH = null, _nwScanMapU32 = null, _nwScanMeta = null;
+  let _nwRtVolOut = null;
+  let _nwItemRgbaIn = null, _nwItemPosOut = null, _nwItemNormOut = null, _nwItemColOut = null, _nwItemIdxOut = null, _nwItemMetaOut = null;
   let _cachedWasmLuts = null, _mainLutsSynced = false;
 
   function _buildTerrainBlockIds() {
@@ -834,7 +839,92 @@
       tileUv[o + 2] = TILE_V0[t]; tileUv[o + 3] = TILE_V1[t];
     }
     const terrainBids = _buildTerrainBlockIds();
-    _cachedWasmLuts = { opaque, flags, blockTiles, tileUv, terrainBids };
+    const emitInfo = new Float32Array(cap * 4);
+    const emitMeta = new Uint8Array(cap);
+    const mapU32 = new Uint32Array(cap);
+    const rtPack = new Uint8Array(cap * 4);
+    const _setEm = (id, mode, r, g, b, rad2, extra = 0) => {
+      if (!id || id >= cap) return;
+      emitMeta[id] = mode | extra;
+      emitInfo[id * 4] = r; emitInfo[id * 4 + 1] = g; emitInfo[id * 4 + 2] = b; emitInfo[id * 4 + 3] = rad2;
+    };
+    _setEm(B.LANTERN, 1, 1.28, 0.96, 0.54, 400.0);
+    _setEm(B.SOUL_LANTERN, 1, 0.46, 1.06, 1.26, 324.0);
+    _setEm(B.SOUL_FIRE, 1, 0.30, 0.78, 0.96, 196.0);
+    _setEm(B.CANDLE, 1, 0.86, 0.64, 0.34, 144.0, 0x04);
+    _setEm(B.TORCH_BLOCK, 1, 1.18, 0.88, 0.48, 324.0);
+    _setEm(B.SHROOMLIGHT, 1, 0.84, 0.58, 0.28, 169.0);
+    _setEm(B.CAMPFIRE, 1, 0.86, 0.50, 0.22, 169.0, 0x08);
+    _setEm(B.FIRE, 1, 0.86, 0.50, 0.22, 144.0);
+    _setEm(B.SEA_LANTERN, 1, 0.44, 0.82, 0.90, 196.0);
+    _setEm(B.END_CRYSTAL_BLOCK, 1, 0.76, 0.38, 0.86, 169.0);
+    _setEm(B.END_ROD, 1, 0.92, 0.88, 0.96, 196.0);
+    _setEm(B.NETHER_PORTAL, 1, 0.69, 0.39, 0.81, 196.0, 0x08);
+    _setEm(B.END_PORTAL, 1, 0.69, 0.39, 0.81, 196.0);
+    _setEm(B.END_GATEWAY, 1, 0.49, 0.63, 0.88, 196.0);
+    _setEm(B.DREAM_PORTAL, 1, 0.45, 0.75, 0.81, 196.0, 0x08);
+    _setEm(B.WARDEN_PORTAL, 1, 0.14, 0.80, 0.88, 196.0, 0x08);
+    _setEm(B.SCULK_SENSOR, 2, 0.22, 0.68, 0.82, 121.0);
+    _setEm(B.SCULK_SHRIEKER, 2, 0.22, 0.68, 0.82, 121.0);
+    _setEm(B.SCULK_CATALYST, 2, 0.22, 0.68, 0.82, 121.0);
+    _setEm(B.ENDER_CHEST_BLOCK, 2, 0.22, 0.68, 0.82, 121.0);
+    _setEm(B.MAGMA_BLOCK, 2, 0.85, 0.34, 0.10, 121.0);
+    _setEm(B.LAVA, 3, 0.82, 0.36, 0.12, 144.0);
+    _setEm(B.GLOW_CRYSTAL, 2, 0.36, 0.72, 0.86, 144.0);
+    _setEm(B.ELEVATOR_BLOCK, 2, 0.34, 0.68, 0.84, 121.0);
+    _setEm(B.GLOW_VINES, 2, 0.74, 0.54, 0.24, 121.0);
+    _setEm(B.MUSHROOM_GLOW, 2, 0.26, 0.68, 0.74, 100.0);
+    _setEm(B.SPORE_SHROOM, 2, 0.26, 0.68, 0.74, 100.0);
+    if (B.SULFUR_VENT && B.SULFUR_VENT < cap && emitMeta[B.SULFUR_VENT] === 0) emitMeta[B.SULFUR_VENT] = 0x08;
+    const _rtEmitRgb = {
+      [B.LAVA]: [255, 112, 22], [B.MAGMA_BLOCK]: [236, 86, 20], [B.FIRE]: [255, 176, 48], [B.SOUL_FIRE]: [72, 226, 255],
+      [B.TORCH_BLOCK]: [255, 194, 80], [B.LANTERN]: [255, 206, 98], [B.SOUL_LANTERN]: [76, 236, 255], [B.CAMPFIRE]: [255, 158, 56],
+      [B.SHROOMLIGHT]: [255, 184, 86], [B.SEA_LANTERN]: [166, 246, 240], [B.GLOW_CRYSTAL]: [120, 220, 255], [B.MUSHROOM_GLOW]: [125, 245, 215],
+      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245],
+      [B.END_PORTAL_FRAME_EYE]: [92, 244, 195], [B.END_CRYSTAL_BLOCK]: [244, 114, 225], [B.NETHER_PORTAL]: [188, 78, 255],
+      [B.DREAM_PORTAL]: [110, 235, 255], [B.WARDEN_PORTAL]: [34, 211, 238], [B.CANDLE]: [255, 206, 115], [B.REDSTONE]: [235, 45, 35],
+      [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255],
+      [B.SULFUR_CRYSTAL]: [255, 224, 92], [B.SULFUR_VENT]: [255, 176, 68]
+    };
+    const _rtGlassSet = new Set([B.ICE, B.PACKED_ICE, B.GLASS, B.BROKEN_GLASS, B.IRON_GRATE, B.PACKED_ICE_SLAB, B.PACKED_ICE_SLAB_TOP].filter(Boolean));
+    const _rtGlossSet = new Set([
+      B.OBSIDIAN, B.OBSIDIAN_SLAB, B.OBSIDIAN_SLAB_TOP, B.MARBLE_BRICK, B.MARBLE_BRICK_SLAB, B.MARBLE_BRICK_SLAB_TOP,
+      B.COPPER_ROOF, B.COPPER_SLAB, B.COPPER_SLAB_TOP, B.PRISMARINE, B.PRISMARINE_SLAB, B.PRISMARINE_SLAB_TOP,
+      B.ELEVATOR_BLOCK, B.NETHERITE_BLOCK, B.BLACKSTONE_BRICKS, B.DEEPSLATE_TILES, B.PURPUR_BLOCK, B.PURPUR_PILLAR,
+      B.IRON_CHEST, B.GOLD_CHEST, B.DIAMOND_CHEST, B.NETHERITE_CHEST, B.GOLD_ORE, B.DIAMOND_ORE, B.EMERALD_ORE,
+      B.RUBY_ORE, B.LAPIS_ORE, B.QUARTZ_ORE, B.UMBRA_ORE, B.RESONANT_ORE, B.SOULFORGED_ORE, B.ENCHANT_TABLE, B.ANVIL, B.SLIME_BLOCK
+    ].filter(Boolean));
+    for (let id = 0; id < cap; id++) {
+      const d = BLOCK_DEF_ARR[id];
+      const hex = d && typeof d.mapColor === 'string' && d.mapColor.charCodeAt(0) === 35 && d.mapColor.length >= 7 ? d.mapColor : null;
+      const n = hex ? parseInt(hex.slice(1, 7), 16) : NaN;
+      mapU32[id] = !Number.isNaN(n) ? ((0xff000000 | ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff)) >>> 0) : 0xff80726b;
+      if (id === 0 || !d) continue;
+      if (IS_EMISSIVE[id] && emitMeta[id] === 0) _setEm(id, 2, 0.76, 0.58, 0.32, 121.0);
+      let r = 136, g = 142, b = 152;
+      if (!Number.isNaN(n)) { r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255; }
+      const ro = id * 4;
+      if (_rtEmitRgb[id]) {
+        const e = _rtEmitRgb[id];
+        rtPack[ro] = e[0]; rtPack[ro + 1] = e[1]; rtPack[ro + 2] = e[2]; rtPack[ro + 3] = 224;
+      } else if (d.emissive) {
+        rtPack[ro] = Math.min(255, Math.round(r * 1.18 + 25));
+        rtPack[ro + 1] = Math.min(255, Math.round(g * 1.18 + 25));
+        rtPack[ro + 2] = Math.min(255, Math.round(b * 1.18 + 25));
+        rtPack[ro + 3] = 224;
+      } else if (id === B.WATER) {
+        rtPack[ro] = 40; rtPack[ro + 1] = 150; rtPack[ro + 2] = 200; rtPack[ro + 3] = 160;
+      } else if (_rtGlassSet.has(id) || d.glass) {
+        rtPack[ro] = r; rtPack[ro + 1] = g; rtPack[ro + 2] = b; rtPack[ro + 3] = 128;
+      } else if (d.foliage && d.solid) {
+        rtPack[ro] = r; rtPack[ro + 1] = g; rtPack[ro + 2] = b; rtPack[ro + 3] = 96;
+      } else if (_rtGlossSet.has(id)) {
+        rtPack[ro] = r; rtPack[ro + 1] = g; rtPack[ro + 2] = b; rtPack[ro + 3] = 64;
+      } else if (d.solid) {
+        rtPack[ro] = r; rtPack[ro + 1] = g; rtPack[ro + 2] = b; rtPack[ro + 3] = 32;
+      }
+    }
+    _cachedWasmLuts = { opaque, flags, blockTiles, tileUv, terrainBids, emitInfo, emitMeta, mapU32, rtPack };
     return _cachedWasmLuts;
   }
 
@@ -881,6 +971,22 @@
     if (_nwExports.lod_col_ptr) _nwLodCol = new Float32Array(buf, _nwExports.lod_col_ptr(), 49152 * 3);
     if (_nwExports.lod_idx_ptr) _nwLodIdx = new Uint32Array(buf, _nwExports.lod_idx_ptr(), 73728);
     if (_nwExports.lod_meta_ptr) _nwLodMeta = new Uint32Array(buf, _nwExports.lod_meta_ptr(), 4);
+    if (_nwExports.lut_emit_info_ptr) _nwLutEmitInfo = new Float32Array(buf, _nwExports.lut_emit_info_ptr(), 2048 * 4);
+    if (_nwExports.lut_emit_meta_ptr) _nwLutEmitMeta = new Uint8Array(buf, _nwExports.lut_emit_meta_ptr(), 2048);
+    if (_nwExports.lut_map_u32_ptr) _nwLutMapU32 = new Uint32Array(buf, _nwExports.lut_map_u32_ptr(), 2048);
+    if (_nwExports.lut_rt_pack_ptr) _nwLutRtPack = new Uint8Array(buf, _nwExports.lut_rt_pack_ptr(), 2048 * 4);
+    if (_nwExports.scan_emitters_out_ptr) _nwScanEmitOut = new Float32Array(buf, _nwExports.scan_emitters_out_ptr(), 160 * 8);
+    if (_nwExports.scan_spec_out_ptr) _nwScanSpecOut = new Float32Array(buf, _nwExports.scan_spec_out_ptr(), 96 * 4);
+    if (_nwExports.scan_topmap_h_ptr) _nwScanTopH = new Int16Array(buf, _nwExports.scan_topmap_h_ptr(), 256);
+    if (_nwExports.scan_minimap_u32_ptr) _nwScanMapU32 = new Uint32Array(buf, _nwExports.scan_minimap_u32_ptr(), 256);
+    if (_nwExports.scan_meta_out_ptr) _nwScanMeta = new Uint32Array(buf, _nwExports.scan_meta_out_ptr(), 4);
+    if (_nwExports.rt_vol_out_ptr) _nwRtVolOut = new Uint8Array(buf, _nwExports.rt_vol_out_ptr(), 512 * 256 * 4);
+    if (_nwExports.item_rgba_in_ptr) _nwItemRgbaIn = new Uint8Array(buf, _nwExports.item_rgba_in_ptr(), 16 * 16 * 4);
+    if (_nwExports.item_pos_out_ptr) _nwItemPosOut = new Float32Array(buf, _nwExports.item_pos_out_ptr(), 6144 * 3);
+    if (_nwExports.item_norm_out_ptr) _nwItemNormOut = new Float32Array(buf, _nwExports.item_norm_out_ptr(), 6144 * 3);
+    if (_nwExports.item_col_out_ptr) _nwItemColOut = new Float32Array(buf, _nwExports.item_col_out_ptr(), 6144 * 3);
+    if (_nwExports.item_idx_out_ptr) _nwItemIdxOut = new Uint32Array(buf, _nwExports.item_idx_out_ptr(), 9216);
+    if (_nwExports.item_meta_out_ptr) _nwItemMetaOut = new Uint32Array(buf, _nwExports.item_meta_out_ptr(), 2);
   }
   function _syncMainWasmLuts(force = false) {
     const luts = _getWasmLuts(force);
@@ -893,6 +999,10 @@
         _nwLutTiles.set(luts.blockTiles);
         _nwLutUv.set(luts.tileUv);
         _nwTerrainBids.set(luts.terrainBids);
+        if (_nwLutEmitInfo && luts.emitInfo) _nwLutEmitInfo.set(luts.emitInfo);
+        if (_nwLutEmitMeta && luts.emitMeta) _nwLutEmitMeta.set(luts.emitMeta);
+        if (_nwLutMapU32 && luts.mapU32) _nwLutMapU32.set(luts.mapU32);
+        if (_nwLutRtPack && luts.rtPack) _nwLutRtPack.set(luts.rtPack);
         _mainLutsSynced = true;
       }
     }
@@ -922,6 +1032,19 @@
         tileModes: _nwTileModes,
         codecIn: _nwCodecIn,
         codecOut: _nwCodecOut,
+        chunkData: _nwChunkData,
+        rtVolOut: _nwRtVolOut,
+        itemRgbaIn: _nwItemRgbaIn,
+        itemPosOut: _nwItemPosOut,
+        itemNormOut: _nwItemNormOut,
+        itemColOut: _nwItemColOut,
+        itemIdxOut: _nwItemIdxOut,
+        itemMetaOut: _nwItemMetaOut,
+        scanEmitOut: _nwScanEmitOut,
+        scanSpecOut: _nwScanSpecOut,
+        scanTopH: _nwScanTopH,
+        scanMapU32: _nwScanMapU32,
+        scanMeta: _nwScanMeta,
         state: _nucraftWasmState
       };
     };
@@ -929,7 +1052,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=170').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=175').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
@@ -1031,7 +1154,10 @@
         flags: luts.flags,
         blockTiles: luts.blockTiles,
         tileUv: luts.tileUv,
-        terrainBids: luts.terrainBids
+        terrainBids: luts.terrainBids,
+        emitInfo: luts.emitInfo,
+        emitMeta: luts.emitMeta,
+        mapU32: luts.mapU32
       });
       workerLutsSent[wi] = true;
     };
@@ -1118,7 +1244,7 @@
         }
       },
       prefetch(cx, cz, dOff = 0) {
-        if (!active || currentDimension !== 'overworld' || inFlight.size >= Math.max(16, workers.length * 8)) return;
+        if (!active || currentDimension !== 'overworld' || inFlight.size >= Math.max(24, workers.length * 10)) return;
         const wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
         const key = `${seedMix.c1}:${dOff || 0}:${wx0},${wz0}`;
         if (cache.has(key) || inFlight.has(key)) return;
@@ -1145,7 +1271,7 @@
       },
       prefetchOverworld(cx, cz) {
         if (!active || currentDimension !== 'overworld' || (depthOffset || 0) !== 0) return false;
-        if (inFlightTerrain.size >= Math.max(16, workers.length * 8)) return false;
+        if (inFlightTerrain.size >= Math.max(24, workers.length * 10)) return false;
         if (!_ensureAllLuts()) return false;
         const key = `${_worldEpoch}:${cx},${cz}`;
         if (terrainCache.has(key) || inFlightTerrain.has(key)) return false;
@@ -1185,7 +1311,7 @@
         return res;
       },
       enqueueMesh(ch, maxLy, borderBuf, emitters, emitLen, flagsBits, autumnCell) {
-        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(16, workers.length * 8)) return false;
+        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(24, workers.length * 10)) return false;
         if (!_ensureAllLuts()) return false;
         const mGen = ch._meshGen || 0;
         const key = `${_worldEpoch}:${ch.cx},${ch.cz}:${mGen}`;
@@ -1221,6 +1347,9 @@
           bedrockId: B.BEDROCK & 0xffff,
           deepslateId: B.DEEPSLATE & 0xffff,
           blkSolidFlag: BLK_SOLID & 0xffff,
+          blkCrossFlag: BLK_CROSS & 0xffff,
+          defaultMapU32: 0xff271811,
+          maxEmitEntries: _initMobile ? 64 : 112,
           data: dataCopy,
           borderBuf: borderCopy,
           emitters: emCopy,
@@ -1453,11 +1582,9 @@
           continue;
         }
       }
-      if (dPlayer < 24 && Math.random() < 0.62) {
-        if (typeof spawnPixelFx === 'function') {
-          const isSoul = (below === B.SOUL_SAND || below === B.BASALT);
-          spawnPixelFx(isSoul ? 'soul_flame' : 'fire_flame', x + 0.22 + Math.random() * 0.56, y + 0.38, z + 0.22 + Math.random() * 0.56, { count: 1, scale: 0.86, life: 0.44, riseV: 1.15, randV: 0.35, spread: 0.28 });
-          if (Math.random() < 0.45) spawnVoxelFx(Math.random() < 0.6 ? 'ember' : 'smoke', x + 0.25 + Math.random() * 0.5, y + 0.72, z + 0.25 + Math.random() * 0.5, 1);
+      if (dPlayer < 24 && Math.random() < 0.25) {
+        if (typeof spawnVoxelFx === 'function') {
+          spawnVoxelFx(Math.random() < 0.65 ? 'ember' : 'smoke', x + 0.25 + Math.random() * 0.5, y + 0.72, z + 0.25 + Math.random() * 0.5, 1);
         } else {
           spawnParticles(x + 0.25 + Math.random() * 0.5, y + 0.65, z + 0.25 + Math.random() * 0.5, Math.random() < 0.65 ? 0xf97316 : 0x475569, 1, Math.random() < 0.65);
         }
@@ -1881,12 +2008,108 @@
     return getBlockWorld(wx0 + lx, MIN_Y + ly, wz0 + lz);
   }
 
+  let _lightNodeSpecCache = null;
+  function _getLightNodeSpec(id) {
+    if (!_lightNodeSpecCache) {
+      _lightNodeSpecCache = {
+        [B.LANTERN]: { col: 0xffca7a, int: 1.38, dist: 28, lvl: 15, rad: 20, prio: 1 },
+        [B.SOUL_LANTERN]: { col: 0x38e8ff, int: 1.28, dist: 25, lvl: 14, rad: 18, prio: 1 },
+        [B.SOUL_FIRE]: { col: 0x22d3ee, int: 0.78, dist: 19, lvl: 12, rad: 14, prio: 1 },
+        [B.CANDLE]: { col: 0xfbbf24, int: 0.68, prio: 1 },
+        [B.TORCH_BLOCK]: { col: 0xffbc68, int: 1.26, dist: 25, lvl: 14, rad: 18, prio: 1 },
+        [B.SHROOMLIGHT]: { col: 0xffb338, int: 0.78 },
+        [B.CAMPFIRE]: { col: 0xff8c2e, int: 0.78 },
+        [B.FIRE]: { col: 0xff8c2e, int: 0.68 },
+        [B.SEA_LANTERN]: { col: 0x72f5eb, int: 0.82 },
+        [B.END_CRYSTAL_BLOCK]: { col: 0xe879f9, int: 0.76 },
+        [B.END_ROD]: { col: 0xfef3ff, int: 0.88, prio: 1 },
+        [B.NETHER_PORTAL]: { col: 0xc084fc, int: 0.78, prio: 1 },
+        [B.END_PORTAL]: { col: 0xc084fc, int: 0.78, prio: 1 },
+        [B.END_GATEWAY]: { col: 0x818cf8, int: 0.78, prio: 1 },
+        [B.DREAM_PORTAL]: { col: 0x67e8f9, int: 0.78, prio: 1 },
+        [B.WARDEN_PORTAL]: { col: 0x22d3ee, int: 0.78, prio: 1 },
+        [B.SCULK_SENSOR]: { col: 0x06b6d4, int: 0.58, cap: 16 },
+        [B.SCULK_SHRIEKER]: { col: 0x06b6d4, int: 0.58, cap: 16 },
+        [B.SCULK_CATALYST]: { col: 0x06b6d4, int: 0.58, cap: 16 },
+        [B.ENDER_CHEST_BLOCK]: { col: 0x06b6d4, int: 0.58, cap: 16 },
+        [B.MAGMA_BLOCK]: { col: 0xff6b1a, int: 0.72, cap: 14 },
+        [B.LAVA]: { col: 0xff6b1a, int: 0.72, cap: 12 },
+        [B.GLOW_CRYSTAL]: { col: 0x4cc9ff, int: 0.68, cap: 16 },
+        [B.ELEVATOR_BLOCK]: { col: 0x4fd1ff, int: 0.62, cap: 14 },
+        [B.GLOW_VINES]: { col: 0xffc44d, int: 0.62, cap: 14 },
+        [B.MUSHROOM_GLOW]: { col: 0x38f2ff, int: 0.55, cap: 12 },
+        [B.SPORE_SHROOM]: { col: 0x38f2ff, int: 0.55, cap: 12 }
+      };
+    }
+    return _lightNodeSpecCache[id] || { col: 0xffc864, int: 0.62, cap: 12 };
+  }
+
+  function _unpackWasmScanToChunk(targetCh, emitOut, emitLen8, specOut, specLen4, topH, mapU32) {
+    const cx = targetCh.cx, cz = targetCh.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
+    const maxEm = _initMobile ? 168 : 336;
+    let emLen = 0;
+    const lightNodes = [], secLightNodes = [], portalNodes = [], ventNodes = [];
+    let fireNodes = 0;
+    for (let i = 0; i < emitLen8; i += 8) {
+      const lxOff = emitOut[i], lyOff = emitOut[i + 1], lzOff = emitOut[i + 2];
+      const r = emitOut[i + 3], g = emitOut[i + 4], b = emitOut[i + 5], rad2 = emitOut[i + 6];
+      const bid = emitOut[i + 7] | 0;
+      if ((bid === B.FIRE || bid === B.SOUL_FIRE) && fireNodes < 16 && ventNodes.length < 64) {
+        ventNodes.push({ x: Math.floor(wx0 + lxOff), y: MIN_Y + Math.floor(lyOff), z: Math.floor(wz0 + lzOff), kind: bid === B.SOUL_FIRE ? 'soul_fire' : 'fire' });
+        fireNodes++;
+      }
+      if (emLen < maxEm) {
+        _ownScanBuf[emLen] = lxOff; _ownScanBuf[emLen + 1] = lyOff; _ownScanBuf[emLen + 2] = lzOff;
+        _ownScanBuf[emLen + 3] = r; _ownScanBuf[emLen + 4] = g; _ownScanBuf[emLen + 5] = b; _ownScanBuf[emLen + 6] = rad2;
+        emLen += 7;
+      }
+      const spec = _getLightNodeSpec(bid);
+      const node = { x: wx0 + lxOff, y: MIN_Y + lyOff, z: wz0 + lzOff, col: spec.col, int: spec.int, r, g, b, rad2 };
+      if (spec.dist) node.dist = spec.dist;
+      if (spec.lvl) node.lvl = spec.lvl;
+      if (spec.rad) node.rad = spec.rad;
+      if (spec.prio) { node.prio = 1; lightNodes.push(node); }
+      else if (spec.cap) { if (secLightNodes.length < spec.cap) secLightNodes.push(node); }
+      else lightNodes.push(node);
+    }
+    for (let i = 0; i < specLen4; i += 4) {
+      const lx = specOut[i] | 0, ly = specOut[i + 1] | 0, lz = specOut[i + 2] | 0, bid = specOut[i + 3] | 0;
+      if (bid === B.SULFUR_VENT || bid === B.CAMPFIRE) {
+        if (ventNodes.length < 64) ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: bid === B.CAMPFIRE ? 'campfire' : 'vent' });
+      } else if (bid === B.NETHER_PORTAL || bid === B.DREAM_PORTAL || bid === B.WARDEN_PORTAL) {
+        if (portalNodes.length < 24) portalNodes.push({ x: wx0 + lx + 0.5, y: MIN_Y + ly + 0.5, z: wz0 + lz + 0.5, kind: bid === B.WARDEN_PORTAL ? 3 : (bid === B.DREAM_PORTAL ? 1 : 0) });
+      }
+    }
+    for (let si = 0; si < secLightNodes.length && lightNodes.length < 24; si++) lightNodes.push(secLightNodes[si]);
+    targetCh._ownEm = emLen > 0 ? new Float32Array(_ownScanBuf.subarray(0, emLen)) : _EMPTY_EM_BUF;
+    targetCh._ownNodes = lightNodes;
+    targetCh._ownPortalNodes = portalNodes;
+    targetCh._ownVentNodes = ventNodes;
+    targetCh.lightNodes = lightNodes;
+    targetCh.portalNodes = portalNodes;
+    targetCh.ventNodes = ventNodes;
+    targetCh._emitDirty = false;
+    if (topH && topH.length === 256) targetCh.topMap = new Int16Array(topH);
+    if (mapU32 && mapU32.length === 256) targetCh._wasmMapU32 = new Uint32Array(mapU32);
+  }
+
   function _refreshOwnEmitters(targetCh) {
     if (!targetCh || !targetCh.data) return;
+    if (_nwExports && _nwExports.scan_chunk_emitters_and_topmap && _syncMainWasmLuts(false)) {
+      _syncWasmViews();
+      const maxLy = Math.min(WORLD_H - 1, targetCh.maxLy);
+      const copyWords = Math.min(targetCh.data.length, (maxLy + 1) << 8);
+      _nwChunkData.set(targetCh.data.subarray(0, copyWords));
+      const total = _nwExports.scan_chunk_emitters_and_topmap(maxLy >>> 0, (_initMobile ? 64 : 112) >>> 0, BLK_CROSS >>> 0, 0xff271811) >>> 0;
+      const specCnt = _nwScanMeta ? (_nwScanMeta[2] >>> 0) : 0;
+      _unpackWasmScanToChunk(targetCh, _nwScanEmitOut, total * 8, _nwScanSpecOut, specCnt * 4, _nwScanTopH, _nwScanMapU32);
+      _nucraftWasmState.scanCalls++;
+      return;
+    }
     const cx = targetCh.cx, cz = targetCh.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
     const data = targetCh.data, maxLy = Math.min(WORLD_H - 1, targetCh.maxLy);
     const maxEm = _initMobile ? 168 : 336;
-    let emLen = 0, secLen = 0;
+    let emLen = 0, secLen = 0, fireNodes = 0;
     const lightNodes = [];
     const portalNodes = [];
     const ventNodes = [];
@@ -1911,6 +2134,7 @@
           } else if (id === B.SOUL_FIRE) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.30; _ownScanBuf[emLen+4]=0.78; _ownScanBuf[emLen+5]=0.96; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x22d3ee, int: 0.78, dist: 19, lvl: 12, r: 0.30, g: 0.78, b: 0.96, rad: 14, rad2: 196.0, prio: 1 });
+            if (fireNodes < 16 && ventNodes.length < 64) { ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: 'soul_fire' }); fireNodes++; }
           } else if (id === B.CANDLE) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.45; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.86; _ownScanBuf[emLen+4]=0.64; _ownScanBuf[emLen+5]=0.34; _ownScanBuf[emLen+6]=144.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfbbf24, int: 0.68, r: 0.86, g: 0.64, b: 0.34, rad2: 144.0, prio: 1 });
@@ -1931,6 +2155,9 @@
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff8c2e, int: id === B.FIRE ? 0.68 : 0.78, r: 0.86, g: 0.50, b: 0.22, rad2: fRad });
             if (id === B.CAMPFIRE && ventNodes.length < 48) {
               ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: 'campfire' });
+            } else if (id === B.FIRE && fireNodes < 16 && ventNodes.length < 64) {
+              ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: 'fire' });
+              fireNodes++;
             }
           } else if (id === B.SEA_LANTERN) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.44; _ownScanBuf[emLen+4]=0.82; _ownScanBuf[emLen+5]=0.90; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
@@ -3202,6 +3429,18 @@
       markChunkDirty(cx, cz + 1, nearP); markChunkDirty(cx, cz - 1, nearP);
     }
     clearChunkInteractiveVisuals(thisChKey);
+    if (prebuiltSolid && prebuiltSolid.topH && prebuiltSolid.topH.length === 256 && !ch._emitDirty) {
+      _unpackWasmScanToChunk(
+        ch,
+        prebuiltSolid.scanEmit,
+        prebuiltSolid.scanEmit ? prebuiltSolid.scanEmit.length : 0,
+        prebuiltSolid.scanSpec,
+        prebuiltSolid.scanSpec ? prebuiltSolid.scanSpec.length : 0,
+        prebuiltSolid.topH,
+        prebuiltSolid.mapU32
+      );
+      _nucraftWasmState.scanCalls++;
+    }
     if (typeof markChunkExplored === 'function') markChunkExplored(ch);
     const dXP = chunks.get(chunkKey(cx + 1, cz))?.data || null, dXM = chunks.get(chunkKey(cx - 1, cz))?.data || null;
     const dZP = chunks.get(chunkKey(cx, cz + 1))?.data || null, dZM = chunks.get(chunkKey(cx, cz - 1))?.data || null;

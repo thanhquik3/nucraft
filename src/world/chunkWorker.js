@@ -39,7 +39,15 @@ function _syncWorkerViews() {
     lodNorm: ptr('lod_norm_ptr', Float32Array, 49152 * 3),
     lodCol: ptr('lod_col_ptr', Float32Array, 49152 * 3),
     lodIdx: ptr('lod_idx_ptr', Uint32Array, 73728),
-    lodMeta: ptr('lod_meta_ptr', Uint32Array, 4)
+    lodMeta: ptr('lod_meta_ptr', Uint32Array, 4),
+    lutEmitInfo: ptr('lut_emit_info_ptr', Float32Array, 2048 * 4),
+    lutEmitMeta: ptr('lut_emit_meta_ptr', Uint8Array, 2048),
+    lutMapU32: ptr('lut_map_u32_ptr', Uint32Array, 2048),
+    scanEmitOut: ptr('scan_emitters_out_ptr', Float32Array, 160 * 8),
+    scanSpecOut: ptr('scan_spec_out_ptr', Float32Array, 96 * 4),
+    scanTopH: ptr('scan_topmap_h_ptr', Int16Array, 256),
+    scanMapU32: ptr('scan_minimap_u32_ptr', Uint32Array, 256),
+    scanMeta: ptr('scan_meta_out_ptr', Uint32Array, 4)
   };
   return _views;
 }
@@ -50,7 +58,7 @@ function _syncWorkerViews() {
       _wasmInitDone = true;
       return;
     }
-    const wasmUrl = new URL('../../assets/nucraft_core.wasm?v=170', self.location.href).href;
+    const wasmUrl = new URL('../../assets/nucraft_core.wasm?v=175', self.location.href).href;
     fetch(wasmUrl)
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null))
@@ -181,6 +189,9 @@ function _handleMsg(m) {
     if (m.blockTiles) v.lutTiles.set(m.blockTiles);
     if (m.tileUv) v.lutUv.set(m.tileUv);
     if (m.terrainBids) v.terrainBids.set(m.terrainBids);
+    if (m.emitInfo && v.lutEmitInfo) v.lutEmitInfo.set(m.emitInfo);
+    if (m.emitMeta && v.lutEmitMeta) v.lutEmitMeta.set(m.emitMeta);
+    if (m.mapU32 && v.lutMapU32) v.lutMapU32.set(m.mapU32);
     _lutsReady = true;
     return;
   }
@@ -258,6 +269,17 @@ function _handleMsg(m) {
     const bl = v.meshBl.slice(0, vCount * 3);
     const idx = _packIndexSlice(v.meshIdx, iCount, vCount);
     const specialVoxels = v.specVox.slice(0, specCount);
+    const transfers = [pos.buffer, norm.buffer, uv.buffer, col.buffer, bl.buffer, idx.buffer, specialVoxels.buffer];
+    let topH = null, mapU32 = null, scanEmit = null, scanSpec = null;
+    if (v.abi >= 5 && _wasm.scan_chunk_emitters_and_topmap && v.scanTopH && v.scanMapU32 && v.scanMeta && m.blkCrossFlag) {
+      const scanTotal = _wasm.scan_chunk_emitters_and_topmap(m.maxLy >>> 0, m.maxEmitEntries >>> 0 || 96, m.blkCrossFlag >>> 0, m.defaultMapU32 >>> 0) >>> 0;
+      const specCnt = v.scanMeta[2] >>> 0;
+      topH = v.scanTopH.slice(0);
+      mapU32 = v.scanMapU32.slice(0);
+      scanEmit = scanTotal > 0 ? v.scanEmitOut.slice(0, scanTotal * 8) : new Float32Array(0);
+      scanSpec = specCnt > 0 ? v.scanSpecOut.slice(0, specCnt * 4) : new Float32Array(0);
+      transfers.push(topH.buffer, mapU32.buffer, scanEmit.buffer, scanSpec.buffer);
+    }
     self.postMessage(
       {
         type: 'mesh_solid_ok',
@@ -274,9 +296,13 @@ function _handleMsg(m) {
         col,
         bl,
         idx,
-        specialVoxels
+        specialVoxels,
+        topH,
+        mapU32,
+        scanEmit,
+        scanSpec
       },
-      [pos.buffer, norm.buffer, uv.buffer, col.buffer, bl.buffer, idx.buffer, specialVoxels.buffer]
+      transfers
     );
     return;
   }

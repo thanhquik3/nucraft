@@ -258,11 +258,11 @@
     else if (e.key === 'Escape') { e.preventDefault(); closeChatBox(); }
   });
   const _btnCoords = document.getElementById('btnToggleCoords');
-  const syncCoordsBtn = () => { if (_btnCoords) { _btnCoords.textContent = showCoordsHud ? '📍 Tọa Độ HUD: BẬT' : '📍 Tọa Độ HUD: TẮT'; _btnCoords.classList.toggle('mc-btn-green', showCoordsHud); } };
+  const syncCoordsBtn = () => { if (_btnCoords) { const t = (typeof tr === 'function') ? tr : (v) => v; _btnCoords.textContent = showCoordsHud ? t('📍 Tọa độ: BẬT', '📍 Coords: ON') : t('📍 Tọa độ: TẮT', '📍 Coords: OFF'); _btnCoords.classList.toggle('mc-btn-green', showCoordsHud); } };
   if (_btnCoords) _btnCoords.addEventListener('click', () => { showCoordsHud = !showCoordsHud; try { localStorage.setItem('luanti_show_coords', showCoordsHud ? '1' : '0'); } catch (_) {} syncCoordsBtn(); applyHudLayout(); });
   syncCoordsBtn();
   const _btnProf = document.getElementById('btnToggleProfanity');
-  const syncProfBtn = () => { if (_btnProf) { _btnProf.textContent = profanityFilterEnabled ? '🛡️ Lọc Từ Thô Tục: BẬT' : '🛡️ Lọc Từ Thô Tục: TẮT'; _btnProf.classList.toggle('mc-btn-green', profanityFilterEnabled); } };
+  const syncProfBtn = () => { if (_btnProf) { const t = (typeof tr === 'function') ? tr : (v) => v; _btnProf.textContent = profanityFilterEnabled ? t('🛡️ Lọc chat: BẬT', '🛡️ Filter: ON') : t('🛡️ Lọc chat: TẮT', '🛡️ Filter: OFF'); _btnProf.classList.toggle('mc-btn-green', profanityFilterEnabled); } };
   if (_btnProf) _btnProf.addEventListener('click', () => { profanityFilterEnabled = !profanityFilterEnabled; try { localStorage.setItem('luanti_profanity_filter', profanityFilterEnabled ? '1' : '0'); } catch (_) {} syncProfBtn(); showToast(profanityFilterEnabled ? '🛡️ Đã BẬT bộ lọc ngôn từ thô tục (###)' : '🛡️ Đã TẮT bộ lọc ngôn từ'); });
   syncProfBtn();
   const _inpBW = document.getElementById('inpBlockedWords');

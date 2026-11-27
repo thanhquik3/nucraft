@@ -2563,9 +2563,52 @@
     }
   }
 
-  // ===================== CODE-DRIVEN PIXELFX ENGINE (patch-gg/pixelfx style!) =====================
+  // ===================== CODE-DRIVEN PIXELFX ENGINE (patch-gg/pixelfx + Rust/WASM!) =====================
   const _pixelFxSheets = new Map();
+  let _pixelFxWasmSynced = false;
   function _pfxHash(n) { n = (n ^ 61) ^ (n >>> 16); n += n << 3; n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; }
+  const _WASM_PFX_META = {
+    fire_flame:         { id: 0, frames: 10, size: 24, seed: 11, additive: false },
+    soul_flame:         { id: 1, frames: 10, size: 24, seed: 23, additive: false },
+    sulfur_steam:       { id: 2, frames: 12, size: 24, seed: 37, additive: false },
+    campfire_smoke:     { id: 3, frames: 12, size: 24, seed: 53, additive: false },
+    smoke_puff:         { id: 4, frames: 8,  size: 20, seed: 71, additive: false },
+    dragon_impact_glow: { id: 5, frames: 10, size: 24, seed: 89, additive: true }
+  };
+  function _rasterizeWasmPixelStrip(kindId, size, frames, seed) {
+    const wc = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    if (!wc || !wc.exports || !wc.exports.bake_pixelfx_strip_rgba || !wc.atlasRgba) return null;
+    const written = wc.exports.bake_pixelfx_strip_rgba(kindId >>> 0, size >>> 0, frames >>> 0, seed >>> 0) >>> 0;
+    const expected = frames * size * size * 4;
+    if (written !== expected) return null;
+    return wc.atlasRgba.subarray(0, expected);
+  }
+  function _bakeWasmPixelSheet(kind, fallbackDrawFn) {
+    const m = _WASM_PFX_META[kind];
+    const bytes = m ? _rasterizeWasmPixelStrip(m.id, m.size, m.frames, m.seed) : null;
+    if (!bytes) return fallbackDrawFn ? fallbackDrawFn() : null;
+    const mats = [];
+    const stripW = m.frames * m.size;
+    const cvStrip = document.createElement('canvas');
+    cvStrip.width = stripW; cvStrip.height = m.size;
+    const sCtx = cvStrip.getContext('2d');
+    const img = sCtx.createImageData(stripW, m.size);
+    img.data.set(bytes);
+    sCtx.putImageData(img, 0, 0);
+    for (let f = 0; f < m.frames; f++) {
+      const cv = document.createElement('canvas'); cv.width = m.size; cv.height = m.size;
+      const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(cvStrip, f * m.size, 0, m.size, m.size, 0, 0, m.size, m.size);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+      mats.push(new THREE.SpriteMaterial({
+        map: tex, transparent: true, alphaTest: 0.04, depthWrite: false,
+        blending: m.additive ? THREE.AdditiveBlending : THREE.NormalBlending
+      }));
+    }
+    return { frames: m.frames, mats, fromWasm: true };
+  }
   function bakePixelSheet(frameCount, size, additive, drawFrameFn) {
     const mats = [];
     for (let f = 0; f < frameCount; f++) {
@@ -2636,6 +2679,16 @@
   }
 
   function getPixelFxSheet(kind) {
+    if (!_pixelFxWasmSynced && typeof window._getNucraftWasmCore === 'function') {
+      const wc = window._getNucraftWasmCore();
+      if (wc && wc.exports && wc.exports.bake_pixelfx_strip_rgba) {
+        _pixelFxWasmSynced = true;
+        for (const wk of Object.keys(_WASM_PFX_META)) {
+          const old = _pixelFxSheets.get(wk);
+          if (old && !old.fromWasm) _pixelFxSheets.delete(wk);
+        }
+      }
+    }
     if (_pixelFxSheets.has(kind)) return _pixelFxSheets.get(kind);
     let sheet = null;
     if (kind === 'ice_shatter') {
@@ -2717,46 +2770,37 @@
         }
       });
     } else if (kind === 'fire_flame') {
-      // Upgraded patch-gg/pixelfx 8-frame 20x20 multi-layered pixel-art fire flipbook!
-      sheet = bakePixelSheet(8, 20, true, ({ f, t, px, disc, line, hash }) => {
-        const sway = Math.sin(f * 0.95) * 1.65;
-        const lift = f * 0.65;
-        // Outer crimson-red base & dithered heat corona
-        disc(9.5 + sway * 0.25, 14.5 - lift * 0.4, Math.max(1.8, 4.4 - f * 0.35), '#b91c1c', true);
-        disc(9.5 + sway * 0.35, 13.2 - lift * 0.55, Math.max(1.5, 3.8 - f * 0.32), '#ef4444', f >= 5);
-        // Mid vivid orange dancing flame tongues
-        disc(9.5 + sway * 0.55, 11.2 - lift * 0.75, Math.max(1.2, 3.0 - f * 0.26), '#f97316', f >= 6);
-        disc(9.5 - sway * 0.45, 10.0 - lift * 0.65, Math.max(0.9, 2.1 - f * 0.22), '#fb923c', true);
-        // Inner golden-yellow flame heart
+      sheet = _bakeWasmPixelSheet(kind, () => bakePixelSheet(8, 20, false, ({ f, px, disc, line, hash }) => {
+        const sway = Math.sin(f * 0.95) * 1.65, lift = f * 0.65;
+        disc(9.5 + sway * 0.25, 14.5 - lift * 0.4, Math.max(1.8, 4.4 - f * 0.35), '#7f1d1d', false);
+        disc(9.5 + sway * 0.35, 13.2 - lift * 0.55, Math.max(1.5, 3.8 - f * 0.32), '#dc2626', f >= 5);
+        disc(9.5 + sway * 0.55, 11.2 - lift * 0.75, Math.max(1.2, 3.0 - f * 0.26), '#ff8a2a', f >= 6);
         if (f <= 6) {
-          disc(9.5 + sway * 0.65, 9.4 - lift * 0.72, Math.max(0.8, 2.1 - f * 0.22), '#facc15', f >= 4);
-          line(9.5 + sway * 0.4, 13.5, 9.5 + sway * 0.9, 6.2 - (f % 3), '#fde047');
-        }
-        // White-hot base core
-        if (f <= 4) disc(9.5 + sway * 0.2, 13.6 - lift * 0.3, Math.max(0.8, 1.7 - f * 0.25), f < 2 ? '#ffffff' : '#fef08a');
-        // Detached rising pixel embers
-        for (let e = 0; e < 3; e++) {
-          const ex = 6 + ((hash(e * 7 + 3) * 8) | 0) + sway * 0.5;
-          const ey = Math.max(1, 7 - f + ((hash(e * 13 + 5) * 4) | 0));
-          px(ex, ey, e === 0 ? '#fef08a' : (e === 1 ? '#facc15' : '#f97316'));
-        }
-      });
-    } else if (kind === 'soul_flame') {
-      // patch-gg/pixelfx 8-frame 20x20 Soul Fire (cyan-turquoise spectral flame)
-      sheet = bakePixelSheet(8, 20, true, ({ f, px, disc, line, hash }) => {
-        const sway = Math.cos(f * 0.95) * 1.6;
-        const lift = f * 0.65;
-        disc(9.5 + sway * 0.25, 14.5 - lift * 0.4, Math.max(1.8, 4.3 - f * 0.35), '#0e7490', true);
-        disc(9.5 + sway * 0.45, 12.2 - lift * 0.65, Math.max(1.3, 3.2 - f * 0.28), '#06b6d4', f >= 5);
-        if (f <= 6) {
-          disc(9.5 + sway * 0.6, 9.8 - lift * 0.72, Math.max(0.9, 2.2 - f * 0.22), '#67e8f9', f >= 4);
-          line(9.5 + sway * 0.3, 13.5, 9.5 + sway * 0.85, 6.0 - (f % 3), '#a5f3fc');
+          disc(9.5 + sway * 0.65, 9.4 - lift * 0.72, Math.max(0.8, 2.1 - f * 0.22), '#ffc23d', f >= 4);
+          line(9.5 + sway * 0.4, 13.5, 9.5 + sway * 0.9, 6.2 - (f % 3), '#fff3a6');
         }
         if (f <= 4) disc(9.5 + sway * 0.2, 13.6 - lift * 0.3, Math.max(0.8, 1.7 - f * 0.25), '#ffffff');
-        for (let e = 0; e < 3; e++) {
-          px(6 + ((hash(e * 11 + 2) * 8) | 0), Math.max(1, 7 - f + ((hash(e * 17 + 4) * 4) | 0)), e === 0 ? '#ffffff' : '#67e8f9');
+        for (let e = 0; e < 3; e++) px(6 + ((hash(e * 7 + 3) * 8) | 0) + sway * 0.5, Math.max(1, 7 - f + ((hash(e * 13 + 5) * 4) | 0)), e === 0 ? '#fff3a6' : '#ff8a2a');
+      }));
+    } else if (kind === 'soul_flame') {
+      sheet = _bakeWasmPixelSheet(kind, () => bakePixelSheet(8, 20, false, ({ f, px, disc, line, hash }) => {
+        const sway = Math.cos(f * 0.95) * 1.6, lift = f * 0.65;
+        disc(9.5 + sway * 0.25, 14.5 - lift * 0.4, Math.max(1.8, 4.3 - f * 0.35), '#0c4a6e', false);
+        disc(9.5 + sway * 0.45, 12.2 - lift * 0.65, Math.max(1.3, 3.2 - f * 0.28), '#0284c7', f >= 5);
+        if (f <= 6) {
+          disc(9.5 + sway * 0.6, 9.8 - lift * 0.72, Math.max(0.9, 2.2 - f * 0.22), '#06b6d4', f >= 4);
+          line(9.5 + sway * 0.3, 13.5, 9.5 + sway * 0.85, 6.0 - (f % 3), '#67e8f9');
         }
-      });
+        if (f <= 4) disc(9.5 + sway * 0.2, 13.6 - lift * 0.3, Math.max(0.8, 1.7 - f * 0.25), '#ffffff');
+        for (let e = 0; e < 3; e++) px(6 + ((hash(e * 11 + 2) * 8) | 0), Math.max(1, 7 - f + ((hash(e * 17 + 4) * 4) | 0)), e === 0 ? '#ffffff' : '#67e8f9');
+      }));
+    } else if (kind === 'dragon_impact_glow') {
+      sheet = _bakeWasmPixelSheet(kind, () => bakePixelSheet(8, 24, true, ({ f, star, ring, px }) => {
+        const cx = 11.5, cy = 11.5;
+        ring(cx, cy, 4 + (f % 4) * 1.5, f & 1 ? '#f0abfc' : '#d946ef');
+        star(cx, cy, 5 + (f & 1) * 2, '#d946ef', '#ffffff', 3);
+        for (let k = 0; k < 4; k++) { const a = (k * 1.57) + f * 0.4; px(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8, '#fdf4ff'); }
+      }));
     } else if (kind === 'end_crystal_burst') {
       // patch-gg/pixelfx 8-frame 24x24 End Crystal Crystalline Magenta-Violet Shockwave Burst!
       sheet = bakePixelSheet(8, 24, true, ({ f, t, disc, ring, star, bolt, px, hash }) => {
@@ -2820,15 +2864,15 @@
           }
         }
       });
-    } else if (kind === 'smoke_puff') {
-      sheet = bakePixelSheet(6, 16, false, ({ f, disc, hash }) => {
+    } else if (kind === 'smoke_puff' || kind === 'campfire_smoke') {
+      sheet = _bakeWasmPixelSheet(kind, () => bakePixelSheet(6, 16, false, ({ f, disc, hash }) => {
         const cols = ['#cbd5e1', '#94a3b8', '#94a3b8', '#64748b', '#475569', '#334155'];
         const col = cols[f];
         const r = f < 3 ? (2.2 + f * 0.9) : (4.2 - (f - 2) * 0.65);
         disc(7.5 + (f > 2 ? -1.5 : 0), 8.0 - f * 0.5, r, col, f >= 3);
         if (f >= 1 && f <= 4) disc(9.5, 7.0 - f * 0.4, Math.max(1.2, r * 0.65), f < 3 ? '#e2e8f0' : '#64748b', f >= 3);
         if (f === 5) disc(4 + ((hash(9) * 7) | 0), 5, 1.5, '#475569', true);
-      });
+      }));
     } else if (kind === 'fish_bubble') {
       // Crisp Minecraft-style small approaching fish wake bubble ring & blue-white dot trail on water
       sheet = bakePixelSheet(6, 12, false, ({ f, px, ring, disc }) => {
@@ -2854,13 +2898,13 @@
       });
     } else if (kind === 'sulfur_steam') {
       // Dense billowing geothermal steam geyser plume for Sulfur Hot Springs
-      sheet = bakePixelSheet(6, 16, false, ({ f, disc, px, hash }) => {
+      sheet = _bakeWasmPixelSheet(kind, () => bakePixelSheet(6, 16, false, ({ f, disc, px, hash }) => {
         const cols = ['#ffffff', '#f8fafc', '#f1f5f9', '#fef9c3', '#e2e8f0', '#cbd5e1'];
         const r = Math.min(5.2, 2.0 + f * 0.65);
         disc(7.5 + (f - 2.5) * 0.35, 9.0 - f * 0.85, r, cols[f], f >= 4);
         if (f < 4) disc(6.5, 8.2 - f * 0.7, Math.max(1.2, r * 0.55), '#ffffff');
         for (let s = 0; s < 3; s++) px(5 + ((hash(s * 7 + f) * 6) | 0), 4 + ((hash(s * 13 + f) * 6) | 0), '#f8fafc');
-      });
+      }));
     } else if (kind === 'evoker_spell') {
       // Curly lavender-violet pixel magic swirls matching Evoker casting reference (Image 3)
       sheet = bakePixelSheet(6, 20, false, ({ f, px }) => {
@@ -3009,29 +3053,18 @@
   const MAX_PIXEL_FX = _isWeakDevice ? 40 : 80;
   const pixelFxList = [], pixelFxPool = [];
   function spawnPixelFx(kind, wx, wy, wz, opts = {}) {
-    if (kind === 'sulfur_steam') {
-      spawn3DSmoke(wx, wy, wz, {
-        style: 'steam',
-        count: Math.max(2, (opts.count || 1) * 2),
-        scale: (opts.scale ?? 0.95) * 0.95,
-        grow: opts.grow ?? 0.65,
-        vy: opts.vy ?? 1.05,
-        randV: opts.randV ?? 0.18,
-        spread: opts.spread ?? 0.24,
-        life: opts.life ?? 1.55
-      });
-      return;
-    }
-    if (kind === 'smoke_puff') {
-      spawn3DSmoke(wx, wy, wz, {
-        style: 'smoke',
-        count: Math.max(2, (opts.count || 1) * 2),
-        scale: (opts.scale ?? 0.85) * 0.88,
-        grow: opts.grow ?? 0.55,
-        vy: opts.vy ?? opts.riseV ?? 0.85,
-        randV: opts.randV ?? 0.26,
-        spread: opts.spread ?? 0.34,
-        life: opts.life ?? 0.95
+    if (kind === 'sulfur_steam' || kind === 'campfire_smoke' || kind === 'smoke_puff' || kind === 'fire_flame' || kind === 'soul_flame') {
+      const isFlame = (kind === 'fire_flame' || kind === 'soul_flame');
+      spawn2DPixelPlume(kind, wx, wy, wz, {
+        count: opts.count || 1,
+        scale: opts.scale ?? (isFlame ? 0.86 : 0.94),
+        grow: opts.grow ?? (isFlame ? 0.16 : 0.54),
+        vy: opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : (kind === 'sulfur_steam' ? 1.08 : 0.90)),
+        vx: opts.vx,
+        vz: opts.vz,
+        randV: opts.randV ?? (isFlame ? 0.18 : 0.22),
+        spread: opts.spread ?? (isFlame ? 0.34 : 0.30),
+        life: opts.life ?? (isFlame ? 0.44 : (kind === 'sulfur_steam' ? 2.2 : 1.15))
       });
       return;
     }
@@ -3561,141 +3594,269 @@
   _blkPartInstMesh.count = 0;
   scene.add(_blkPartInstMesh);
 
-  // BUILD v166: True 3D Minecraft Campfire Puffy Cloud-Cluster Smoke (5-box stepped voxel geometry, 1 draw call, upright vertical column, zero water/godray alpha glitches)
-  const MAX_SMOKE_VOXELS = _isWeakDevice ? 140 : 320;
-  const smokeVoxels = [], smokeVoxelPool = [];
-  const _smokeGeo = (() => {
-    const unit = new THREE.BoxGeometry(1, 1, 1);
-    const uPos = unit.getAttribute('position'), uNorm = unit.getAttribute('normal'), uIdx = unit.getIndex();
-    const lobes = [
-      [ 0.00,  0.00,  0.00, 0.48, 0.34, 0.48],
-      [-0.10,  0.05,  0.02, 0.42, 0.32, 0.38],
-      [ 0.11, -0.03, -0.03, 0.40, 0.30, 0.36],
-      [ 0.01,  0.07, -0.09, 0.36, 0.30, 0.42],
-      [-0.02, -0.05,  0.10, 0.38, 0.30, 0.38]
-    ];
-    const vPer = uPos.count, iPer = uIdx.count, totV = vPer * lobes.length, totI = iPer * lobes.length;
-    const pos = new Float32Array(totV * 3), norm = new Float32Array(totV * 3), col = new Float32Array(totV * 3), idx = new Uint16Array(totI);
-    for (let li = 0; li < lobes.length; li++) {
-      const [ox, oy, oz, sx, sy, sz] = lobes[li], vBase = li * vPer, iBase = li * iPer;
-      for (let i = 0; i < vPer; i++) {
-        const vi = vBase + i, vp = vi * 3;
-        pos[vp] = uPos.getX(i) * sx + ox; pos[vp + 1] = uPos.getY(i) * sy + oy; pos[vp + 2] = uPos.getZ(i) * sz + oz;
-        const nx = uNorm.getX(i), ny = uNorm.getY(i), nz = uNorm.getZ(i);
-        norm[vp] = nx; norm[vp + 1] = ny; norm[vp + 2] = nz;
-        const shade = ny > 0.5 ? 1.00 : (ny < -0.5 ? 0.72 : (Math.abs(nx) > 0.5 ? 0.83 : 0.90));
-        col[vp] = shade; col[vp + 1] = shade; col[vp + 2] = shade;
-      }
-      for (let i = 0; i < iPer; i++) idx[iBase + i] = uIdx.getX(i) + vBase;
-    }
-    unit.dispose();
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    g.setIndex(new THREE.BufferAttribute(idx, 1));
-    return g;
-  })();
-  const _smokeMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, vertexColors: true, fog: true, transparent: true, opacity: 0.56, depthWrite: false,
-    blending: THREE.CustomBlending,
-    blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-    blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor
-  });
-  const _smokeInstMesh = new THREE.InstancedMesh(_smokeGeo, _smokeMat, MAX_SMOKE_VOXELS);
-  _smokeInstMesh.frustumCulled = false;
-  _smokeInstMesh.castShadow = false;
-  _smokeInstMesh.receiveShadow = false;
-  _smokeInstMesh.renderOrder = 4;
-  _smokeInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  _smokeInstMesh.setColorAt(0, _partColor);
-  if (_smokeInstMesh.instanceColor) _smokeInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
-  _smokeInstMesh.count = 0;
-  scene.add(_smokeInstMesh);
-  const _SMOKE_PALS = {
-    campfire: [0xd8dee6, 0xc7cfd9, 0xb6c0cc, 0xe5eaf0],
-    steam:    [0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xfefce8],
-    smoke:    [0xcbd5e1, 0x94a3b8, 0x64748b, 0xe2e8f0],
-    dark:     [0x64748b, 0x475569, 0x334155, 0x94a3b8]
+  // Unified 1-Draw-Call 2D PixelFX Billboard Plume & Flame Engine (Rust/WASM rasterizer + plume curl physics)
+  const MAX_PLUME_2D = _isWeakDevice ? 140 : 280;
+  const plume2DList = [], plume2DPool = [];
+  const _PLUME_COLS = 12, _PLUME_ROWS = 5, _PLUME_CELL = 24;
+  const _PLUME_2D_KINDS = {
+    sulfur_steam:   { row: 0, wasmId: 2, frames: 12, seed: 37, emissive: 0.0, loop: false },
+    campfire_smoke: { row: 1, wasmId: 3, frames: 12, seed: 53, emissive: 0.0, loop: false },
+    smoke_puff:     { row: 2, wasmId: 4, frames: 8,  seed: 71, emissive: 0.0, loop: false },
+    fire_flame:     { row: 3, wasmId: 0, frames: 10, seed: 11, emissive: 1.0, loop: true },
+    soul_flame:     { row: 4, wasmId: 1, frames: 10, seed: 23, emissive: 1.0, loop: true }
   };
-  function spawn3DSmoke(wx, wy, wz, opts = {}) {
+  const _plume2DCv = document.createElement('canvas');
+  _plume2DCv.width = _PLUME_COLS * _PLUME_CELL;
+  _plume2DCv.height = _PLUME_ROWS * _PLUME_CELL;
+  const _plume2DCtx = _plume2DCv.getContext('2d');
+  _plume2DCtx.imageSmoothingEnabled = false;
+  const _plume2DTex = new THREE.CanvasTexture(_plume2DCv);
+  _plume2DTex.magFilter = THREE.NearestFilter;
+  _plume2DTex.minFilter = THREE.NearestFilter;
+  _plume2DTex.generateMipmaps = false;
+  let _plume2DBakedWasm = false;
+  function _drawJsFallbackPlumeAtlas() {
+    const ctx = _plume2DCtx, cs = _PLUME_CELL;
+    ctx.clearRect(0, 0, _plume2DCv.width, _plume2DCv.height);
+    const drawDisc = (cx, cy, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); };
+    for (const kName of Object.keys(_PLUME_2D_KINDS)) {
+      const m = _PLUME_2D_KINDS[kName], y0 = m.row * cs;
+      for (let f = 0; f < m.frames; f++) {
+        const x0 = f * cs, u = m.frames > 1 ? f / (m.frames - 1) : 0;
+        if (m.emissive > 0.5) {
+          const isS = kName === 'soul_flame', sw = Math.sin(u * Math.PI * 2) * 2.2;
+          drawDisc(x0 + 12, y0 + 16, 5.2, isS ? '#0c4a6e' : '#7f1d1d');
+          drawDisc(x0 + 12 + sw * 0.4, y0 + 13, 4.1, isS ? '#0284c7' : '#dc2626');
+          drawDisc(x0 + 12 + sw * 0.7, y0 + 10, 2.8, isS ? '#06b6d4' : '#ff8a2a');
+          drawDisc(x0 + 12 + sw * 0.3, y0 + 14, 1.8, isS ? '#ecfeff' : '#fff3a6');
+        } else {
+          const isSt = kName === 'sulfur_steam', r = 4.2 + u * 3.8;
+          ctx.globalAlpha = Math.max(0.22, 0.92 * (1 - u * 0.65));
+          drawDisc(x0 + 12, y0 + 13 - u * 2.5, r, isSt ? '#94a3b8' : '#475569');
+          drawDisc(x0 + 10.5, y0 + 11.2 - u * 2.5, r * 0.76, isSt ? '#f1f5f9' : '#94a3b8');
+          drawDisc(x0 + 9.5, y0 + 10.0 - u * 2.5, r * 0.42, isSt ? '#ffffff' : '#e2e8f0');
+          ctx.globalAlpha = 1.0;
+        }
+      }
+    }
+    _plume2DTex.needsUpdate = true;
+  }
+  function _bakePlume2DAtlas() {
+    let ok = true;
+    const scratch = document.createElement('canvas');
+    const sCtx = scratch.getContext('2d');
+    const rowCanvases = [];
+    for (const kName of Object.keys(_PLUME_2D_KINDS)) {
+      const m = _PLUME_2D_KINDS[kName];
+      const bytes = _rasterizeWasmPixelStrip(m.wasmId, _PLUME_CELL, m.frames, m.seed);
+      if (!bytes) { ok = false; break; }
+      const stripW = m.frames * _PLUME_CELL;
+      scratch.width = stripW; scratch.height = _PLUME_CELL;
+      const img = sCtx.createImageData(stripW, _PLUME_CELL);
+      img.data.set(bytes);
+      sCtx.putImageData(img, 0, 0);
+      const rc = document.createElement('canvas');
+      rc.width = stripW; rc.height = _PLUME_CELL;
+      rc.getContext('2d').drawImage(scratch, 0, 0);
+      rowCanvases.push({ row: m.row, rc });
+    }
+    if (!ok) return false;
+    _plume2DCtx.clearRect(0, 0, _plume2DCv.width, _plume2DCv.height);
+    for (let i = 0; i < rowCanvases.length; i++) {
+      _plume2DCtx.drawImage(rowCanvases[i].rc, 0, rowCanvases[i].row * _PLUME_CELL);
+    }
+    _plume2DBakedWasm = true;
+    _plume2DTex.needsUpdate = true;
+    return true;
+  }
+  if (!_bakePlume2DAtlas()) _drawJsFallbackPlumeAtlas();
+
+  const _plume2DUvArr = new Float32Array(MAX_PLUME_2D * 4);
+  const _plume2DParamArr = new Float32Array(MAX_PLUME_2D * 4);
+  const _plume2DUvAttr = new THREE.InstancedBufferAttribute(_plume2DUvArr, 4);
+  _plume2DUvAttr.setUsage(THREE.DynamicDrawUsage);
+  const _plume2DParamAttr = new THREE.InstancedBufferAttribute(_plume2DParamArr, 4);
+  _plume2DParamAttr.setUsage(THREE.DynamicDrawUsage);
+  const _plume2DGeo = new THREE.PlaneGeometry(1, 1);
+  _plume2DGeo.setAttribute('aPlumeUv', _plume2DUvAttr);
+  _plume2DGeo.setAttribute('aPlumeParam', _plume2DParamAttr);
+  const _plume2DMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: _plume2DTex },
+      uFogColor: envUniforms.uFogColor,
+      uFogStart: envUniforms.uFogStart,
+      uFogEnd: envUniforms.uFogEnd,
+      uReflClipY: envUniforms.uReflClipY
+    },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendEquationAlpha: THREE.AddEquation,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
+    vertexShader: `
+      attribute vec4 aPlumeUv;
+      attribute vec4 aPlumeParam;
+      varying vec2 vUv;
+      varying vec3 vWPos;
+      varying float vDist, vAlpha, vEmissive;
+      void main() {
+        float flipX = aPlumeParam.y;
+        float sc = aPlumeParam.w;
+        vAlpha = aPlumeParam.x;
+        vEmissive = aPlumeParam.z;
+        vUv = vec2(aPlumeUv.x + mix(uv.x, 1.0 - uv.x, step(0.5, flipX)) * aPlumeUv.z, aPlumeUv.y + uv.y * aPlumeUv.w);
+        vec3 instPos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        vec3 camR = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+        vec3 camU = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+        vec4 wp = vec4(instPos + camR * (position.x * sc) + camU * (position.y * sc), 1.0);
+        vWPos = wp.xyz;
+        vec4 mv = viewMatrix * wp;
+        vDist = length(mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D uMap;
+      uniform float uFogStart, uFogEnd, uReflClipY;
+      uniform vec3 uFogColor;
+      varying vec2 vUv;
+      varying vec3 vWPos;
+      varying float vDist, vAlpha, vEmissive;
+      void main() {
+        if (vWPos.y < uReflClipY) discard;
+        vec4 tex = texture2D(uMap, vUv);
+        if (tex.a < 0.05) discard;
+        float fogK = vEmissive > 0.5 ? 0.30 : 0.78;
+        float fogF = clamp(smoothstep(uFogStart, uFogEnd * 1.45, vDist) * fogK, 0.0, 1.0);
+        gl_FragColor = vec4(mix(tex.rgb, uFogColor, fogF), tex.a * vAlpha);
+      }`
+  });
+  const _plume2DInstMesh = new THREE.InstancedMesh(_plume2DGeo, _plume2DMat, MAX_PLUME_2D);
+  _plume2DInstMesh.frustumCulled = false;
+  _plume2DInstMesh.castShadow = false;
+  _plume2DInstMesh.receiveShadow = false;
+  _plume2DInstMesh.renderOrder = 4;
+  _plume2DInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  _plume2DInstMesh.count = 0;
+  scene.add(_plume2DInstMesh);
+
+  function spawn2DPixelPlume(kind, wx, wy, wz, opts = {}) {
     if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
     const pdx = wx - player.x, pdz = wz - player.z, pd2 = pdx * pdx + pdz * pdz;
-    if (pd2 > 9216.0) return; // Keep smoke/steam visible up to 96 blocks away
-    const pal = _SMOKE_PALS[opts.style] || _SMOKE_PALS.smoke;
-    const isCf = !!(opts.campfire || opts.style === 'campfire');
-    const cnt = Math.min(opts.count || 2, _isWeakDevice ? 3 : 6);
-    const spr = opts.spread ?? 0.26;
-    const rv = opts.randV ?? 0.22;
-    const baseVy = opts.vy ?? 0.95;
-    const baseSc = opts.scale ?? 0.95;
-    const growK = opts.grow ?? 0.60;
-    const lifeBase = opts.life ?? 1.45;
+    if (pd2 > 9216.0) return;
+    const meta = _PLUME_2D_KINDS[kind] || _PLUME_2D_KINDS.smoke_puff;
+    const isFlame = meta.emissive > 0.5;
+    const cnt = Math.min(opts.count || 1, _isWeakDevice ? 3 : 6);
+    const spr = opts.spread ?? (isFlame ? 0.34 : 0.24);
+    const rv = opts.randV ?? (isFlame ? 0.18 : 0.16);
+    const baseVy = opts.vy ?? opts.riseV ?? (isFlame ? 1.02 : 0.96);
+    const baseSc = opts.scale ?? (isFlame ? 0.86 : 1.02);
+    const growK = opts.grow ?? (isFlame ? 0.16 : 0.52);
+    const lifeBase = opts.life ?? (isFlame ? 0.44 : 1.65);
     for (let i = 0; i < cnt; i++) {
       let s;
-      if (smokeVoxels.length >= MAX_SMOKE_VOXELS) s = smokeVoxels.shift();
-      else if (smokeVoxelPool.length > 0) s = smokeVoxelPool.pop();
-      else s = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rxS: 0, ryS: 0, rzS: 0, phase: 0, amp: 0, scale: 1, grow: 0.6, life: 1, maxLife: 1, campfire: false, color: new THREE.Color(0xffffff) };
-      s.color.setHex(pal[(Math.random() * pal.length) | 0]);
-      s.campfire = isCf;
+      if (plume2DList.length >= MAX_PLUME_2D) s = plume2DList.shift();
+      else if (plume2DPool.length > 0) s = plume2DPool.pop();
+      else s = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, phase: 0, scale: 1, grow: 0.5, life: 1, maxLife: 1, row: 0, frames: 12, emissive: 0, loop: false, flipX: 0 };
+      s.row = meta.row;
+      s.frames = meta.frames;
+      s.emissive = meta.emissive;
+      s.loop = meta.loop;
+      s.flipX = Math.random() < 0.5 ? 1 : 0;
       s.x = wx + (Math.random() - 0.5) * spr;
-      s.y = wy + i * 0.14 + (Math.random() - 0.5) * 0.10;
+      s.y = wy + i * (isFlame ? 0.06 : 0.12) + (Math.random() - 0.5) * 0.08;
       s.z = wz + (Math.random() - 0.5) * spr;
       s.vx = opts.vx !== undefined ? opts.vx : (Math.random() - 0.5) * rv;
-      s.vy = baseVy * (isCf ? (0.94 + Math.random() * 0.14) : (0.84 + Math.random() * 0.34));
+      s.vy = baseVy * (0.88 + Math.random() * 0.24);
       s.vz = opts.vz !== undefined ? opts.vz : (Math.random() - 0.5) * rv;
-      if (isCf) {
-        s.rx = 0; s.rz = 0; s.rxS = 0; s.rzS = 0;
-        s.ry = Math.random() * Math.PI * 2;
-        s.ryS = (Math.random() - 0.5) * 0.28;
-        s.amp = 0.055 + Math.random() * 0.045;
-      } else {
-        s.rx = Math.random() * 3.14; s.ry = Math.random() * 3.14; s.rz = Math.random() * 3.14;
-        s.rxS = (Math.random() - 0.5) * 1.4; s.ryS = (Math.random() - 0.5) * 1.8; s.rzS = (Math.random() - 0.5) * 1.2;
-        s.amp = 0.24 + Math.random() * 0.22;
-      }
       s.phase = Math.random() * Math.PI * 2;
       s.scale = baseSc * (0.88 + Math.random() * 0.24);
       s.grow = growK;
-      s.life = s.maxLife = lifeBase * (0.90 + Math.random() * 0.22);
-      smokeVoxels.push(s);
+      s.life = s.maxLife = lifeBase * (0.90 + Math.random() * 0.20);
+      plume2DList.push(s);
     }
   }
-  function update3DSmoke(dt) {
-    let alive = 0;
-    for (let i = smokeVoxels.length - 1; i >= 0; i--) {
-      const s = smokeVoxels[i];
-      s.life -= dt;
-      if (s.life <= 0) {
-        smokeVoxelPool.push(s);
-        smokeVoxels[i] = smokeVoxels[smokeVoxels.length - 1];
-        smokeVoxels.pop();
-        continue;
+  function update2DPixelPlumes(dt) {
+    if (!_plume2DBakedWasm) _bakePlume2DAtlas();
+    const n = plume2DList.length;
+    if (n === 0) { _plume2DInstMesh.count = 0; return; }
+    const tNow = (typeof envUniforms !== 'undefined' && envUniforms.uTime) ? envUniforms.uTime.value : 0;
+    const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
+    const _useWasmPlume = !!(_wCore && _wCore.exports && _wCore.exports.step_pixelfx_plumes && _wCore.particleBuf && n <= 512);
+    const swayAmp = 0.22, dragY = 0.08;
+    if (_useWasmPlume) {
+      const pb = _wCore.particleBuf;
+      for (let i = 0; i < n; i++) {
+        const s = plume2DList[i], b = i * 8;
+        pb[b] = s.x; pb[b + 1] = s.y; pb[b + 2] = s.z;
+        pb[b + 3] = s.vx; pb[b + 4] = s.vy; pb[b + 5] = s.vz;
+        pb[b + 6] = s.phase; pb[b + 7] = s.life;
       }
-      const prog = 1.0 - s.life / s.maxLife;
-      const windX = Math.sin(s.phase + prog * (s.campfire ? 3.8 : 5.2)) * s.amp;
-      const windZ = Math.cos(s.phase * 1.3 + prog * (s.campfire ? 3.4 : 4.6)) * s.amp;
-      s.x += (s.vx + windX) * dt;
-      s.y += s.vy * dt;
-      s.z += (s.vz + windZ) * dt;
-      s.vy *= Math.exp((s.campfire ? -0.035 : -0.18) * dt);
-      s.rx += s.rxS * dt; s.ry += s.ryS * dt; s.rz += s.rzS * dt;
-      const env = s.campfire
-        ? (prog < 0.14 ? (0.68 + (prog / 0.14) * 0.32) : (prog > 0.72 ? Math.max(0.02, (1.0 - prog) / 0.28) : 1.0))
-        : (prog < 0.18 ? (0.62 + (prog / 0.18) * 0.38) : (prog > 0.70 ? Math.max(0.02, (1.0 - prog) / 0.30) : 1.0));
-      const sc = Math.max(0.02, s.scale * (s.campfire ? (0.92 + prog * s.grow) : (0.85 + prog * s.grow)) * env);
-      _partDummy.position.set(s.x, s.y, s.z);
-      _partDummy.rotation.set(s.rx, s.ry, s.rz);
-      _partDummy.scale.setScalar(sc);
-      _partDummy.updateMatrix();
-      _smokeInstMesh.setMatrixAt(alive, _partDummy.matrix);
-      _smokeInstMesh.setColorAt(alive, s.color);
-      alive++;
+      _wCore.exports.step_pixelfx_plumes(n, dt, tNow, swayAmp, dragY);
+      _wCore.state.partCalls++;
+      for (let i = n - 1; i >= 0; i--) {
+        const s = plume2DList[i], b = i * 8;
+        s.x = pb[b]; s.y = pb[b + 1]; s.z = pb[b + 2];
+        s.vy = pb[b + 4]; s.life = pb[b + 7];
+        if (s.life <= 0) {
+          plume2DPool.push(s);
+          plume2DList[i] = plume2DList[plume2DList.length - 1];
+          plume2DList.pop();
+        }
+      }
+    } else {
+      const damp = 1.0 / Math.max(1e-4, 1.0 + dragY * dt);
+      for (let i = n - 1; i >= 0; i--) {
+        const s = plume2DList[i];
+        s.life -= dt;
+        if (s.life <= 0) {
+          plume2DPool.push(s);
+          plume2DList[i] = plume2DList[plume2DList.length - 1];
+          plume2DList.pop();
+          continue;
+        }
+        const wx = Math.sin(tNow * 1.65 + s.phase) * swayAmp;
+        const wz = Math.cos(tNow * 1.42 + s.phase * 1.3) * swayAmp;
+        s.vy *= damp;
+        s.x += (s.vx + wx) * dt;
+        s.y += s.vy * dt;
+        s.z += (s.vz + wz) * dt;
+      }
     }
-    _smokeInstMesh.count = alive;
+    const alive = plume2DList.length;
+    const invC = 1.0 / _PLUME_COLS, invR = 1.0 / _PLUME_ROWS;
+    for (let i = 0; i < alive; i++) {
+      const s = plume2DList[i];
+      const prog = Math.max(0, Math.min(0.999, 1.0 - s.life / s.maxLife));
+      const col = s.loop ? (((prog * 1.8 * s.frames) | 0) % s.frames) : Math.min(s.frames - 1, (prog * s.frames) | 0);
+      const alpha = s.emissive > 0.5
+        ? (prog < 0.10 ? 0.88 + 0.12 * (prog / 0.10) : (prog > 0.86 ? Math.max(0.06, (1.0 - prog) / 0.14) : 1.0))
+        : (prog < 0.08 ? 0.80 + 0.18 * (prog / 0.08) : (prog > 0.84 ? Math.max(0.05, (1.0 - prog) / 0.16) : 0.98));
+      const sc = Math.max(0.04, s.scale * (1.0 + prog * s.grow));
+      _partDummy.position.set(s.x, s.y, s.z);
+      _partDummy.rotation.set(0, 0, 0);
+      _partDummy.scale.setScalar(1.0);
+      _partDummy.updateMatrix();
+      _plume2DInstMesh.setMatrixAt(i, _partDummy.matrix);
+      const ub = i * 4;
+      _plume2DUvArr[ub] = (col + 0.02) * invC;
+      _plume2DUvArr[ub + 1] = 1.0 - (s.row + 0.98) * invR;
+      _plume2DUvArr[ub + 2] = 0.96 * invC;
+      _plume2DUvArr[ub + 3] = 0.96 * invR;
+      _plume2DParamArr[ub] = alpha;
+      _plume2DParamArr[ub + 1] = s.flipX;
+      _plume2DParamArr[ub + 2] = s.emissive;
+      _plume2DParamArr[ub + 3] = sc;
+    }
+    _plume2DInstMesh.count = alive;
     if (alive > 0) {
-      _smokeInstMesh.instanceMatrix.needsUpdate = true;
-      if (_smokeInstMesh.instanceColor) _smokeInstMesh.instanceColor.needsUpdate = true;
+      _plume2DInstMesh.instanceMatrix.needsUpdate = true;
+      _plume2DUvAttr.needsUpdate = true;
+      _plume2DParamAttr.needsUpdate = true;
     }
   }
   function _spawnOneParticle(wx, wy, wz, colorHex, opts) {
@@ -3744,14 +3905,16 @@
       snow:  [0xe0f2fe, 0xbae6fd, 0x7dd3fc],
       magic: [0xc084fc, 0xa855f7, 0x4ade80]
     };
-    // Layered Code-Driven PixelFX Sprite-Sheet Bursts + micro voxel accents
+    // Layered Code-Driven PixelFX 2D Billboard Plumes + micro voxel embers
     if (kind === 'flame') {
-      spawnPixelFx('fire_flame', wx, wy + 0.14, wz, { count: Math.max(1, Math.min(4, Math.ceil(n / 3))), scale: 0.88, life: 0.46, riseV: 1.15, randV: 0.42, spread: 0.38 });
+      spawn2DPixelPlume('fire_flame', wx, wy + 0.14, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 3))), scale: 0.88, life: 0.46, vy: 1.05, randV: 0.20, spread: 0.36 });
+      if (n >= 2) _spawnOneParticle(wx, wy + 0.15, wz, PALS.ember[(Math.random() * 3) | 0], { kind: 'ember', rise: true, spread: 0.42, scale: 0.42, vx: (Math.random() - 0.5) * 1.1, vy: 2.0 + Math.random() * 1.5, vz: (Math.random() - 0.5) * 1.1, life: 0.42, grav: -0.8 });
+      return;
     } else if (kind === 'soul_flame') {
-      spawnPixelFx('soul_flame', wx, wy + 0.14, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 3))), scale: 0.88, life: 0.46, riseV: 1.15, randV: 0.40, spread: 0.36 });
+      spawn2DPixelPlume('soul_flame', wx, wy + 0.14, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 3))), scale: 0.88, life: 0.46, vy: 1.05, randV: 0.20, spread: 0.36 });
       return;
     } else if (kind === 'ember') {
-      spawnPixelFx('fire_flame', wx, wy + 0.10, wz, { count: 1, scale: 0.52, life: 0.38, riseV: 1.45, randV: 0.65, spread: 0.44 });
+      spawn2DPixelPlume('fire_flame', wx, wy + 0.10, wz, { count: 1, scale: 0.48, life: 0.36, vy: 1.35, randV: 0.32, spread: 0.36 });
     } else if (kind === 'end_crystal') {
       spawnPixelFx('end_crystal_burst', wx, wy + 0.20, wz, { count: Math.max(2, Math.min(5, n)), scale: 1.55, life: 0.52, riseV: 0.5, randV: 1.8, spread: 0.85 });
       return;
@@ -3762,7 +3925,7 @@
       spawnPixelFx('portal_vortex', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, n)), scale: 0.85, life: 0.50, riseV: 0.45, randV: 0.5, spread: 0.48 });
       return;
     } else if (kind === 'smoke') {
-      spawn3DSmoke(wx, wy + 0.12, wz, { style: 'dark', count: Math.max(2, Math.min(5, Math.ceil(n / 2))), scale: 0.92, grow: 0.55, vy: 0.95, randV: 0.28, spread: 0.38, life: 0.95 });
+      spawn2DPixelPlume('smoke_puff', wx, wy + 0.12, wz, { count: Math.max(1, Math.min(4, Math.ceil(n / 2))), scale: 0.94, grow: 0.55, vy: 0.95, randV: 0.24, spread: 0.36, life: 1.05 });
       return;
     } else if (kind === 'spark' || kind === 'electric') {
       spawnPixelFx('lightning_arc', wx, wy + 0.15, wz, { count: Math.max(1, Math.min(3, Math.ceil(n / 5))), scale: 1.15, life: 0.34, randV: 1.2, spread: 0.65 });
@@ -4018,36 +4181,79 @@
   }
 
   function updateBlockParticles(dt) {
-    for (let i = blkParticles.length - 1; i >= 0; i--) {
-      const p = blkParticles[i];
-      p.life -= dt;
-      if (p.life <= 0) {
-        blkParticlePool.push(p);
-        blkParticles[i] = blkParticles[blkParticles.length - 1];
-        blkParticles.pop();
-        continue;
+    const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
+    const _useWasmBlk = !!(_wCore && _wCore.exports && _wCore.exports.step_particles_batch && _wCore.particleBuf && blkParticles.length > 0 && blkParticles.length <= 512);
+    if (_useWasmBlk) {
+      const pb = _wCore.particleBuf;
+      const n = blkParticles.length;
+      for (let i = 0; i < n; i++) {
+        const p = blkParticles[i], b = i * 8;
+        pb[b] = p.x; pb[b + 1] = p.y; pb[b + 2] = p.z;
+        pb[b + 3] = p.vx; pb[b + 4] = p.vy; pb[b + 5] = p.vz;
+        pb[b + 6] = p.grav || 0; pb[b + 7] = p.life;
       }
-      if (p.grav) p.vy -= p.grav * dt;
-      const nx = p.x + p.vx * dt;
-      const ny = p.y + p.vy * dt;
-      const nz = p.z + p.vz * dt;
-      if (p.vy < -0.9 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
-        p.vy = -p.vy * 0.32; p.vx *= 0.58; p.vz *= 0.58;
-      } else {
-        p.x = nx; p.y = ny; p.z = nz;
+      _wCore.exports.step_particles_batch(n, dt);
+      _wCore.state.partCalls++;
+      for (let i = n - 1; i >= 0; i--) {
+        const p = blkParticles[i], b = i * 8;
+        p.life = pb[b + 7];
+        if (p.life <= 0) {
+          blkParticlePool.push(p);
+          blkParticles[i] = blkParticles[blkParticles.length - 1];
+          blkParticles.pop();
+          continue;
+        }
+        const nx = pb[b], ny = pb[b + 1], nz = pb[b + 2], nvy = pb[b + 4];
+        if (nvy < -0.9 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
+          p.vy = -nvy * 0.32; p.vx *= 0.58; p.vz *= 0.58;
+        } else {
+          p.x = nx; p.y = ny; p.z = nz; p.vy = nvy;
+        }
+        p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
+        const t = Math.max(0.01, p.life / (p.maxLife || 0.45));
+        const sc = p.baseScale * (t < 0.30 ? Math.max(0.05, t / 0.30) : 1.0);
+        _partDummy.position.set(p.x, p.y, p.z);
+        _partDummy.rotation.set(p.rx, p.ry, 0);
+        _partDummy.scale.setScalar(sc);
+        _partDummy.updateMatrix();
+        _blkPartInstMesh.setMatrixAt(i, _partDummy.matrix);
+        _partColor.setRGB(p.shade, p.shade, p.shade);
+        _blkPartInstMesh.setColorAt(i, _partColor);
+        const ub = i * 4;
+        _blkPartUvArr[ub] = p.u; _blkPartUvArr[ub + 1] = p.v; _blkPartUvArr[ub + 2] = p.uw; _blkPartUvArr[ub + 3] = p.vw;
       }
-      p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
-      const t = Math.max(0.01, p.life / (p.maxLife || 0.45));
-      const sc = p.baseScale * (t < 0.30 ? Math.max(0.05, t / 0.30) : 1.0);
-      _partDummy.position.set(p.x, p.y, p.z);
-      _partDummy.rotation.set(p.rx, p.ry, 0);
-      _partDummy.scale.setScalar(sc);
-      _partDummy.updateMatrix();
-      _blkPartInstMesh.setMatrixAt(i, _partDummy.matrix);
-      _partColor.setRGB(p.shade, p.shade, p.shade);
-      _blkPartInstMesh.setColorAt(i, _partColor);
-      const ub = i * 4;
-      _blkPartUvArr[ub] = p.u; _blkPartUvArr[ub + 1] = p.v; _blkPartUvArr[ub + 2] = p.uw; _blkPartUvArr[ub + 3] = p.vw;
+    } else {
+      for (let i = blkParticles.length - 1; i >= 0; i--) {
+        const p = blkParticles[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+          blkParticlePool.push(p);
+          blkParticles[i] = blkParticles[blkParticles.length - 1];
+          blkParticles.pop();
+          continue;
+        }
+        if (p.grav) p.vy -= p.grav * dt;
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        const nz = p.z + p.vz * dt;
+        if (p.vy < -0.9 && isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
+          p.vy = -p.vy * 0.32; p.vx *= 0.58; p.vz *= 0.58;
+        } else {
+          p.x = nx; p.y = ny; p.z = nz;
+        }
+        p.rx += p.rxSpd * dt; p.ry += p.rySpd * dt;
+        const t = Math.max(0.01, p.life / (p.maxLife || 0.45));
+        const sc = p.baseScale * (t < 0.30 ? Math.max(0.05, t / 0.30) : 1.0);
+        _partDummy.position.set(p.x, p.y, p.z);
+        _partDummy.rotation.set(p.rx, p.ry, 0);
+        _partDummy.scale.setScalar(sc);
+        _partDummy.updateMatrix();
+        _blkPartInstMesh.setMatrixAt(i, _partDummy.matrix);
+        _partColor.setRGB(p.shade, p.shade, p.shade);
+        _blkPartInstMesh.setColorAt(i, _partColor);
+        const ub = i * 4;
+        _blkPartUvArr[ub] = p.u; _blkPartUvArr[ub + 1] = p.v; _blkPartUvArr[ub + 2] = p.uw; _blkPartUvArr[ub + 3] = p.vw;
+      }
     }
     _blkPartInstMesh.count = blkParticles.length;
     if (blkParticles.length > 0) {
@@ -4060,7 +4266,7 @@
   function updateParticles(dt) {
     updateBlockParticles(dt);
     updatePixelFx(dt);
-    update3DSmoke(dt);
+    update2DPixelPlumes(dt);
     updateSwordSlashes(dt);
     const _wCore = typeof window._getNucraftWasmCore === 'function' ? window._getNucraftWasmCore() : null;
     const _useWasmPart = !!(_wCore && _wCore.exports && _wCore.exports.step_particles_batch && _wCore.particleBuf && particles.length > 0 && particles.length <= 512);

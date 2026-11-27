@@ -82,6 +82,34 @@
     }
     updateMobileUiScale();
   }
+  const UI_SCALE_KEY = 'luanti_ui_scale';
+  let _uiScalePref = 'auto';
+  try {
+    const sv = localStorage.getItem(UI_SCALE_KEY);
+    if (sv && /^(auto|0\.85|1\.0|1\.15|1\.3)$/.test(sv)) _uiScalePref = sv;
+  } catch (_) {}
+  let _curUiScale = 1.0;
+  function _computeUiScale(w, h) {
+    const sw = Math.max(320, w || 1280), sh = Math.max(240, h || 720);
+    const rawRatio = Math.min(sw / 1280, sh / 720);
+    const autoScale = rawRatio >= 1
+      ? Math.min(1.36, 1 + (rawRatio - 1) * 0.48)
+      : Math.max(0.76, 1 - (1 - rawRatio) * 0.42);
+    if (_uiScalePref === 'auto') return +autoScale.toFixed(3);
+    const manual = parseFloat(_uiScalePref) || 1.0;
+    const maxSafe = Math.min(1.42, Math.max(1.0, rawRatio * 1.25));
+    return +Math.max(0.72, Math.min(maxSafe, manual)).toFixed(3);
+  }
+  window.getUiScalePref = () => _uiScalePref;
+  window.getComputedUiScale = () => _curUiScale;
+  window.setUiScalePref = (val) => {
+    const v = String(val || 'auto');
+    _uiScalePref = /^(auto|0\.85|1\.0|1\.15|1\.3)$/.test(v) ? v : 'auto';
+    try { localStorage.setItem(UI_SCALE_KEY, _uiScalePref); } catch (_) {}
+    if (typeof applyHudLayout === 'function') applyHudLayout();
+    else updateMobileUiScale();
+    return _uiScalePref;
+  };
   function scaleGuiPanelToViewport(panelEl, padX = 16, padY = 16) {
     if (!panelEl) return;
     const natW = panelEl.offsetWidth;
@@ -89,8 +117,9 @@
     if (!natW || !natH) return;
     const availW = Math.max(180, stageW - padX * 2);
     const availH = Math.max(160, stageH - padY * 2);
-    const s = Math.min(1, availW / natW, availH / natH);
-    panelEl.style.transform = s < 0.999 ? `scale(${s.toFixed(4)})` : 'none';
+    const targetMax = Math.max(0.75, _curUiScale || 1);
+    const s = Math.min(targetMax, availW / natW, availH / natH);
+    panelEl.style.transform = Math.abs(s - 1) > 0.002 ? `scale(${s.toFixed(4)})` : 'none';
   }
   function computeSettingsFrameMetrics(availW, availH) {
     const MIN_W = 860, MAX_W = 1060;
@@ -99,7 +128,13 @@
     const safeW = Math.max(240, availW);
     const safeH = Math.max(200, availH);
     if (safeW >= MIN_W && safeH >= MIN_H) {
-      return { w: Math.min(MAX_W, Math.floor(safeW)), h: Math.min(MAX_H, Math.floor(safeH)), scale: 1 };
+      const targetScale = Math.max(1, _curUiScale || 1);
+      const baseW = Math.min(MAX_W, Math.floor(safeW / targetScale));
+      const baseH = Math.min(MAX_H, Math.floor(safeH / targetScale));
+      const w = Math.max(MIN_W, baseW);
+      const h = Math.max(MIN_H, baseH);
+      const scale = Math.min(targetScale, safeW / w, safeH / h);
+      return { w, h, scale };
     }
     let scale = Math.min(1, safeW / MIN_W, safeH / MIN_H);
     let w = Math.min(MAX_W, Math.max(MIN_W, Math.floor(safeW / scale)));
@@ -122,37 +157,40 @@
     const { w, h, scale } = computeSettingsFrameMetrics(boxW, boxH);
     shell.style.setProperty('--mcd-w', `${w}px`);
     shell.style.setProperty('--mcd-h', `${h}px`);
-    shell.style.setProperty('--mcd-scale', scale < 0.999 ? scale.toFixed(4) : '1');
+    shell.style.setProperty('--mcd-scale', Math.abs(scale - 1) > 0.002 ? scale.toFixed(4) : '1');
   }
   function updateMobileUiScale() {
     const isTouch = document.body.classList.contains('touch-ui');
     const isCompactViewport = isTouch || stageW <= 960 || stageH <= 540;
     document.body.classList.toggle('mobile-inv-ui', isCompactViewport);
+    _curUiScale = _computeUiScale(stageW, stageH);
+    const rootStyle = document.documentElement.style;
+    const oreSidebarW = Math.round(Math.max(176, Math.min(stageW * 0.30, Math.min(340, 252 * _curUiScale))));
+    rootStyle.setProperty('--ui-scale', _curUiScale.toFixed(3));
+    rootStyle.setProperty('--ore-sidebar-w', `${oreSidebarW}px`);
     const bc = document.getElementById('bottomCenter');
-    if (bc) {
-      if (!isCompactViewport) {
-        bc.style.setProperty('--hb-scale', '1');
-        bc.style.setProperty('--hb-shift-x', '0px');
+    let finalHbScale = _curUiScale;
+    if (isCompactViewport) {
+      const totalHbW = isTouch ? 414 : 368;
+      const isLandscape = stageW >= stageH;
+      let hbScale;
+      if (isLandscape) {
+        const widthCap = isTouch ? (stageW * 0.52) / totalHbW : (stageW - 24) / totalHbW;
+        const heightCap = stageH / 540;
+        hbScale = Math.min(Math.max(0.84, _curUiScale * 0.90), widthCap, heightCap);
       } else {
-        // Tổng chiều rộng gồm 364px hotbar + 47px nút "..." khi bật Mobile Controls
-        const totalHbW = isTouch ? 414 : 368;
-        const shiftX = isTouch ? -23.5 : 0;
-        const isLandscape = stageW >= stageH;
-        let hbScale;
-        if (isLandscape) {
-          // Chừa không gian hai bên cho Joystick trái và cụm nút nhảy/đánh phải
-          const widthCap = isTouch ? (stageW * 0.52) / totalHbW : (stageW - 24) / totalHbW;
-          const heightCap = stageH / 540;
-          hbScale = Math.min(0.84, widthCap, heightCap);
-        } else {
-          hbScale = Math.min(0.86, (stageW - 16) / totalHbW);
-        }
-        // Luôn bảo đảm không bao giờ tràn mép ngang
-        hbScale = Math.min(hbScale, (stageW - 12) / totalHbW);
-        hbScale = Math.max(0.48, Math.min(1, hbScale));
-        bc.style.setProperty('--hb-scale', hbScale.toFixed(4));
-        bc.style.setProperty('--hb-shift-x', `${shiftX}px`);
+        hbScale = Math.min(Math.max(0.86, _curUiScale * 0.92), (stageW - 16) / totalHbW);
       }
+      hbScale = Math.min(hbScale, (stageW - 12) / totalHbW);
+      finalHbScale = Math.max(0.48, Math.min(1.15, hbScale));
+    } else {
+      finalHbScale = Math.max(0.85, Math.min(1.32, Math.min(_curUiScale, (stageW - 24) / 420)));
+    }
+    rootStyle.setProperty('--hud-scale', finalHbScale.toFixed(3));
+    if (bc) {
+      const shiftX = (isCompactViewport && isTouch) ? -23.5 : 0;
+      bc.style.setProperty('--hb-scale', finalHbScale.toFixed(4));
+      bc.style.setProperty('--hb-shift-x', `${shiftX}px`);
     }
     const padX = stageW < 960 ? 6 : 14;
     const padY = stageH < 540 ? 6 : 14;
@@ -432,6 +470,26 @@
       }
       if (!tile) tile = new Uint32Array(256);
       exploredChunks.set(key, tile);
+    }
+    if (ch._wasmMapU32 && ch._wasmMapU32.length === 256 && ch.topMap) {
+      tile.set(ch._wasmMapU32);
+      ch._wasmMapU32 = null;
+      ch.mapDirty = false;
+      _mmTerrainVer++;
+      return;
+    }
+    const wCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    if (wCore && wCore.exports && wCore.exports.scan_chunk_emitters_and_topmap && wCore.chunkData && wCore.scanMapU32 && wCore.scanTopH) {
+      const topCap = Math.min(WORLD_H - 1, ch.maxLy);
+      wCore.chunkData.set(ch.data.subarray(0, Math.min(ch.data.length, (topCap + 1) << 8)));
+      wCore.exports.scan_chunk_emitters_and_topmap(topCap >>> 0, 1, BLK_CROSS >>> 0, DEFAULT_MAP_U32 >>> 0);
+      if (!ch.topMap) ch.topMap = new Int16Array(256);
+      ch.topMap.set(wCore.scanTopH);
+      tile.set(wCore.scanMapU32);
+      wCore.state.scanCalls++;
+      ch.mapDirty = false;
+      _mmTerrainVer++;
+      return;
     }
     if (!ch.topMap) ch.topMap = new Int16Array(256).fill(-1);
     const data = ch.data, topMap = ch.topMap, topCap = Math.min(WORLD_H - 1, ch.maxLy);
@@ -1967,53 +2025,106 @@
   const _mcBundle = window.MC_ICONS_BUNDLE || { hud: {}, items: {}, blocks: {}, tex: {} };
   const _mcItemImgs = new Map();
   const _mcTexImgs = new Map();
+  const _modMcItemImgs = new Map();
+  const _modMcTexImgs = new Map();
   const _mcIsoCache = new Map();
-  let _mcPendingImgs = 0;
+  const _perfStats = (window.__NUCRAFT_ICON_STATS__ = window.__NUCRAFT_ICON_STATS__ || { lazyDecodedItems: 0, lazyDecodedTex: 0 });
+  let _mcRedrawRaf = 0;
 
-  function _onMcImgReady() {
-    _mcPendingImgs = Math.max(0, _mcPendingImgs - 1);
-    if (_mcPendingImgs === 0) {
-      _mcIsoCache.clear();
-      _invalidateAllInvIconCaches();
-      if (typeof heldModelCache !== 'undefined') heldModelCache.clear();
-      if (typeof offhandModelCache !== 'undefined') offhandModelCache.clear();
-      if (typeof dropModelCache !== 'undefined') dropModelCache.clear();
-      if (typeof _heldMcTexCache !== 'undefined') _heldMcTexCache.clear();
-      if (typeof playerAvatar !== 'undefined' && playerAvatar) playerAvatar.heldItemId = -1;
-      if (typeof invPreviewRig !== 'undefined' && invPreviewRig) invPreviewRig.heldItemId = -1;
-      if (slotIcons.length) renderHotbar();
-      if (!document.getElementById('invModal').classList.contains('hidden')) renderInventoryModal();
-      if (typeof player !== 'undefined' && player && typeof inventory !== 'undefined' && inventory) {
-        const curSlot = inventory[player.selectedSlot];
-        updateHeldViewModel(curSlot && curSlot.count > 0 ? curSlot.id : B.AIR, curSlot && curSlot.count > 0 ? curSlot : null);
-        if (typeof updateOffhandViewModel === 'function') updateOffhandViewModel(player.equip.offhand || 0);
-      }
-      if (typeof droppedItems !== 'undefined' && typeof getDropVisual === 'function') {
-        for (let i = 0; i < droppedItems.length; i++) {
-          const it = droppedItems[i];
-          if (it && it.mesh && it.mesh.userData && it.mesh.userData.iconReady === false) {
-            const fresh = getDropVisual(it.id);
-            fresh.position.copy(it.mesh.position);
-            fresh.rotation.copy(it.mesh.rotation);
-            fresh.visible = it.mesh.visible;
-            scene.remove(it.mesh);
-            scene.add(fresh);
-            it.mesh = fresh;
-          }
+  function _invalidateModVisualCaches() {
+    _mcIsoCache.clear();
+    _invalidateAllInvIconCaches();
+    if (typeof heldModelCache !== 'undefined') heldModelCache.clear();
+    if (typeof offhandModelCache !== 'undefined') offhandModelCache.clear();
+    if (typeof dropModelCache !== 'undefined') dropModelCache.clear();
+    if (typeof _heldMcTexCache !== 'undefined') _heldMcTexCache.clear();
+    if (typeof playerAvatar !== 'undefined' && playerAvatar) playerAvatar.heldItemId = -1;
+    if (typeof invPreviewRig !== 'undefined' && invPreviewRig) invPreviewRig.heldItemId = -1;
+    if (slotIcons.length) renderHotbar();
+    if (!document.getElementById('invModal').classList.contains('hidden')) renderInventoryModal();
+    if (typeof player !== 'undefined' && player && typeof inventory !== 'undefined' && inventory) {
+      const curSlot = inventory[player.selectedSlot];
+      updateHeldViewModel(curSlot && curSlot.count > 0 ? curSlot.id : B.AIR, curSlot && curSlot.count > 0 ? curSlot : null);
+      if (typeof updateOffhandViewModel === 'function') updateOffhandViewModel(player.equip.offhand || 0);
+    }
+    if (typeof droppedItems !== 'undefined' && typeof getDropVisual === 'function') {
+      for (let i = 0; i < droppedItems.length; i++) {
+        const it = droppedItems[i];
+        if (it && it.mesh) {
+          const fresh = getDropVisual(it.id);
+          fresh.position.copy(it.mesh.position);
+          fresh.rotation.copy(it.mesh.rotation);
+          fresh.visible = it.mesh.visible;
+          scene.remove(it.mesh);
+          scene.add(fresh);
+          it.mesh = fresh;
         }
       }
     }
   }
-  for (const [k, uri] of Object.entries(_mcBundle.items || {})) {
-    const im = new Image(); _mcPendingImgs++;
-    im.onload = _onMcImgReady; im.onerror = _onMcImgReady;
-    im.src = uri; _mcItemImgs.set(k, im);
+  function _onMcImgReady() {
+    if (_mcRedrawRaf) return;
+    _mcRedrawRaf = requestAnimationFrame(() => {
+      _mcRedrawRaf = 0;
+      _invalidateModVisualCaches();
+    });
   }
-  for (const [k, uri] of Object.entries(_mcBundle.tex || {})) {
-    const im = new Image(); _mcPendingImgs++;
+  function getMcItemImg(k) {
+    if (!k) return null;
+    if (_modMcItemImgs.has(k)) return _modMcItemImgs.get(k);
+    let im = _mcItemImgs.get(k);
+    if (im) return im;
+    const uri = _mcBundle.items && _mcBundle.items[k];
+    if (!uri) return null;
+    im = new Image();
     im.onload = _onMcImgReady; im.onerror = _onMcImgReady;
-    im.src = uri; _mcTexImgs.set(k, im);
+    im.src = uri;
+    _mcItemImgs.set(k, im);
+    _perfStats.lazyDecodedItems++;
+    return im;
   }
+  function getMcTexImg(k) {
+    if (!k) return null;
+    if (_modMcTexImgs.has(k)) return _modMcTexImgs.get(k);
+    let im = _mcTexImgs.get(k);
+    if (im) return im;
+    const uri = _mcBundle.tex && _mcBundle.tex[k];
+    if (!uri) return null;
+    im = new Image();
+    im.onload = _onMcImgReady; im.onerror = _onMcImgReady;
+    im.src = uri;
+    _mcTexImgs.set(k, im);
+    _perfStats.lazyDecodedTex++;
+    return im;
+  }
+  window.getMcItemImg = getMcItemImg;
+  window.getMcTexImg = getMcTexImg;
+  window._invalidateModVisualCaches = _invalidateModVisualCaches;
+  window._setModMcOverrides = (itemEntries, texEntries) => {
+    _modMcItemImgs.clear();
+    _modMcTexImgs.clear();
+    if (itemEntries) for (const [k, img] of itemEntries) if (k && img) _modMcItemImgs.set(k, img);
+    if (texEntries) for (const [k, img] of texEntries) if (k && img) _modMcTexImgs.set(k, img);
+    _invalidateModVisualCaches();
+  };
+  // Low-priority idle pre-warm only after cold boot renders (batches of 16, zero boot freeze)
+  setTimeout(() => {
+    const itemKeys = Object.keys(_mcBundle.items || {});
+    const texKeys = Object.keys(_mcBundle.tex || {});
+    let ii = 0, ti = 0;
+    const pump = () => {
+      if (typeof isWorldLoading !== 'undefined' && isWorldLoading) { setTimeout(pump, 400); return; }
+      let budget = 16;
+      while (budget-- > 0 && ii < itemKeys.length) getMcItemImg(itemKeys[ii++]);
+      while (budget-- > 0 && ti < texKeys.length) getMcTexImg(texKeys[ti++]);
+      if (ii < itemKeys.length || ti < texKeys.length) {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(pump, { timeout: 1200 });
+        else setTimeout(pump, 180);
+      }
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(pump, { timeout: 1500 });
+    else setTimeout(pump, 1500);
+  }, 1500);
 
   function initMinecraftHudSprites() {
     const hud = _mcBundle.hud || {};
@@ -2179,9 +2290,9 @@
     const key = BLOCK_ID_TO_KEY[blockId];
     const bSpec = (!def0?.customAtlasTex && key && _mcBundle.blocks) ? _mcBundle.blocks[key] : null;
     if (bSpec && bSpec.length) {
-      const topIm = _mcTexImgs.get(bSpec[0]);
-      const sideIm = _mcTexImgs.get(bSpec[1] || bSpec[0]);
-      const frontIm = _mcTexImgs.get(bSpec[2] || bSpec[1] || bSpec[0]);
+      const topIm = getMcTexImg(bSpec[0]);
+      const sideIm = getMcTexImg(bSpec[1] || bSpec[0]);
+      const frontIm = getMcTexImg(bSpec[2] || bSpec[1] || bSpec[0]);
       if (topIm && topIm.complete && topIm.naturalWidth > 0 &&
           sideIm && sideIm.complete && sideIm.naturalWidth > 0 &&
           frontIm && frontIm.complete && frontIm.naturalWidth > 0) {
@@ -2241,7 +2352,7 @@
     const isEnch = !!(meta && meta.ench);
     if (c2d.canvas && c2d.canvas.classList) c2d.canvas.classList.toggle('dream-rainbow-icon', !!(def && def.rainbow) || isEnch);
     if (!def) { c2d.clearRect(0, 0, W, H); return; }
-    const isPlainStatic = (!meta || (!meta.ench && !meta.trim)) && _mcPendingImgs === 0;
+    const isPlainStatic = !meta || (!meta.ench && !meta.trim);
     if (isPlainStatic) {
       const cKey = `${W}x${H}:${blockId}`;
       const hit = _staticIconCache.get(cKey);
@@ -2449,7 +2560,7 @@
     }
 
     // 1) Official Minecraft 1.21.1 16x16 Flat Item Texture (skip storage chests & custom-textured blocks so they always show isometric 3D block icons!)
-    const itemIm = (key && !def.chest && !def.customAtlasTex) ? _mcItemImgs.get(key) : null;
+    const itemIm = (key && !def.chest && !def.customAtlasTex) ? getMcItemImg(key) : null;
     if (itemIm && itemIm.complete && itemIm.naturalWidth > 0) {
       const pad = Math.max(0, Math.round(W * 0.03));
       c2d.drawImage(itemIm, 0, 0, itemIm.naturalWidth, itemIm.naturalHeight, pad, pad, W - pad * 2, H - pad * 2);

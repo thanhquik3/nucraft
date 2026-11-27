@@ -23,22 +23,22 @@
 
   .mc-title-hero {
     position: relative; z-index: 12; display: flex; flex-direction: column; align-items: center;
-    margin-bottom: clamp(22px, 5vh, 42px); pointer-events: none;
+    margin-bottom: calc(28px * var(--ui-scale, 1)); pointer-events: none;
   }
   #mcLogoImg {
-    width: min(610px, 88vw); height: auto; display: block;
+    width: min(calc(540px * var(--ui-scale, 1)), 86vw); height: auto; display: block;
     image-rendering: auto;
     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.58));
   }
   .mc-edition-sub {
     margin-top: -2px; padding: 1px 10px;
-    font-family: var(--font-pixel); font-size: clamp(11px, 2vw, 15px); font-weight: 800;
+    font-family: var(--font-pixel); font-size: calc(13px * var(--ui-scale, 1)); font-weight: 800;
     letter-spacing: 3.5px; color: #f8fafc;
     text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 3px 0 #000;
   }
   .mc-splash-text {
     position: absolute; z-index: 15; right: -10px; bottom: -10px;
-    font-family: var(--font-pixel); font-size: clamp(12px, 2.2vw, 17px); font-weight: 700;
+    font-family: var(--font-pixel); font-size: calc(14.5px * var(--ui-scale, 1)); font-weight: 700;
     color: #ffff00; text-shadow: 2px 2px 0 #3f3f00, 1px 1px 0 #3f3f00;
     white-space: nowrap; transform-origin: center center;
     animation: mcSplashPulse 0.62s ease-in-out infinite alternate;
@@ -51,8 +51,8 @@
 
   /* Classic Minecraft Java Stone Button Stack (Exact 4-Row Layout from Reference!) */
   .mc-title-menu {
-    position: relative; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 9px;
-    width: min(400px, 84vw);
+    position: relative; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: calc(8px * var(--ui-scale, 1));
+    width: min(calc(380px * var(--ui-scale, 1)), 86vw);
   }
   .mc-title-row {
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -2684,9 +2684,9 @@
   #btnTitleSift {
     width: 100% !important;
     flex: 1 1 auto !important;
-    height: clamp(46px, 8.2vh, 60px) !important;
-    padding: 0 18px 2px !important;
-    font-size: clamp(13.5px, 1.65vw, 17px) !important;
+    height: calc(50px * var(--ui-scale, 1)) !important;
+    padding: 0 calc(18px * var(--ui-scale, 1)) 2px !important;
+    font-size: calc(15px * var(--ui-scale, 1)) !important;
     letter-spacing: 0.35px !important;
     white-space: nowrap !important;
   }
@@ -2963,15 +2963,15 @@
   /* Pure Light-Grey (#e6e8eb) Full-Width Top Header Bar w/ 2px Bottom Bevel (exact Create New World ref) */
   #lobbySubWrap .mc-sub-header {
     width: 100% !important;
-    height: clamp(42px, 6.2vh, 52px) !important;
-    min-height: 40px !important;
+    height: calc(46px * var(--ui-scale, 1)) !important;
+    min-height: 38px !important;
     padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left)) !important;
     background: var(--ore-header-bg) !important;
     background-image: none !important;
     border-bottom: 2px solid var(--ore-border) !important;
     box-shadow: inset 0 -3px 0 var(--ore-header-lip) !important;
     display: grid !important;
-    grid-template-columns: 44px 1fr 44px !important;
+    grid-template-columns: calc(44px * var(--ui-scale, 1)) 1fr calc(44px * var(--ui-scale, 1)) !important;
     align-items: center !important;
     gap: 6px !important;
     flex-shrink: 0 !important;
@@ -2979,8 +2979,8 @@
   }
   .ore-back-btn {
     justify-self: start;
-    width: 40px !important;
-    height: 34px !important;
+    width: calc(40px * var(--ui-scale, 1)) !important;
+    height: calc(34px * var(--ui-scale, 1)) !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -2994,13 +2994,13 @@
     background: rgba(30, 30, 31, 0.1) !important;
     border-color: rgba(30, 30, 31, 0.25) !important;
   }
-  .ore-back-btn svg { width: 20px; height: 20px; }
+  .ore-back-btn svg { width: calc(20px * var(--ui-scale, 1)); height: calc(20px * var(--ui-scale, 1)); }
   #lobbySubTitle {
     justify-self: center;
     color: var(--ore-text-dark) !important;
     text-shadow: none !important;
     font-family: var(--font-pixel) !important;
-    font-size: clamp(13px, 1.9vw, 17px) !important;
+    font-size: calc(15.5px * var(--ui-scale, 1)) !important;
     font-weight: 900 !important;
     letter-spacing: 1px !important;
     text-transform: uppercase !important;
@@ -3042,7 +3042,7 @@
 
   .ore-create-grid {
     display: grid !important;
-    grid-template-columns: clamp(220px, 29%, 390px) minmax(0, 1fr) !important;
+    grid-template-columns: var(--ore-sidebar-w, clamp(220px, 27%, 340px)) minmax(0, 1fr) !important;
     width: 100% !important;
     height: 100% !important;
     flex: 1 1 auto;
@@ -3056,10 +3056,10 @@
   .ore-create-sidebar {
     background: var(--ore-dark-1) !important;
     border-right: 2px solid var(--ore-border) !important;
-    padding: clamp(10px, 1.5vw, 16px) clamp(10px, 1.4vw, 14px) 10px !important;
+    padding: calc(12px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)) 10px !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 8px !important;
+    gap: calc(8px * var(--ui-scale, 1)) !important;
     overflow-y: auto !important;
     min-height: 0 !important;
     box-sizing: border-box !important;
@@ -3123,9 +3123,9 @@
   #lobbySubWrap .mc-java-btn { flex: 0 0 auto !important; }
   #btnLobbyCreatePlay {
     width: 100% !important;
-    height: clamp(46px, 7vh, 54px) !important;
-    min-height: 44px !important;
-    font-size: clamp(13.5px, 1.6vw, 16.5px) !important;
+    height: calc(48px * var(--ui-scale, 1)) !important;
+    min-height: 40px !important;
+    font-size: calc(15px * var(--ui-scale, 1)) !important;
     font-weight: 900 !important;
     letter-spacing: 0.9px !important;
     text-transform: uppercase;
@@ -3133,16 +3133,16 @@
   }
   #btnLobbyCreateCoop {
     width: 100% !important;
-    height: clamp(42px, 6.4vh, 50px) !important;
-    min-height: 40px !important;
-    font-size: clamp(12.5px, 1.45vw, 15px) !important;
+    height: calc(44px * var(--ui-scale, 1)) !important;
+    min-height: 36px !important;
+    font-size: calc(14px * var(--ui-scale, 1)) !important;
     font-weight: 800 !important;
     flex: 0 0 auto !important;
   }
 
   /* Vertical Sidebar Navigation Rows w/ Pixel Icons & Crisp Dividers */
   #lobbySubTabs.ore-side-nav {
-    margin: 4px calc(-1 * clamp(10px, 1.4vw, 14px)) 0 !important;
+    margin: 4px calc(-12px * var(--ui-scale, 1)) 0 !important;
     width: auto !important;
     padding: 0 !important;
     background: transparent !important;
@@ -3158,8 +3158,8 @@
     flex: 0 0 auto !important;
     width: 100% !important;
     max-width: none !important;
-    height: clamp(40px, 6vh, 48px) !important;
-    padding: 0 14px !important;
+    height: calc(42px * var(--ui-scale, 1)) !important;
+    padding: 0 calc(14px * var(--ui-scale, 1)) !important;
     background: var(--ore-dark-1) !important;
     background-image: none !important;
     color: #d6d8dc !important;
@@ -3169,13 +3169,13 @@
     border-radius: 0 !important;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
     font-family: var(--font-pixel) !important;
-    font-size: clamp(12px, 1.35vw, 14.5px) !important;
+    font-size: calc(13.5px * var(--ui-scale, 1)) !important;
     font-weight: 700 !important;
     text-shadow: none !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
-    gap: 11px !important;
+    gap: calc(10px * var(--ui-scale, 1)) !important;
     text-align: left !important;
     cursor: pointer;
     box-sizing: border-box !important;
@@ -3192,14 +3192,14 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
   }
   .ore-nav-ico {
-    width: 24px;
-    height: 24px;
+    width: calc(22px * var(--ui-scale, 1));
+    height: calc(22px * var(--ui-scale, 1));
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
-  .ore-nav-ico svg { width: 22px; height: 22px; image-rendering: pixelated; }
+  .ore-nav-ico svg { width: calc(20px * var(--ui-scale, 1)); height: calc(20px * var(--ui-scale, 1)); image-rendering: pixelated; }
 
   /* Right Panel (#48494a, ~70%-72% width, scrollable vertically, edge-to-edge dividers) */
   .ore-create-main {
@@ -3222,12 +3222,12 @@
 
   .ore-setting-row {
     width: 100%;
-    padding: clamp(12px, 2.2vh, 20px) clamp(14px, 2.4vw, 28px) !important;
+    padding: calc(15px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1)) !important;
     border-bottom: 2px solid var(--ore-divider) !important;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: calc(8px * var(--ui-scale, 1));
     box-sizing: border-box;
   }
   .ore-setting-row:first-child { box-shadow: none; }
@@ -3237,13 +3237,13 @@
     max-width: none !important;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: calc(8px * var(--ui-scale, 1));
     box-sizing: border-box;
   }
   .ore-setting-label {
     color: #ffffff !important;
     font-family: var(--font-pixel) !important;
-    font-size: clamp(12.5px, 1.45vw, 15px) !important;
+    font-size: calc(14px * var(--ui-scale, 1)) !important;
     font-weight: 700 !important;
     margin: 0 !important;
     text-shadow: none !important;
@@ -3251,9 +3251,9 @@
   .ore-setting-desc {
     color: #eef2f6 !important;
     font-family: var(--font-mono), var(--font-pixel) !important;
-    font-size: clamp(13px, 1.38vw, 15.5px) !important;
+    font-size: calc(13.5px * var(--ui-scale, 1)) !important;
     font-weight: 500 !important;
-    line-height: 1.5 !important;
+    line-height: 1.48 !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
   }
   .ore-setting-desc code {
@@ -3268,15 +3268,15 @@
   /* Dark Recessed Ore UI Text Inputs */
   #lobbyScreen .mc-input {
     width: 100% !important;
-    height: clamp(40px, 6vh, 48px) !important;
-    padding: 0 14px !important;
+    height: calc(44px * var(--ui-scale, 1)) !important;
+    padding: 0 calc(14px * var(--ui-scale, 1)) !important;
     background: var(--ore-dark-1) !important;
     color: #ffffff !important;
     border: 2px solid var(--ore-border) !important;
     border-radius: 0 !important;
     box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.45) !important;
     font-family: var(--font-pixel) !important;
-    font-size: clamp(13px, 1.5vw, 15.5px) !important;
+    font-size: calc(14px * var(--ui-scale, 1)) !important;
     outline: none !important;
     box-sizing: border-box !important;
   }
@@ -3313,9 +3313,9 @@
     flex: none !important;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: clamp(44px, 7.2vh, 58px) !important;
-    padding: 7px 10px 11px !important;
-    font-size: clamp(12px, 1.45vw, 15px) !important;
+    min-height: calc(48px * var(--ui-scale, 1)) !important;
+    padding: calc(7px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)) calc(11px * var(--ui-scale, 1)) !important;
+    font-size: calc(13.5px * var(--ui-scale, 1)) !important;
     margin-left: 0 !important;
     position: relative !important;
     line-height: 1.2 !important;
@@ -5573,15 +5573,15 @@ body.admin-unlocked .admin-lock-badge {
 
 /* Mod & Add-on Manager + Survival Mob Summon Lock */
 .mod-dropzone {
-  margin-top: 10px;
-  padding: 16px;
+  margin-top: calc(8px * var(--ui-scale, 1));
+  padding: calc(16px * var(--ui-scale, 1));
   background: #232426;
   border: 2px dashed #52565e;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: calc(10px * var(--ui-scale, 1));
   text-align: center;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -5589,12 +5589,12 @@ body.admin-unlocked .admin-lock-badge {
   border-color: #4ade80;
   background: #1b2e22;
 }
-.mod-drop-hint { font-size: 13.5px; color: #f1f5f9; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.mod-drop-hint { font-size: calc(13.5px * var(--ui-scale, 1)); color: #f1f5f9; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
 .mod-empty-msg {
-  padding: 16px;
+  padding: calc(14px * var(--ui-scale, 1));
   text-align: center;
   color: #f1f5f9;
-  font-size: 13.5px;
+  font-size: calc(13px * var(--ui-scale, 1));
   font-weight: 500;
   line-height: 1.5;
   background: rgba(24, 26, 30, 0.72);
@@ -5602,14 +5602,33 @@ body.admin-unlocked .admin-lock-badge {
   border-radius: 6px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
-.mod-drop-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%; }
-.mod-list-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.mod-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(8px * var(--ui-scale, 1));
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.mod-drop-actions .mc-java-btn,
+.mod-drop-actions .mc-bedrock-btn {
+  flex: 0 1 auto !important;
+  height: calc(38px * var(--ui-scale, 1)) !important;
+  min-height: 34px !important;
+  padding: 0 calc(14px * var(--ui-scale, 1)) 2px !important;
+  font-size: calc(12.5px * var(--ui-scale, 1)) !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.mod-list-wrap { display: flex; flex-direction: column; gap: calc(8px * var(--ui-scale, 1)); margin-top: calc(8px * var(--ui-scale, 1)); }
 .mod-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: calc(12px * var(--ui-scale, 1));
+  padding: calc(10px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
   background: #2b2c2e;
   border: 2px solid #1e1e1f;
   border-radius: 6px;
@@ -5617,20 +5636,20 @@ body.admin-unlocked .admin-lock-badge {
 }
 .mod-card.enabled { border-left: 4px solid #3c8527; }
 .mod-card-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.mod-card-title { display: flex; align-items: center; gap: 7px; font-family: var(--font-pixel); font-size: 13px; color: #ffffff; font-weight: 700; flex-wrap: wrap; }
+.mod-card-title { display: flex; align-items: center; gap: 7px; font-family: var(--font-pixel); font-size: calc(13px * var(--ui-scale, 1)); color: #ffffff; font-weight: 700; flex-wrap: wrap; }
 .mod-badge {
   background: #3c8527;
   color: #ffffff;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-scale, 1));
   padding: 1px 6px;
   border: 1px solid #1e1e1f;
   border-radius: 3px;
 }
-.mod-card-desc { font-size: 13px; color: #eef2f6; line-height: 1.45; }
-.mod-card-meta { font-size: 12.5px; color: #86efac; font-weight: 600; font-family: var(--font-mono); }
-.ore-dialog-empty { color: #e5e7eb; font-size: 13px; text-align: center; padding: 14px; }
-.mod-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.mod-card-actions .mc-java-btn, .mod-card-actions .mc-btn { height: 34px !important; padding: 0 11px !important; font-size: 11px !important; }
+.mod-card-desc { font-size: calc(12.5px * var(--ui-scale, 1)); color: #eef2f6; line-height: 1.45; }
+.mod-card-meta { font-size: calc(12px * var(--ui-scale, 1)); color: #86efac; font-weight: 600; font-family: var(--font-mono); }
+.ore-dialog-empty { color: #e5e7eb; font-size: calc(13px * var(--ui-scale, 1)); text-align: center; padding: 14px; }
+.mod-card-actions { display: flex; align-items: center; gap: calc(6px * var(--ui-scale, 1)); flex-shrink: 0; }
+.mod-card-actions .mc-java-btn, .mod-card-actions .mc-btn { height: calc(34px * var(--ui-scale, 1)) !important; padding: 0 calc(11px * var(--ui-scale, 1)) !important; font-size: calc(11.5px * var(--ui-scale, 1)) !important; white-space: nowrap !important; }
 .mob-lock-banner {
   display: flex;
   align-items: center;

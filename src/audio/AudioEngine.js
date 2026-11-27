@@ -991,6 +991,7 @@
 
   function playSfx(type) {
     if (!audioCtx || audioCtx.state !== 'running') return;
+    if (typeof window._playModSfx === 'function' && window._playModSfx(type, audioCtx, sfxGain || masterGain, sfxVolume)) return;
     if (type === 'levelup') { playLevelUpSfx(); return; }
     if (type === 'xp_orb') { playXpOrbSfx(); return; }
     if (type === 'ui_open') { playSoftFallback(340, 560, 0.080, 0.20 * sfxVolume); return; }

@@ -910,7 +910,7 @@
       torso: null, neck1: null, head: null, jaw: null, core: null,
       legs: [], arms: [], wings: [], tail: null, tail2: null, tail3: null,
       saddleGroup: null, saddleSeat: null, armorMeshes: { head: [], neck: [], body: [], tail: [] },
-      bodyBone: null, headBone: null, jawBone: null, wingTipL: null, wingTipR: null,
+      bodyBone: null, bodyCenter: null, bodyHalfExtents: null, headBone: null, jawBone: null, wingTipL: null, wingTipR: null,
       mixer: null, armRoot: null, actions: null, activeClip: ''
     };
     const wingMap = {};
@@ -955,6 +955,19 @@
           o.castShadow = !isGlow && castSh;
           o.receiveShadow = !isGlow;
           if (!isGlow) parts.push(o);
+          if ((cl === 'body_geo' || parentCl === 'body_geo') && !anim.bodyCenter && o.geometry) {
+            if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+            const bb = o.geometry.boundingBox;
+            if (bb) {
+              const bc = new THREE.Object3D();
+              bb.getCenter(bc.position);
+              o.add(bc);
+              anim.bodyCenter = bc;
+              const sz = new THREE.Vector3();
+              bb.getSize(sz);
+              anim.bodyHalfExtents = sz.multiplyScalar(0.5);
+            }
+          }
           if (nodeTag === 'dragon_saddle_geo') {
             anim.saddleGroup = (o.parent && parentCl === 'dragon_saddle_geo') ? o.parent : o;
             anim.saddleGroup.visible = false;
@@ -1028,6 +1041,13 @@
         g.updateMatrixWorld(true);
         anim.bodyBone.attach(saddleSeat);
         anim.saddleSeat = saddleSeat;
+        if (!anim.bodyCenter) {
+          const bc = new THREE.Object3D();
+          bc.position.set(0, 0.568, -0.028);
+          anim.bodyBone.add(bc);
+          anim.bodyCenter = bc;
+          anim.bodyHalfExtents = new THREE.Vector3(0.61, 0.32, 0.38);
+        }
       }
       const clips = (tpl.userData && tpl.userData.animations) || [];
       if (clips.length > 0 && typeof THREE.AnimationMixer === 'function') {
@@ -1137,6 +1157,10 @@
         if (type === 'flamingo') addWingPart(wp, 0.14, 0.042, 0.20, 0x18181b, sx * 0.72, -0.005, -0.10);
         anim.wings.push({ p: wp, dir: sx, isDragonWing: false, hangDown: false });
       }
+    }
+    if (!isSkinnedDragon && isDragonType && !anim.bodyCenter && anim.torso) {
+      anim.bodyCenter = anim.torso;
+      anim.bodyHalfExtents = new THREE.Vector3(0.55, 0.35, 0.75);
     }
     const flameGroup = makeSharedFlameGroup();
     g.add(flameGroup);
@@ -6415,49 +6439,202 @@
     return true;
   }
 
-  // Epic Ender Dragon Boss Visuals: Composite Multi-Layer Portal-Shader Healing Beam, Death Rays, & 50-Skill Sovereign Engine!
+  // Epic Ender Dragon Boss Visuals: Composite Multi-Layer Portal-Shader Healing Beam, Body-Center Glow, Death Rays, & 50-Skill Engine!
+  const _bodyQ = new THREE.Quaternion();
+  const _bodyInvQ = new THREE.Quaternion();
+  const _bodyHitLocal = new THREE.Vector3();
+  const _defBodyHalfExtents = new THREE.Vector3(0.61, 0.32, 0.38);
+  function getDragonBodyCenterWorldPos(m, out) {
+    if (m && m.group) m.group.updateMatrixWorld(true);
+    if (m && m.anim && m.anim.bodyCenter) {
+      return m.anim.bodyCenter.getWorldPosition(out);
+    }
+    if (m && m.anim && m.anim.bodyBone) {
+      return m.anim.bodyBone.getWorldPosition(out);
+    }
+    return out.set(m ? m.x : 0, (m ? m.y : 0) + ((m && m.dragonScale) || 4.85) * 0.72, m ? m.z : 0);
+  }
+  window._getDragonBodyCenterWorldPos = getDragonBodyCenterWorldPos;
+
   const dragonHealBeam = (() => {
     const grp = new THREE.Group();
-    const coreU = { uTime: { value: 0 } };
-    const auraU = { uTime: { value: 0 } };
-    const vShader = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+    const beamShaft = new THREE.Group();
+    const coreU = { uTime: { value: 0 }, uLen: { value: 20 } };
+    const helixU = { uTime: { value: 0 }, uLen: { value: 20 } };
+    const sheathU = { uTime: { value: 0 } };
+    const vShader = `varying vec2 vUv; varying vec3 vNormV, vViewDir; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vNormV = normalize(normalMatrix * normal); vViewDir = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`;
     const coreMat = new THREE.ShaderMaterial({
       uniforms: coreU,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       vertexShader: vShader,
       fragmentShader: `
-        uniform float uTime; varying vec2 vUv;
+        uniform float uTime, uLen; varying vec2 vUv;
         void main(){
-          float scroll = fract(vUv.y * 14.0 - uTime * 3.8);
-          float px = step(0.32, scroll) * 0.65 + step(0.72, fract(vUv.x * 8.0 + floor(vUv.y * 28.0) * 0.25)) * 0.35;
-          vec3 c = mix(vec3(0.76, 0.28, 0.98), vec3(1.0, 0.92, 1.0), 0.45 + 0.55 * px);
-          float pulse = 0.72 + 0.28 * sin(uTime * 14.0 + vUv.y * 18.0);
-          gl_FragColor = vec4(c, 0.92 * pulse);
+          float segs = max(8.0, floor(uLen * 2.4));
+          float band = floor(vUv.y * segs - uTime * 14.0);
+          float scroll = fract(vUv.y * (segs * 0.5) - uTime * 4.6);
+          float px = step(0.28, scroll) * 0.65 + step(0.65, fract(vUv.x * 8.0 + band * 0.375)) * 0.35;
+          vec3 c = mix(vec3(0.86, 0.34, 0.98), vec3(1.0, 0.96, 1.0), 0.55 + 0.45 * px);
+          float pulse = 0.78 + 0.22 * sin(uTime * 18.0 + vUv.y * 20.0);
+          gl_FragColor = vec4(c, 0.96 * pulse);
         }`
     });
-    const auraMat = new THREE.ShaderMaterial({
-      uniforms: auraU,
+    const helixMat = new THREE.ShaderMaterial({
+      uniforms: helixU,
       transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
       vertexShader: vShader,
       fragmentShader: `
-        uniform float uTime; varying vec2 vUv;
+        uniform float uTime, uLen; varying vec2 vUv;
         void main(){
-          float spiral = sin(vUv.y * 26.0 - uTime * 8.5 + vUv.x * 12.566);
-          float band = smoothstep(0.15, 0.95, spiral * 0.5 + 0.5);
-          float edge = smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.86, vUv.y);
-          vec3 col = mix(vec3(0.55, 0.14, 0.92), vec3(0.95, 0.55, 1.0), band);
-          gl_FragColor = vec4(col, (0.28 + 0.52 * band) * edge);
+          float turns = max(6.0, uLen * 0.85);
+          float a1 = fract(vUv.x * 2.0 + vUv.y * turns - uTime * 3.4);
+          float a2 = fract(vUv.x * 2.0 - vUv.y * (turns * 0.8) + uTime * 2.7);
+          float s1 = smoothstep(0.18, 0.0, abs(a1 - 0.5));
+          float s2 = smoothstep(0.16, 0.0, abs(a2 - 0.5)) * 0.80;
+          float strand = clamp(s1 + s2, 0.0, 1.0);
+          float edge = smoothstep(0.0, 0.09, vUv.y) * smoothstep(1.0, 0.91, vUv.y);
+          vec3 col = mix(vec3(0.66, 0.33, 0.97), vec3(0.98, 0.86, 1.0), strand);
+          gl_FragColor = vec4(col, (0.14 + 0.82 * strand) * edge);
         }`
     });
-    const coreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.20, 1, 8, 1, true), coreMat);
-    const auraMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 1, 12, 1, true), auraMat);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5d0fe, transparent: true, opacity: 0.88, blending: THREE.AdditiveBlending, depthWrite: false });
-    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.06, 6, 16), ringMat);
-    ring1.rotation.x = Math.PI * 0.5;
-    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.05, 6, 16), ringMat);
-    ring2.rotation.x = Math.PI * 0.5;
-    grp.add(coreMesh, auraMesh, ring1, ring2);
-    grp.userData = { coreU, auraU, ring1, ring2 };
+    const sheathMat = new THREE.ShaderMaterial({
+      uniforms: sheathU,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: vShader,
+      fragmentShader: `
+        uniform float uTime; varying vec2 vUv; varying vec3 vNormV, vViewDir;
+        void main(){
+          float fres = pow(max(0.0, abs(dot(normalize(vNormV), normalize(vViewDir)))), 1.4);
+          float ripple = 0.75 + 0.25 * sin(vUv.y * 22.0 - uTime * 9.0);
+          float edge = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.88, vUv.y);
+          vec3 col = mix(vec3(0.49, 0.13, 0.81), vec3(0.90, 0.48, 0.98), fres);
+          gl_FragColor = vec4(col, 0.36 * fres * ripple * edge);
+        }`
+    });
+    const coreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1, 10, 1, true), coreMat);
+    const helixMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, 1, 16, 1, true), helixMat);
+    const sheathMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.74, 1, 14, 1, true), sheathMat);
+    beamShaft.add(coreMesh, helixMesh, sheathMesh);
+    grp.add(beamShaft);
+
+    const ringGeo = new THREE.TorusGeometry(0.56, 0.055, 6, 8);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5d0fe, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false });
+    const rings = [];
+    for (let rk = 0; rk < 4; rk++) {
+      const rm = new THREE.Mesh(ringGeo, ringMat);
+      rm.rotation.x = Math.PI * 0.5;
+      grp.add(rm);
+      rings.push(rm);
+    }
+    const crystalFlare = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.38, 0),
+      new THREE.MeshBasicMaterial({ color: 0xfef0ff, transparent: true, opacity: 0.88, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    grp.add(crystalFlare);
+    grp.userData = { beamShaft, coreU, helixU, sheathU, rings, crystalFlare };
+    grp.visible = false; grp.frustumCulled = false;
+    scene.add(grp);
+    return grp;
+  })();
+
+  const dragonBodyGlow = (() => {
+    const grp = new THREE.Group();
+    const uTime = { value: 0 }, uBoost = { value: 0.38 };
+    const shellMat = new THREE.ShaderMaterial({
+      uniforms: { uTime, uBoost },
+      transparent: true, depthWrite: false, side: THREE.FrontSide, blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec3 vN, vV, vL;
+        void main() {
+          vL = position;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vN = normalize(normalMatrix * normal);
+          vV = normalize(-mv.xyz);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        uniform float uTime, uBoost; varying vec3 vN, vV, vL;
+        void main() {
+          float ndv = abs(dot(normalize(vN), normalize(vV)));
+          float edgeSoft = smoothstep(0.0, 0.42, ndv);
+          float fres = pow(clamp(1.0 - ndv, 0.0, 1.0), 1.35) * edgeSoft;
+          float plasma = 0.5 + 0.5 * sin(vL.x * 9.0 + vL.y * 11.0 - uTime * 5.2) * cos(vL.z * 9.0 + uTime * 3.8);
+          float bodyWash = (0.34 * edgeSoft + 0.92 * fres);
+          vec3 c = mix(vec3(0.45, 0.14, 0.88), vec3(0.95, 0.58, 1.0), plasma * 0.65 + fres * 0.45);
+          c = mix(c, vec3(1.0, 0.95, 1.0), smoothstep(0.45, 0.85, fres) * uBoost * 0.55);
+          float a = clamp(bodyWash * (0.24 + 0.48 * uBoost) * (0.76 + 0.24 * plasma), 0.0, 0.78);
+          gl_FragColor = vec4(c, a);
+        }`
+    });
+    const shellMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), shellMat);
+
+    const coronaMat = new THREE.ShaderMaterial({
+      uniforms: { uTime, uBoost },
+      transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vec4 mvCenter = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float sx = length(vec3(modelViewMatrix[0][0], modelViewMatrix[0][1], modelViewMatrix[0][2]));
+          float sy = length(vec3(modelViewMatrix[1][0], modelViewMatrix[1][1], modelViewMatrix[1][2]));
+          mvCenter.xy += vec2(position.x * sx, position.y * sy);
+          gl_Position = projectionMatrix * mvCenter;
+        }`,
+      fragmentShader: `
+        uniform float uTime, uBoost; varying vec2 vUv;
+        void main() {
+          vec2 p = vUv * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+          float ang = atan(p.y, p.x);
+          float rays = 0.5 + 0.5 * sin(ang * 8.0 + uTime * 2.4) * cos(ang * 4.0 - uTime * 1.7);
+          float ring = exp(-pow((r - (0.48 + 0.06 * sin(uTime * 4.5))) * 8.5, 2.0));
+          float core = exp(-r * 3.4);
+          float halo = pow(max(0.0, 1.0 - r), 2.1);
+          float lum = (core * 0.85 + halo * (0.48 + 0.34 * rays) + ring * 0.48) * (0.42 + 0.68 * uBoost);
+          vec3 c = mix(vec3(0.58, 0.16, 0.94), vec3(0.96, 0.62, 1.0), clamp(core + ring * 0.5, 0.0, 1.0));
+          c = mix(c, vec3(1.0, 0.96, 1.0), smoothstep(0.65, 1.0, core));
+          gl_FragColor = vec4(c, clamp(lum, 0.0, 0.92));
+        }`
+    });
+    const coronaMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), coronaMat);
+    coronaMesh.renderOrder = 6;
+
+    const impactMat = new THREE.ShaderMaterial({
+      uniforms: { uTime },
+      transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vec4 mvCenter = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float sx = length(vec3(modelViewMatrix[0][0], modelViewMatrix[0][1], modelViewMatrix[0][2]));
+          float sy = length(vec3(modelViewMatrix[1][0], modelViewMatrix[1][1], modelViewMatrix[1][2]));
+          mvCenter.xy += vec2(position.x * sx, position.y * sy);
+          gl_Position = projectionMatrix * mvCenter;
+        }`,
+      fragmentShader: `
+        uniform float uTime; varying vec2 vUv;
+        void main() {
+          vec2 p = vUv * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) discard;
+          float c0 = cos(uTime * 3.5), s0 = sin(uTime * 3.5);
+          vec2 rp = vec2(p.x * c0 + p.y * s0, -p.x * s0 + p.y * c0);
+          float star = exp(-abs(rp.x) * 14.0) * exp(-r * 2.6) + exp(-abs(rp.y) * 14.0) * exp(-r * 2.6);
+          float ring = exp(-pow((r - (0.52 + 0.12 * sin(uTime * 8.0))) * 10.0, 2.0));
+          float core = exp(-r * 4.8);
+          float a = clamp(core * 1.15 + star * 0.85 + ring * 0.65, 0.0, 1.0);
+          vec3 c = mix(vec3(0.85, 0.28, 0.96), vec3(1.0, 0.95, 1.0), clamp(core + star * 0.6, 0.0, 1.0));
+          gl_FragColor = vec4(c, a);
+        }`
+    });
+    const impactMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), impactMat);
+    impactMesh.renderOrder = 7;
+
+    grp.add(shellMesh, coronaMesh, impactMesh);
+    grp.userData = { uTime, uBoost, shellMesh, coronaMesh, impactMesh };
     grp.visible = false; grp.frustumCulled = false;
     scene.add(grp);
     return grp;
@@ -6476,7 +6653,7 @@
       grp.add(cone);
     }
     grp.userData = { rayGeo, matA, matB };
-    const anchor = (m.anim && m.anim.bodyBone) ? m.anim.bodyBone : m.group;
+    const anchor = (m.anim && (m.anim.bodyCenter || m.anim.bodyBone)) || m.group;
     anchor.add(grp);
     m._deathRaysGrp = grp;
   }
@@ -6721,7 +6898,7 @@
     for (const v of endCrystalVisuals.values()) {
       const gp = v && v.group && v.group.position;
       if (!gp) continue;
-      const cx = gp.x + 0.5, cy = gp.y + 0.8, cz = gp.z + 0.5;
+      const cx = gp.x + 0.5, cy = gp.y + (v.floatGrp ? v.floatGrp.position.y : 0.62), cz = gp.z + 0.5;
       const d2 = (cx - dx) * (cx - dx) + (cy - dy) * (cy - dy) + (cz - dz) * (cz - dz);
       if (d2 < bestD2) { bestD2 = d2; best = { x: cx, y: cy, z: cz, d2 }; }
     }
@@ -7132,7 +7309,7 @@
     }
     const isDaytime = envUniforms.uSunDir.value.y > 0.12;
     const isRaining = rainIntensity > 0.20;
-    let activeBoss = null, dragonBeamActive = false;
+    let activeBoss = null, dragonBeamActive = false, dragonGlowActive = false;
     if (_mobSimAuth && currentDimension === 'overworld' && depthOffset === 0 && (frameCounter % 30) === 15) {
       const nests = getDragonNestLocations();
       for (let ni = 0; ni < nests.length; ni++) {
@@ -7821,44 +7998,86 @@
           }
         };
 
-        // End Crystal Healing Beam & Orbiting Purple Void Aura for Ender Dragon!
+        // End Crystal Healing Beam & Exact Body-Block-Center Purple Aura/Impact for Ender Dragon!
         if (m.type === 'ender_dragon') {
+          getDragonBodyCenterWorldPos(m, _beamB);
           if (isMobVis && (frameCounter + i) % 3 === 0) {
             const ang = elapsed * 2.4 + i;
             const rA = 2.6 + Math.sin(elapsed * 3.1) * 0.8;
-            spawnParticles(m.x + Math.cos(ang) * rA, m.y + 1.4 + Math.sin(elapsed * 2.2) * 1.1, m.z + Math.sin(ang) * rA, (frameCounter & 1) ? 0xd946ef : 0xa855f7, 2, true);
+            spawnParticles(_beamB.x + Math.cos(ang) * rA, _beamB.y + Math.sin(elapsed * 2.2) * 1.1, _beamB.z + Math.sin(ang) * rA, (frameCounter & 1) ? 0xd946ef : 0xa855f7, 2, true);
             if (((frameCounter + i) % 12) === 0) {
-              spawnPixelFx('magic_ender', m.x + (Math.random() - 0.5) * 4.2, m.y + 1.5 + Math.random() * 2.2, m.z + (Math.random() - 0.5) * 4.2, { count: 1, scale: 2.0, life: 0.42, spread: 0.5 });
+              spawnPixelFx('magic_ender', _beamB.x + (Math.random() - 0.5) * 3.8, _beamB.y + (Math.random() - 0.5) * 2.0, _beamB.z + (Math.random() - 0.5) * 3.8, { count: 1, scale: 2.0, life: 0.42, spread: 0.45 });
             }
           }
           _endCrystalScanT -= dt;
           if (_endCrystalScanT <= 0) {
             _endCrystalScanT = 0.75;
-            _endCrystalCache = countAndFindNearestEndCrystal(m.x, m.y + 1.5, m.z);
+            _endCrystalCache = countAndFindNearestEndCrystal(_beamB.x, _beamB.y, _beamB.z);
           }
-          if (_endCrystalCache.best && _endCrystalCache.best.d2 < 52 * 52) {
+          const beamHere = !!(_endCrystalCache.best && _endCrystalCache.best.d2 < 52 * 52 && !m._dyingT);
+          if (beamHere) {
             if (m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + dt * 3.5);
             _beamA.set(_endCrystalCache.best.x, _endCrystalCache.best.y, _endCrystalCache.best.z);
-            if (m.group) m.group.updateMatrixWorld(true);
-            if (m.anim && m.anim.bodyBone) {
-              m.anim.bodyBone.getWorldPosition(_beamB);
-            } else {
-              _beamB.set(m.x, m.y + (m.dragonScale || 4.8) * 1.15, m.z);
-            }
-            const bLen = _beamA.distanceTo(_beamB);
-            dragonHealBeam.position.copy(_beamA).add(_beamB).multiplyScalar(0.5);
-            const bRad = 1.0 + Math.sin(elapsed * 12) * 0.16;
-            dragonHealBeam.scale.set(bRad, bLen, bRad);
+            const bLen = Math.max(0.5, _beamA.distanceTo(_beamB));
             _beamDir.subVectors(_beamB, _beamA).normalize();
+            dragonHealBeam.position.copy(_beamA).add(_beamB).multiplyScalar(0.5);
+            dragonHealBeam.scale.set(1, 1, 1);
             dragonHealBeam.quaternion.setFromUnitVectors(_upVec, _beamDir);
-            if (dragonHealBeam.userData && dragonHealBeam.userData.coreU) {
-              dragonHealBeam.userData.coreU.uTime.value = elapsed;
-              dragonHealBeam.userData.auraU.uTime.value = elapsed;
-              dragonHealBeam.userData.ring1.position.y = ((elapsed * 0.65) % 0.92) - 0.46;
-              dragonHealBeam.userData.ring2.position.y = (((elapsed * 0.65) + 0.46) % 0.92) - 0.46;
+            const bRad = 1.0 + Math.sin(elapsed * 12) * 0.14;
+            const bud = dragonHealBeam.userData;
+            if (bud && bud.beamShaft) {
+              bud.beamShaft.scale.set(bRad, bLen, bRad);
+              bud.coreU.uTime.value = elapsed;
+              bud.coreU.uLen.value = bLen;
+              bud.helixU.uTime.value = elapsed;
+              bud.helixU.uLen.value = bLen;
+              bud.sheathU.uTime.value = elapsed;
+              for (let rk = 0; rk < bud.rings.length; rk++) {
+                const rm = bud.rings[rk];
+                const u = ((elapsed * 0.62) + rk * 0.25) % 1.0;
+                rm.position.y = (u - 0.5) * bLen;
+                rm.rotation.z = elapsed * 2.5 + rk * 1.1;
+                rm.scale.setScalar(0.95 + 0.30 * u);
+              }
+              bud.crystalFlare.position.y = -bLen * 0.5;
+              bud.crystalFlare.rotation.y = elapsed * 3.2;
+              bud.crystalFlare.rotation.x = elapsed * 1.9;
             }
             dragonHealBeam.visible = true;
             dragonBeamActive = true;
+          }
+          if (isMobVis && !m._dyingT) {
+            const dgd = dragonBodyGlow.userData;
+            const dSc = m.dragonScale || 4.85;
+            const he = (m.anim && m.anim.bodyHalfExtents) || _defBodyHalfExtents;
+            if (m.anim && m.anim.bodyCenter) m.anim.bodyCenter.getWorldQuaternion(_bodyQ);
+            else if (m.group) m.group.getWorldQuaternion(_bodyQ);
+            else _bodyQ.identity();
+            dragonBodyGlow.position.copy(_beamB);
+            dgd.uTime.value = elapsed;
+            dgd.uBoost.value = beamHere ? 1.0 : 0.38;
+            dgd.shellMesh.quaternion.copy(_bodyQ);
+            dgd.shellMesh.scale.set((he.x + 0.16) * dSc, (he.y + 0.16) * dSc, (he.z + 0.16) * dSc);
+            const cSz = beamHere ? (9.2 + Math.sin(elapsed * 8.0) * 0.55) : 5.8;
+            dgd.coronaMesh.scale.set(cSz, cSz, 1.0);
+            dgd.impactMesh.visible = beamHere;
+            if (beamHere) {
+              _bodyInvQ.copy(_bodyQ).invert();
+              _bodyHitLocal.copy(_beamDir).negate().applyQuaternion(_bodyInvQ);
+              const bx = he.x * dSc, by = he.y * dSc, bz = he.z * dSc;
+              const tx = Math.abs(_bodyHitLocal.x) > 1e-4 ? bx / Math.abs(_bodyHitLocal.x) : 1e9;
+              const ty = Math.abs(_bodyHitLocal.y) > 1e-4 ? by / Math.abs(_bodyHitLocal.y) : 1e9;
+              const tz = Math.abs(_bodyHitLocal.z) > 1e-4 ? bz / Math.abs(_bodyHitLocal.z) : 1e9;
+              const tHit = Math.min(tx, ty, tz) + 0.18;
+              _bodyHitLocal.multiplyScalar(tHit).applyQuaternion(_bodyQ);
+              dgd.impactMesh.position.copy(_bodyHitLocal);
+              dgd.impactMesh.scale.setScalar(3.4 + Math.sin(elapsed * 16.0) * 0.45);
+              if (((frameCounter + i) % 10) === 0) {
+                spawnPixelFx('dragon_impact_glow', _beamB.x + _bodyHitLocal.x, _beamB.y + _bodyHitLocal.y, _beamB.z + _bodyHitLocal.z, { count: 1, scale: 2.3, life: 0.38, spread: 0.25, randV: 0.15, riseV: 0.1 });
+              }
+            }
+            dragonBodyGlow.visible = true;
+            dragonGlowActive = true;
           }
           if (currentDimension === 'end' && !m._dyingT) {
             if (m._perchCd === undefined) m._perchCd = 22 + Math.random() * 8;
@@ -9489,6 +9708,7 @@
 
     _updateDragonWingTrails(player.ridingDragon || null, player.curSpeed || 0, dt);
     if (!dragonBeamActive && dragonHealBeam.visible) dragonHealBeam.visible = false;
+    if (!dragonGlowActive && dragonBodyGlow.visible) dragonBodyGlow.visible = false;
 
     if (activeBoss) {
       const bst = MOB_STATS[activeBoss.type] || {};

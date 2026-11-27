@@ -13,8 +13,8 @@ pub static mut CHUNK_DATA: [u16; CHUNK_VOXELS] = [0; CHUNK_VOXELS];
 static mut BORDER_BUF: [u16; BORDER_LEN] = [0; BORDER_LEN];
 static mut AUTUMN_CELL: [u8; 16] = [0; 16];
 
-static mut LUT_OPAQUE: [u8; BLOCK_LUT_CAP] = [0; BLOCK_LUT_CAP];
-static mut LUT_FLAGS: [u16; BLOCK_LUT_CAP] = [0; BLOCK_LUT_CAP];
+pub(crate) static mut LUT_OPAQUE: [u8; BLOCK_LUT_CAP] = [0; BLOCK_LUT_CAP];
+pub(crate) static mut LUT_FLAGS: [u16; BLOCK_LUT_CAP] = [0; BLOCK_LUT_CAP];
 // [tile_top, tile_side, tile_bot, front_tile_or_0xffff, both_z_front]
 static mut LUT_BLOCK_TILES: [u16; BLOCK_LUT_CAP * 5] = [0xffff; BLOCK_LUT_CAP * 5];
 // [u0, u1, v0, v1]
