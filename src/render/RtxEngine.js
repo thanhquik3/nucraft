@@ -3698,7 +3698,7 @@
     if (def.tool === 'rod') {
       const tipMarker = new THREE.Object3D();
       tipMarker.name = 'rodTipMarker';
-      tipMarker.position.set(4.5 * px, 5.4 * px, 0);
+      tipMarker.position.set(5.7 * px, 6.0 * px, 0);
       mesh.add(tipMarker);
     }
     // Authentic Minecraft First-Person Hand Poses (YXZ + positive ry points blade/pick/axe/bow tip FORWARD into -Z, handle in right hand!)
@@ -3725,10 +3725,10 @@
       mesh.position.set(0.0, 0.01, -0.04);
       mesh.rotation.set(0.06, -1.42, 0.68);
     } else if (def.tool === 'rod') {
-      // Minecraft 1P Fishing Rod: handle bottom-right, shaft sloping UP-LEFT & FORWARD (-Z), dangling line/bobber facing OUTWARD (-X, -Z) away from player!
-      mesh.position.set(-0.04, 0.05, -0.05);
-      mesh.rotation.set(-0.14, Math.PI - 0.44, 0.10);
-      mesh.scale.setScalar(1.34);
+      // Minecraft 1P Fishing Rod: full checkered shaft, silver reel & outward hook cleanly framed in view
+      mesh.position.set(-0.055, 0.082, -0.048);
+      mesh.rotation.set(-0.10, Math.PI - 0.36, 0.06);
+      mesh.scale.setScalar(1.06);
     } else if (isForwardShaft) {
       mesh.position.set(-0.01, 0.02, -0.06);
       mesh.rotation.set(-0.05, 1.84, 0.22);

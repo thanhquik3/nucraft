@@ -1,12 +1,14 @@
 {
   "name": "nucraft",
-  "version": "1.0.128",
+  "version": "1.0.155",
   "private": true,
   "license": "MIT",
   "description": "NUCRAFT Voxel Sandbox Multiplayer",
   "scripts": {
     "dev": "node server.js",
     "build": "node scripts/build.js",
+    "build:wasm": "node scripts/build-wasm.js",
+    "test:wasm": "node scripts/test-wasm.js",
     "test": "node scripts/ci-check.js --with-build",
     "preview": "node server.js"
   }

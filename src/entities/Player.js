@@ -6577,10 +6577,80 @@
     active: false, mode: 'cast',
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
     waterY: 0, inWater: false, waitT: 0, biteT: 0, splashTick: 0,
+    dipY: 0, dipVel: 0, approachT: 0, approachDur: 1.5, approachAng: 0, approachDist: 1.8, approachTick: 0, biteTick: 0,
     lureLvl: 0, luckLvl: 0, slotIdx: 0,
     bobberGrp: null, lineMesh: null,
     lineArr: new Float32Array(_FISH_LINE_PTS * 2 * 3)
   };
+  const _flyingFishItems = [];
+  function spawnFlyingFishLoot(startX, startY, startZ, drop) {
+    if (!drop || !drop.id) return;
+    while (_flyingFishItems.length >= 12) {
+      const old = _flyingFishItems.shift();
+      if (old && old.grp) scene.remove(old.grp);
+    }
+    const grp = new THREE.Group();
+    const itemKey = (typeof _itemMetaCacheKey === 'function') ? _itemMetaCacheKey(drop.id, drop.meta) : drop.id;
+    let srcModel = (typeof heldModelCache !== 'undefined') ? heldModelCache.get(itemKey) : null;
+    if (!srcModel && typeof buildUnified3DItemMesh === 'function') {
+      srcModel = buildUnified3DItemMesh(drop.id, drop.meta);
+      if (typeof heldModelCache !== 'undefined' && srcModel && (!srcModel.userData || srcModel.userData.iconReady !== false)) {
+        heldModelCache.set(itemKey, srcModel);
+      }
+    }
+    if (srcModel) {
+      const clone = srcModel.clone();
+      clone.position.set(0, 0, 0);
+      clone.rotation.set(0, 0, 0);
+      clone.scale.setScalar(0.88);
+      grp.add(clone);
+    }
+    grp.position.set(startX, startY, startZ);
+    grp.frustumCulled = false;
+    scene.add(grp);
+    const hDist = Math.hypot(player.x - startX, player.z - startZ);
+    _flyingFishItems.push({
+      grp,
+      sx: startX, sy: startY, sz: startZ,
+      t: 0, dur: 0.68,
+      arcH: Math.max(1.35, Math.min(2.8, hDist * 0.28)),
+      drop
+    });
+  }
+  function tickFlyingFishItems(dt) {
+    for (let i = _flyingFishItems.length - 1; i >= 0; i--) {
+      const it = _flyingFishItems[i];
+      if (player.dead) {
+        scene.remove(it.grp);
+        _flyingFishItems.splice(i, 1);
+        continue;
+      }
+      it.t = Math.min(1.0, it.t + dt / it.dur);
+      const u = it.t;
+      const easeH = 1.0 - Math.pow(1.0 - u, 1.35);
+      const tx = player.x, ty = player.y + 1.25, tz = player.z;
+      const px = it.sx + (tx - it.sx) * easeH;
+      const py = it.sy + (ty - it.sy) * u + Math.sin(Math.PI * u) * it.arcH;
+      const pz = it.sz + (tz - it.sz) * easeH;
+      it.grp.position.set(px, py, pz);
+      it.grp.rotation.y += dt * 7.5;
+      it.grp.rotation.z = Math.sin(u * Math.PI) * 0.28;
+      if (u < 0.58 && (frameCounter % 4) === 0) {
+        spawnParticles(px, py, pz, 0xbae6fd, 1, false);
+      }
+      if (u >= 1.0) {
+        scene.remove(it.grp);
+        _flyingFishItems.splice(i, 1);
+        addItemToInventory(it.drop.id, it.drop.qty, it.drop.meta);
+        player.xp = (player.xp || 0) + 3;
+        if (typeof addPlayerXp === 'function') addPlayerXp(3);
+        playSfx('pickup');
+        if (typeof renderHotbar === 'function') renderHotbar();
+        const qtyTag = it.drop.qty > 1 ? `${it.drop.qty}× ` : '';
+        showToast(`🎣 Câu được ${qtyTag}${BLOCK_DEF[it.drop.id]?.name || 'Kho Báu'}!`);
+      }
+    }
+  }
   function _ensureFishingMeshes() {
     if (fishingState.bobberGrp) return;
     const grp = new THREE.Group();
@@ -6627,10 +6697,14 @@
     if (!fishingState.active) return;
     fishingState.active = false;
     fishingState.inWater = false;
-    if (fishingState.bobberGrp) fishingState.bobberGrp.visible = false;
+    fishingState.dipY = 0; fishingState.dipVel = 0; fishingState.approachT = 0;
+    if (fishingState.bobberGrp) {
+      fishingState.bobberGrp.visible = false;
+      fishingState.bobberGrp.rotation.set(0, 0, 0);
+    }
     if (fishingState.lineMesh) fishingState.lineMesh.visible = false;
     syncFishingRodVisualState();
-    if (!silent) playSfx('swing');
+    if (!silent) playSfx('fish_reel');
   }
   function _isJungleBiomeAt(wx, wz) {
     if (typeof getBiomeAt !== 'function') return false;
@@ -6643,20 +6717,16 @@
     if (!slot || slot.count <= 0 || slot.id !== B.FISHING_ROD) return false;
     player.swingT = 0.24;
     if (fishingState.active) {
+      playSfx('fish_reel');
       if (fishingState.mode === 'bite' && fishingState.inWater) {
         const bx = Math.floor(fishingState.x), bz = Math.floor(fishingState.z);
         const drop = rollFishingLoot(_isJungleBiomeAt(bx, bz), fishingState.luckLvl);
-        addItemToInventory(drop.id, drop.qty, drop.meta);
-        player.xp = (player.xp || 0) + 3;
-        if (typeof addPlayerXp === 'function') addPlayerXp(3);
         if (gameMode !== 'creative') damageHeldTool(1);
-        spawnParticles(fishingState.x, fishingState.y + 0.15, fishingState.z, 0x38bdf8, 14, true);
-        playSfx('pickup');
-        const qtyTag = drop.qty > 1 ? `${drop.qty}× ` : '';
-        showToast(`🎣 Câu được ${qtyTag}${BLOCK_DEF[drop.id]?.name || 'Kho Báu'}!`);
+        spawnParticles(fishingState.x, fishingState.waterY + 0.14, fishingState.z, 0x7dd3fc, 16, true);
+        spawnFlyingFishLoot(fishingState.x, fishingState.waterY + 0.08, fishingState.z, drop);
+        playSfx('fish_catch');
       } else {
         if (fishingState.inWater && gameMode !== 'creative') damageHeldTool(1);
-        playSfx('swing');
         showToast(fishingState.inWater ? '🎣 Đã thu cần câu!' : '🎣 Đã thu dây câu!');
       }
       cancelFishingCast(true);
@@ -6679,19 +6749,28 @@
     fishingState.luckLvl = Math.max(0, Math.min(3, (slot.luck | 0)));
     fishingState.slotIdx = player.selectedSlot;
     fishingState.waitT = 0; fishingState.biteT = 0; fishingState.splashTick = 0;
+    fishingState.dipY = 0; fishingState.dipVel = 0; fishingState.approachT = 0;
+    fishingState.approachTick = 0; fishingState.biteTick = 0;
+    fishingState.bobberGrp.rotation.set(0, 0, 0);
     fishingState.bobberGrp.visible = true;
     fishingState.lineMesh.visible = true;
-    playSfx('bow');
+    playSfx('fish_cast');
     syncFishingRodVisualState();
     return true;
   }
   function tickFishingRod(dt) {
+    tickFlyingFishItems(dt);
     if (!fishingState.active) return;
     const slot = inventory[player.selectedSlot];
     if (player.dead || !slot || slot.id !== B.FISHING_ROD || Math.hypot(fishingState.x - player.x, fishingState.y - player.y, fishingState.z - player.z) > 36) {
       cancelFishingCast(true);
       return;
     }
+    const _stepBobberSpring = (targetDip, stiffness, damping) => {
+      fishingState.dipVel += ((targetDip - fishingState.dipY) * stiffness - fishingState.dipVel * damping) * dt;
+      fishingState.dipY = Math.max(-0.36, Math.min(0.14, fishingState.dipY + fishingState.dipVel * dt));
+      fishingState.y = fishingState.waterY + fishingState.dipY;
+    };
     if (fishingState.mode === 'cast') {
       const steps = 2, sdt = dt / steps;
       for (let si = 0; si < steps; si++) {
@@ -6706,13 +6785,14 @@
           const wy = (bid === B.WATER) ? fy : (fy - 1);
           fishingState.x = nx; fishingState.z = nz;
           fishingState.waterY = wy + 0.88;
-          fishingState.y = fishingState.waterY;
+          fishingState.dipY = -0.10; fishingState.dipVel = 0.85;
+          fishingState.y = fishingState.waterY + fishingState.dipY;
           fishingState.vx = 0; fishingState.vy = 0; fishingState.vz = 0;
           fishingState.inWater = true;
           fishingState.mode = 'float';
-          fishingState.waitT = Math.max(1.4, (3.2 + Math.random() * 5.2) - fishingState.lureLvl * 1.1);
-          spawnParticles(nx, wy + 0.96, nz, 0x7dd3fc, 10, true);
-          playSfx('splash');
+          fishingState.waitT = Math.max(1.4, (3.0 + Math.random() * 4.8) - fishingState.lureLvl * 1.0);
+          spawnParticles(nx, wy + 0.96, nz, 0x7dd3fc, 12, true);
+          playSfx('fish_splash');
           break;
         }
         if (bid !== B.AIR && IS_SOLID[bid]) {
@@ -6723,25 +6803,60 @@
       }
     } else if (fishingState.mode === 'float') {
       fishingState.waitT -= dt;
-      fishingState.y = fishingState.waterY + Math.sin(elapsed * 4.2) * 0.032;
-      if (fishingState.waitT < 1.2 && (frameCounter % 6) === 0) {
-        const ang = fishingState.waitT * 5.0;
-        spawnParticles(fishingState.x + Math.cos(ang) * fishingState.waitT * 0.8, fishingState.waterY + 0.04, fishingState.z + Math.sin(ang) * fishingState.waitT * 0.8, 0xbae6fd, 1, false);
-      }
+      _stepBobberSpring(Math.sin(elapsed * 3.8) * 0.028, 28, 6.5);
+      fishingState.bobberGrp.rotation.x *= Math.max(0, 1 - dt * 8);
+      fishingState.bobberGrp.rotation.z *= Math.max(0, 1 - dt * 8);
       if (fishingState.waitT <= 0) {
+        let bestAng = Math.random() * Math.PI * 2;
+        let hasOpenWater = false;
+        for (let ai = 0; ai < 8; ai++) {
+          const ang = bestAng + (ai * Math.PI) / 4;
+          const bCheck = getBlockWorld(Math.floor(fishingState.x + Math.cos(ang) * 1.6), Math.floor(fishingState.waterY - 0.5), Math.floor(fishingState.z + Math.sin(ang) * 1.6));
+          if (bCheck === B.WATER) { bestAng = ang; hasOpenWater = true; break; }
+        }
+        fishingState.approachAng = bestAng;
+        fishingState.approachDist = hasOpenWater ? (1.65 + Math.random() * 0.75) : 0.42;
+        fishingState.approachDur = 1.35 + Math.random() * 0.55;
+        fishingState.approachT = fishingState.approachDur;
+        fishingState.approachTick = 0;
+        fishingState.mode = 'approach';
+      }
+    } else if (fishingState.mode === 'approach') {
+      _stepBobberSpring(Math.sin(elapsed * 3.8) * 0.028, 28, 6.5);
+      fishingState.approachT -= dt;
+      fishingState.approachTick += dt;
+      const frac = Math.max(0, fishingState.approachT / fishingState.approachDur);
+      if (fishingState.approachTick >= 0.065) {
+        fishingState.approachTick = 0;
+        const r = frac * fishingState.approachDist;
+        const wiggle = Math.sin((1.0 - frac) * 14.0) * 0.14 * frac;
+        const fx = fishingState.x + Math.cos(fishingState.approachAng) * r - Math.sin(fishingState.approachAng) * wiggle;
+        const fz = fishingState.z + Math.sin(fishingState.approachAng) * r + Math.cos(fishingState.approachAng) * wiggle;
+        spawnParticles(fx, fishingState.waterY + 0.05, fz, (frameCounter & 1) ? 0xe0f2fe : 0x7dd3fc, 2, true);
+      }
+      if (fishingState.approachT <= 0) {
         fishingState.mode = 'bite';
-        fishingState.biteT = 2.4;
-        spawnParticles(fishingState.x, fishingState.waterY + 0.06, fishingState.z, 0xe0f2fe, 12, true);
-        playSfx('splash');
-        showToast('🐟 Cá đang cắn câu! Bấm Chuột Phải / Sử Dụng để giật!');
+        fishingState.biteT = 2.6;
+        fishingState.biteTick = 0;
+        fishingState.dipVel = -2.75;
+        spawnParticles(fishingState.x, fishingState.waterY + 0.07, fishingState.z, 0xe0f2fe, 14, true);
+        playSfx('fish_bite');
+        showToast('🐟 Cá đang cắn câu! Click Chuột Trái hoặc chạm màn hình để kéo cần!');
       }
     } else if (fishingState.mode === 'bite') {
       fishingState.biteT -= dt;
-      fishingState.y = fishingState.waterY - 0.22 + Math.sin(elapsed * 22.0) * 0.05;
+      fishingState.biteTick += dt;
+      _stepBobberSpring(-0.25 + Math.sin(elapsed * 13.5) * 0.042, 38, 8.2);
+      fishingState.bobberGrp.rotation.set(Math.sin(elapsed * 15) * 0.16, 0, Math.cos(elapsed * 13) * 0.14);
+      if (fishingState.biteTick >= 0.16) {
+        fishingState.biteTick = 0;
+        const ang = elapsed * 9.0;
+        spawnParticles(fishingState.x + Math.cos(ang) * 0.18, fishingState.waterY + 0.04, fishingState.z + Math.sin(ang) * 0.18, 0xbae6fd, 2, false);
+      }
       if (fishingState.biteT <= 0) {
         fishingState.mode = 'float';
-        fishingState.waitT = Math.max(1.4, (3.2 + Math.random() * 5.0) - fishingState.lureLvl * 1.1);
-        fishingState.y = fishingState.waterY;
+        fishingState.dipVel += 0.9;
+        fishingState.waitT = Math.max(1.4, (3.0 + Math.random() * 4.8) - fishingState.lureLvl * 1.0);
       }
     }
     fishingState.bobberGrp.position.set(fishingState.x, fishingState.y, fishingState.z);

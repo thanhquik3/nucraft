@@ -1012,7 +1012,7 @@
     touchStartAt = performance.now();
     touchMovedDist = 0;
     clearClassicHold();
-    if (mobileCtrlMode === 'classic' || mobileCtrlMode === 'touch_direct') {
+    if ((mobileCtrlMode === 'classic' || mobileCtrlMode === 'touch_direct') && !(typeof isFishingRodCast === 'function' && isFishingRodCast())) {
       const isDir = (mobileCtrlMode === 'touch_direct');
       classicHoldTimer = setTimeout(() => {
         if (lookTouchId === id && touchMovedDist < 16 && isPlaying && !player.dead) {
@@ -1065,7 +1065,8 @@
     const dur = performance.now() - touchStartAt;
     const tapX = cx, tapY = cy;
     const heldBowShot = touchBowActive && typeof player !== 'undefined' && player.bowDrawing;
-    const wasTap = ((mobileCtrlMode === 'classic' || mobileCtrlMode === 'touch_direct') && !classicMiningActive && !touchEatingActive && !touchBowActive && touchMovedDist < 16 && dur < 260 && isPlaying && !player.dead && !hudEditMode);
+    const rodCastNow = (typeof isFishingRodCast === 'function' && isFishingRodCast());
+    const wasTap = ((mobileCtrlMode === 'classic' || mobileCtrlMode === 'touch_direct' || rodCastNow) && !classicMiningActive && !touchEatingActive && !touchBowActive && touchMovedDist < 16 && dur < 320 && isPlaying && !player.dead && !hudEditMode);
     if (heldBowShot) {
       touchBowActive = false;
       if (typeof releaseBowDraw === 'function') releaseBowDraw(tapX, tapY);
@@ -1073,6 +1074,10 @@
     clearClassicHold();
     lookTouchId = null;
     if (!wasTap) return;
+    if (typeof isFishingRodCast === 'function' && isFishingRodCast()) {
+      if (typeof toggleFishingCast === 'function') toggleFishingCast(tapX, tapY);
+      return;
+    }
     const mobHit = raycastMob(4.8, tapX, tapY);
     const _axSlot = inventory[player.selectedSlot], _axDef = (_axSlot && _axSlot.count > 0) ? BLOCK_DEF[_axSlot.id] : null;
     if (!mobHit && _axDef && _axDef.tool === 'axe' && typeof tryStripLogWithAxe === 'function') {

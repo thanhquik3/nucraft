@@ -109,6 +109,7 @@ function main() {
       const ext = path.extname(rel).toLowerCase();
       if (BANNED_EXTS.has(ext)) fail(`Forbidden binary/script tracked in git: ${rel}`);
       if (BANNED_TRACKED.has(rel.toLowerCase())) fail(`Forbidden generated/internal file tracked in git: ${rel}`);
+      if (rel.startsWith('rust/nucraft_core/target/')) fail(`Forbidden Rust build cache tracked in git: ${rel}`);
     }
   }
 
@@ -140,6 +141,8 @@ function main() {
     ...jsFiles,
     ...wfFiles,
     path.join(ROOT, 'launcher', 'NucraftLauncher.cs'),
+    path.join(ROOT, 'rust', 'nucraft_core', 'Cargo.toml'),
+    path.join(ROOT, 'rust', 'nucraft_core', 'src', 'lib.rs'),
     path.join(ROOT, 'src', 'body.html'),
     path.join(ROOT, 'package.json'),
     path.join(ROOT, 'manifest.json'),
@@ -177,6 +180,13 @@ function main() {
   }
   if (!/\bIPAddress\.Loopback\b/.test(cs)) {
     fail('Launcher static audit failed: IPAddress.Loopback binding is required');
+  }
+
+  const wasmPath = path.join(ROOT, 'assets', 'nucraft_core.wasm');
+  if (!fs.existsSync(wasmPath)) fail('Missing required WASM module: assets/nucraft_core.wasm');
+  const wasmBuf = fs.readFileSync(wasmPath);
+  if (wasmBuf.length < 16 || wasmBuf.length > 262144 || wasmBuf[0] !== 0x00 || wasmBuf[1] !== 0x61 || wasmBuf[2] !== 0x73 || wasmBuf[3] !== 0x6d) {
+    fail('Invalid or oversized assets/nucraft_core.wasm binary');
   }
 
   // 6) Optional web build output integrity checks

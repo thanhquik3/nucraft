@@ -19,5 +19,9 @@ jobs:
           node-version: '24'
       - name: Build web bundle from source
         run: node scripts/build.js --no-exe
+      - name: Run Rust/WASM parity & integrity tests
+        run: |
+          node scripts/test-wasm.js
+          if command -v cargo >/dev/null 2>&1; then cargo check --manifest-path rust/nucraft_core/Cargo.toml; fi
       - name: Policy, syntax, and security checks
         run: node scripts/ci-check.js --with-build --git-tracked

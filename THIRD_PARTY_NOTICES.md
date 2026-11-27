@@ -16,7 +16,10 @@ NUCRAFT includes or interacts with open-source components under their respective
 4. **3D Voxel Mob Models (`assets/models/`)**  
    Original clean-room procedural `.glb` voxel models generated via Blender Python scripts specifically for NUCRAFT.
 
-5. **Visual & Shader Design Inspirations**  
+5. **Rust / WebAssembly Terrain & Lighting Core (`rust/nucraft_core`, `assets/nucraft_core.wasm`)**  
+   Original zero-dependency Rust (`#no_std`-compatible `cdylib`, MIT License) implementation of NUCRAFT's deterministic cave-noise grid and voxel emitter light evaluator compiled cleanly to `wasm32-unknown-unknown`. Zero third-party Rust crates are bundled.
+
+6. **Visual & Shader Design Inspirations**  
    Bushy-leaf foliage silhouettes and real-time ray-traced lighting concepts are inspired by community voxel shader/resource-pack conventions (e.g., Motschen's Better Leaves concept) and implemented 100% from scratch in clean-room JavaScript/GLSL without copying any third-party files or textures.
 
 ## Trademark & Non-Affiliation Disclaimer

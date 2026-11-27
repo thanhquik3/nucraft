@@ -8125,6 +8125,7 @@
     interactiveVisuals.clear(); interactiveByChunk.clear(); endCrystalVisuals.clear(); animatedInteractiveVisuals.clear(); _hingesAnimating = false;
     activeChestKey = null; activeChestPartnerKey = null; activeFurnaceKey = null;
     if (wipeWorldState && player.ridingDragon) { player.ridingDragon = null; player.sitting = false; }
+    if (typeof cancelFishingCast === 'function') cancelFishingCast(true);
     _playerCombatTarget = null; _playerCombatTargetT = 0; _dragonGrowthUiTimer = 0; _activeGrowthDragon = null;
     document.getElementById('dragonGrowthWrap')?.classList.remove('visible');
     document.getElementById('btnDragonMount')?.classList.remove('visible');

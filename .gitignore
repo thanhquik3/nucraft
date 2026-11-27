@@ -7,3 +7,7 @@ assets/nucraft_app.min.js
 AGENTS.md
 skin/
 .nucraft_rooms_cache.json
+rust/nucraft_core/target/
+dragon_armor/
+*.blend
+*.blend1

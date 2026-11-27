@@ -1,5 +1,20 @@
 'use strict';
 const CAVE_GRID_X = 5, CAVE_GRID_Y = 65, CAVE_GRID_Z = 5;
+let _wasm = null, _wasmMemBuf = null, _wasmCoarse = null;
+
+(function _initWorkerWasm() {
+  try {
+    if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || !self.location || self.location.protocol === 'file:') return;
+    const wasmUrl = new URL('../../assets/nucraft_core.wasm', self.location.href).href;
+    fetch(wasmUrl).then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      if (res && res.instance && res.instance.exports) {
+        _wasm = res.instance.exports;
+        _wasmMemBuf = _wasm.memory.buffer;
+        _wasmCoarse = new Float32Array(_wasmMemBuf, _wasm.coarse_grid_ptr(), 1625);
+      }
+    }).catch(() => {});
+  } catch (_) {}
+})();
 
 function hash2i(x, z, seed) {
   let h = Math.imul(x, 374761393) + Math.imul(z, 668265263) + Math.imul(seed, 1442695041);
@@ -34,8 +49,18 @@ function valueNoise3D(x, y, z, seed) {
   return (x00 + (x10 - x00) * v) + ((x01 + (x11 - x01) * v) - (x00 + (x10 - x00) * v)) * w;
 }
 
-function computeCoarseCaveGrid(wx0, wz0, seedMix, dOff, minY) {
+function computeCoarseCaveGrid(wx0, wz0, mix, dOff, minY) {
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
+  if (_wasm) {
+    if (_wasmMemBuf !== _wasm.memory.buffer) {
+      _wasmMemBuf = _wasm.memory.buffer;
+      _wasmCoarse = new Float32Array(_wasmMemBuf, _wasm.coarse_grid_ptr(), 1625);
+    }
+    _wasm.compute_coarse_cave_grid(wx0 | 0, wz0 | 0, mix.ox, mix.oy, mix.oz, mix.c1 | 0, mix.c2 | 0, mix.c3 | 0, mix.c4 | 0, dOff | 0, minY | 0);
+    caveGrid.set(_wasmCoarse);
+    return caveGrid;
+  }
+  const seedMix = mix;
   let p = 0;
   const ox = seedMix.ox, oy = seedMix.oy, oz = seedMix.oz;
   for (let gy = 0; gy < CAVE_GRID_Y; gy++) {

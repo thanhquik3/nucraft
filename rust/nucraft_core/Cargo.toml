@@ -1,0 +1,16 @@
+[package]
+name = "nucraft_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zero-allocation Rust/WebAssembly terrain noise and voxel lighting core for NUCRAFT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

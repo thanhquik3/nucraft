@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nucraft-v154';
+const CACHE_NAME = 'nucraft-v155';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './src/config.js',
   './src/world/chunkWorker.js',
   './assets/nucraft_app.min.js',
+  './assets/nucraft_core.wasm',
   './assets/three.min.js',
   './assets/player_skins_bundle.js',
   './assets/mc_icons_bundle.js',
@@ -37,11 +38,11 @@ self.addEventListener('fetch', (e) => {
     p.includes('/assets/models/') ||
     p.includes('/assets/luanti_sounds/') ||
     p.includes('/skin/') ||
-    /\.(glb|ogg|mp3|png|webp|svg|woff2?)$/i.test(p);
+    /\.(glb|ogg|mp3|png|webp|svg|woff2?|wasm)$/i.test(p);
 
   if (isImmutableBinary) {
     e.respondWith(
-      caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+      caches.match(e.request, { cacheName: CACHE_NAME }).then((hit) => hit || fetch(e.request, { cache: 'no-cache' }).then((res) => {
         if (res && res.ok) {
           const cp = res.clone();
           caches.open(CACHE_NAME).then((c) => c.put(e.request, cp)).catch(() => {});
@@ -59,6 +60,6 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE_NAME).then((c) => c.put(e.request, cp)).catch(() => {});
       }
       return res;
-    }).catch(() => caches.match(e.request))
+    }).catch(() => caches.match(e.request, { cacheName: CACHE_NAME }))
   );
 });

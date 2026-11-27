@@ -1,4 +1,4 @@
-# NUCRAFT (BUILD v129)
+# NUCRAFT (BUILD v155)
 
 [![CI Policy & Security](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/ci.yml)
 [![Deploy GitHub Pages](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml/badge.svg)](https://github.com/thanhquik3/nucraft/actions/workflows/deploy.yml)
@@ -38,10 +38,17 @@ npm run dev
 # Open http://127.0.0.1:4173/
 ```
 
-### Build Web Bundle Only (Linux / macOS / Windows)
+### Build Web & Rust/WASM Modules Only (Linux / macOS / Windows)
 ```bash
+npm run test:wasm
 node scripts/build.js --no-exe
 node scripts/ci-check.js --with-build
+```
+
+Optional rebuild of `assets/nucraft_core.wasm` from `rust/nucraft_core`:
+```bash
+rustup target add wasm32-unknown-unknown
+npm run build:wasm
 ```
 
 ### Optional Local Windows Desktop Wrapper (Local PC Only)
@@ -51,6 +58,7 @@ On your own Windows PC, `node scripts/build.js` builds the local web bundle and 
 
 ## Project Architecture / Cấu Trúc Mã Nguồn
 - `src/` — Modular Three.js voxel engine, world generation, mobs, audio, P2P/MQTT networking, and Ore UI menus.
+- `rust/nucraft_core/` — Zero-dependency Rust (`wasm32-unknown-unknown`) core compiled into `assets/nucraft_core.wasm` for zero-GC coarse cave generation & block-light slicing.
 - `css/` — HUD and lobby/menu stylesheets.
 - `shared/` — Shared block definitions and world constants used by both client and chunk workers.
 - `scripts/` — Zero-dependency bundler (`build.js`) and CI policy/security audit (`ci-check.js`).

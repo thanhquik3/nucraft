@@ -756,9 +756,43 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
+  // Zero-GC Rust WebAssembly acceleration core for cave density & slice emitter lighting
+  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0 };
+  if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
+  let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
+  function _syncWasmViews() {
+    if (!_nwExports) return;
+    const buf = _nwExports.memory.buffer;
+    if (_nwMemBuf === buf && _nwCoarseView) return;
+    _nwMemBuf = buf;
+    _nwCoarseView = new Float32Array(buf, _nwExports.coarse_grid_ptr(), 1625);
+    _nwEmitView = new Float32Array(buf, _nwExports.emitters_buf_ptr(), 3584);
+    _nwLightOut = new Float32Array(buf, _nwExports.light_out_ptr(), 3);
+  }
+  (function _initNucraftWasm() {
+    try {
+      if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
+      fetch('./assets/nucraft_core.wasm').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+        if (res && res.instance && res.instance.exports) {
+          _nwExports = res.instance.exports;
+          _syncWasmViews();
+          _nucraftWasmState.abi = _nwExports.wasm_abi_version ? _nwExports.wasm_abi_version() : 1;
+          _nucraftWasmState.ready = true;
+        }
+      }).catch(() => {});
+    } catch (_) {}
+  })();
+
   function fillCoarseCaveGrid(wx0, wz0) {
-    let p = 0;
     const dOff = depthOffset || 0;
+    if (_nwExports) {
+      _syncWasmViews();
+      _nwExports.compute_coarse_cave_grid(wx0 | 0, wz0 | 0, seedMix.ox, seedMix.oy, seedMix.oz, seedMix.c1 | 0, seedMix.c2 | 0, seedMix.c3 | 0, seedMix.c4 | 0, dOff | 0, MIN_Y | 0);
+      caveGrid.set(_nwCoarseView);
+      _nucraftWasmState.caveCalls++;
+      return;
+    }
+    let p = 0;
     const ox = seedMix.ox, oy = seedMix.oy, oz = seedMix.oz;
     for (let gy = 0; gy < CAVE_GRID_Y; gy++) {
       const wy = MIN_Y + gy * 4;
@@ -1494,6 +1528,13 @@
   function _evalLightSlice(lx, ly, lz, sliceBuf, sliceLen, out) {
     if (sodiumOpts.fastLight && (lx < _sliceMinX || lx > _sliceMaxX || lz < _sliceMinZ || lz > _sliceMaxZ)) {
       out[0] = 0; out[1] = 0; out[2] = 0;
+      return;
+    }
+    if (_nwExports && sliceBuf === _sliceEmBuf && sliceLen <= 3584) {
+      _syncWasmViews();
+      _nwExports.eval_light_slice(lx, ly, lz, sliceLen);
+      out[0] = _nwLightOut[0]; out[1] = _nwLightOut[1]; out[2] = _nwLightOut[2];
+      _nucraftWasmState.lightCalls++;
       return;
     }
     let r = 0, g = 0, b = 0;
@@ -2448,6 +2489,10 @@
           }
         }
         _sliceMinX = sMinX; _sliceMaxX = sMaxX; _sliceMinZ = sMinZ; _sliceMaxZ = sMaxZ;
+        if (_nwExports && sliceLen > 0 && sliceLen <= 3584) {
+          _syncWasmViews();
+          _nwEmitView.set(_sliceEmBuf.subarray(0, sliceLen));
+        }
       }
       const inY = (ly > 0 && ly < WORLD_H - 1);
 

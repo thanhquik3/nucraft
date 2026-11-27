@@ -339,7 +339,7 @@ function createPagesZip(outZipPath) {
       'index.html', 'NUCRAFT.html', 'manifest.json', 'sw.js',
       'css/hud.css', 'css/menus.css', 'shared/constants.js', 'shared/blocks.js',
       'src/config.js', 'src/world/chunkWorker.js',
-      'assets/nucraft_app.min.js', 'assets/three.min.js',
+      'assets/nucraft_app.min.js', 'assets/nucraft_core.wasm', 'assets/three.min.js',
       'assets/player_skins_bundle.js', 'assets/mc_icons_bundle.js',
       'assets/nucraft_logo.png', 'assets/icon-512.svg'
     ];

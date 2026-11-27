@@ -311,11 +311,7 @@
   const _glbFetching = new Map();
   const DRAGON_SHARED_GLB = 'dragon_wyvern';
   const _END_FIERCE_DRAGONS = new Set(['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon']);
-  const _resolveGlbKey = (type) => {
-    if (type === 'sovereign_end_dragon') return 'dragon_boss_sovereign';
-    if (_END_FIERCE_DRAGONS.has(type)) return 'dragon_end_fierce';
-    return (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
-  };
+  const _resolveGlbKey = (type) => (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
   const _hasGlbAsset = (type) => {
     const key = _resolveGlbKey(type);
     return (window.BLENDER_MOB_GLBS && (!!window.BLENDER_MOB_GLBS[key] || !!window.BLENDER_MOB_GLBS[type]))
@@ -578,8 +574,24 @@
       horn: [0x4c1d95, 0xa855f7, 0xd8b4fe, 0x2e1065],
       eye: 0xf0abfc
     },
-    void_end_dragon: null,
-    sovereign_end_dragon: null,
+    void_end_dragon: {
+      body: [0x090414, 0x1a0b33, 0x361466, 0x5b21b6],
+      belly: [0x1c0d36, 0x3b1764, 0x9333ea],
+      dark: [0x07020e, 0x16072b],
+      under: [0x040108, 0x0e041c],
+      mem: [0x140626, 0x2e1065, 0x7e22ce],
+      horn: [0x3b0764, 0xc084fc, 0xf3e8ff, 0x1e0634],
+      eye: 0xe879f9
+    },
+    sovereign_end_dragon: {
+      body: [0x070412, 0x140d33, 0x261a66, 0x4338ca],
+      belly: [0x171036, 0x312e81, 0x38bdf8],
+      dark: [0x05020c, 0x120a2e],
+      under: [0x020108, 0x0a061c],
+      mem: [0x0f0b2e, 0x1e1b4b, 0x7c3aed],
+      horn: [0x1e1b4b, 0x38bdf8, 0xe0f2fe, 0x581c87],
+      eye: 0x38bdf8
+    },
     amethyst_end_dragon: {
       body: [0x2a0845, 0x581c87, 0x86198f, 0xc026d3],
       belly: [0x4c1d95, 0x7e22ce, 0xf0abfc],
@@ -6184,6 +6196,10 @@
     const _nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     if (_nowMs - _lastPrimaryDownMs < 110) return;
     _lastPrimaryDownMs = _nowMs;
+    if (typeof isFishingRodCast === 'function' && isFishingRodCast()) {
+      if (typeof toggleFishingCast === 'function') toggleFishingCast();
+      return;
+    }
     if (raycastMob(4.6)) {
       attackTargetMob();
       return;

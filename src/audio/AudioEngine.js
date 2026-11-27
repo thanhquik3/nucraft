@@ -1036,6 +1036,114 @@
     if (type === 'bow_draw') { playBowDrawSfx(); return; }
     if (type === 'bow_full') { playBowFullSfx(); return; }
     if (type === 'bow') { playBowReleaseSfx(); return; }
+    if (type === 'fish_cast') {
+      try {
+        const t = audioCtx.currentTime, dest = sfxGain || masterGain;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(240, t + 0.065);
+        g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(0.14 * sfxVolume, t + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + 0.07);
+        o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.075);
+        if (noiseBuf) {
+          const src = audioCtx.createBufferSource(); src.buffer = noiseBuf;
+          const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.6;
+          bp.frequency.setValueAtTime(2000, t); bp.frequency.exponentialRampToValueAtTime(520, t + 0.18);
+          const ng = audioCtx.createGain();
+          ng.gain.setValueAtTime(0.001, t); ng.gain.linearRampToValueAtTime(0.18 * sfxVolume, t + 0.015);
+          ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.185);
+          src.connect(bp); bp.connect(ng); ng.connect(dest); src.start(t, Math.random() * 0.35, 0.20);
+        }
+      } catch (_) {}
+      return;
+    }
+    if (type === 'fish_splash') {
+      playLuantiClip(['default_water_footstep.1', 'default_water_footstep.2'], 0.36, 1.08, 1.24, 90, 'fspl', 'sfx');
+      try {
+        const t = audioCtx.currentTime, dest = sfxGain || masterGain;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(210, t); o.frequency.exponentialRampToValueAtTime(620, t + 0.11);
+        g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(0.14 * sfxVolume, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + 0.115);
+        o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.12);
+      } catch (_) {}
+      return;
+    }
+    if (type === 'fish_bite') {
+      playLuantiClip('default_water_footstep.2', 0.46, 0.90, 1.05, 120, 'fbite', 'sfx');
+      try {
+        const t = audioCtx.currentTime, dest = sfxGain || masterGain;
+        const pops = [[0.0, 340, 140], [0.065, 260, 540]];
+        for (let pi = 0; pi < pops.length; pi++) {
+          const [off, f0, f1] = pops[pi];
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(f0, t + off); o.frequency.exponentialRampToValueAtTime(f1, t + off + 0.07);
+          g.gain.setValueAtTime(0.001, t + off); g.gain.linearRampToValueAtTime(0.18 * sfxVolume, t + off + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0005, t + off + 0.08);
+          o.connect(g); g.connect(dest); o.start(t + off); o.stop(t + off + 0.085);
+        }
+        if (noiseBuf) {
+          const src = audioCtx.createBufferSource(); src.buffer = noiseBuf;
+          const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+          bp.frequency.setValueAtTime(950, t); bp.frequency.exponentialRampToValueAtTime(420, t + 0.16);
+          const ng = audioCtx.createGain();
+          ng.gain.setValueAtTime(0.001, t); ng.gain.linearRampToValueAtTime(0.19 * sfxVolume, t + 0.015);
+          ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.17);
+          src.connect(bp); bp.connect(ng); ng.connect(dest); src.start(t, Math.random() * 0.35, 0.18);
+        }
+      } catch (_) {}
+      return;
+    }
+    if (type === 'fish_reel') {
+      try {
+        const t = audioCtx.currentTime, dest = sfxGain || masterGain;
+        for (let ci = 0; ci < 5; ci++) {
+          const st = t + ci * 0.028;
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(920 + ci * 75, st); o.frequency.exponentialRampToValueAtTime(640, st + 0.02);
+          g.gain.setValueAtTime(0.001, st); g.gain.linearRampToValueAtTime(0.095 * sfxVolume, st + 0.003);
+          g.gain.exponentialRampToValueAtTime(0.0005, st + 0.024);
+          o.connect(g); g.connect(dest); o.start(st); o.stop(st + 0.026);
+        }
+        if (noiseBuf) {
+          const src = audioCtx.createBufferSource(); src.buffer = noiseBuf;
+          const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.8;
+          bp.frequency.setValueAtTime(450, t); bp.frequency.exponentialRampToValueAtTime(1250, t + 0.15);
+          const ng = audioCtx.createGain();
+          ng.gain.setValueAtTime(0.001, t); ng.gain.linearRampToValueAtTime(0.14 * sfxVolume, t + 0.02);
+          ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.16);
+          src.connect(bp); bp.connect(ng); ng.connect(dest); src.start(t, Math.random() * 0.35, 0.17);
+        }
+      } catch (_) {}
+      return;
+    }
+    if (type === 'fish_catch') {
+      try {
+        const t = audioCtx.currentTime, dest = sfxGain || masterGain;
+        if (noiseBuf) {
+          const src = audioCtx.createBufferSource(); src.buffer = noiseBuf;
+          const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+          bp.frequency.setValueAtTime(650, t); bp.frequency.exponentialRampToValueAtTime(1800, t + 0.16);
+          const ng = audioCtx.createGain();
+          ng.gain.setValueAtTime(0.001, t); ng.gain.linearRampToValueAtTime(0.15 * sfxVolume, t + 0.015);
+          ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.17);
+          src.connect(bp); bp.connect(ng); ng.connect(dest); src.start(t, Math.random() * 0.35, 0.18);
+        }
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        for (let ni = 0; ni < notes.length; ni++) {
+          const st = t + ni * 0.055;
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = 'sine'; o.frequency.setValueAtTime(notes[ni], st);
+          g.gain.setValueAtTime(0.001, st); g.gain.linearRampToValueAtTime(0.12 * sfxVolume, st + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0005, st + 0.14);
+          o.connect(g); g.connect(dest); o.start(st); o.stop(st + 0.15);
+        }
+      } catch (_) {}
+      return;
+    }
     if (type === 'warp') { playLuantiClip('mobs_spell', 0.34, 0.95, 1.12, 220, 'wrp', 'sfx'); return; }
     if (type === 'equip') { playLuantiClip('default_place_node_metal.1', 0.40, 1.02, 1.15, 100, 'eq', 'sfx'); return; }
     if (type === 'roar') { playLuantiClip('mobs_stonemonster', 0.30, 0.55, 0.72, 850, 'roar', 'mob'); return; }

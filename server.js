@@ -611,7 +611,7 @@ const server = http.createServer((req, res) => {
     }
     const ct = MIME[ext] || 'application/octet-stream';
     const isImmutableBinary = (/^(assets\/(?:models|luanti_sounds)\/|skin\/)/i.test(rel) && (ext === '.glb' || ext === '.ogg' || ext === '.png' || ext === '.webp' || ext === '.mp3'));
-    const cacheHdr = isImmutableBinary ? 'public, max-age=604800, immutable' : 'no-cache';
+    const cacheHdr = isImmutableBinary ? 'public, max-age=0, must-revalidate' : 'no-cache';
     const extraHdrs = ext === '.exe' ? { 'Content-Disposition': 'attachment; filename="NUCRAFT.exe"' } : null;
     const wantGzip = GZIP_EXTS.has(ext) && /\bgzip\b/i.test(req.headers['accept-encoding'] || '');
     if (wantGzip) {

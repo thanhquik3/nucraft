@@ -1960,24 +1960,31 @@
       return null;
     });
     drawBucketTile(119, null); drawBucketTile(120, '#38bdf8'); drawBucketTile(121, '#f97316');
+    const _ROD_PAL = {
+      A: '#646464', B: '#444444', C: '#4b3717', D: '#281d0a', E: '#493614',
+      F: '#684e1e', G: '#4b3516', H: '#8a6727', I: '#493518', J: '#291e0b',
+      K: '#493616', L: '#8a6725', M: '#281e08', N: '#747474', O: '#483616',
+      P: '#674d1d', Q: '#b4b4b4', R: '#b3b3b3', S: '#363636', T: '#969696',
+      U: '#373737', V: '#ffffff'
+    };
     drawSpriteMap(122, [
       '................',
-      '...........ooo..',
-      '..........oMDo..',
-      '.........oLMoS..',
-      '........oWLoS...',
-      '.......oWLo.S...',
-      '......oBWo..S...',
-      '.....oBWo...S...',
-      '....oBWo....S...',
-      '...oBBo....S....',
-      '..oBBoMMMM.H....',
-      '..oBBoMMo.HHh...',
-      '.oBWo.oo..Hhh...',
-      '.ooo............',
-      '................',
+      '.............AB.',
+      '............ACD.',
+      '...........BEFD.',
+      '..........BGHDB.',
+      '.........BIHJ.B.',
+      '........BKLD..A.',
+      '.......BEHM...A.',
+      '......BEFM....N.',
+      '.....BOFD.....A.',
+      '.....KPD.....A..',
+      '....KFQRS....B..',
+      '...KKDTRS...B...',
+      '..KKD.SU..V.V...',
+      '..DD......TV....',
       '................'
-    ], { o: '#2b1b0e', B: '#6b471b', W: '#94682b', L: '#b38642', M: '#8b95a5', D: '#475569', S: '#64748b', H: '#cbd5e1', h: '#f8fafc' });
+    ], _ROD_PAL);
     tilePixels(123, (x, y, r) => {
       if (y >= 7 && y <= 12 && x >= 2 && x <= 13 && !(y >= 11 && (x <= 3 || x >= 12))) return shade(y === 8 ? '#78350f' : '#b45309', (r - 0.5) * 12);
       if (y >= 4 && y <= 7 && (x === 5 || x === 10)) return '#d97706';
@@ -4864,25 +4871,31 @@
 
     // v153 Tiles (696..734): Fishing rod cast + loot items, Ender egg, End Dragon Realm blocks, End Dragon Scale/Bone gear & Sovereign Knight Armor
     if (typeof V153_TILES !== 'undefined') {
-      // Cast Fishing Rod (exact same oak/silver shaft silhouette without dangling line/hook)
+      // Cast Fishing Rod (exact same shaft + silver reel without dangling line/hook)
       drawSpriteMap(V153_TILES.rodCast, [
         '................',
-        '...........ooo..',
-        '..........oMDo..',
-        '.........oLMo...',
-        '........oWLo....',
-        '.......oWLo.....',
-        '......oBWo......',
-        '.....oBWo.......',
-        '....oBWo........',
-        '...oBBo.........',
-        '..oBBo..........',
-        '..oBBo..........',
-        '.oBWo...........',
-        '.ooo............',
-        '................',
+        '.............AB.',
+        '............ACD.',
+        '...........BEFD.',
+        '..........BGHD..',
+        '.........BIHJ...',
+        '........BKLD....',
+        '.......BEHM.....',
+        '......BEFM......',
+        '.....BOFD.......',
+        '.....KPD........',
+        '....KFQRS.......',
+        '...KKDTRS.......',
+        '..KKD.SU........',
+        '..DD............',
         '................'
-      ], { o: '#2b1b0e', B: '#6b471b', W: '#94682b', L: '#b38642', M: '#8b95a5', D: '#475569' });
+      ], {
+        A: '#646464', B: '#444444', C: '#4b3717', D: '#281d0a', E: '#493614',
+        F: '#684e1e', G: '#4b3516', H: '#8a6727', I: '#493518', J: '#291e0b',
+        K: '#493616', L: '#8a6725', M: '#281e08', N: '#747474', O: '#483616',
+        P: '#674d1d', Q: '#b4b4b4', R: '#b3b3b3', S: '#363636', T: '#969696',
+        U: '#373737', V: '#ffffff'
+      });
 
       // Tropical Fish & Pufferfish
       drawSpriteMap(V153_TILES.tropicalFish, [

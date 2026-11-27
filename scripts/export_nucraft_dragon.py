@@ -97,10 +97,53 @@ def add_modular_armor(arm_obj):
     return [o for o, _ in armor_pairs]
 
 
+def prepare_armor_from_blend(arm_obj):
+    """If blend already holds Iron/Gold/Diamond armor suites, keep Iron as shared modular base & unhide it."""
+    col = bpy.context.scene.collection
+    iron_objs = [bpy.data.objects.get(f"Armor_Iron_{s}") for s in ("Head", "Neck", "Body", "Tail")]
+    if all(o is not None for o in iron_objs):
+        for tier in ("Gold", "Diamond"):
+            for s in ("Head", "Neck", "Body", "Tail"):
+                o = bpy.data.objects.get(f"Armor_{tier}_{s}")
+                if o is not None:
+                    bpy.data.objects.remove(o, do_unlink=True)
+        for s, o in zip(("Head", "Neck", "Body", "Tail"), iron_objs):
+            o.hide_viewport = False
+            o.hide_render = False
+            o.name = f"Armor_{s}_Geo"
+        for src_m, dst_m in (("Armor_Iron_Metal", "Armor_Metal"), ("Armor_Iron_Trim", "Armor_Trim")):
+            m = bpy.data.materials.get(src_m)
+            if m:
+                m.name = dst_m
+        for img_name in ("Armor_Gold_Atlas", "Armor_Diamond_Atlas"):
+            im = bpy.data.images.get(img_name)
+            if im and im.users == 0:
+                bpy.data.images.remove(im)
+        return [bpy.data.objects.get(f"Armor_{s}_Geo") for s in ("Head", "Neck", "Body", "Tail")]
+    return add_modular_armor(arm_obj)
+
+
 def main():
-    bpy.ops.wm.open_mainfile(filepath=BLEND_PATH)
+    blend_path = BLEND_PATH
+    if "--" in sys.argv:
+        extra = sys.argv[sys.argv.index("--") + 1 :]
+        if "--blend" in extra:
+            bi = extra.index("--blend")
+            if bi + 1 < len(extra):
+                blend_path = extra[bi + 1]
+    bpy.ops.wm.open_mainfile(filepath=blend_path)
     arm_obj = bpy.data.objects["Dragon_Armature"]
-    bd.play("Rest_Pose")
+    if hasattr(bd, "ACTION_LENGTHS") and "Rest_Pose" in bd.ACTION_LENGTHS:
+        bd.play("Rest_Pose")
+    else:
+        if arm_obj.animation_data:
+            arm_obj.animation_data.action = None
+            arm_obj.animation_data.use_nla = False
+        for pb in arm_obj.pose.bones:
+            pb.location = (0.0, 0.0, 0.0)
+            pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+            pb.rotation_euler = (0.0, 0.0, 0.0)
+            pb.scale = (1.0, 1.0, 1.0)
     bpy.context.view_layer.update()
 
     # 1. Attach toggleable vertex-colored riding saddle + 4 external skinned armor meshes onto Dragon_Armature
@@ -109,8 +152,9 @@ def main():
         if obj.type == "MESH" and obj.name in bone_names:
             obj.name = f"{obj.name}_Geo"
 
-    add_saddle_to_body(arm_obj)
-    add_modular_armor(arm_obj)
+    if bpy.data.objects.get("Dragon_Saddle_Geo") is None:
+        add_saddle_to_body(arm_obj)
+    prepare_armor_from_blend(arm_obj)
 
     # 2. Deduplicate Dragon_Atlas & keep flat PBR inputs (no extra bump/roughness images exported)
     atlas = bpy.data.images["Dragon_Atlas"]
@@ -154,8 +198,9 @@ def main():
     for trk in arm_obj.animation_data.nla_tracks:
         trk.mute = True
 
+    target_actions = {"Fly_Flap", "Glide", "Idle", "Roar_WingSpread", "Walk"}
     for act in bpy.data.actions:
-        if act.name not in bd.ACTION_LENGTHS:
+        if act.name not in target_actions:
             continue
         f_end = int(round(act.frame_end))
         for lay in act.layers:
