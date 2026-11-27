@@ -1034,14 +1034,14 @@
     const ang = dayTime * Math.PI * 2 - Math.PI * 0.5, sunY = Math.sin(ang);
     envUniforms.uSunDir.value.set(Math.cos(ang) * 0.85, sunY, 0.42).normalize();
 
-    const sunsetWeight = Math.max(0, 1 - Math.abs(sunY - 0.12) * 3.2);
+    const sunsetWeight = Math.max(0, 1 - Math.abs(sunY - 0.16) * 2.65);
     const dayWeight = Math.max(0, Math.min(1, (sunY + 0.12) * 2.6));
     const curBiome = getPlayerBiome();
     const inChillWheatAtmo = (curBiome === BIOMES.WHEAT_VALLEY);
     const stormSkyAmt = rainIntensity * (inChillWheatAtmo ? 0.56 : 0.88);
     // Realistic Dark-Grey Overcast Storm Sky when Raining (while keeping rainy Wheat Field dreamy & chill)
-    _tmpTop.copy(colNightTop).lerp(colDayTop, dayWeight).lerp(colSunsetTop, sunsetWeight * 0.65).lerp(colStormTop, stormSkyAmt);
-    _tmpHor.copy(colNightHor).lerp(colDayHor, dayWeight).lerp(colSunsetHor, sunsetWeight * 0.82).lerp(colStormHor, Math.min(0.90, stormSkyAmt * 1.02));
+    _tmpTop.copy(colNightTop).lerp(colDayTop, dayWeight).lerp(colSunsetTop, sunsetWeight * 0.68).lerp(colStormTop, stormSkyAmt);
+    _tmpHor.copy(colNightHor).lerp(colDayHor, dayWeight).lerp(colSunsetHor, sunsetWeight * 0.86).lerp(colStormHor, Math.min(0.90, stormSkyAmt * 1.02));
     if (shaderPreset === 'bliss') {
       _tmpHor.lerp(_colBlissHor, (0.32 + sunsetWeight * 0.28) * dayWeight * (1 - rainIntensity * 0.7));
       _tmpTop.lerp(_colBlissTop, 0.25 * dayWeight * (1 - rainIntensity * 0.7));
@@ -1197,9 +1197,9 @@
       envUniforms.uSunColor.value.copy(_colDlssSun);
       if (sunsetWeight > 0.18) envUniforms.uSunColor.value.lerp(_colSunsetSun, Math.min(0.85, sunsetWeight * 0.95));
     } else if (shaderPreset === 'eclipse') {
-      envUniforms.uSunColor.value.copy(_colEclipseSun).lerp(_colSunsetSun, Math.min(0.45, sunsetWeight * 0.65));
-    } else if (sunsetWeight > 0.18) {
-      envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.10));
+      envUniforms.uSunColor.value.copy(_colEclipseSun).lerp(_colSunsetSun, Math.min(0.68, sunsetWeight * 0.82));
+    } else if (sunsetWeight > 0.16) {
+      envUniforms.uSunColor.value.setHex(0xffdfa8).lerp(_colSunsetSun, Math.min(1, sunsetWeight * 1.15));
     } else {
       envUniforms.uSunColor.value.setHex(0xfff5e0);
     }
@@ -1283,16 +1283,16 @@
         const noonRayDamp = player.eyesInWater
           ? (1.0 - 0.25 * Math.max(0, (sunY - 0.65) / 0.35))
           : (1.0 - 0.55 * Math.max(0, (sunY - 0.55) / 0.45));
-        const baseStr = isNightShadow ? 0.30 : ((0.22 + sunsetWeight * 0.22) * dayWeight * noonRayDamp);
+        const baseStr = isNightShadow ? 0.30 : ((0.24 + sunsetWeight * 0.28) * dayWeight * noonRayDamp);
         const uwAtten = player.eyesInWater ? Math.max(0, 1.0 - diveDepth / 58) * (shaderPreset === 'eclipse' ? 1.28 : 0.82) : 1.0;
-        const chillRayBoost = (!player.eyesInWater && shaderPreset === 'chill_sunset') ? 1.20 : ((!player.eyesInWater && shaderPreset === 'eclipse') ? 1.15 : 1.0);
+        const chillRayBoost = (!player.eyesInWater && shaderPreset === 'chill_sunset') ? 1.22 : ((!player.eyesInWater && shaderPreset === 'eclipse') ? 1.18 : 1.0);
         const rtRayMul = _rtRaysOn ? 1.20 : 1.0;
-        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.24 : 0.20), lookAlign * baseStr * chillRayBoost * rtRayMul * weatherDim * uwAtten);
+        const shaftAmt = Math.min(player.eyesInWater ? 0.72 : (shaderPreset === 'eclipse' ? 0.28 : 0.24), lookAlign * baseStr * chillRayBoost * rtRayMul * weatherDim * uwAtten);
         envUniforms.uSunScreenPos.value.set(u, v);
         envUniforms.uSunVis.value = shaftAmt;
         envUniforms.uLightScreenPos.value.set(u, v);
         envUniforms.uShaftStrength.value = shaftAmt;
-        envUniforms.uShaftColor.value.setHex(player.eyesInWater ? (shaderPreset === 'eclipse' ? (diveDepth < 6 ? 0x8af8f2 : 0x56f0e4) : 0x7ee8fa) : (isNightShadow ? 0x70b4ff : (shaderPreset === 'chill_sunset' ? 0xffb85c : (sunsetWeight > 0.32 ? 0xffb25e : 0xfff5e0))));
+        envUniforms.uShaftColor.value.setHex(player.eyesInWater ? (shaderPreset === 'eclipse' ? (diveDepth < 6 ? 0x8af8f2 : 0x56f0e4) : 0x7ee8fa) : (isNightShadow ? 0x70b4ff : (shaderPreset === 'chill_sunset' ? 0xffb85c : (sunsetWeight > 0.26 ? 0xffac54 : 0xfff5e0))));
       } else {
         envUniforms.uSunVis.value = 0; envUniforms.uShaftStrength.value = 0;
       }
@@ -2230,6 +2230,7 @@
     joinCoopRoomById,
     leaveCoopRoom,
     getActiveRoomId: () => activeRoomId,
+    getCoopNetDebug: () => ({ roomId: activeRoomId, transport: activeCoopTransport, isHost: p2pIsHost, simAuth: isSimAuthority(), wsState: wsConn ? wsConn.readyState : -1, wsSelfPeerId, wsRoomHostId: _wsRoomHostId, remotePeers: Array.from(remotePlayers.keys()), bcPeers: Array.from(bcRoomPeers), mqttPeers: Array.from(mqttRoomPeers), p2pConns: p2pClientConns.size }),
     ncMqtt,
     setAdminUnlocked,
     getDreamRuinLocations,

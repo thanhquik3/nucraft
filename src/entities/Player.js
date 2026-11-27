@@ -1973,28 +1973,34 @@
     for (let i = 0; i < 36; i++) if (inventory[i].count === 0) return true;
     return false;
   }
-  function addItemToInventory(blockId, qty = 1, meta = null) {
+  function addItemToInventoryCount(blockId, qty = 1, meta = null) {
     const def = BLOCK_DEF[blockId];
     const noStack = !!(def && (def.tool || def.armorSlot)) || !!(meta && (meta.ench || meta.trim || (meta.maxDur > 0 && typeof meta.dur === 'number' && meta.dur < meta.maxDur)));
     const maxStack = noStack ? 1 : 99;
+    let rem = Math.max(0, qty | 0);
+    if (rem <= 0) return 0;
     if (maxStack > 1) {
       for (let i = 0; i < 36; i++) {
         if (inventory[i].id === blockId && inventory[i].count > 0 && inventory[i].count < maxStack && !inventory[i].ench && !inventory[i].trim) {
-          const add = Math.min(maxStack - inventory[i].count, qty); inventory[i].count += add; qty -= add;
-          if (qty <= 0) { renderHotbar(); return true; }
+          const add = Math.min(maxStack - inventory[i].count, rem); inventory[i].count += add; rem -= add;
+          if (rem <= 0) { renderHotbar(); return qty | 0; }
         }
       }
     }
     const itemDur = (meta && typeof meta.dur === 'number' && meta.dur > 0) ? meta.dur : null;
     for (let i = 0; i < 36; i++) {
       if (inventory[i].count === 0) {
-        const give = Math.min(maxStack, qty);
+        const give = Math.min(maxStack, rem);
         setSlotItem(i, blockId, give, itemDur, meta);
-        qty -= give;
-        if (qty <= 0) { renderHotbar(); return true; }
+        rem -= give;
+        if (rem <= 0) { renderHotbar(); return qty | 0; }
       }
     }
-    renderHotbar(); return false;
+    if (rem < (qty | 0)) renderHotbar();
+    return (qty | 0) - rem;
+  }
+  function addItemToInventory(blockId, qty = 1, meta = null) {
+    return addItemToInventoryCount(blockId, qty, meta) >= (qty | 0);
   }
   function damageHeldTool(amount = 1) {
     const slot = inventory[player.selectedSlot];
@@ -2314,7 +2320,7 @@
     playSfx('place');
     renderHotbar();
     if (!document.getElementById('invModal').classList.contains('hidden')) renderInventoryModal();
-    if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
+    if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(false);
     showToast(`🗑️ Đã vứt ${qty}× ${def ? def.name : 'vật phẩm'}`);
     return true;
   }
@@ -2350,29 +2356,60 @@
     }
     return false;
   }
+  const _claimedDropIds = new Map();
+  function clearClaimedDrops() { _claimedDropIds.clear(); }
+  function _pruneClaimedDrops(nowMs) {
+    if (_claimedDropIds.size <= 400) return;
+    for (const [k, ts] of _claimedDropIds.entries()) {
+      if ((nowMs - ts) > 30000) _claimedDropIds.delete(k);
+    }
+  }
   function _completeNetworkDropPickup(dropId, srvDrop = null) {
     const did = String(dropId || '');
+    const nowMs = performance.now();
+    _pruneClaimedDrops(nowMs);
     let idx = -1;
     for (let i = droppedItems.length - 1; i >= 0; i--) {
       if (droppedItems[i] && String(droppedItems[i].dropId) === did) { idx = i; break; }
     }
+    if (did && _claimedDropIds.has(did)) {
+      if (idx >= 0) {
+        const itDup = droppedItems[idx];
+        scene.remove(itDup.mesh); if (itDup.shadow) scene.remove(itDup.shadow);
+        droppedItems[idx] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
+      }
+      return true;
+    }
     const localIt = idx >= 0 ? droppedItems[idx] : null;
     const src = srvDrop || localIt;
     if (src && src.id) {
-      addItemToInventory(src.id, src.count || 1, {
+      const wantQty = src.count || 1;
+      const added = addItemToInventoryCount(src.id, wantQty, {
         dur: src.dur || 0,
         maxDur: src.maxDur || 0,
         ench: !!src.ench,
         trim: src.trim ? { ...src.trim } : null
       });
+      if (added <= 0) {
+        if (localIt) { localIt._pickupReqAt = nowMs + 700; localIt._pickupHoldUntil = nowMs + 700; }
+        return false;
+      }
       playSfx('pickup');
-      if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
+      if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(false);
+      if (added < wantQty && localIt) {
+        localIt.count = Math.max(1, wantQty - added);
+        localIt._pickupReqAt = nowMs + 700;
+        localIt._pickupHoldUntil = nowMs + 700;
+        return false;
+      }
     }
+    if (did) _claimedDropIds.set(did, nowMs);
     if (idx >= 0) {
       const it = droppedItems[idx];
       scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
       droppedItems[idx] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
     }
+    return true;
   }
   function updateDroppedItems(dt) {
     const useFastDrops = !!(sodiumOpts.entityCulling || sodiumOpts.immFast);
@@ -2517,7 +2554,8 @@
       const pDelay = it.pickupDelay !== undefined ? it.pickupDelay : 0.35;
       const dx = player.x - it.x, dy = (player.y + 0.85) - (it.y + 0.48), dz = player.z - it.z;
       const dist2 = dx * dx + dy * dy + dz * dz;
-      if (!player.dead && it.age >= pDelay && dist2 < 5.76 && canFitItemInInventory(it.id, it)) {
+      const canTryPickup = !it._pickupHoldUntil || performance.now() >= it._pickupHoldUntil;
+      if (!player.dead && canTryPickup && it.age >= pDelay && dist2 < 5.76 && canFitItemInInventory(it.id, it)) {
         const dist = Math.sqrt(dist2);
         const midY = Math.floor((player.y + 0.85 + it.y + 0.35) * 0.5);
         const midBlocked = dist >= 1.15 && isSolidAt(Math.floor((player.x + it.x) * 0.5), midY, Math.floor((player.z + it.z) * 0.5));
@@ -2530,11 +2568,18 @@
           if (postDist < 0.85) {
             if (activeRoomId && typeof requestNetworkDropPickup === 'function') {
               requestNetworkDropPickup(it);
+              if (droppedItems[i] !== it) continue;
             } else {
-              addItemToInventory(it.id, it.count || 1, it); playSfx('pickup');
-              scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
-              droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
-              continue;
+              const wantQ = it.count || 1;
+              const added = addItemToInventoryCount(it.id, wantQ, it);
+              if (added > 0) playSfx('pickup');
+              if (added >= wantQ) {
+                scene.remove(it.mesh); if (it.shadow) scene.remove(it.shadow);
+                droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
+                continue;
+              }
+              if (added > 0) it.count = Math.max(1, wantQ - added);
+              it._pickupHoldUntil = performance.now() + 700;
             }
           }
         }
@@ -4797,12 +4842,16 @@
     const slot = inventory[player.selectedSlot];
     const selDef = (slot && slot.count > 0) ? BLOCK_DEF[slot.id] : null;
     if (gameMode !== 'creative' && selDef && selDef.food) { slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar(); }
-    mobHit.tamed = true; mobHit.sitting = false; mobHit.provoked = 0;
+    mobHit.tamed = true; mobHit.hostile = false; mobHit.sitting = false; mobHit.provoked = 0;
+    mobHit.ownerPeerId = (typeof localPeerId !== 'undefined') ? String(localPeerId || '') : '';
     mobHit.maxHp = Math.max(mobHit.maxHp, 26); mobHit.hp = mobHit.maxHp;
     if (!mobHit.petTag) {
       const petTag = makeNameTagSprite(`♥ ${mobHit.displayName}`, '#f472b6');
       petTag.position.set(0, mobHit.hitboxH + 0.65, 0);
       mobHit.group.add(petTag); mobHit.petTag = petTag;
+    }
+    if (activeRoomId && typeof broadcastMobAction === 'function' && mobHit.uid) {
+      broadcastMobAction(mobHit.uid, 'tame', { ownerPeerId: mobHit.ownerPeerId, maxHp: mobHit.maxHp });
     }
     spawnParticles(mobHit.x, mobHit.y + 0.85, mobHit.z, 0xf472b6, 16, true);
     playSfx('pickup');
@@ -4949,13 +4998,21 @@
     if (mobHit && TAMEABLE_PETS.has(mobHit.type)) {
       if (!mobHit.tamed) {
         tamePetMob(mobHit);
+      } else if (player.sneaking && typeof openDragonModal === 'function') {
+        openDragonModal(mobHit);
       } else if (selDef && selDef.food && mobHit.hp < mobHit.maxHp) {
-        slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar();
+        if (gameMode !== 'creative') { slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar(); }
         mobHit.hp = mobHit.maxHp;
+        if (activeRoomId && typeof broadcastMobAction === 'function' && mobHit.uid) {
+          broadcastMobAction(mobHit.uid, 'heal', { hp: mobHit.hp });
+        }
         spawnParticles(mobHit.x, mobHit.y + 0.85, mobHit.z, 0xf43f5e, 12, true);
         playSfx('eat'); showToast(`💖 ${mobHit.displayName} đã ăn no và hồi đầy máu!`);
       } else {
         mobHit.sitting = !mobHit.sitting;
+        if (activeRoomId && typeof broadcastMobAction === 'function' && mobHit.uid) {
+          broadcastMobAction(mobHit.uid, 'sit', { sitting: mobHit.sitting });
+        }
         spawnParticles(mobHit.x, mobHit.y + 0.8, mobHit.z, mobHit.sitting ? 0x38bdf8 : 0x4ade80, 10, true);
         playSfx('equip');
         showToast(mobHit.sitting ? `🐾 ${mobHit.displayName} đang ngồi chờ tại chỗ.` : `🐾 ${mobHit.displayName} đang chạy theo bạn!`);

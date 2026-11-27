@@ -269,6 +269,7 @@
       lush:        { biome: BIOMES.LUSH_GROVE,       needWater: true,  time: 0.38,  preset: 'bliss',   pitch: -0.01,msg: '🌿 Rừng Rêu Cổ Đại & Tàn Tích' },
       meadow:      { biome: BIOMES.FLOWER_MEADOW,    needWater: false, time: 0.35,  preset: 'bliss',   pitch: -0.02,msg: '🌼 Thảo Nguyên Hoa Rực Rỡ' },
       forest:      { biome: BIOMES.FOREST,           needWater: false, time: 0.29,  preset: 'bliss',   pitch: 0.01, msg: '🌲 Rừng Nắng & Tia Nắng' },
+      redwood:     { biome: BIOMES.REDWOOD_ANCIENT,  needWater: false, time: 0.27,  preset: 'eclipse', pitch: -0.02,msg: '🌲 Rừng Hồng Tùng Cổ Thụ (Redwood Cathedral)' },
       desert:      { biome: BIOMES.DESERT,           needWater: false, time: 0.28,  preset: 'bsl',     pitch: 0.0,  msg: '🏜️ Sa Mạc Vàng & Đền Tháp Đôi' },
       snow:        { biome: BIOMES.SNOW,             needWater: false, time: 0.205, preset: 'moonlit', pitch: 0.03, msg: '❄️ Biệt Thự Tuyết 2 Tầng & Trăng Tròn' },
       tudor_estate:{ biome: BIOMES.PLAINS,           needWater: false, time: 0.30,  preset: 'bsl',     pitch: 0.0,  msg: '🏡 Biệt Thự Tudor Gạch Đỏ & Vườn Hoa' },

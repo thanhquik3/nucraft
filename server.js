@@ -392,7 +392,12 @@ function handleMessage(peer, msg) {
     const cid = (msg.clientId && /^[A-Za-z0-9_-]{4,24}$/.test(String(msg.clientId))) ? String(msg.clientId) : '';
     if (cid && !room.peers.has(cid)) peer.id = cid;
     peer.playerKey = sanitizePlayerKey(msg.playerKey || msg.clientId || peer.id) || peer.id;
-    evictSamePlayerKey(room, peer.playerKey, peer.id);
+    const liveHost = room.hostId ? room.peers.get(room.hostId) : null;
+    if (liveHost && liveHost.id !== peer.id && liveHost.playerKey === peer.playerKey) {
+      peer.playerKey = peer.id;
+    } else {
+      evictSamePlayerKey(room, peer.playerKey, peer.id);
+    }
     peer.name = String(msg.name || 'Bạn Chơi').slice(0, 20);
     if (msg.skinId) peer.skinId = String(msg.skinId).slice(0, 48);
     if (msg.customSkin !== undefined) peer.customSkin = sanitizeCustomSkin(msg.customSkin);
@@ -536,8 +541,14 @@ function handleMessage(peer, msg) {
   } else if (msg.type === 'drop_remove' && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
+    if (!room.claimedDrops) room.claimedDrops = new Set();
     const ids = Array.isArray(msg.dropIds) ? msg.dropIds : (msg.dropId ? [msg.dropId] : []);
-    for (const did of ids) room.drops.delete(String(did));
+    for (const rawId of ids) {
+      const did = String(rawId);
+      room.drops.delete(did);
+      room.claimedDrops.add(did);
+      if (room.claimedDrops.size > 1000) room.claimedDrops.delete(room.claimedDrops.values().next().value);
+    }
     if (ids.length) broadcastRoom(room, { type: 'drop_remove', dropIds: ids }, peer.id);
   } else if (msg.type === 'mob_sync' && peer.roomId) {
     const room = rooms.get(peer.roomId);

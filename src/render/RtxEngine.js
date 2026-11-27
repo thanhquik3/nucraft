@@ -701,7 +701,7 @@
         outgoingLight = mix(outgoingLight, outgoingLight * shadowTint, shadeCool * (isUltraQ ? 1.18 : 1.05) * (1.0 + uDlssMode * 0.10 + uEclipseMode * 0.12));
         float extSun = sunUpB * clamp(uSurfaceLight, 0.0, 1.0);
         float skyHemi = clamp(nrmW.y * 0.5 + 0.5, 0.0, 1.0);
-        vec3 bounceGnd = mix(vec3(0.50, 0.37, 0.24), vec3(0.58, 0.34, 0.18), uChillMode);
+        vec3 bounceGnd = mix(vec3(0.56, 0.39, 0.24), vec3(0.62, 0.36, 0.18), uChillMode);
         float rtFade = 0.0;
         vec4 rtGiOut = vec4(0.0, 0.0, 0.0, 1.0);
         vec3 rtShCol = vec3(1.0);
@@ -1019,10 +1019,10 @@
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 wpP = (modelMatrix * vec4(transformed, 1.0)).xyz;
         float curvP = clamp(aPlantSway, 0.0, 1.5);
-        float pPhase = sin(uTime * 2.25 + wpP.x * 0.72 + wpP.z * 0.64);
-        float gustK = 0.72 + 0.42 * uWindGust;
-        float swayAmp = uWindStrength * curvP * gustK;
-        vec2 pMoveXZ = uWindVec * (1.25 * swayAmp) + vec2(pPhase * 0.068, cos(uTime * 1.85 + wpP.z * 0.78) * 0.044) * swayAmp;
+        float pPhase = sin(uTime * 1.65 + wpP.x * 0.72 + wpP.z * 0.64);
+        float gustK = 0.72 + 0.34 * uWindGust;
+        float swayAmp = uWindStrength * curvP * gustK * 0.62;
+        vec2 pMoveXZ = uWindVec * (0.95 * swayAmp) + vec2(pPhase * 0.048, cos(uTime * 1.45 + wpP.z * 0.78) * 0.032) * swayAmp;
         vec2 pdxz = wpP.xz - uPlayerPos.xz;
         float pdLen = length(pdxz);
         float pPush = smoothstep(0.55, 0.05, pdLen) * smoothstep(1.2, 0.15, abs(wpP.y - uPlayerPos.y)) * 0.65 * curvP;
@@ -4539,8 +4539,8 @@
 
   // Authentic Merlin1809 Eclipse-Shader 2-Tier Ultra-Dense Thin Tapered Procedural Grass (225 blades/m² near + 81 far)
   const _isLiteGrass = (_isMobilePerf || (_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isSoftware));
-  const ECLIPSE_GRASS_NEAR_MAX = (_isMobilePerf || _isLiteGrass) ? 560 : 1250;
-  const ECLIPSE_GRASS_FAR_MAX  = _isMobilePerf ? 1600 : (_isLiteGrass ? 2600 : 4800);
+  const ECLIPSE_GRASS_NEAR_MAX = (_isMobilePerf || _isLiteGrass) ? 420 : 860;
+  const ECLIPSE_GRASS_FAR_MAX  = _isMobilePerf ? 1100 : (_isLiteGrass ? 1800 : 3100);
   function _buildEclipseGrassGeo(cols, tiers, widthScale) {
     const pos = [], bladeH = [], bladeSide = [], bladeRand = [], idx = [];
     let vc = 0;
@@ -4597,8 +4597,8 @@
     geo.setAttribute('aInstAo', aoAttr);
     return { maxCnt, pos, col, side, ao, posAttr, colAttr, sideAttr, aoAttr, geo };
   }
-  const grassInstGeoNear = _buildEclipseGrassGeo((_isMobilePerf || _isLiteGrass) ? 10 : 15, [0.0, 0.33, 0.66], 1.0);
-  const grassInstGeoFar  = _buildEclipseGrassGeo(_isMobilePerf ? 6 : 9, [0.0, 0.50], 1.28);
+  const grassInstGeoNear = _buildEclipseGrassGeo((_isMobilePerf || _isLiteGrass) ? 8 : 11, [0.0, 0.33, 0.66], 1.0);
+  const grassInstGeoFar  = _buildEclipseGrassGeo(_isMobilePerf ? 5 : 7, [0.0, 0.50], 1.28);
   const _egNear = _makeEgInstanceBuffers(grassInstGeoNear, ECLIPSE_GRASS_NEAR_MAX);
   const _egFar  = _makeEgInstanceBuffers(grassInstGeoFar,  ECLIPSE_GRASS_FAR_MAX);
 
@@ -4681,7 +4681,7 @@
 
         vec2 rndRotated = vec2(aBladeRand.x * c - aBladeRand.y * s, aBladeRand.x * s + aBladeRand.y * c);
         wp.xz += grassCurvature * (0.5 * rndRotated * 0.30 + edgeBlend);
-        vec3 windMove = 1.6 * calcMovePlants(rootPos) * grassCurvature * grassCurvature;
+        vec3 windMove = 0.95 * calcMovePlants(rootPos) * grassCurvature * grassCurvature;
         wp += windMove;
         wp += rightDir * (taper * halfThick);
 
@@ -4835,6 +4835,7 @@
 
     const isGrassSurface = (bid) => (bid === B.GRASS || bid === B.SIFT_GRASS || bid === B.LULLABY_GRASS || bid === B.SPORE_TURF || bid === B.BLUE_GRASS || bid === B.MOSS_BLOCK || bid === B.AUTUMN_PODZOL);
     const isShortGrassTop = (tid) => (tid === B.TALL_GRASS || tid === B.SHORT_GRASS || tid === B.BUSH_GRASS || tid === B.WILD_TALL_GRASS || tid === B.AUTUMN_GRASS);
+    const isAutumnBio = (bio) => (typeof BIOMES !== 'undefined' && (bio === BIOMES.AUTUMN || bio === BIOMES.AUTUMN_GOLDEN || bio === BIOMES.AUTUMN_DEEP || bio === BIOMES.DAPPLED_FOREST));
     const checkSideDir = (data, lx, ly, lz, wx, wy, wz) => {
       if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) {
         const upB = data[((ly + 1) << 8) | (lz << 4) | lx];
@@ -4891,6 +4892,11 @@
           bio = _egBiomeCache.get(bqk);
           if (bio === undefined) { bio = getBiomeAt(bqx << 2, bqz << 2); _egBiomeCache.set(bqk, bio); }
         }
+        // Keep reddish-brown forest dirt/podzol ground patches cleanly visible in Redwood/Forest/Plains!
+        if (id === B.AUTUMN_PODZOL && !isAutumnBio(bio)) continue;
+        // Clumped natural 3D grass ("cho co, cho khong") boosting FPS & matching cathedral floor refs
+        const egClump = Math.sin(wx * 0.14 + Math.cos(wz * 0.11) * 1.5) * Math.cos(wz * 0.13 - Math.sin(wx * 0.12) * 1.3);
+        if (id === B.GRASS && !isShortGrassTop(topId) && egClump < -0.08) continue;
         let cr = 0.36, cg = 0.64, cb = 0.24;
         if (id === B.AUTUMN_PODZOL) {
           if (typeof BIOMES !== 'undefined' && bio === BIOMES.AUTUMN_GOLDEN) { cr = 0.95; cg = 0.58; cb = 0.12; }

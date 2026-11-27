@@ -242,7 +242,7 @@
         try { ws.send(pktPublish(topic, payloadStr, retain)); return true; } catch (_) {}
       }
       if (dropIfCongested) return false;
-      if (outbox.length >= 64) outbox.shift();
+      if (outbox.length >= 192) outbox.shift();
       outbox.push({ topic, payloadStr, retain });
       return false;
     }
@@ -784,39 +784,61 @@
       }
     }
   }
+  function _isDropContestedByPeer(dropObj) {
+    if (!dropObj || typeof remotePlayers === 'undefined' || !remotePlayers) return false;
+    const dim = dropObj.dim || currentDimension || 'overworld';
+    for (const rp of remotePlayers.values()) {
+      if (!rp || rp.isBuddy || (rp.dim || 'overworld') !== dim) continue;
+      const dx = rp.x - dropObj.x, dz = rp.z - dropObj.z;
+      if ((dx * dx + dz * dz) < 10.24) return true;
+    }
+    return false;
+  }
+  const _dropRemoveQueue = [];
+  let _dropRemoveTimer = null;
+  function flushDropRemoveBatch() {
+    if (_dropRemoveTimer) { clearTimeout(_dropRemoveTimer); _dropRemoveTimer = null; }
+    if (!_dropRemoveQueue.length) return;
+    const ids = _dropRemoveQueue.splice(0, _dropRemoveQueue.length);
+    if (activeRoomId) sendCoopMsg({ type: 'drop_remove', dropIds: ids });
+  }
   function requestNetworkDropPickup(dropOrId) {
     if (!activeRoomId || !dropOrId) return;
     const isObj = (typeof dropOrId === 'object');
     const did = String((isObj && dropOrId.dropId) ? dropOrId.dropId : dropOrId);
     if (!did) return;
+    const now = performance.now();
     if (isObj) {
-      const now = performance.now();
-      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 350) return;
+      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 320) return;
       dropOrId._pickupReqAt = now;
+      dropOrId._pickupReqFirstAt = dropOrId._pickupReqFirstAt || now;
       dropOrId._pickupReqCount = (dropOrId._pickupReqCount || 0) + 1;
     }
     flushNetworkDropBatch();
-    const dropFallback = (isObj && !dropOrId._remote && dropOrId.id)
+    const dropFallback = (isObj && dropOrId.id)
       ? { dropId: did, id: dropOrId.id, count: dropOrId.count || 1, dur: dropOrId.dur || 0, maxDur: dropOrId.maxDur || 0, ench: !!dropOrId.ench, trim: dropOrId.trim ? { ...dropOrId.trim } : null }
       : null;
-    if (wsConn && wsConn.readyState === 1 && wsSelfPeerId && _wsJoinedRoomId === activeRoomId) {
-      if (dropFallback && dropOrId._pickupReqCount >= 2 && remotePlayers.size === 0) {
-        _hostAuthoritativeDrops.delete(did);
-        _roomDropsCache.delete(did);
-        if (typeof _completeNetworkDropPickup === 'function') _completeNetworkDropPickup(did, dropFallback);
-        broadcastDropRemove(did);
-        return;
-      }
-      try { wsConn.send(JSON.stringify({ type: 'drop_pickup_req', dropId: did, drop: dropFallback })); } catch (_) {}
-      return;
-    }
     if (p2pIsHost) {
       const d = _hostAuthoritativeDrops.get(did) || _roomDropsCache.get(did) || dropFallback;
       if (!d) return;
+      if (typeof _completeNetworkDropPickup === 'function' && !_completeNetworkDropPickup(did, d)) return;
       _hostAuthoritativeDrops.delete(did);
       _roomDropsCache.delete(did);
-      if (typeof _completeNetworkDropPickup === 'function') _completeNetworkDropPickup(did, d);
-      sendCoopMsg({ type: 'drop_remove', dropId: did });
+      broadcastDropRemove(did);
+      return;
+    }
+    // Local uncontested pickup (player broke plant / threw item with no peer nearby) or fallback after missed ACK
+    const localUncontested = isObj && !dropOrId._remote && dropFallback && !_isDropContestedByPeer(dropOrId);
+    const timedOut = isObj && dropFallback && (dropOrId._pickupReqCount >= 3 || (now - dropOrId._pickupReqFirstAt) >= 650);
+    if (localUncontested || timedOut) {
+      if (typeof _completeNetworkDropPickup === 'function' && !_completeNetworkDropPickup(did, dropFallback)) return;
+      _hostAuthoritativeDrops.delete(did);
+      _roomDropsCache.delete(did);
+      broadcastDropRemove(did);
+      return;
+    }
+    if (wsConn && wsConn.readyState === 1 && wsSelfPeerId && _wsJoinedRoomId === activeRoomId) {
+      try { wsConn.send(JSON.stringify({ type: 'drop_pickup_req', dropId: did, drop: dropFallback })); } catch (_) {}
       return;
     }
     sendCoopMsg({ type: 'drop_pickup_req', dropId: did, drop: dropFallback });
@@ -824,8 +846,14 @@
   function broadcastDropRemove(dropIds) {
     if (!activeRoomId || !dropIds) return;
     const ids = Array.isArray(dropIds) ? dropIds : [dropIds];
-    for (const id of ids) { _roomDropsCache.delete(String(id)); _hostAuthoritativeDrops.delete(String(id)); }
-    sendCoopMsg({ type: 'drop_remove', dropIds: ids });
+    for (const rawId of ids) {
+      const id = String(rawId);
+      _roomDropsCache.delete(id);
+      _hostAuthoritativeDrops.delete(id);
+      if (!_dropRemoveQueue.includes(id)) _dropRemoveQueue.push(id);
+    }
+    if (_dropRemoveQueue.length >= 16) { flushDropRemoveBatch(); return; }
+    if (!_dropRemoveTimer) _dropRemoveTimer = setTimeout(flushDropRemoveBatch, 45);
   }
   function broadcastMobSync(dim, list, opts = null) {
     if (!activeRoomId || !isSimAuthority() || !Array.isArray(list)) return;
@@ -955,19 +983,28 @@
     }
     const pkt = { ...obj, _from: localPeerId };
     if (activeCoopTransport === 'p2p' && _canSendP2P(p2pHostConn, isEphemeral)) {
-      try { p2pHostConn.send(pkt); } catch (_) {}
+      try { p2pHostConn.send(pkt); return; } catch (_) {}
     } else if (activeCoopTransport === 'mqtt' && mqttRoomTopic) {
       const now = performance.now();
       if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
         if (obj.type === 'state') _lastMqttStateAt = now;
         ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
       }
+      return;
     } else if (activeCoopTransport === 'ws' && wsConn && wsConn.readyState === 1) {
       if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
         try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
       }
+      return;
     } else if (activeCoopTransport === 'bc' && bcChannel) {
       try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {}
+      return;
+    }
+    // Reliable fallback when primary transport (e.g. P2P DataChannel) drops or backs up
+    if (!isEphemeral) {
+      if (mqttRoomTopic) ncMqtt.publish(mqttRoomTopic, pkt, false, false);
+      else if (wsConn && wsConn.readyState === 1) { try { wsConn.send(JSON.stringify(obj)); } catch (_) {} }
+      else if (bcChannel) { try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {} }
     }
   }
 
@@ -982,7 +1019,12 @@
     const fromId = m._from || senderId;
     if (!fromId || fromId === localPeerId) return;
     if (m._to && m._to !== localPeerId) return;
+    if (m._exclude && m._exclude === localPeerId) return;
     if (p2pIsHost) {
+      if (m.type !== 'leave' && m.type !== 'peer_leave') {
+        if (viaTransport === 'bc') bcRoomPeers.add(fromId);
+        else if (viaTransport === 'mqtt') mqttRoomPeers.add(fromId);
+      }
       if (_getP2PRoomRelays(m)) {
         const isRelEphem = (m.type === 'state');
         const relay = { ...m, _from: fromId, _relayBy: localPeerId };
@@ -1018,7 +1060,8 @@
         const ackPkt = { type: 'drop_pickup_ack', _from: localPeerId, _to: fromId, dropId: did, drop: d };
         if (senderConn && senderConn.open) { try { senderConn.send(ackPkt); } catch (_) {} }
         else if (viaTransport === 'mqtt' && mqttRoomTopic) ncMqtt.publish(mqttRoomTopic, ackPkt);
-        sendCoopMsg({ type: 'drop_remove', dropId: did });
+        else if (viaTransport === 'bc' && bcChannel) { try { bcChannel.postMessage({ ...ackPkt, _room: activeRoomId }); } catch (_) {} }
+        sendCoopMsg({ type: 'drop_remove', dropId: did, _exclude: fromId });
         return;
       } else if (m.type === 'mob_hit' && typeof applyRemoteMobHit === 'function') {
         applyRemoteMobHit(m);
@@ -1043,6 +1086,7 @@
       }
     }
     if (m.type === 'p2p_welcome') {
+      if (!pendingJoinCb && activeRoomId && activeRoomId === (m.roomId || activeRoomId)) return;
       const extra = { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
       if (pendingJoinCb) {
         pendingJoinCb(viaTransport, m.roomId || activeRoomId, m.world, m.mods || [], m.peers || [], m.dayTime, extra);
@@ -1099,11 +1143,14 @@
       appendChatLine(m.name || 'Bạn Chơi', m.text, false);
     } else if (m.type === 'leave' || m.type === 'peer_leave') {
       const byeId = m.peerId || fromId;
-      mqttRoomPeers.delete(byeId);
-      bcRoomPeers.delete(byeId);
-      removeRemotePeer(byeId);
-      if (p2pIsHost && m.type === 'leave') {
-        sendCoopMsg({ type: 'peer_leave', peerId: byeId, name: m.name || '' });
+      if (m.type === 'peer_leave' || viaTransport === 'mqtt') mqttRoomPeers.delete(byeId);
+      if (m.type === 'peer_leave' || viaTransport === 'bc') bcRoomPeers.delete(byeId);
+      const stillActive = (m.type === 'leave') && (bcRoomPeers.has(byeId) || mqttRoomPeers.has(byeId) || Array.from(p2pClientConns.values()).some(c => c && c.open && (c._ncPeerId === byeId || c.peer === byeId)));
+      if (!stillActive) {
+        removeRemotePeer(byeId);
+        if (p2pIsHost && m.type === 'leave') {
+          sendCoopMsg({ type: 'peer_leave', peerId: byeId, name: m.name || '' });
+        }
       }
     }
   }
@@ -1129,6 +1176,9 @@
     _roomDropsCache.clear();
     _dropBatchQueue.length = 0;
     if (_dropBatchTimer) { clearTimeout(_dropBatchTimer); _dropBatchTimer = null; }
+    _dropRemoveQueue.length = 0;
+    if (_dropRemoveTimer) { clearTimeout(_dropRemoveTimer); _dropRemoveTimer = null; }
+    if (typeof clearClaimedDrops === 'function') clearClaimedDrops();
     if (activeRoomId) {
       try { sendCoopMsg({ type: 'leave' }); } catch (_) {}
     }
@@ -1183,6 +1233,7 @@
         ensureRemotePeer(m._from, m.name, '#4ade80');
         showToast(`👥 ${m.name} đã vào phòng ${activeRoomId}!`);
       } else if (m.type === 'bc_join_ack' && m.target === localPeerId) {
+        if (!pendingJoinCb && activeRoomId === m._room) return;
         const peers = [{ peerId: m._from, name: m.hostName, color: '#38bdf8', skinId: m.hostSkinId, state: m.hostState }];
         const extra = { hostId: m._from, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
         if (pendingJoinCb) {
@@ -1299,26 +1350,43 @@
       return;
     }
     if (wsConn && wsConn.readyState === 1) { if (onReady) onReady(true); return; }
+    if (wsConn && wsConn.readyState === 0) {
+      if (onReady) {
+        const prevSock = wsConn;
+        prevSock.addEventListener('open', () => onReady(prevSock === wsConn && prevSock.readyState === 1), { once: true });
+        prevSock.addEventListener('error', () => onReady(false), { once: true });
+      }
+      return;
+    }
     try {
       const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsConn = new WebSocket(`${wsProto}//${location.host}/ws`);
-      wsConn.onopen = () => {
+      const sock = new WebSocket(`${wsProto}//${location.host}/ws`);
+      wsConn = sock;
+      sock.onopen = () => {
+        if (sock !== wsConn || sock.readyState !== 1) return;
         const stEl = document.getElementById('coopServerStatus');
         if (stEl && !activeRoomId) stEl.innerHTML = `🔌 Máy chủ Co-op LAN &amp; Internet: <b style="color:#4ade80;">Đã kết nối (${escHtml(location.host)}) ✓</b>`;
-        wsConn.send(JSON.stringify({ type: 'list_rooms' }));
-        const uid = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || '';
-        if (uid) wsConn.send(JSON.stringify({ type: 'register_uid', uid }));
+        try {
+          sock.send(JSON.stringify({ type: 'list_rooms' }));
+          const uid = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || '';
+          if (uid) sock.send(JSON.stringify({ type: 'register_uid', uid }));
+        } catch (_) {}
         if (onReady) onReady(true);
       };
-      wsConn.onerror = () => {
+      sock.onerror = () => {
+        if (sock !== wsConn) return;
         initBroadcastChannelFallback();
         const stEl = document.getElementById('coopServerStatus');
         if (stEl && !activeRoomId) stEl.innerHTML = '🌐 Chế độ Internet Relay: <b style="color:#4ade80;">Sẵn sàng kết nối xuyên mạng Wi-Fi / 4G ✓</b>';
         if (onReady) onReady(false);
       };
-      wsConn.onmessage = (ev) => {
+      sock.onmessage = (ev) => {
         let msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
         if (msg.type === 'room_joined') {
+          if (!pendingJoinCb && activeRoomId && activeCoopTransport && activeCoopTransport !== 'ws' && activeCoopTransport !== 'host') {
+            if (sock.readyState === 1) { try { sock.send(JSON.stringify({ type: 'leave' })); } catch (_) {} }
+            return;
+          }
           wsSelfPeerId = msg.peerId;
           _wsJoinedRoomId = msg.roomId || '';
           _wsRoomHostId = msg.hostId || (msg.isHost ? msg.peerId : '');
@@ -1365,6 +1433,11 @@
               p2pIsHost = !!(wsSelfPeerId && _wsRoomHostId === wsSelfPeerId);
             }
             const liveIds = new Set(msg.peers.map(p => p && p.peerId).filter(Boolean));
+            for (const c of p2pClientConns.values()) {
+              if (c && c.open) { if (c._ncPeerId) liveIds.add(c._ncPeerId); liveIds.add(c.peer); }
+            }
+            for (const pid of mqttRoomPeers) liveIds.add(pid);
+            for (const pid of bcRoomPeers) liveIds.add(pid);
             for (const [pid, rp] of Array.from(remotePlayers.entries())) {
               if (!rp.isBuddy && !liveIds.has(pid)) removeRemotePeer(pid);
             }
@@ -1406,8 +1479,11 @@
         } else if (msg.type === 'peer_leave') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
-            removeRemotePeer(msg.peerId);
-            showToast(`👋 ${msg.name || 'Người chơi'} đã rời phòng.`);
+            const stillOnOther = bcRoomPeers.has(msg.peerId) || mqttRoomPeers.has(msg.peerId) || Array.from(p2pClientConns.values()).some(c => c && c.open && (c._ncPeerId === msg.peerId || c.peer === msg.peerId));
+            if (!stillOnOther) {
+              removeRemotePeer(msg.peerId);
+              showToast(`👋 ${msg.name || 'Người chơi'} đã rời phòng.`);
+            }
           }
         } else if (msg.type === 'peer_state' && msg.state) {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
@@ -1651,7 +1727,6 @@
       pendingJoinCb = null;
       cleanupTimers();
       if (transport !== 'mqtt' && guestMqttUnsub) {
-        if (remoteStarted) { try { ncMqtt.publish(topic, { type: 'leave', _from: localPeerId, name: localPlayerName }); } catch (_) {} }
         try { guestMqttUnsub(); } catch (_) {}
         guestMqttUnsub = null;
         mqttRoomUnsub = null;
@@ -1661,7 +1736,6 @@
         mqttRoomTopic = topic;
       }
       if (transport !== 'p2p') {
-        if (remoteStarted && p2pHostConn && p2pHostConn.open) { try { p2pHostConn.send({ type: 'leave', _from: localPeerId, name: localPlayerName }); } catch (_) {} }
         destroyP2P();
       }
       if (transport !== 'ws' && wsConn && wsConn.readyState === 1) {
@@ -1697,6 +1771,7 @@
       guestMqttUnsub = ncMqtt.subscribe(topic, (m) => {
         if (!m || m._from === localPeerId || m._relayBy === localPeerId) return;
         if (m._to && m._to !== localPeerId) return;
+    if (m._exclude && m._exclude === localPeerId) return;
         if (m.type === 'p2p_welcome') {
           completeJoinOnce('mqtt', m.roomId || roomId, m.world, m.mods || [], m.peers || [], m.dayTime, { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer });
           return;
@@ -1780,7 +1855,7 @@
 
     // 3) Same-Browser BroadcastChannel & 4) LAN WebSocket (server.js) — prefer fast local WS before MQTT/P2P
     if (bcChannel) bcChannel.postMessage({ type: 'bc_join_req', _from: localPeerId, playerKey: getLocalPlayerSaveKey(), roomId, name: localPlayerName });
-    if (wsConn && wsConn.readyState === 1) {
+    if (bcChannel || (wsConn && (wsConn.readyState === 1 || wsConn.readyState === 0))) {
       window._triggerRemoteJoinNow = startRemoteTransports;
       remoteDelayTimer = setTimeout(startRemoteTransports, 900);
     } else {

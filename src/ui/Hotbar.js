@@ -3508,30 +3508,71 @@
       });
     } catch (_) {}
   }
+  function _buildPreviewRigForMob(m) {
+    if (!m) return null;
+    if (m.elemDragon && typeof instantiateBlenderMob === 'function') {
+      const built = instantiateBlenderMob(m.type);
+      if (built && built.group) {
+        built.group.scale.setScalar(0.84);
+        built.group.position.set(0, 0, 0);
+        return built;
+      }
+    }
+    const sp = (typeof ANIMAL_MAP !== 'undefined') ? ANIMAL_MAP.get(m.type) : null;
+    const opts = m.woolColor && typeof WOOL_COLORS !== 'undefined'
+      ? { woolSpec: WOOL_COLORS.find(w => w.key === m.woolColor) || null }
+      : null;
+    let built = null;
+    if (sp && typeof buildAnimalSpeciesMesh === 'function') built = buildAnimalSpeciesMesh(sp);
+    else if (typeof buildMobMesh === 'function') built = buildMobMesh(m.type, 0, 0, opts);
+    if (!built || !built.group) return null;
+    if (built.flameGroup) built.flameGroup.visible = false;
+    built.group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    if (Array.isArray(built.parts) && built.parts.length > 0) {
+      for (let i = 0; i < built.parts.length; i++) {
+        if (built.parts[i] && (!built.flameGroup || built.parts[i].parent !== built.flameGroup)) {
+          box.expandByObject(built.parts[i]);
+        }
+      }
+    }
+    if (box.isEmpty()) box.setFromObject(built.group);
+    const sz = new THREE.Vector3();
+    box.getSize(sz);
+    const maxDim = Math.max(sz.x, sz.y, sz.z, 0.45);
+    const fitSc = 1.52 / maxDim;
+    built.group.scale.multiplyScalar(fitSc);
+    built.group.position.set(0, Math.max(-0.25, -box.min.y * fitSc + 0.05), 0);
+    return built;
+  }
   function drawDragonPreview() {
     const m = _dragonModalTarget;
     if (!m) return;
     ensureDragonPreview3D();
     if (!_dragonPrevRenderer || !_dragonPrevScene || !_dragonPrevCam) return;
-    if (_dragonPrevType !== m.type || !_dragonPrevRig) {
+    const prevKey = `${m.type}|${m.woolColor || ''}|${m.elemDragon ? (m.dragonStage || 0) : ''}`;
+    if (_dragonPrevType !== prevKey || !_dragonPrevRig) {
       if (_dragonPrevRig) {
         if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.stopAllAction();
         _dragonPrevScene.remove(_dragonPrevRig.group);
         _dragonPrevRig = null;
       }
-      if (typeof instantiateBlenderMob === 'function') {
-        const built = instantiateBlenderMob(m.type);
-        if (built && built.group) {
-          built.group.scale.setScalar(0.84);
-          built.group.position.set(0, 0, 0);
-          _dragonPrevScene.add(built.group);
-          _dragonPrevRig = built;
-          _dragonPrevType = m.type;
-        }
+      const built = _buildPreviewRigForMob(m);
+      if (built && built.group) {
+        _dragonPrevScene.add(built.group);
+        _dragonPrevRig = built;
+        _dragonPrevType = prevKey;
       }
     }
     if (!_dragonPrevRig) return;
-    if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(_dragonPrevRig.anim, m.dragonArmor, !!m.saddled);
+    if (m.elemDragon) {
+      _dragonPrevCam.position.set(0, 1.48, 5.2);
+      _dragonPrevCam.lookAt(0, 0.88, 0);
+      if (typeof _applyDragonArmorToAnim === 'function') _applyDragonArmorToAnim(_dragonPrevRig.anim, m.dragonArmor, !!m.saddled);
+    } else {
+      _dragonPrevCam.position.set(0, 1.05, 3.25);
+      _dragonPrevCam.lookAt(0, 0.62, 0);
+    }
     if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.update(0.001);
     _dragonPrevRig.group.rotation.y = _dragonPrevRotY;
     _dragonPrevRenderer.render(_dragonPrevScene, _dragonPrevCam);
@@ -3546,6 +3587,11 @@
   function _handleDragonEqSlotClick(slotKey) {
     const m = _dragonModalTarget;
     if (!m || m._dead) return;
+    if (!m.elemDragon) {
+      playSfx('equip');
+      showToast(tr('🔒 Thú cưng này không thể trang bị giáp hay yên cưỡi!', '🔒 This pet cannot equip armor or saddle!'));
+      return;
+    }
     if (slotKey === 'saddle') {
       if (!m.saddled) return;
       m.saddled = false;
@@ -3567,6 +3613,29 @@
     if (!m || m._dead) return;
     const s = inventory[idx], def = s && s.count > 0 ? BLOCK_DEF[s.id] : null;
     if (!s || !def) return;
+    if (!m.elemDragon) {
+      if (def.dragonArmorSlot || s.id === B.DRAGON_SADDLE) {
+        playSfx('equip');
+        showToast(tr('🔒 Ô trang bị đã khóa — chỉ Rồng mới mặc được!', '🔒 Equipment slots locked — Dragons only!'));
+        return;
+      }
+      if (def.food) {
+        const locName = (typeof getLocalizedMobName === 'function') ? getLocalizedMobName(m.type, m.displayName) : (m.displayName || 'Pet');
+        if (m.hp >= m.maxHp) {
+          showToast(tr(`💖 ${locName} đã đầy máu rồi!`, `💖 ${locName} is already at full health!`));
+          return;
+        }
+        if (gameMode !== 'creative') { s.count--; if (s.count <= 0) _clearSlotObj(s); }
+        m.hp = Math.min(m.maxHp, m.hp + Math.max(8, (def.heal || 4) * 2));
+        if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof broadcastMobAction === 'function' && m.uid) {
+          broadcastMobAction(m.uid, 'heal', { hp: m.hp });
+        }
+        spawnParticles(m.x, m.y + 0.85, m.z, 0xf43f5e, 10, true);
+        playSfx('eat'); renderHotbar(); renderDragonModal();
+        showToast(tr(`🍖 Đã cho ${locName} ăn (${Math.ceil(m.hp)}/${m.maxHp} HP)!`, `🍖 Fed ${locName} (${Math.ceil(m.hp)}/${m.maxHp} HP)!`));
+      }
+      return;
+    }
     if (def.dragonArmorSlot) {
       const aSlot = def.dragonArmorSlot, aTier = def.dragonArmorTier || 'iron';
       if (!m.dragonArmor || typeof m.dragonArmor !== 'object') m.dragonArmor = {};
@@ -3595,14 +3664,11 @@
   function renderDragonModal() {
     const m = _dragonModalTarget;
     if (!m || !_elDragonModal) return;
-    const locName = (typeof getLocalizedMobName === 'function') ? getLocalizedMobName(m.type, m.displayName) : (m.displayName || 'Rồng');
+    const isDragon = !!m.elemDragon;
+    _elDragonModal.classList.toggle('pet-mode', !isDragon);
+    const locName = (typeof getLocalizedMobName === 'function') ? getLocalizedMobName(m.type, m.displayName) : (m.displayName || (isDragon ? 'Rồng' : 'Thú cưng'));
     if (_elDragonTitle) _elDragonTitle.textContent = locName;
     if (_elDragonSitBtn) _elDragonSitBtn.textContent = m.sitting ? tr('🪑 Ngồi', '🪑 Sit') : tr('🐾 Theo', '🐾 Follow');
-    const stNames = [tr('Sơ Sinh', 'Hatchling'), tr('Rồng Nhỏ', 'Young'), tr('Chiến Đấu', 'Juvenile'), tr('Thiếu Niên', 'Sub-Adult'), tr('Trưởng Thành', 'Adult')];
-    const stg = typeof growthToDragonStage === 'function' ? growthToDragonStage(m.growth || 0) : (m.dragonStage || 0);
-    const armPts = typeof calcDragonArmorPts === 'function' ? calcDragonArmorPts(m) : 0;
-    const sc = m.dragonScale || 1;
-    const flySpd = (17.5 * (1 + Math.max(0, sc - 1) * 0.14)).toFixed(1);
     const elN = document.getElementById('dstatName');
     const elH = document.getElementById('dstatHp');
     const elG = document.getElementById('dstatGender');
@@ -3610,25 +3676,60 @@
     const elD = document.getElementById('dstatDmg');
     const elPct = document.getElementById('dstatGrowthPct');
     const elFill = document.getElementById('dstatGrowthFill');
-    const gPct = Math.max(0, Math.min(100, Number(m.growth) || 0));
-    if (elN) elN.textContent = `${locName} • ${stNames[stg] || stNames[0]} (${Math.round(gPct)}%)`;
-    if (elH) elH.textContent = tr(`Máu: ${Math.ceil(m.hp)} / ${m.maxHp}`, `Health: ${Math.ceil(m.hp)} / ${m.maxHp}`);
-    if (elG) elG.textContent = tr(`Giới tính: ${m.gender === 'F' ? 'Cái ♀' : 'Đực ♂'}`, `Gender: ${m.gender === 'F' ? 'Female ♀' : 'Male ♂'}`);
-    if (elS) elS.textContent = tr(`Tốc độ: Đi 3.6 • Bay ${flySpd}`, `Speed: Walk 3.6 • Fly ${flySpd}`);
-    if (elD) elD.textContent = tr(`Sát thương: ${m.dmg} • Giáp: ${armPts}/20`, `Damage: ${m.dmg} • Armor: ${armPts}/20`);
-    if (elPct) elPct.textContent = `${Math.round(gPct)}%` + (gPct >= 100 ? tr(' (Tối đa)', ' (Max)') : '');
-    if (elFill) elFill.style.width = `${gPct.toFixed(1)}%`;
+    const gLblNode = document.querySelector('#dstatGrowthWrap .dstat-growth-lbl')?.firstChild;
+    if (isDragon) {
+      const stNames = [tr('Sơ Sinh', 'Hatchling'), tr('Rồng Nhỏ', 'Young'), tr('Chiến Đấu', 'Juvenile'), tr('Thiếu Niên', 'Sub-Adult'), tr('Trưởng Thành', 'Adult')];
+      const stg = typeof growthToDragonStage === 'function' ? growthToDragonStage(m.growth || 0) : (m.dragonStage || 0);
+      const armPts = typeof calcDragonArmorPts === 'function' ? calcDragonArmorPts(m) : 0;
+      const sc = m.dragonScale || 1;
+      const flySpd = (17.5 * (1 + Math.max(0, sc - 1) * 0.14)).toFixed(1);
+      const gPct = Math.max(0, Math.min(100, Number(m.growth) || 0));
+      if (elN) elN.textContent = `${locName} • ${stNames[stg] || stNames[0]} (${Math.round(gPct)}%)`;
+      if (elH) elH.textContent = tr(`Máu: ${Math.ceil(m.hp)} / ${m.maxHp}`, `Health: ${Math.ceil(m.hp)} / ${m.maxHp}`);
+      if (elG) elG.textContent = tr(`Giới tính: ${m.gender === 'F' ? 'Cái ♀' : 'Đực ♂'}`, `Gender: ${m.gender === 'F' ? 'Female ♀' : 'Male ♂'}`);
+      if (elS) elS.textContent = tr(`Tốc độ: Đi 3.6 • Bay ${flySpd}`, `Speed: Walk 3.6 • Fly ${flySpd}`);
+      if (elD) elD.textContent = tr(`Sát thương: ${m.dmg} • Giáp: ${armPts}/20`, `Damage: ${m.dmg} • Armor: ${armPts}/20`);
+      if (gLblNode && gLblNode.nodeType === 3) gLblNode.nodeValue = tr('Độ lớn: ', 'Growth: ');
+      if (elPct) elPct.textContent = `${Math.round(gPct)}%` + (gPct >= 100 ? tr(' (Tối đa)', ' (Max)') : '');
+      if (elFill) { elFill.style.width = `${gPct.toFixed(1)}%`; elFill.style.background = ''; }
+    } else {
+      const isDef = (typeof DEFENDER_PETS !== 'undefined' && DEFENDER_PETS.has(m.type));
+      const petRole = isDef ? tr('Thú Cưng Chiến Đấu', 'Combat Pet') : tr('Thú Cưng Đồng Hành', 'Companion Pet');
+      const moveKind = m.flying ? tr('Bay', 'Fly') : (m.aqua ? tr('Bơi', 'Swim') : tr('Chạy', 'Walk'));
+      const petDmg = isDef ? Math.max(4, Number(m.dmg) || 4) : (Number(m.dmg) || 0);
+      const hpPct = m.maxHp > 0 ? Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100)) : 100;
+      if (elN) elN.textContent = `${locName} • ${petRole}`;
+      if (elH) elH.textContent = tr(`Máu: ${Math.ceil(m.hp)} / ${m.maxHp}`, `Health: ${Math.ceil(m.hp)} / ${m.maxHp}`);
+      if (elG) elG.textContent = tr(`Trạng thái: ${m.sitting ? 'Đang ngồi nghỉ 🪑' : 'Đang đi theo 🐾'}`, `State: ${m.sitting ? 'Sitting 🪑' : 'Following 🐾'}`);
+      if (elS) elS.textContent = tr(`Tốc độ: ${(Number(m.speed) || 2.8).toFixed(1)} (${moveKind})`, `Speed: ${(Number(m.speed) || 2.8).toFixed(1)} (${moveKind})`);
+      if (elD) elD.textContent = tr(`Sát thương: ${petDmg} • Trang bị: Đã khóa 🔒`, `Damage: ${petDmg} • Gear: Locked 🔒`);
+      if (gLblNode && gLblNode.nodeType === 3) gLblNode.nodeValue = tr('Sinh lực: ', 'Health: ');
+      if (elPct) elPct.textContent = `${Math.ceil(m.hp)}/${m.maxHp} (${Math.round(hpPct)}%)`;
+      if (elFill) { elFill.style.width = `${hpPct.toFixed(1)}%`; elFill.style.background = 'linear-gradient(90deg, #e11d48, #fb7185)'; }
+    }
     if (!_dragonEqSlotEls) {
       _dragonEqSlotEls = Array.from(_elDragonModal.querySelectorAll('.dragon-eq-slot'));
       for (const el of _dragonEqSlotEls) {
+        const gEl = el.querySelector('.deq-ghost');
+        el.dataset.origLabel = gEl ? gEl.textContent : '';
         el.addEventListener('click', () => _handleDragonEqSlotClick(el.dataset.deq));
       }
     }
     for (const el of _dragonEqSlotEls) {
       const sk = el.dataset.deq;
+      const ghost = el.querySelector('.deq-ghost'), cv = el.querySelector('canvas');
+      if (!isDragon) {
+        el.classList.add('locked');
+        el.classList.remove('equipped');
+        if (ghost) { ghost.style.display = ''; ghost.textContent = '🔒'; }
+        if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+        el.title = tr('🔒 Ô trang bị đã khóa (chỉ dùng cho Rồng)', '🔒 Equipment slot locked (Dragons only)');
+        continue;
+      }
+      el.classList.remove('locked');
+      if (ghost && el.dataset.origLabel !== undefined) ghost.textContent = el.dataset.origLabel;
       const itemId = (sk === 'saddle') ? (m.saddled ? B.DRAGON_SADDLE : 0) : _getDragonItemId(sk, m.dragonArmor && m.dragonArmor[sk]);
       el.classList.toggle('equipped', itemId > 0);
-      const ghost = el.querySelector('.deq-ghost'), cv = el.querySelector('canvas');
       if (ghost) ghost.style.display = itemId > 0 ? 'none' : '';
       if (cv) {
         const ctx = cv.getContext('2d');
@@ -3651,7 +3752,7 @@
     }
   }
   function openDragonModal(m) {
-    if (!m || m._dead || !m.tamed || !m.elemDragon || !_elDragonModal) return;
+    if (!m || m._dead || !m.tamed || !_elDragonModal) return;
     _dragonModalTarget = m;
     isPlaying = false; mining.active = false; clearMoveKeys(); resetInvDragState();
     playSfx('ui_open');
@@ -3675,8 +3776,18 @@
   if (_elDragonSitBtn) {
     _elDragonSitBtn.addEventListener('click', () => {
       const m = _dragonModalTarget;
-      if (!m || m._dead || typeof feedOrInteractTamedDragon !== 'function') return;
-      feedOrInteractTamedDragon(m, null, null, true, false);
+      if (!m || m._dead) return;
+      if (m.elemDragon) {
+        if (typeof feedOrInteractTamedDragon === 'function') feedOrInteractTamedDragon(m, null, null, true, false);
+      } else {
+        m.sitting = !m.sitting;
+        if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof broadcastMobAction === 'function' && m.uid) {
+          broadcastMobAction(m.uid, 'sit', { sitting: m.sitting });
+        }
+        if (typeof spawnParticles === 'function') spawnParticles(m.x, m.y + 0.8, m.z, m.sitting ? 0x38bdf8 : 0x4ade80, 10, true);
+        playSfx('equip');
+        showToast(m.sitting ? tr(`🐾 ${m.displayName} đang ngồi chờ tại chỗ.`, `🐾 ${m.displayName} is now sitting.`) : tr(`🐾 ${m.displayName} đang chạy theo bạn!`, `🐾 ${m.displayName} is now following!`));
+      }
       renderDragonModal();
     });
   }

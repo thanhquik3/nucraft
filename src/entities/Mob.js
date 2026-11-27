@@ -4360,12 +4360,12 @@
     gargoyle:        { hostile: true,  hp: 34, speed: 3.65, r: 0.80, h: 1.65, dmg: 5.0, noSunBurn: true, flying: true, displayName: 'Quỷ Đá Cao Ốc Gargoyle' },
     villager:        { hostile: false, hp: 20, speed: 1.35, r: 0.48, h: 1.95, villager: true },
     iron_golem:      { hostile: false, neutral: true, hp: 100, speed: 1.75, r: 0.90, h: 2.65, dmg: 14, guardian: true },
-    wolf:            { hostile: false, neutral: true, hp: 14, speed: 2.85, r: 0.48, h: 0.85, dmg: 3 },
-    pig:             { hostile: false, hp: 10, speed: 1.35, r: 0.55, h: 0.9 },
-    cow:             { hostile: false, hp: 10, speed: 1.25, r: 0.65, h: 1.3 },
-    sheep:           { hostile: false, hp: 8,  speed: 1.30, r: 0.55, h: 1.1 },
-    chicken:         { hostile: false, hp: 5,  speed: 1.50, r: 0.40, h: 0.7 },
-    fox:             { hostile: false, hp: 10, speed: 1.85, r: 0.45, h: 0.7 }
+    wolf:            { hostile: false, neutral: true, hp: 14, speed: 2.85, r: 0.48, h: 0.85, dmg: 3, displayName: 'Sói Rừng' },
+    pig:             { hostile: false, hp: 10, speed: 1.35, r: 0.55, h: 0.9, displayName: 'Lợn' },
+    cow:             { hostile: false, hp: 10, speed: 1.25, r: 0.65, h: 1.3, displayName: 'Bò' },
+    sheep:           { hostile: false, hp: 8,  speed: 1.30, r: 0.55, h: 1.1, displayName: 'Cừu' },
+    chicken:         { hostile: false, hp: 5,  speed: 1.50, r: 0.40, h: 0.7, displayName: 'Gà' },
+    fox:             { hostile: false, hp: 10, speed: 1.85, r: 0.45, h: 0.7, displayName: 'Cáo Đỏ' }
   };
 
   function disposeMobInstance(m) {
@@ -4710,6 +4710,19 @@
     return best;
   }
 
+  function findNearestTamedPet(maxD = 9.0) {
+    const drg = findNearestTamedDragon(Math.max(maxD, 10.5));
+    if (drg) return drg;
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < mobs.length; i++) {
+      const mb = mobs[i];
+      if (!mb || mb._dead || !mb.tamed || mb.elemDragon) continue;
+      const d = Math.hypot(mb.x - player.x, mb.y + Math.min(1.5, (mb.hitboxH || 0.9) * 0.4) - player.y, mb.z - player.z);
+      if (d < maxD && d < bestD) { bestD = d; best = mb; }
+    }
+    return best;
+  }
+
   function mountDragon(m) {
     if (!m || m._dead || !m.tamed || !m.elemDragon || !m.saddled || (m.growth || 0) < 100) return false;
     player.ridingDragon = m;
@@ -5018,6 +5031,9 @@
       const gSit = _getDragonGroundSurfaceY(m.x, m.y + 3.0, m.z, m.dragonScale);
       if (m.y < gSit) m.y = gSit;
     }
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof broadcastMobAction === 'function' && m.uid) {
+      broadcastMobAction(m.uid, 'sit', { sitting: m.sitting });
+    }
     spawnParticles(m.x, m.y + 0.9, m.z, m.sitting ? 0x38bdf8 : 0x4ade80, 12, true);
     playSfx('equip');
     showDragonGrowthHud(m, 3.2);
@@ -5049,7 +5065,7 @@
       _elDragonFlight.classList.toggle('visible', riding);
     }
     const nearSaddled = (!riding && isPlaying && !player.dead) ? findNearestSaddledDragon(9.0) : null;
-    const nearTamed = (!riding && isPlaying && !player.dead) ? findNearestTamedDragon(10.5) : null;
+    const nearTamed = (!riding && isPlaying && !player.dead) ? findNearestTamedPet(9.0) : null;
     const wantMountBtn = !!nearSaddled;
     const wantEquipBtn = !!nearTamed;
     if (_elDragonMount && (wantMountBtn !== _lastMountBtnVis || _elDragonMount.classList.contains('visible') !== wantMountBtn)) {
@@ -5072,6 +5088,8 @@
       _elDragonMount._targetDragon = nearSaddled;
     }
     if (_elDragonEquip && nearTamed) {
+      const wantEqLbl = nearTamed.elemDragon ? tr('🛡️ Trang Bị Rồng', '🛡️ Dragon Gear') : tr('🐾 Thông Tin Pet', '🐾 Pet Info');
+      if (_elDragonEquip.textContent !== wantEqLbl) _elDragonEquip.textContent = wantEqLbl;
       _elDragonEquip._targetDragon = nearTamed;
     }
     if (_dragonGrowthUiTimer > 0) {
@@ -5092,7 +5110,7 @@
     if (eqBtn) {
       const doOpenEq = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        const tgt = eqBtn._targetDragon || findNearestTamedDragon(10.5);
+        const tgt = eqBtn._targetDragon || findNearestTamedPet(9.0);
         if (tgt && typeof openDragonModal === 'function') openDragonModal(tgt);
       };
       eqBtn.addEventListener('touchstart', doOpenEq, { passive: false });
@@ -6124,9 +6142,10 @@
         const pd2 = (m.x - rp.x) * (m.x - rp.x) + (m.z - rp.z) * (m.z - rp.z);
         if (pd2 < minD2) minD2 = pd2;
       }
-      cands.push({ m, minD2 });
+      const prio = (m.tamed || m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : 1;
+      cands.push({ m, prio, minD2 });
     }
-    if (cands.length > 100) cands.sort((a, b) => a.minD2 - b.minD2);
+    if (cands.length > 100) cands.sort((a, b) => (a.prio - b.prio) || (a.minD2 - b.minD2));
     const lim = Math.min(100, cands.length);
     const seenNow = full ? new Set() : null;
     const out = [];
@@ -6144,6 +6163,7 @@
       const ak = q2(m.atkAnimT || 0), hf = q2(m.hurtFlash || 0);
       const sd = m.saddled ? 1 : 0;
       const ds = (m.elemDragon && m.dragonStage !== undefined && m.dragonStage !== 4) ? m.dragonStage : 4;
+      const ow = (m.tamed && m.ownerPeerId) ? String(m.ownerPeerId) : '';
       const moving = (Math.abs(vx) >= 0.04 || Math.abs(vy) >= 0.04 || Math.abs(vz) >= 0.04);
 
       if (!full) {
@@ -6154,12 +6174,12 @@
           const changed = Math.abs(x - prev.x) > 0.02 || Math.abs(ty - prev.ty) > 0.02 || Math.abs(z - prev.z) > 0.02
             || Math.abs(dYw) > 0.03 || (prev.moving && !moving) || moving
             || prev.hp !== hp || prev.br !== br || prev.tm !== tm || prev.st !== st || prev.fl !== fl
-            || prev.og !== og || prev.sd !== sd || prev.ds !== ds
+            || prev.og !== og || prev.sd !== sd || prev.ds !== ds || prev.ow !== ow
             || (ak > 0 && prev.ak !== ak) || (hf > 0 && prev.hf !== hf) || (prev.ak > 0 && ak === 0) || (prev.hf > 0 && hf === 0);
           if (!changed) continue;
         }
       }
-      _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ak, hf, moving });
+      _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ow, ak, hf, moving });
       const item = { uid: m.uid, t: m.type, x, ty, z, yw, hp };
       const baseHp = MOB_STATS[m.type] ? MOB_STATS[m.type].hp : 0;
       if (m.maxHp && m.maxHp !== baseHp) item.mh = m.maxHp;
@@ -6172,6 +6192,7 @@
       if (tm) item.tm = 1;
       if (st) item.st = 1;
       if (fl) item.fl = 1;
+      if (ow) item.ow = ow;
       if (m.woolColor) item.wc = m.woolColor;
       if (m.villagerProf) item.vp = m.villagerProf.idx;
       if (ak > 0) item.ak = ak;
@@ -6224,9 +6245,10 @@
         const opts = { uid: it.uid };
         if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
         if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
-        if (it.tm) { opts.tamed = true; opts.dragonStage = it.ds !== undefined ? it.ds : 4; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
+        if (it.tm) { opts.tamed = true; opts.ownerPeerId = it.ow || ''; opts.dragonStage = it.ds !== undefined ? it.ds : 4; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
         m = spawnMobOfType(it.t, it.x, wy, it.z, opts);
         if (m) {
+          if (m.tamed) _attachPetNameTag(m);
           m.yaw = yawIn; m.ryaw = yawIn;
           m.rx = it.x; m.ry = wy; m.rz = it.z;
           m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
@@ -6254,9 +6276,16 @@
         if (typeof it.hp === 'number') m.hp = it.hp;
         if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
         m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
+        if (m.tamed) m.hostile = false;
+        if (it.ow) m.ownerPeerId = String(it.ow);
         m.onGround = (it.og !== 0);
         m._flyPitch = fpIn;
         m.vy = vyIn;
+        if (m.tamed && !m.elemDragon && !m.petTag && m.group) {
+          const petTag = makeNameTagSprite(`♥ ${m.displayName}`, '#f472b6');
+          petTag.position.set(0, m.hitboxH + 0.65, 0);
+          m.group.add(petTag); m.petTag = petTag;
+        }
         if (m.elemDragon) {
           m.saddled = !!it.sd;
           m.dragonArmor = it.da ? { ...it.da } : null;
@@ -6383,11 +6412,41 @@
     hurtMob(m, Number(msg.dmg) || 1, Number(msg.kx) || 0, Number(msg.kz) || 0, Number(msg.ky) || 4.2, !!msg.isFire, true, { _fromAuth: true });
   }
 
+  function _attachPetNameTag(m) {
+    if (!m || m.elemDragon || m.petTag || !m.group || typeof makeNameTagSprite !== 'function') return;
+    const petTag = makeNameTagSprite(`♥ ${m.displayName}`, '#f472b6');
+    petTag.position.set(0, m.hitboxH + 0.65, 0);
+    m.group.add(petTag); m.petTag = petTag;
+  }
+  function _getPetOwnerTarget(m) {
+    if (m && m.ownerPeerId && typeof localPeerId !== 'undefined' && m.ownerPeerId !== localPeerId && typeof remotePlayers !== 'undefined' && remotePlayers) {
+      const rp = remotePlayers.get(m.ownerPeerId);
+      if (rp && !rp.isBuddy && (rp.dim || 'overworld') === currentDimension) {
+        return { x: rp.x, y: rp.y, z: rp.z, dead: false, onGround: true };
+      }
+    }
+    return player;
+  }
   function applyRemoteMobAction(msg) {
     if (!msg || !msg.uid) return;
     const m = mobs.find(mb => mb && !mb._dead && mb.uid === msg.uid);
     if (!m) return;
-    if (msg.action === 'sit' && msg.payload) m.sitting = !!msg.payload.sitting;
+    const p = msg.payload || {};
+    if (msg.action === 'sit') {
+      m.sitting = !!p.sitting;
+      spawnParticles(m.x, m.y + 0.8, m.z, m.sitting ? 0x38bdf8 : 0x4ade80, 10, true);
+    } else if (msg.action === 'tame') {
+      m.tamed = true; m.hostile = false; m.sitting = false; m.provoked = 0;
+      if (p.ownerPeerId) m.ownerPeerId = String(p.ownerPeerId);
+      if (typeof p.maxHp === 'number' && p.maxHp > m.maxHp) m.maxHp = p.maxHp;
+      m.hp = m.maxHp;
+      _attachPetNameTag(m);
+      spawnParticles(m.x, m.y + 0.85, m.z, 0xf472b6, 14, true);
+    } else if (msg.action === 'heal') {
+      m.hp = Math.min(m.maxHp, Number(p.hp) || m.maxHp);
+      spawnParticles(m.x, m.y + 0.85, m.z, 0xf43f5e, 10, true);
+    }
+    _mobNetLastSent.delete(m.uid);
   }
 
   function applyRemoteMobRemove(uid) {
@@ -7539,7 +7598,7 @@
       // Lithium: distance & visibility-tiered tick scaling; guests & near-peer mobs tick every frame for silky smoothness!
       const _isDrgTick = IS_DRAGON_MOB.has(m.type) || player.ridingDragon === m;
       const _effLitDist = _mobSimAuth ? minPeerD : dist;
-      const _forceFullTick = (!_mobSimAuth && (isMobVis || dist < 64)) || (_mobSimAuth && !!activeRoomId && minPeerD < 40);
+      const _forceFullTick = m.tamed || (!_mobSimAuth && (isMobVis || dist < 64)) || (_mobSimAuth && !!activeRoomId && minPeerD < 40);
       const _litStep = (!_forceFullTick && !m.isBoss && !_isDrgTick)
         ? ((_effLitDist > (renderDistance * CHUNK_W + 12) || (sodiumOpts.lithiumAi && !isMobVis && _effLitDist > 10))
             ? 4
@@ -7746,8 +7805,9 @@
       } else {
       const _simPrevX = m.x, _simPrevY = m.y, _simPrevZ = m.z;
       if (m.tamed && m.sitting && !m.elemDragon) {
+        const petOwner = _getPetOwnerTarget(m);
         speed = 0;
-        m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
+        m.yaw = Math.atan2(petOwner.x - m.x, petOwner.z - m.z);
       } else if (m.type === 'cave_warden') {
         if (m.atkCd > 0) m.atkCd -= dt;
         if (m._sonicCd > 0) m._sonicCd -= dt;
@@ -7927,16 +7987,19 @@
           }
         }
       } else if (m.tamed && !m.elemDragon) {
-        // Loyal Tamed Companion AI (smooth follow + gentle teleport if >24m behind!)
-        if (dist > 24 && !player.dead && player.onGround) {
-          m.x = player.x + (Math.random() - 0.5) * 3.0; m.y = player.y + 0.5; m.z = player.z + (Math.random() - 0.5) * 3.0;
+        // Loyal Tamed Companion AI (follows actual owner peer smoothly in co-op, zero overshoot on teleport!)
+        const petOwner = _getPetOwnerTarget(m);
+        const ownerDist = Math.hypot(petOwner.x - m.x, petOwner.z - m.z);
+        if (ownerDist > 24 && !petOwner.dead && petOwner.onGround) {
+          m.x = petOwner.x + (Math.random() - 0.5) * 3.0; m.y = petOwner.y + 0.5; m.z = petOwner.z + (Math.random() - 0.5) * 3.0;
           m.rx = m.x; m.ry = m.y; m.rz = m.z;
-        } else if (dist > 3.2) {
-          m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
-          speed = dist > 8.0 ? m.speed * 1.35 : m.speed * 1.05;
+          m.svx = 0; m.svz = 0; m._netVx = 0; m._netVy = 0; m._netVz = 0;
+        } else if (ownerDist > 3.2) {
+          m.yaw = Math.atan2(petOwner.x - m.x, petOwner.z - m.z);
+          speed = ownerDist > 8.0 ? m.speed * 1.35 : m.speed * 1.05;
         } else {
           speed = 0;
-          m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
+          m.yaw = Math.atan2(petOwner.x - m.x, petOwner.z - m.z);
         }
       } else if (m.aqua) {
         const _aquaFitsInWater = (qx, qy, qz, qr, qh) => {
@@ -9821,8 +9884,10 @@
       }
     }
     if (_mobSimAuth && activeRoomId && typeof broadcastMobSync === 'function') {
-      let hasNetPeer = false;
-      if (typeof remotePlayers !== 'undefined' && remotePlayers) {
+      let hasNetPeer = ((typeof bcRoomPeers !== 'undefined' && bcRoomPeers.size > 0)
+        || (typeof mqttRoomPeers !== 'undefined' && mqttRoomPeers.size > 0)
+        || (typeof p2pClientConns !== 'undefined' && p2pClientConns.size > 0));
+      if (!hasNetPeer && typeof remotePlayers !== 'undefined' && remotePlayers) {
         for (const rp of remotePlayers.values()) {
           if (rp && !rp.isBuddy) { hasNetPeer = true; break; }
         }
