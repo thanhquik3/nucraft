@@ -548,13 +548,10 @@
           return baseC;
         }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        // Reference-calibrated terrain albedo: warm orange-brown soil + crisp emerald-teal grass
+        // True original terrain block colors (preserve green grass, warm soil, autumn podzol & blue grass natively)
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
         float greenDom = max(0.0, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
         float orangeDom = max(0.0, diffuseColor.r - diffuseColor.b) * smoothstep(0.14, 0.58, diffuseColor.g) * step(diffuseColor.g, diffuseColor.r);
-        if (uCartoonMode < 0.5 && greenDom > 0.02) {
-          diffuseColor.rgb += vec3(-0.025, 0.020, 0.048) * greenDom;
-        }
         if (uEclipseMode > 0.5 && vWNorm.y > 0.9 && (greenDom > 0.03 || orangeDom > 0.08)) {
           float gDistFade = smoothstep(-30.0, 25.0, length(vWPos - cameraPosition));
           float inGrassRad = smoothstep(uGrassRadius, uGrassRadius * 0.58, length(vWPos.xz - uPlayerPos.xz));
@@ -787,14 +784,9 @@
           vec3 cLeaf = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.05));
           diffuseColor.rgb = clamp(mix(vec3(lAvg), cLeaf, 1.25) * 1.07, 0.0, 1.0);
         } else {
-          float isWarmLeaf = smoothstep(0.06, 0.22, diffuseColor.r - diffuseColor.g);
-          float isBlueLeaf = smoothstep(0.08, 0.24, diffuseColor.b - max(diffuseColor.r, diffuseColor.g));
           float lLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-          vec3 natLeaf = mix(vec3(lLum), diffuseColor.rgb, mix(0.96, 1.04, isBlueLeaf));
-          float gDom = max(0.0, natLeaf.g - max(natLeaf.r, natLeaf.b)) * (1.0 - isBlueLeaf) * (1.0 - isWarmLeaf);
-          natLeaf += vec3(gDom * 0.02, 0.0, -gDom * 0.02);
-          natLeaf = mix(natLeaf, natLeaf * vec3(0.90, 0.96, 1.08), isBlueLeaf * 0.65);
-          diffuseColor.rgb = clamp(natLeaf * mix(0.88, 0.96, max(isWarmLeaf, isBlueLeaf)), 0.0, 1.0);
+          vec3 natLeaf = mix(vec3(lLum), diffuseColor.rgb, 1.00);
+          diffuseColor.rgb = clamp(natLeaf * 0.94, 0.0, 1.0);
         }`)
       .replace('#include <opaque_fragment>', `
         vec3 vDirL = normalize(vWPos - cameraPosition);
@@ -823,16 +815,15 @@
         float normalCanopy = mix(0.64, 1.02, smoothstep(0.08, 0.92, canopyWrap));
         outgoingLight *= mix(mix(0.46, normalCanopy, sUp), mix(0.62, mix(0.90, 1.04, toonLeafWrap), sUp), step(0.5, uCartoonMode));
         outgoingLight *= mix(vec3(1.0), clamp(rtShL * 1.12 + vec3(0.38), 0.42, 1.0), rtFadeL * 0.80);
-        vec3 leafShBase = mix(vec3(0.80, 0.89, 1.06), mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55)), step(0.5, uCartoonMode));
-        outgoingLight = mix(outgoingLight, outgoingLight * leafShBase, (1.0 - canopyWrap) * mix(0.22, 0.10, step(0.5, uCartoonMode)) * sUp);
-        float isBlueRim = smoothstep(0.08, 0.24, diffuseColor.b - max(diffuseColor.r, diffuseColor.g)) * (1.0 - step(0.5, uCartoonMode));
-        float leafRim = pow(1.0 - abs(dot(nDirL, vDirL)), 2.2) * (0.06 + 0.18 * isBlueRim) * canopyWrap * sUp;
+        vec3 leafShBase = mix(vec3(0.84, 0.91, 1.03), mix(vec3(0.94, 0.97, 1.04), vec3(0.90, 0.93, 1.04), max(uChillMode, uEclipseMode * 0.55)), step(0.5, uCartoonMode));
+        outgoingLight = mix(outgoingLight, outgoingLight * leafShBase, (1.0 - canopyWrap) * mix(0.18, 0.10, step(0.5, uCartoonMode)) * sUp);
+        float leafRim = pow(1.0 - abs(dot(nDirL, vDirL)), 2.2) * 0.08 * canopyWrap * sUp * (1.0 - step(0.5, uCartoonMode));
         float sUpG = sUp * clamp(uSurfaceLight, 0.0, 1.0) * mix(1.0, 0.30 + 0.70 * rtShLumL, rtFadeL);
         float leafLuma = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
         float leafLightGain = mix(1.58, 0.58, smoothstep(0.10, 0.65, leafLuma) * sUpG);
         float chillLeafSss = mix(isUltraL ? 0.18 : 0.12, isUltraL ? 0.26 : 0.19, uChillMode) + uDlssMode * 0.08 + uEclipseMode * 0.10 + rtFadeL * 0.34;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * leafLightGain;
-        vec3 leafSunBal = mix(uSunColor, mix(vec3(1.04, 1.02, 0.86), vec3(0.76, 0.90, 1.15), isBlueRim), mix(0.42, 0.72, max(uCartoonMode, rtFadeL * 0.90)));
+        vec3 leafSunBal = mix(uSunColor, vec3(1.02, 0.99, 0.92), mix(0.42, 0.72, max(uCartoonMode, rtFadeL * 0.90)));
         vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * mix(0.064 + 0.015 * uEclipseMode, 0.13, uCartoonMode);
         float crownGlow = pow(canopyWrap, 2.4) * mix(0.06, 0.0, step(0.5, uCartoonMode));
         outgoingLight += diffuseColor.rgb * (canopyAmb + vec3(0.045 * rtFadeL)) * sUpG + diffuseColor.rgb * leafSunBal * (sssFwd * (chillLeafSss + mix(0.06, 0.0, step(0.5, uCartoonMode))) + sssBroad * mix(0.04, 0.10, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95))) + crownGlow + leafRim) * sUpG + leafSunBal * (uRainWetness * 0.04 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
@@ -938,13 +929,11 @@
           diffuseColor.rgb *= vSkyShade * mix(rootShadeC, mix(0.96, 1.06, dayPlant), smoothstep(0.0, 0.84, vPlantTip));
         } else {
           float pL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-          vec3 pCol = mix(vec3(pL), diffuseColor.rgb, 1.02);
-          float gDomP = max(0.0, pCol.g - max(pCol.r, pCol.b));
-          pCol += vec3(-gDomP * 0.06, gDomP * 0.04, gDomP * 0.15) * (1.0 - isGoldCrop * 0.85);
+          vec3 pCol = mix(vec3(pL), diffuseColor.rgb, 1.00);
           pCol = clamp(pCol * 0.94, 0.0, 1.0);
           float tipBand = smoothstep(0.35, 1.0, vPlantTip);
           float rootShadeN = mix(0.56, 0.84, isGoldCrop * 0.75);
-          vec3 tipTint = mix(vec3(1.0), vec3(1.02, 1.04, 0.98), tipBand * dayPlant * (1.0 - isGoldCrop * 0.5));
+          vec3 tipTint = mix(vec3(1.0), vec3(1.03, 1.02, 0.94), tipBand * dayPlant * (1.0 - isGoldCrop * 0.5));
           diffuseColor.rgb = pCol * tipTint * vSkyShade * mix(rootShadeN, mix(0.94, 1.04, dayPlant), smoothstep(0.0, 0.82, vPlantTip));
         }`)
       .replace('#include <opaque_fragment>', `
@@ -4474,9 +4463,9 @@
           }
         }
         float warmAmt = smoothstep(0.08, 0.34, vCol.r - vCol.g);
-        vec3 rootMul = mix(vec3(0.32, 0.52, 0.42), vec3(0.68, 0.48, 0.24), warmAmt);
-        vec3 midMul  = mix(vec3(0.84, 1.00, 0.94), vec3(1.00, 0.92, 0.80), warmAmt);
-        vec3 tipMul  = mix(vec3(0.94, 1.06, 0.98), vec3(1.08, 1.00, 0.86), warmAmt);
+        vec3 rootMul = mix(vec3(0.42, 0.48, 0.34), vec3(0.68, 0.48, 0.24), warmAmt);
+        vec3 midMul  = mix(vec3(0.90, 0.94, 0.86), vec3(1.00, 0.92, 0.80), warmAmt);
+        vec3 tipMul  = mix(vec3(1.02, 1.05, 0.94), vec3(1.08, 1.00, 0.86), warmAmt);
         vec3 grad = vBladeH < 0.45 ? mix(rootMul, midMul, vBladeH / 0.45) : mix(midMul, tipMul, (vBladeH - 0.45) / 0.55);
         float spine = 1.0 - abs(vSide) * 0.20;
         vec3 albedo = vCol * grad * spine;
