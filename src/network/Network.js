@@ -1639,6 +1639,7 @@
       if (btnSave) { btnSave.disabled = false; btnSave.textContent = 'Lưu UID cố định'; btnSave.style.opacity = '1'; }
     }
     syncAccountBadgeUI();
+    if (typeof syncAllPlayerAvatarFaces === 'function') syncAllPlayerAvatarFaces();
     switchProfileModalTab(initialTab === 'auth' ? 'auth' : 'uid');
     modal.classList.remove('hidden');
   }
@@ -1782,7 +1783,7 @@
   }
   function collectAccountSnapshot(username, compactForCloud = true) {
     let customSkins = [];
-    try { customSkins = JSON.parse(localStorage.getItem('luanti_custom_skins_v1') || '[]'); } catch (_) {}
+    try { customSkins = JSON.parse(localStorage.getItem('nucraft_custom_skins_v1') || '[]'); } catch (_) {}
     let worlds = (typeof getSavedWorldsList === 'function') ? getSavedWorldsList() : [];
     const trimWorlds = (arr, dropThumbs, maxMods) => arr.slice(0, 8).map(w => {
       const c = { ...w };
@@ -1858,10 +1859,24 @@
     const btnGo = document.getElementById('btnProfileGoAuth');
     const btnSync = document.getElementById('btnProfileSyncNow');
     const btnOut = document.getElementById('btnProfileLogout');
+    const sideName = document.getElementById('profSideName');
+    const pill = document.getElementById('profHeadStatusPill');
+    const statEl = document.getElementById('profStatCounts');
     let savedMeta = null;
     try { savedMeta = JSON.parse(localStorage.getItem(ACC_ACTIVE_KEY) || 'null'); } catch (_) {}
     const uName = _activeAccSession?.username || savedMeta?.username || '';
     const hasSession = !!(_activeAccSession && _activeAccSession.aesKey);
+    const dispUid = uName || getLockedPlayerUid() || (typeof localPlayerName !== 'undefined' && localPlayerName) || 'Người chơi';
+    if (sideName) sideName.textContent = uName ? `@${uName}` : dispUid;
+    if (pill) {
+      pill.textContent = hasSession ? '🟢 Đã đồng bộ đám mây' : (uName ? '🟡 Đã lưu phiên' : '⚪ Chưa đồng bộ');
+      pill.style.color = hasSession ? '#4ade80' : '#fde047';
+    }
+    if (statEl) {
+      const wCnt = (typeof getSavedWorldsList === 'function') ? getSavedWorldsList().length : 0;
+      const fCnt = loadFriendsList().length;
+      statEl.textContent = `${wCnt} map · ${fCnt} bạn`;
+    }
     if (badge) {
       badge.textContent = uName ? (hasSession ? `🟢 Đã đăng nhập: @${uName}` : `🟡 Đã lưu phiên: @${uName} (nhập MK để đồng bộ)`) : 'Chưa đăng nhập tài khoản đồng bộ';
       badge.style.color = hasSession ? '#4ade80' : '#facc15';
@@ -1875,6 +1890,7 @@
     if (btnGo) btnGo.textContent = uName ? '🔐 Đổi tài khoản' : '🔐 Đăng nhập / Tạo acc';
     if (btnSync) btnSync.classList.toggle('hidden', !hasSession);
     if (btnOut) btnOut.classList.toggle('hidden', !uName);
+    if (typeof syncAllPlayerAvatarFaces === 'function') syncAllPlayerAvatarFaces();
   }
   async function nucraftRegisterAccount(username, password, confirmPassword) {
     if (String(password) !== String(confirmPassword)) {

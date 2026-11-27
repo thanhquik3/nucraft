@@ -768,11 +768,12 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
-  // Zero-GC Rust WebAssembly acceleration core (ABI v2: cave density, emitter light, wind/shadow snap, particles, culling)
-  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0 };
+  // Zero-GC Rust WebAssembly acceleration core (ABI v3: cave density, emitter light, wind/shadow snap, particles, culling, atlas/bump)
+  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0, atlasCalls: 0 };
   if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
   let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
   let _nwFrameOut = null, _nwPartBuf = null, _nwSphIn = null, _nwSphOut = null;
+  let _nwAtlasRgba = null, _nwAtlasBump = null, _nwTileModes = null;
   function _syncWasmViews() {
     if (!_nwExports) return;
     const buf = _nwExports.memory.buffer;
@@ -785,6 +786,9 @@
     if (_nwExports.particle_buf_ptr) _nwPartBuf = new Float32Array(buf, _nwExports.particle_buf_ptr(), 512 * 8);
     if (_nwExports.sphere_in_ptr) _nwSphIn = new Float32Array(buf, _nwExports.sphere_in_ptr(), 256 * 4);
     if (_nwExports.sphere_out_ptr) _nwSphOut = new Uint8Array(buf, _nwExports.sphere_out_ptr(), 256);
+    if (_nwExports.atlas_rgba_ptr) _nwAtlasRgba = new Uint8Array(buf, _nwExports.atlas_rgba_ptr(), 1048576);
+    if (_nwExports.atlas_bump_ptr) _nwAtlasBump = new Uint8Array(buf, _nwExports.atlas_bump_ptr(), 1048576);
+    if (_nwExports.tile_mode_ptr) _nwTileModes = new Uint8Array(buf, _nwExports.tile_mode_ptr(), 1024);
   }
   if (typeof window !== 'undefined') {
     window._getNucraftWasmCore = () => {
@@ -796,6 +800,9 @@
         particleBuf: _nwPartBuf,
         sphereIn: _nwSphIn,
         sphereOut: _nwSphOut,
+        atlasRgba: _nwAtlasRgba,
+        atlasBump: _nwAtlasBump,
+        tileModes: _nwTileModes,
         state: _nucraftWasmState
       };
     };
@@ -2303,8 +2310,8 @@
       if (st.lCount + 4 > _lCap) _growLeafScratch(st.lCount + 4);
       const isInner = (nb === id);
       const shadeMul = isGlass ? 1.0 : ((isSakura || isBlue || isNeutral)
-        ? ((f === 0 ? 1.03 : (f === 1 ? 0.92 : 0.98)) * (isInner ? 0.95 : 1.0))
-        : ((f === 0 ? 1.03 : (f === 1 ? 0.89 : 0.97)) * (isInner ? 0.94 : 1.0)));
+        ? ((f === 0 ? 1.04 : (f === 1 ? 0.85 : 0.96)) * (isInner ? 0.94 : 1.0))
+        : ((f === 0 ? 1.04 : (f === 1 ? 0.80 : 0.94)) * (isInner ? 0.92 : 1.0)));
       let lr = 0, lg = 0, lb = 0;
       if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
       if (IS_SOLID[nb] === 0 && (lr + lg + lb) > (tuftLr + tuftLg + tuftLb)) { tuftLr = lr; tuftLg = lg; tuftLb = lb; }
@@ -2781,6 +2788,7 @@
       lxGeo.setIndex(_makeIdxAttr(_lxIdx, st.lxiCount, st.lxCount));
       _assignChunkBounds(lxGeo, wx0, wz0, maxLy);
       ch.leavesCrossMesh = new THREE.Mesh(lxGeo, leavesMat);
+      ch.leavesCrossMesh.visible = !window._cartoonAddonActive;
       ch.leavesCrossMesh.castShadow = false; ch.leavesCrossMesh.receiveShadow = false; ch.leavesCrossMesh.frustumCulled = true;
       ch.leavesCrossMesh.matrixAutoUpdate = false; ch.leavesCrossMesh.updateMatrix();
       scene.add(ch.leavesCrossMesh);

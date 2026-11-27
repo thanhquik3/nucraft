@@ -71,7 +71,8 @@
       if (PLAYER_SKINS[i] && PLAYER_SKINS[i].isCustom) PLAYER_SKINS.splice(i, 1);
     }
     for (const cs of customArr) {
-      if (cs && cs.id && cs.dataUrl) PLAYER_SKINS.push({ ...cs, isCustom: true });
+      const pngUrl = cs && (cs.png || cs.dataUrl);
+      if (cs && cs.id && pngUrl) PLAYER_SKINS.push({ ...cs, png: pngUrl, isCustom: true });
     }
     try { localStorage.setItem(CUSTOM_SKINS_STORAGE_KEY, JSON.stringify(PLAYER_SKINS.filter(s => s.isCustom))); } catch (_) {}
   };

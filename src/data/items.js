@@ -1598,10 +1598,10 @@
         ];
       };
       const softPal = {
-        H: mixM(pal.H || pal.M, 0.28, 3),
+        H: mixM(pal.H || pal.M, 0.20, 0),
         M: mRgb,
-        S: mixM(pal.S || pal.M, 0.34, 2),
-        D: mixM(pal.D || pal.M, 0.50, 4)
+        S: mixM(pal.S || pal.M, 0.12, 0),
+        D: mixM(pal.D || pal.M, 0.14, 0)
       };
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const ch = mask[y][x];
@@ -1614,7 +1614,7 @@
       }
     };
     // Cây Táo / Sồi (Oak Leaves): phối màu đậm-trung-nhạt hài hòa tự nhiên
-    drawFancyLeaf(6,  { H: '#6cd943', M: '#47ad2a', S: '#2d821c', D: '#1b5710' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(6,  { H: '#5da626', M: '#387d1a', S: '#235910', D: '#133808' }, BOTANICAL_LEAF_MASK);
     tilePixels(7, (x, y, r) => {
       const ch = SAND_MAP[y][x];
       const pal = { a: '#dfd3a0', b: '#d7c992', c: '#e5daaa', d: '#cab981', e: '#ece3b7' };
@@ -1650,14 +1650,14 @@
     tilePixels(11, (x, y, r) => (((x + y) % 7 === 0) ? '#d6f2ff' : shade('#84ccf5', (r - 0.5) * 18)));
     tilePixels(12, (x, y, r) => barkColor(x, y, r, { c: '#543a1f', a: '#3e2915', b: '#2f1e0e', d: '#211408' }));
     // Cây Thông (Spruce): dùng mask cụm dày lá thu nhuộm xanh thông đậm mượt mọi mức đồ họa!
-    drawFancyLeaf(13, { H: '#48a85e', M: '#2c7d44', S: '#1a572f', D: '#0f381e' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(13, { H: '#388a48', M: '#216334', S: '#134222', D: '#0a2914' }, AUTUMN_LEAF_MASK);
     tilePixels(14, (x, y, r) => {
       // Authentic Minecraft Cherry Bark: deep purplish-mahogany bark with soft rose-brown horizontal lenticels
       const isLenticel = ((y === 2 && x >= 3 && x <= 7) || (y === 6 && x >= 10 && x <= 14) || (y === 10 && x >= 2 && x <= 6) || (y === 14 && x >= 8 && x <= 12));
       if (isLenticel) return shade(y === 6 || y === 14 ? '#a16278' : '#7d475b', (r - 0.5) * 6);
       return barkColor(x, y, r, { c: '#5e3546', a: '#4b2837', b: '#3c1f2c', d: '#2e1621' });
     });
-    drawFancyLeaf(15, { H: '#ffd4ec', M: '#ff96ca', S: '#f262a6', D: '#d14388' }, SAKURA_LEAF_MASK);
+    drawFancyLeaf(15, { H: '#ffc9e3', M: '#f584ba', S: '#dd5296', D: '#a82c6b' }, SAKURA_LEAF_MASK);
     tilePixels(16, (x, y, r) => {
       const ch = BIRCH_BARK_MAP[y][x];
       if (ch === 'D') return '#22201e';
@@ -1708,7 +1708,7 @@
     tilePixels(29, (x, y, r) => barkColor(x, y, r, { c: '#7a7267', a: '#665f56', b: '#524c44', d: '#3f3a34' }));
     // Lá Cam Mùa Thu + Cây Bạch Dương (cụm tán hữu cơ sắc nét, nhuộm xanh tươi sáng!)
     drawFancyLeaf(30, { H: '#ffe04d', M: '#ff8a14', S: '#eb4b10', D: '#a82906' }, AUTUMN_LEAF_MASK);
-    drawFancyLeaf(31, { H: '#8ef548', M: '#5cd42a', S: '#369e18', D: '#1f6b0e' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(31, { H: '#6db52e', M: '#458a1e', S: '#2b6112', D: '#193e0a' }, BOTANICAL_LEAF_MASK);
     tilePixels(32, (x, y, r) => (x <= 1 || x >= 14 || y <= 1 || y >= 14) ? '#3b2b1d' : ((x === 2 || x === 13 || y === 2 || y === 13) ? '#b45309' : (r > 0.65 ? '#fde68a' : r > 0.25 ? '#f59e0b' : '#d97706')));
     tilePixels(33, (x, y, r) => {
       if ((y < 4 && (x + y) % 3 === 0) || (y > 11 && x % 4 === 1)) return shade('#4e8c30', (r - 0.5) * 24);
@@ -1866,7 +1866,7 @@
       if (y % 4 === 0) return shade('#6e5134', (r - 0.5) * 10);
       return shade(y % 4 === 1 ? '#b08b62' : '#96714b', (r - 0.5) * 14);
     });
-    drawFancyLeaf(92, { H: '#74d642', M: '#4fb52b', S: '#328a1a', D: '#1d5e0d' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(92, { H: '#5ca828', M: '#3b821a', S: '#255c0f', D: '#153b08' }, BOTANICAL_LEAF_MASK);
     tilePixels(93, (x, y, r) => {
       // Pure Coconut Sprite (transparent background)
       const d = Math.hypot((x - 7.5) * 1.05, (y - 8.5) * 0.92);
@@ -1880,7 +1880,7 @@
       const isRoot = (Math.abs(x - 3) <= 1 || Math.abs(x - 12) <= 1 || Math.abs((x + y) - 15) <= 1 || Math.abs(x - y) <= 1 || y === 0 || y === 15);
       return isRoot ? shade((x + y) % 3 === 0 ? '#6e4e35' : '#4a3322', (r - 0.5) * 14) : null;
     });
-    drawFancyLeaf(96, { H: '#5eb040', M: '#3f872c', S: '#285e1b', D: '#183d0f' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(96, { H: '#4d912a', M: '#30691c', S: '#1d4710', D: '#102c08' }, AUTUMN_LEAF_MASK);
     tilePixels(97, (x, y, r) => { const ch = DIRT_MAP[y][x]; const pal = { a: '#3d3c44', b: '#323138', c: '#4a4952', d: '#28272d', e: '#52515c', p: '#1f1e24' }; return shade(pal[ch] || '#3d3c44', (r - 0.5) * 6); });
     tilePixels(98, (x, y, r) => (y % 4 === 0 || ((Math.floor(y / 4) & 1) === 0 ? x === 7 : x === 15)) ? '#5e4636' : shade('#91715a', (r - 0.5) * 12));
     tilePixels(99, (x, y, r) => {
@@ -4587,11 +4587,11 @@
       const band = (y + ((x >> 2) * 3)) % 5;
       return shade(band === 0 ? '#45381b' : (band === 2 ? '#6e5a31' : '#594825'), (r - 0.5) * 12);
     });
-    drawFancyLeaf(JUNGLE_LOG_TILES.leaves, { H: '#6ef03c', M: '#3db826', S: '#258719', D: '#16590e' }, BOTANICAL_LEAF_MASK);
+    drawFancyLeaf(JUNGLE_LOG_TILES.leaves, { H: '#55ba25', M: '#318a17', S: '#1d5e0d', D: '#103b07' }, BOTANICAL_LEAF_MASK);
 
     tilePixels(DARK_OAK_LOG_TILES.top, (x, y, r) => logTopColor(x, y, r, '#24170b', '#362312', '#6b4928', '#52361b', '#3f2813'));
     tilePixels(DARK_OAK_LOG_TILES.side, (x, y, r) => barkColor(x, y, r, { c: '#422c19', a: '#332010', b: '#26160a', d: '#1a0e05' }));
-    drawFancyLeaf(DARK_OAK_LOG_TILES.leaves, { H: '#4aa632', M: '#2c751e', S: '#1b4f12', D: '#10360a' }, AUTUMN_LEAF_MASK);
+    drawFancyLeaf(DARK_OAK_LOG_TILES.leaves, { H: '#3c8522', M: '#225914', S: '#143b0b', D: '#0a2405' }, AUTUMN_LEAF_MASK);
 
     // v142 Snowy Dirt side (snow drape over rich soil), Frosted White Snowy Grass, Pink Cactus Flower & 3D Spine strip
     tilePixels(V142_TILES.snowyDirtSide, (x, y, r) => {

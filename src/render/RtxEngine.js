@@ -570,8 +570,9 @@
           float mx = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b));
           float mn = min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b));
           float sat = mx - mn;
-          vec3 boosted = mix(vec3((diffuseColor.r + diffuseColor.g + diffuseColor.b) * 0.3333), diffuseColor.rgb, 1.16);
-          diffuseColor.rgb = clamp(mix(boosted, boosted * (1.04 + upW * 0.06), sat > 0.02 ? 1.0 : 0.4), 0.0, 1.0);
+          vec3 cBase = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.06));
+          vec3 boosted = mix(vec3((cBase.r + cBase.g + cBase.b) * 0.3333), cBase, 1.24);
+          diffuseColor.rgb = clamp(mix(boosted, boosted * (1.05 + upW * 0.07), sat > 0.02 ? 1.0 : 0.45), 0.0, 1.0);
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         float upR = clamp(vWNorm.y, 0.0, 1.0);
@@ -766,11 +767,18 @@
       .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uSurfaceLight, uRayTracing, uCartoonMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         vec3 upViewL = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-        normal = normalize(mix(normalize(vNormal), upViewL, 0.65));
+        normal = normalize(mix(normalize(vNormal), upViewL, mix(0.36, 0.50, uCartoonMode)));
         geometryNormal = normal;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        // Lush Complementary foliage richness (vivid emerald-lime oak/birch canopy + luminous sakura blossom pink!)
-        diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.00));`)
+        // Rich deep emerald foliage & true sakura richness (Cartoon Bare Bones vivid pop vs Normal BSL deep canopy)
+        float lAvg = (diffuseColor.r + diffuseColor.g + diffuseColor.b) * 0.3333;
+        if (uCartoonMode > 0.5) {
+          vec3 cLeaf = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.05));
+          diffuseColor.rgb = clamp(mix(vec3(lAvg), cLeaf, 1.25) * 1.07, 0.0, 1.0);
+        } else {
+          vec3 richLeaf = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.16));
+          diffuseColor.rgb = clamp(mix(vec3(lAvg), richLeaf, 1.24) * 0.94, 0.0, 1.0);
+        }`)
       .replace('#include <opaque_fragment>', `
         vec3 vDirL = normalize(vWPos - cameraPosition);
         vec3 sDirL = normalize(uSunDir);
@@ -805,7 +813,7 @@
         float chillLeafSss = mix(isUltraL ? 0.24 : 0.16, isUltraL ? 0.36 : 0.26, uChillMode) + uDlssMode * 0.14 + uEclipseMode * 0.18 + rtFadeL * 0.38;
         vec3 leafBlockAdd = vBlockLight * (diffuseColor.rgb + vec3(0.045)) * leafLightGain;
         vec3 leafSunBal = mix(uSunColor, vec3(0.98, 0.99, 0.96), mix(0.62, 0.78, max(uEclipseMode, rtFadeL * 0.90)));
-        vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * (0.11 + 0.03 * uEclipseMode);
+        vec3 canopyAmb = mix(uSkyHorizon, vec3(0.94, 0.98, 0.93), 0.55) * mix(0.082 + 0.025 * uEclipseMode, 0.13, uCartoonMode);
         outgoingLight += diffuseColor.rgb * (canopyAmb + vec3(0.045 * rtFadeL)) * sUpG + diffuseColor.rgb * leafSunBal * (sssFwd * chillLeafSss + sssBroad * mix(0.06, 0.16, max(uChillMode, max(uEclipseMode, rtFadeL * 0.95)))) * sUpG + leafSunBal * (uRainWetness * 0.04 * sssFwd * sUpG) + leafBlockAdd / (vec3(1.0) + max(outgoingLight, vec3(0.0)) * 0.90 + leafBlockAdd * 0.52);
         float outPeakL = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
         float outLumL = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));

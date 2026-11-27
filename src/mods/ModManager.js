@@ -245,12 +245,21 @@
       atlasTex.needsUpdate = true;
       if (typeof bumpTex !== 'undefined' && bumpTex && bumpTex.image) {
         const bCtx = bumpTex.image.getContext('2d');
-        const src = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height);
-        const dst = bCtx.createImageData(atlasCanvas.width, atlasCanvas.height);
-        for (let i = 0; i < src.data.length; i += 4) {
-          const lum = Math.min(255, Math.round(src.data[i] * 0.3 + src.data[i + 1] * 0.59 + src.data[i + 2] * 0.11));
-          dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = lum;
-          dst.data[i + 3] = 255;
+        const w = atlasCanvas.width, h = atlasCanvas.height, pxCount = w * h;
+        const src = atlasCtx.getImageData(0, 0, w, h);
+        const dst = bCtx.createImageData(w, h);
+        const wCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+        if (wCore && wCore.exports && wCore.exports.build_bump_map_rgba && wCore.atlasRgba && wCore.atlasBump && src.data.length <= wCore.atlasRgba.length) {
+          wCore.atlasRgba.set(src.data);
+          wCore.exports.build_bump_map_rgba(pxCount >>> 0);
+          dst.data.set(wCore.atlasBump.subarray(0, src.data.length));
+          if (wCore.state) wCore.state.atlasCalls = (wCore.state.atlasCalls || 0) + 1;
+        } else {
+          for (let i = 0; i < src.data.length; i += 4) {
+            const lum = Math.min(255, Math.round(src.data[i] * 0.3 + src.data[i + 1] * 0.59 + src.data[i + 2] * 0.11));
+            dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = lum;
+            dst.data[i + 3] = 255;
+          }
         }
         bCtx.putImageData(dst, 0, 0);
         bumpTex.needsUpdate = true;
@@ -259,30 +268,41 @@
     if (typeof _oreThumb3DCache !== 'undefined') _oreThumb3DCache.clear();
     if (typeof terrainMat !== 'undefined' && terrainMat) {
       const toonOn = typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode && envUniforms.uCartoonMode.value > 0.5;
-      terrainMat.bumpScale = toonOn ? 0.014 : 0.058;
+      terrainMat.bumpScale = toonOn ? 0.0 : 0.058;
     }
     if (typeof _rcGridBuiltSig !== 'undefined') _rcGridBuiltSig = '';
     if (typeof markAllLoadedChunksDirty === 'function' && typeof chunks !== 'undefined' && chunks.size) markAllLoadedChunksDirty(true);
     if (typeof renderHotbar === 'function') renderHotbar();
   }
 
-  // Built-in Bare Bones Cartoon Resource Pack: flat graphic 2-tone blocks, solid lush/cherry leaf cubes, & trailer palette
+  // Built-in Bare Bones Cartoon Resource Pack (Rust WASM accelerated): flat graphic 2-tone blocks, solid lush/cherry leaf cubes, & trailer palette
   function applyCartoonBareBonesPack() {
     if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 1.0;
     if (typeof atlasCtx === 'undefined' || typeof atlasCanvas === 'undefined') return 0;
     const cols = typeof ATLAS_COLS !== 'undefined' ? ATLAS_COLS : 8;
+    const rows = typeof ATLAS_ROWS !== 'undefined' ? ATLAS_ROWS : 104;
     const px = typeof TILE_PX !== 'undefined' ? TILE_PX : 16;
-    const terrainTiles = new Set();
-    const leafTiles = new Set();
+    const numTiles = Math.min(1024, cols * rows);
+    const tileModes = new Uint8Array(numTiles);
     if (typeof BLOCK_DEF !== 'undefined') {
       for (let id = 1; id < BLOCK_DEF.length; id++) {
         const d = BLOCK_DEF[id];
-        if (!d || d.itemOnly || d.tool || !Array.isArray(d.tiles)) continue;
-        for (const t of d.tiles) if (typeof t === 'number' && t >= 0) {
-          terrainTiles.add(t);
-          if (d.leaves) leafTiles.add(t);
-        }
-        if (typeof d.frontTile === 'number' && d.frontTile >= 0) terrainTiles.add(d.frontTile);
+        if (!d || d.itemOnly || d.tool || d.armorSlot || d.food || d.bow || d.spawnEgg || d.id === 'water') continue;
+        let mode = 1;
+        if (d.solid && d.foliage && !d.cross && !d.glass) mode = 2;
+        else if (d.oreBlock) mode = 5;
+        else if (d.glass) mode = 4;
+        else if (!d.solid || d.cross || d.torch || d.bamboo || d.rootCage) mode = 3;
+        const addTile = (t) => {
+          if (typeof t === 'number' && t >= 0 && t < numTiles && tileModes[t] === 0) tileModes[t] = mode;
+        };
+        if (Array.isArray(d.tiles)) for (const t of d.tiles) addTile(t);
+        addTile(d.frontTile);
+        addTile(d.bedBlanketTile);
+        addTile(d.bedSideTile);
+      }
+      if (typeof B !== 'undefined' && B.WATER && BLOCK_DEF[B.WATER] && Array.isArray(BLOCK_DEF[B.WATER].tiles)) {
+        for (const wt of BLOCK_DEF[B.WATER].tiles) if (wt >= 0 && wt < numTiles) tileModes[wt] = 0;
       }
     }
     let painted = 0;
@@ -296,101 +316,188 @@
       atlasCtx.fillStyle = col;
       atlasCtx.fillRect(tx + x, ty + y, w, h);
     };
-    // 1. Clean 4x4 Super-Pixel Bare Bones filter across ALL terrain/foliage tiles (making leaves cute solid 2-tone cubes!)
-    const img = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height);
-    const d = img.data, W = atlasCanvas.width;
-    for (const tIdx of terrainTiles) {
+    const drawMapTile = (tIdx, rowsMap, pal) => {
       const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
-      if (tx + px > W || ty + px > atlasCanvas.height) continue;
-      const isLeaf = leafTiles.has(tIdx);
-      let tr = 0, tg = 0, tb = 0, tcnt = 0;
-      if (isLeaf) {
-        for (let yy = 0; yy < px; yy++) for (let xx = 0; xx < px; xx++) {
-          const i0 = ((ty + yy) * W + (tx + xx)) * 4;
-          if (d[i0 + 3] > 60) { tr += d[i0]; tg += d[i0 + 1]; tb += d[i0 + 2]; tcnt++; }
+      for (let y = 0; y < Math.min(px, rowsMap.length); y++) {
+        const rStr = rowsMap[y];
+        for (let x = 0; x < Math.min(px, rStr.length); x++) {
+          const col = pal[rStr[x]];
+          if (!col) continue;
+          atlasCtx.fillStyle = col;
+          atlasCtx.fillRect(tx + x, ty + y, 1, 1);
         }
-        if (tcnt > 0) { tr /= tcnt; tg /= tcnt; tb /= tcnt; }
       }
-      for (let by = 0; by < px; by += 4) {
-        for (let bx = 0; bx < px; bx += 4) {
-          let r = 0, g = 0, b = 0, cnt = 0;
-          for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
-            const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
-            if (d[idx + 3] > 60) { r += d[idx]; g += d[idx + 1]; b += d[idx + 2]; cnt++; }
+    };
+
+    // 1. Stylize ALL block/plant/ore tiles in Rust WASM (with pure-JS fallback if WASM not loaded yet)
+    const W = atlasCanvas.width, H = atlasCanvas.height;
+    const img = atlasCtx.getImageData(0, 0, W, H);
+    const d = img.data;
+    const wCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    if (wCore && wCore.exports && wCore.exports.stylize_atlas_cartoon && wCore.atlasRgba && wCore.tileModes && d.length <= wCore.atlasRgba.length) {
+      wCore.atlasRgba.set(d);
+      wCore.tileModes.fill(0);
+      wCore.tileModes.set(tileModes);
+      painted = wCore.exports.stylize_atlas_cartoon(W, H, px, cols, numTiles) | 0;
+      d.set(wCore.atlasRgba.subarray(0, d.length));
+      if (wCore.state) wCore.state.atlasCalls = (wCore.state.atlasCalls || 0) + 1;
+    } else {
+      const boostJs = (r, g, b, sat, gain, rich) => {
+        const rc = Math.min(1, Math.max(0, r / 255)), gc = Math.min(1, Math.max(0, g / 255)), bc = Math.min(1, Math.max(0, b / 255));
+        const r2 = rc * (1 - rich * (1 - rc)), g2 = gc * (1 - rich * (1 - gc)), b2 = bc * (1 - rich * (1 - bc));
+        const lum = 0.299 * r2 + 0.587 * g2 + 0.114 * b2;
+        return [
+          Math.min(255, Math.max(0, Math.round((lum + (r2 - lum) * sat) * gain * 255))),
+          Math.min(255, Math.max(0, Math.round((lum + (g2 - lum) * sat) * gain * 255))),
+          Math.min(255, Math.max(0, Math.round((lum + (b2 - lum) * sat) * gain * 255)))
+        ];
+      };
+      for (let tIdx = 0; tIdx < numTiles; tIdx++) {
+        const mode = tileModes[tIdx];
+        if (!mode) continue;
+        const tx = (tIdx % cols) * px, ty = Math.floor(tIdx / cols) * px;
+        if (tx + px > W || ty + px > H) continue;
+        if (mode === 1 || mode === 2) {
+          let tr = 0, tg = 0, tb = 0, tcnt = 0;
+          if (mode === 2) {
+            for (let yy = 0; yy < px; yy++) for (let xx = 0; xx < px; xx++) {
+              const i0 = ((ty + yy) * W + (tx + xx)) * 4;
+              if (d[i0 + 3] > 60) { tr += d[i0]; tg += d[i0 + 1]; tb += d[i0 + 2]; tcnt++; }
+            }
+            if (tcnt > 0) { tr /= tcnt; tg /= tcnt; tb /= tcnt; }
           }
-          if (isLeaf) {
-            const br = cnt > 0 ? r / cnt : tr, bg = cnt > 0 ? g / cnt : tg, bb = cnt > 0 ? b / cnt : tb;
-            const lum = 0.299 * br + 0.587 * bg + 0.114 * bb;
-            const tone = (((bx >> 2) + (by >> 2)) & 1) ? 1.07 : 0.94;
-            const sat = 1.28;
-            const nr = Math.min(255, Math.max(0, Math.round((lum + (br - lum) * sat) * tone + 8)));
-            const ng = Math.min(255, Math.max(0, Math.round((lum + (bg - lum) * sat) * tone + 8)));
-            const nb = Math.min(255, Math.max(0, Math.round((lum + (bb - lum) * sat) * tone + 6)));
+          for (let by = 0; by < px; by += 4) for (let bx = 0; bx < px; bx += 4) {
+            let sr = 0, sg = 0, sb = 0, cnt = 0;
             for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
               const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+              if (d[idx + 3] > 60) { sr += d[idx]; sg += d[idx + 1]; sb += d[idx + 2]; cnt++; }
+            }
+            if (mode === 2) {
+              const tone = (((bx >> 2) + (by >> 2)) & 1) ? 1.08 : 0.94;
+              const [nr, ng, nb] = boostJs(cnt > 0 ? sr / cnt : tr * 0.88, cnt > 0 ? sg / cnt : tg * 0.88, cnt > 0 ? sb / cnt : tb * 0.88, 1.38, 1.05 * tone, 0.14);
+              for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+                const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+                d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; d[idx + 3] = 255;
+              }
+            } else if (cnt >= 3) {
+              const [qr, qg, qb] = boostJs(sr / cnt, sg / cnt, sb / cnt, 1.35, 1.06, 0.12);
+              const nr = ((qr / 6) | 0) * 6, ng = ((qg / 6) | 0) * 6, nb = ((qb / 6) | 0) * 6;
+              for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+                const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
+                if (d[idx + 3] > 60) { d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; }
+              }
+            }
+          }
+          painted++;
+        } else if (mode === 3 || mode === 5) {
+          for (let yy = 0; yy < px; yy++) for (let xx = 0; xx < px; xx++) {
+            const idx = ((ty + yy) * W + (tx + xx)) * 4;
+            if (d[idx + 3] > 60) {
+              const [nr, ng, nb] = boostJs(d[idx], d[idx + 1], d[idx + 2], mode === 5 ? 1.42 : 1.38, 1.06, 0.10);
               d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; d[idx + 3] = 255;
             }
-            continue;
           }
-          if (cnt < 3) continue;
-          r /= cnt; g /= cnt; b /= cnt;
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const sat = 1.28;
-          const nr = Math.min(255, Math.max(0, Math.round(lum + (r - lum) * sat + 6)));
-          const ng = Math.min(255, Math.max(0, Math.round(lum + (g - lum) * sat + 6)));
-          const nb = Math.min(255, Math.max(0, Math.round(lum + (b - lum) * sat + 5)));
-          for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
-            const idx = ((ty + by + yy) * W + (tx + bx + xx)) * 4;
-            if (d[idx + 3] > 60) { d[idx] = nr; d[idx + 1] = ng; d[idx + 2] = nb; }
-          }
+          painted++;
         }
       }
-      painted++;
     }
     atlasCtx.putImageData(img, 0, 0);
 
-    // 2. Signature Bare Bones Trailer Hero Overlays (matching reference screenshots 100%)
-    fillRectTile(0, '#59d130');
-    pxTile(0, 2, 2, 4, 4, '#6be040'); pxTile(0, 10, 8, 4, 4, '#6be040'); pxTile(0, 4, 11, 3, 2, '#4bc228');
-    fillRectTile(1, '#c98842');
-    pxTile(1, 0, 0, 16, 4, '#59d130');
-    pxTile(1, 0, 4, 4, 2, '#59d130'); pxTile(1, 8, 4, 4, 2, '#59d130'); pxTile(1, 14, 4, 2, 1, '#59d130');
-    pxTile(1, 2, 9, 4, 3, '#b57434'); pxTile(1, 10, 11, 4, 3, '#b57434');
-    fillRectTile(2, '#c98842');
-    pxTile(2, 2, 2, 5, 4, '#b57434'); pxTile(2, 9, 9, 5, 4, '#b57434'); pxTile(2, 11, 3, 3, 3, '#d69852');
-    fillRectTile(3, '#8c95a3');
-    pxTile(3, 1, 2, 6, 4, '#7d8694'); pxTile(3, 8, 8, 6, 5, '#7d8694'); pxTile(3, 9, 2, 4, 3, '#9da6b5');
-    fillRectTile(33, '#929ca8');
-    pxTile(33, 0, 7, 16, 1, '#79838f'); pxTile(33, 0, 15, 16, 1, '#79838f');
-    pxTile(33, 7, 0, 1, 7, '#79838f'); pxTile(33, 15, 8, 1, 7, '#79838f');
-    fillRectTile(4, '#e2ba78');
-    pxTile(4, 0, 0, 16, 2, '#754b28'); pxTile(4, 0, 14, 16, 2, '#754b28');
-    pxTile(4, 0, 0, 2, 16, '#754b28'); pxTile(4, 14, 0, 2, 16, '#754b28');
-    pxTile(4, 5, 5, 6, 6, '#cda05e');
-    fillRectTile(5, '#754b28');
-    pxTile(5, 2, 0, 3, 16, '#633d1f'); pxTile(5, 9, 0, 3, 16, '#633d1f'); pxTile(5, 6, 0, 2, 16, '#875a33');
-    fillRectTile(6, '#4cc42d');
-    pxTile(6, 0, 0, 4, 4, '#60d63d'); pxTile(6, 8, 4, 4, 4, '#60d63d'); pxTile(6, 4, 10, 4, 4, '#3da822'); pxTile(6, 12, 12, 4, 4, '#60d63d');
-    fillRectTile(13, '#2e8c36');
-    pxTile(13, 0, 0, 4, 4, '#3ba644'); pxTile(13, 8, 6, 4, 4, '#3ba644'); pxTile(13, 4, 12, 4, 4, '#24732b');
-    fillRectTile(15, '#ff9ec9');
-    pxTile(15, 0, 0, 4, 4, '#ffb3d6'); pxTile(15, 8, 4, 4, 4, '#ffb3d6');
-    pxTile(15, 4, 10, 4, 4, '#f07eb3'); pxTile(15, 12, 12, 4, 4, '#ffb3d6');
-    pxTile(15, 12, 0, 4, 4, '#f07eb3'); pxTile(15, 0, 8, 4, 4, '#f48cbe');
-    fillRectTile(16, '#f4efe6');
-    pxTile(16, 2, 3, 5, 2, '#4a4e54'); pxTile(16, 10, 7, 4, 2, '#4a4e54'); pxTile(16, 3, 12, 6, 2, '#4a4e54');
-    fillRectTile(7, '#f5df8c'); pxTile(7, 3, 3, 5, 3, '#ebd078'); pxTile(7, 9, 10, 5, 3, '#ebd078');
-    fillRectTile(8, '#d6a15c');
-    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#b57f3d');
-    pxTile(8, 2, 1, 6, 2, '#e2b06b'); pxTile(8, 9, 9, 5, 2, '#e2b06b');
-    fillRectTile(9, '#f4f9ff'); pxTile(9, 2, 3, 5, 3, '#dceeff'); pxTile(9, 10, 10, 4, 3, '#dceeff');
-    const drawOre = (tIdx, gem) => {
-      fillRectTile(tIdx, '#8c95a3');
-      pxTile(tIdx, 3, 3, 3, 3, gem); pxTile(tIdx, 10, 4, 3, 2, gem);
-      pxTile(tIdx, 4, 10, 3, 3, gem); pxTile(tIdx, 9, 10, 4, 3, gem);
+    // 2. Signature Bare Bones Trailer Hero Overlays (matching Reference Images 3 & 4!)
+    // Rich Vibrant Grass Top & Sides + Caramel Dirt
+    fillRectTile(0, '#4ad420');
+    pxTile(0, 2, 2, 4, 4, '#5ce22e'); pxTile(0, 10, 8, 4, 4, '#5ce22e'); pxTile(0, 4, 11, 3, 2, '#3ac016');
+    fillRectTile(1, '#c47c34');
+    pxTile(1, 0, 0, 16, 4, '#4ad420');
+    pxTile(1, 0, 4, 4, 2, '#4ad420'); pxTile(1, 8, 4, 4, 2, '#4ad420'); pxTile(1, 14, 4, 2, 1, '#4ad420');
+    pxTile(1, 0, 4, 16, 1, '#2f9e13');
+    pxTile(1, 2, 9, 4, 3, '#ab6724'); pxTile(1, 10, 11, 4, 3, '#d68f45');
+    fillRectTile(2, '#c47c34');
+    pxTile(2, 2, 2, 5, 4, '#ab6724'); pxTile(2, 9, 9, 5, 4, '#ab6724'); pxTile(2, 11, 3, 3, 3, '#d68f45');
+    // Clean Blue-Gray Stone, Deepslate & Stone Bricks
+    fillRectTile(3, '#838d9c');
+    pxTile(3, 1, 2, 6, 4, '#727c8b'); pxTile(3, 8, 8, 6, 5, '#727c8b'); pxTile(3, 9, 2, 4, 3, '#959fae');
+    fillRectTile(22, '#4b5260');
+    pxTile(22, 1, 2, 6, 3, '#3d4350'); pxTile(22, 8, 9, 6, 4, '#3d4350'); pxTile(22, 3, 10, 5, 3, '#5a6272');
+    fillRectTile(33, '#8a94a3');
+    pxTile(33, 0, 7, 16, 1, '#6b7585'); pxTile(33, 0, 15, 16, 1, '#6b7585');
+    pxTile(33, 7, 0, 1, 7, '#6b7585'); pxTile(33, 15, 8, 1, 7, '#6b7585');
+    // Warm Cartoon Logs, Planks & Crafting Table (Image 4!)
+    fillRectTile(4, '#dfb46e');
+    pxTile(4, 0, 0, 16, 2, '#6b4120'); pxTile(4, 0, 14, 16, 2, '#6b4120');
+    pxTile(4, 0, 0, 2, 16, '#6b4120'); pxTile(4, 14, 0, 2, 16, '#6b4120');
+    pxTile(4, 5, 5, 6, 6, '#c7974f');
+    fillRectTile(5, '#6b4120');
+    pxTile(5, 2, 0, 3, 16, '#563216'); pxTile(5, 9, 0, 3, 16, '#563216'); pxTile(5, 6, 0, 2, 16, '#7f502a');
+    fillRectTile(12, '#4a2f1a');
+    pxTile(12, 2, 0, 3, 16, '#382212'); pxTile(12, 10, 0, 3, 16, '#382212'); pxTile(12, 6, 0, 2, 16, '#5b3c23');
+    fillRectTile(14, '#4a2335');
+    pxTile(14, 3, 2, 5, 2, '#7d445d'); pxTile(14, 9, 7, 5, 2, '#7d445d'); pxTile(14, 2, 12, 6, 2, '#361726');
+    fillRectTile(16, '#f2ede2');
+    pxTile(16, 2, 3, 5, 2, '#3d4147'); pxTile(16, 10, 7, 4, 2, '#3d4147'); pxTile(16, 3, 12, 6, 2, '#3d4147');
+    fillRectTile(8, '#d49b52');
+    for (const yRow of [0, 4, 8, 12]) pxTile(8, 0, yRow + 3, 16, 1, '#b07834');
+    pxTile(8, 2, 1, 6, 2, '#e3ad65'); pxTile(8, 9, 9, 5, 2, '#e3ad65');
+    // Crafting Table (34 top, 35 & 442 side)
+    fillRectTile(34, '#6b4120'); pxTile(34, 1, 1, 14, 14, '#d49b52');
+    for (const o of [4, 9]) { pxTile(34, o, 2, 1, 12, '#855228'); pxTile(34, 2, o, 12, 1, '#855228'); }
+    fillRectTile(35, '#d49b52'); pxTile(35, 0, 0, 16, 2, '#6b4120'); pxTile(35, 0, 14, 16, 2, '#6b4120');
+    pxTile(35, 3, 4, 4, 4, '#7f8998'); pxTile(35, 5, 8, 2, 4, '#6b4120'); pxTile(35, 9, 5, 4, 3, '#949eab'); pxTile(35, 10, 8, 2, 4, '#6b4120');
+    fillRectTile(442, '#d49b52'); pxTile(442, 0, 0, 16, 2, '#6b4120'); pxTile(442, 0, 14, 16, 2, '#6b4120');
+    pxTile(442, 3, 5, 4, 7, '#6b4120'); pxTile(442, 9, 5, 4, 7, '#6b4120');
+
+    // Vibrant Bare Bones Leaves (Oak, Spruce, Birch, Palm, Mangrove, Jungle, Dark Oak + EXACT Image 4 Sakura Blossoms!)
+    const paintLeaf = (tIdx, baseCol, hiCol, shCol) => {
+      fillRectTile(tIdx, baseCol);
+      pxTile(tIdx, 0, 0, 4, 4, hiCol); pxTile(tIdx, 8, 4, 4, 4, hiCol); pxTile(tIdx, 12, 12, 4, 4, hiCol);
+      pxTile(tIdx, 4, 10, 4, 4, shCol); pxTile(tIdx, 12, 0, 4, 4, shCol);
     };
-    drawOre(20, '#facc15'); drawOre(24, '#272a30'); drawOre(25, '#f2cdb0');
-    drawOre(26, '#38e8ff'); drawOre(158, '#eb7d44'); drawOre(160, '#22e564');
+    paintLeaf(6,  '#3ab520', '#4dc92c', '#2d9916');
+    paintLeaf(13, '#237830', '#2e8f3c', '#1a6124');
+    paintLeaf(31, '#54c428', '#68d63a', '#41a81c');
+    paintLeaf(92, '#43ba22', '#58cf32', '#319c16');
+    paintLeaf(96, '#328c22', '#42a62e', '#247017');
+    if (typeof JUNGLE_LOG_TILES !== 'undefined') paintLeaf(JUNGLE_LOG_TILES.leaves, '#3ec21e', '#52d62e', '#2ea314');
+    if (typeof DARK_OAK_LOG_TILES !== 'undefined') paintLeaf(DARK_OAK_LOG_TILES.leaves, '#297d19', '#379424', '#1d6110');
+
+    // Exact Image 4 Sakura Cherry Blossom Leaves: soft pastel pink base + crisp 4-petal white/blush blossoms + rose accents
+    drawMapTile(15, [
+      '..H....DD......W',
+      '.HWH......L...WW',
+      '..H..DD..LWL..W.',
+      '..........L..DD.',
+      '....L.......H...',
+      '.DD.LWL....HWH..',
+      '..DD.L..DD..H...',
+      '..H........L....',
+      '.HWH..DD..LWL.DD',
+      '..H.......LL....',
+      '.....H.........H',
+      'DD..HWH...DD..HW',
+      '.....H..L......H',
+      '..L....LWL.DD...',
+      '.LWL....L...H...',
+      '..L..DD....HWH..'
+    ], { '.': '#f58ac0', L: '#ffb4da', H: '#ffd6ec', W: '#fff0f8', D: '#dd5a9a' });
+
+    fillRectTile(7, '#f4de82'); pxTile(7, 3, 3, 5, 3, '#e5cb6a'); pxTile(7, 9, 10, 5, 3, '#e5cb6a');
+    fillRectTile(9, '#f2f8ff'); pxTile(9, 2, 3, 5, 3, '#d8ebff'); pxTile(9, 10, 10, 4, 3, '#d8ebff');
+    const drawOre = (tIdx, gemMain, gemHi, stoneHex = '#7f8998') => {
+      fillRectTile(tIdx, stoneHex);
+      pxTile(tIdx, 3, 3, 3, 3, gemMain); pxTile(tIdx, 3, 3, 2, 1, gemHi);
+      pxTile(tIdx, 10, 4, 3, 2, gemMain); pxTile(tIdx, 10, 4, 2, 1, gemHi);
+      pxTile(tIdx, 4, 10, 3, 3, gemMain); pxTile(tIdx, 4, 10, 2, 1, gemHi);
+      pxTile(tIdx, 9, 10, 4, 3, gemMain); pxTile(tIdx, 9, 10, 2, 1, gemHi);
+    };
+    drawOre(20, '#f8c61c', '#ffea64');
+    drawOre(24, '#23272e', '#3d434f');
+    drawOre(25, '#e8b896', '#fce0c8');
+    drawOre(26, '#2be4ff', '#a6f9ff');
+    drawOre(158, '#eb7538', '#ff9e66');
+    drawOre(159, '#cbd5e1', '#f1f5f9');
+    drawOre(160, '#1ce05e', '#82ffaa');
+    drawOre(161, '#f43f5e', '#fda4af');
+    if (typeof V156_TILES !== 'undefined') drawOre(V156_TILES.sulfurOre, '#facc15', '#fef08a', '#7e7668');
     return painted;
   }
 

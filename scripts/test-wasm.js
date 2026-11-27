@@ -117,7 +117,7 @@ async function main() {
 
   const { instance } = await WebAssembly.instantiate(bytes, {});
   const w = instance.exports;
-  assert.strictEqual(w.wasm_abi_version(), 2);
+  assert.strictEqual(w.wasm_abi_version(), 3);
 
   const coarseView = new Float32Array(w.memory.buffer, w.coarse_grid_ptr(), 1625);
   const emitView = new Float32Array(w.memory.buffer, w.emitters_buf_ptr(), 3584);
@@ -126,6 +126,9 @@ async function main() {
   const partView = new Float32Array(w.memory.buffer, w.particle_buf_ptr(), 512 * 8);
   const sphereInView = new Float32Array(w.memory.buffer, w.sphere_in_ptr(), 256 * 4);
   const sphereOutView = new Uint8Array(w.memory.buffer, w.sphere_out_ptr(), 256);
+  const atlasRgbaView = new Uint8Array(w.memory.buffer, w.atlas_rgba_ptr(), 1048576);
+  const atlasBumpView = new Uint8Array(w.memory.buffer, w.atlas_bump_ptr(), 1048576);
+  const tileModeView = new Uint8Array(w.memory.buffer, w.tile_mode_ptr(), 1024);
 
   // 1) Noise parity assertions
   for (let s = -5; s <= 5; s++) {
@@ -227,8 +230,56 @@ async function main() {
   assert.strictEqual(sphereOutView[2], 0);
   assert.strictEqual(sphereOutView[3], 1);
 
+  // 8) ABI v3: Rust Atlas Cartoon Stylizer (modes 0..5) & Bump Map Builder
+  const aW = 32, aH = 48, tp = 16, aCols = 2, nTiles = 6;
+  const fillTile = (tIdx, r, g, b, a = 255) => {
+    const tx = (tIdx % aCols) * tp, ty = Math.floor(tIdx / aCols) * tp;
+    for (let y = 0; y < tp; y++) for (let x = 0; x < tp; x++) {
+      const i = ((ty + y) * aW + (tx + x)) * 4;
+      atlasRgbaView[i] = r; atlasRgbaView[i + 1] = g; atlasRgbaView[i + 2] = b; atlasRgbaView[i + 3] = a;
+    }
+  };
+  fillTile(0, 42, 42, 42, 255);      // mode 0: untouched
+  fillTile(1, 160, 100, 50, 255);    // mode 1: solid block
+  fillTile(2, 60, 150, 40, 0);       // mode 2: leaf tile w/ gaps -> should become alpha=255
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const i = ((16 + y) * aW + x) * 4;
+    atlasRgbaView[i + 3] = 255;
+  }
+  fillTile(3, 240, 200, 40, 0);      // mode 3: plant cutout -> transparent stays 0
+  for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++) {
+    const i = ((16 + y) * aW + (16 + x)) * 4;
+    atlasRgbaView[i + 3] = 255;
+  }
+  fillTile(4, 180, 220, 250, 90);    // mode 4: glass translucent
+  fillTile(5, 130, 135, 145, 255);   // mode 5: ore block w/ bright gold center vein
+  for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) {
+    const i = ((32 + y) * aW + (16 + x)) * 4;
+    atlasRgbaView[i] = 250; atlasRgbaView[i + 1] = 210; atlasRgbaView[i + 2] = 25; atlasRgbaView[i + 3] = 255;
+  }
+  tileModeView.fill(0);
+  tileModeView[1] = 1; tileModeView[2] = 2; tileModeView[3] = 3; tileModeView[4] = 4; tileModeView[5] = 5;
+  const styledCount = w.stylize_atlas_cartoon(aW, aH, tp, aCols, nTiles);
+  assert.strictEqual(styledCount, 5);
+  assert.strictEqual(atlasRgbaView[0], 42); // mode 0 unchanged
+  // mode 2 gap pixel became opaque 255
+  assert.strictEqual(atlasRgbaView[((16 + 14) * aW + 14) * 4 + 3], 255);
+  // mode 3 corner stays transparent 0, center opaque 255
+  assert.strictEqual(atlasRgbaView[(16 * aW + 16) * 4 + 3], 0);
+  assert.strictEqual(atlasRgbaView[((16 + 6) * aW + (16 + 6)) * 4 + 3], 255);
+  // mode 4 keeps glass alpha 90
+  assert.strictEqual(atlasRgbaView[(32 * aW) * 4 + 3], 90);
+  // mode 5 preserves bright yellow ore vein inside gray rock
+  const oreI = ((32 + 6) * aW + (16 + 6)) * 4;
+  assert(atlasRgbaView[oreI] > 200 && atlasRgbaView[oreI + 1] > 170 && atlasRgbaView[oreI + 2] < 80);
+
+  const builtPx = w.build_bump_map_rgba(aW * aH);
+  assert.strictEqual(builtPx, aW * aH);
+  assert.strictEqual(atlasBumpView[0], ((42 * 77 + 42 * 151 + 42 * 28) >> 8) & 255);
+  assert.strictEqual(atlasBumpView[3], 255);
+
   console.log(
-    `[NUCRAFT wasm test] PASS | ABI v2 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
+    `[NUCRAFT wasm test] PASS | ABI v3 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
     `maxCaveDiff=${maxCaveDiff.toExponential(2)} | maxLightDiff=${maxLightDiff.toExponential(2)} | ` +
     `40-chunk cave grid: JS=${jsMs.toFixed(1)}ms vs RustWASM=${wasmMs.toFixed(1)}ms`
   );

@@ -5597,7 +5597,183 @@ body.survival-locked-mobs #gmPaneMobs .gm-btn-grid {
   border-color: #1e1e1f !important;
   font-weight: 800;
 }
-#profileModal .ore-dialog-body {
-  max-height: min(68vh, 470px);
+#profileModal:not(.hidden) {
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
+  box-sizing: border-box;
+}
+#profileModal .prof-dialog-box {
+  width: min(760px, 95vw) !important;
+  height: min(540px, 90dvh) !important;
+  max-height: 92dvh !important;
+  background: #313233 !important;
+  border: 2px solid #1e1e1f !important;
+  box-shadow: inset 0 2px 0 #56585b, inset 0 -3px 0 #1b1c1d, 0 18px 46px rgba(0,0,0,0.78) !important;
+}
+#profileModal .prof-head {
+  background: #d0d1d4;
+  border-bottom: 2px solid #1e1e1f;
+  padding: 6px 12px;
+  min-height: 40px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+#profileModal .prof-head-spacer { width: 26px; }
+#profileModal .prof-shell {
+  display: grid;
+  grid-template-columns: 226px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #232426;
+  overflow: hidden;
+}
+#profileModal .prof-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: #2b2c2e;
+  border-right: 2px solid #1e1e1f;
+  overflow-y: auto;
+  min-width: 0;
+}
+#profileModal .prof-id-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: #1c1d1f;
+  border: 2px solid #141516;
+  box-shadow: inset 1px 1px 0 #3f4144;
+}
+#profileModal .prof-avatar-frame {
+  width: 44px !important;
+  height: 44px !important;
+  flex-shrink: 0;
+  border: 2px solid #141516;
+  background: #313233;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+}
+#profileModal .prof-id-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+#profileModal .prof-side-name {
+  color: #ffffff;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#profileModal .prof-status-pill {
+  color: #fde047;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+#profileModal .prof-stat-counts {
+  color: #cbd5e1;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+}
+#profileModal .prof-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#profileModal .prof-tabs .seg-btn {
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  min-height: 38px;
+  font-size: 12px;
+  border: 2px solid #1e1e1f !important;
+  border-radius: 0 !important;
+}
+#profileModal .prof-main {
+  margin: 0 !important;
+  border: none !important;
+  background: #1c1d1f !important;
+  padding: 12px !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  flex: 1 1 auto;
+}
+#profileModal .prof-pane { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+#profileModal .prof-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #38393b;
+  border: 2px solid #1e1e1f;
+  box-shadow: inset 1px 1px 0 #4f5154, inset -1px -1px 0 #2b2c2e;
+  box-sizing: border-box;
+  min-width: 0;
+}
+#profileModal .prof-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#profileModal .prof-acc-info { min-width: 0; flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px; }
+#profileModal .prof-acc-badge { color: #facc15; font-family: var(--font-pixel); font-size: 12px; font-weight: 700; }
+#profileModal .prof-acc-sub { color: #d4d4d8; font-size: 11.5px; line-height: 1.35; }
+#profileModal .prof-acc-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#profileModal .prof-acc-actions .mc-btn { padding: 5px 9px !important; font-size: 11px !important; min-height: 30px; }
+#profileModal .prof-card-title { color: #ffffff; font-family: var(--font-pixel); font-size: 12px; font-weight: 700; line-height: 1.35; }
+#profileModal .prof-hint { color: #e5e7eb; font-size: 12.5px; line-height: 1.45; }
+#profileModal .prof-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #202122; padding: 4px; border: 2px solid #141516; }
+#profileModal .prof-mode-tabs .seg-btn { width: 100%; min-height: 34px; font-size: 12px; }
+#profileModal .prof-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#profileModal .prof-lbl { color: #e2e8f0; font-size: 12px; font-weight: 700; }
+#profileModal .prof-pass-row { display: flex; gap: 6px; align-items: center; min-width: 0; }
+#profileModal .prof-eye-btn { min-width: 42px; min-height: 36px; padding: 6px 8px; flex-shrink: 0; }
+#profileModal .prof-submit-btn { width: 100%; min-height: 38px; font-size: 12.5px; }
+#profileModal .prof-auth-msg { color: #fde047; font-size: 12px; min-height: 14px; line-height: 1.38; text-shadow: 0 1px 1px #000; }
+#profileModal .prof-backup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#profileModal .prof-backup-row .mc-btn { min-height: 32px; padding: 5px 8px; font-size: 11px; }
+#profileModal .prof-disclaimer {
+  background: #232426;
+  border: 1.5px solid #141516;
+  padding: 7px 9px;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.4;
+}
+#profileModal .prof-foot { flex-shrink: 0; border-top: 2px solid #1e1e1f; }
+@media (max-height: 520px) and (min-width: 560px) {
+  #profileModal:not(.hidden) { padding: max(4px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)) !important; }
+  #profileModal .prof-dialog-box { width: min(760px, 98vw) !important; height: 94dvh !important; max-height: 94dvh !important; }
+  #profileModal .prof-head { min-height: 32px; padding: 4px 10px; }
+  #profileModal .prof-shell { grid-template-columns: clamp(168px, 27vw, 206px) minmax(0, 1fr); }
+  #profileModal .prof-sidebar { padding: 7px; gap: 6px; }
+  #profileModal .prof-id-card { padding: 7px; gap: 7px; }
+  #profileModal .prof-avatar-frame { width: 34px !important; height: 34px !important; }
+  #profileModal .prof-tabs .seg-btn { min-height: 32px; padding: 5px 8px; font-size: 11px; }
+  #profileModal .prof-main { padding: 8px !important; }
+  #profileModal .prof-card { padding: 8px 9px; gap: 6px; }
+  #profileModal .mc-input { height: 34px; min-height: 34px; font-size: 12px; padding: 4px 8px; }
+  #profileModal .prof-foot { padding: 5px 8px; }
+  #profileModal .prof-foot .mc-btn { height: 30px !important; min-height: 30px !important; font-size: 11px !important; }
+}
+@media (max-width: 660px) and (orientation: portrait), (max-width: 560px) {
+  #profileModal .prof-dialog-box { width: 96vw !important; height: auto !important; max-height: 92dvh !important; }
+  #profileModal .prof-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  #profileModal .prof-sidebar {
+    border-right: none;
+    border-bottom: 2px solid #1e1e1f;
+    padding: 8px;
+    gap: 6px;
+    overflow-y: visible;
+  }
+  #profileModal .prof-id-card { padding: 7px 9px; }
+  #profileModal .prof-avatar-frame { width: 36px !important; height: 36px !important; }
+  #profileModal .prof-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #profileModal .prof-tabs .seg-btn { text-align: center; min-height: 36px; padding: 6px 4px; font-size: 11.5px; }
+  #profileModal .prof-main { padding: 9px !important; max-height: min(56dvh, 430px) !important; }
+  #profileModal .prof-backup-row { grid-template-columns: 1fr; }
 }
 

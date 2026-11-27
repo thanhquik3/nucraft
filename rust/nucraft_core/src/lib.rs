@@ -9,6 +9,8 @@ const FRAME_OUT_LEN: usize = 16;
 const MAX_PARTICLES: usize = 512;
 const PARTICLE_STRIDE: usize = 8; // x, y, z, vx, vy, vz, grav, life
 const MAX_SPHERES: usize = 256;
+const MAX_ATLAS_BYTES: usize = 1_048_576; // fits up to 128 x 1664 x 4 RGBA8888 atlas
+const MAX_TILES: usize = 1024;
 
 static mut COARSE_GRID: [f32; COARSE_LEN] = [0.0; COARSE_LEN];
 static mut EMITTERS_BUF: [f32; MAX_EMITTERS_LEN] = [0.0; MAX_EMITTERS_LEN];
@@ -17,6 +19,9 @@ static mut FRAME_OUT: [f32; FRAME_OUT_LEN] = [0.0; FRAME_OUT_LEN];
 static mut PARTICLE_BUF: [f32; MAX_PARTICLES * PARTICLE_STRIDE] = [0.0; MAX_PARTICLES * PARTICLE_STRIDE];
 static mut SPHERE_IN: [f32; MAX_SPHERES * 4] = [0.0; MAX_SPHERES * 4];
 static mut SPHERE_OUT: [u8; MAX_SPHERES] = [0; MAX_SPHERES];
+static mut ATLAS_RGBA_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
+static mut ATLAS_BUMP_BUF: [u8; MAX_ATLAS_BYTES] = [0; MAX_ATLAS_BYTES];
+static mut TILE_MODE_BUF: [u8; MAX_TILES] = [0; MAX_TILES];
 
 #[inline(always)]
 fn js_floor(x: f64) -> i32 {
@@ -69,7 +74,22 @@ fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn wasm_abi_version() -> u32 {
-    2
+    3
+}
+
+#[no_mangle]
+pub extern "C" fn atlas_rgba_ptr() -> *mut u8 {
+    addr_of_mut!(ATLAS_RGBA_BUF) as *mut u8
+}
+
+#[no_mangle]
+pub extern "C" fn atlas_bump_ptr() -> *mut u8 {
+    addr_of_mut!(ATLAS_BUMP_BUF) as *mut u8
+}
+
+#[no_mangle]
+pub extern "C" fn tile_mode_ptr() -> *mut u8 {
+    addr_of_mut!(TILE_MODE_BUF) as *mut u8
 }
 
 #[no_mangle]
@@ -473,4 +493,357 @@ pub extern "C" fn cull_spheres_batch(
         i += 1;
     }
     visible
+}
+
+#[inline(always)]
+fn boost_cartoon(r: f64, g: f64, b: f64, sat: f64, gain: f64, rich: f64) -> (u8, u8, u8) {
+    let rc = (r / 255.0).max(0.0).min(1.0);
+    let gc = (g / 255.0).max(0.0).min(1.0);
+    let bc = (b / 255.0).max(0.0).min(1.0);
+    let r2 = rc * (1.0 - rich * (1.0 - rc));
+    let g2 = gc * (1.0 - rich * (1.0 - gc));
+    let b2 = bc * (1.0 - rich * (1.0 - bc));
+    let lum = 0.299 * r2 + 0.587 * g2 + 0.114 * b2;
+    let nr = ((lum + (r2 - lum) * sat) * gain * 255.0).round().max(0.0).min(255.0) as u8;
+    let ng = ((lum + (g2 - lum) * sat) * gain * 255.0).round().max(0.0).min(255.0) as u8;
+    let nb = ((lum + (b2 - lum) * sat) * gain * 255.0).round().max(0.0).min(255.0) as u8;
+    (nr, ng, nb)
+}
+
+#[no_mangle]
+pub extern "C" fn build_bump_map_rgba(pixel_count: u32) -> u32 {
+    let max_px = MAX_ATLAS_BYTES / 4;
+    let n = (pixel_count as usize).min(max_px);
+    let src = addr_of!(ATLAS_RGBA_BUF) as *const u8;
+    let dst = addr_of_mut!(ATLAS_BUMP_BUF) as *mut u8;
+    let mut i: usize = 0;
+    while i < n {
+        let off = i * 4;
+        unsafe {
+            let r = *src.add(off) as u32;
+            let g = *src.add(off + 1) as u32;
+            let b = *src.add(off + 2) as u32;
+            let lum = ((r * 77 + g * 151 + b * 28) >> 8).min(255) as u8;
+            *dst.add(off) = lum;
+            *dst.add(off + 1) = lum;
+            *dst.add(off + 2) = lum;
+            *dst.add(off + 3) = 255;
+        }
+        i += 1;
+    }
+    n as u32
+}
+
+#[no_mangle]
+pub extern "C" fn stylize_atlas_cartoon(
+    width: u32,
+    height: u32,
+    tile_px: u32,
+    cols: u32,
+    num_tiles: u32,
+) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let tp = tile_px as usize;
+    let c = cols as usize;
+    let byte_len = w.saturating_mul(h).saturating_mul(4);
+    if byte_len == 0 || byte_len > MAX_ATLAS_BYTES || tp < 4 || c == 0 {
+        return 0;
+    }
+    let data = addr_of_mut!(ATLAS_RGBA_BUF) as *mut u8;
+    let modes = addr_of!(TILE_MODE_BUF) as *const u8;
+    let t_count = (num_tiles as usize).min(MAX_TILES);
+    let mut painted: u32 = 0;
+
+    let mut t_idx = 0usize;
+    while t_idx < t_count {
+        let mode = unsafe { *modes.add(t_idx) };
+        if mode == 0 {
+            t_idx += 1;
+            continue;
+        }
+        let tx = (t_idx % c) * tp;
+        let ty = (t_idx / c) * tp;
+        if tx + tp > w || ty + tp > h {
+            t_idx += 1;
+            continue;
+        }
+
+        if mode == 1 || mode == 2 {
+            let mut tr = 0.0f64;
+            let mut tg = 0.0f64;
+            let mut tb = 0.0f64;
+            let mut tcnt = 0.0f64;
+            if mode == 2 {
+                let mut yy = 0usize;
+                while yy < tp {
+                    let mut xx = 0usize;
+                    while xx < tp {
+                        let i0 = ((ty + yy) * w + (tx + xx)) * 4;
+                        unsafe {
+                            if *data.add(i0 + 3) > 60 {
+                                tr += *data.add(i0) as f64;
+                                tg += *data.add(i0 + 1) as f64;
+                                tb += *data.add(i0 + 2) as f64;
+                                tcnt += 1.0;
+                            }
+                        }
+                        xx += 1;
+                    }
+                    yy += 1;
+                }
+                if tcnt > 0.0 {
+                    tr /= tcnt;
+                    tg /= tcnt;
+                    tb /= tcnt;
+                }
+            }
+
+            let mut by = 0usize;
+            while by + 3 < tp {
+                let mut bx = 0usize;
+                while bx + 3 < tp {
+                    let mut sr = 0.0f64;
+                    let mut sg = 0.0f64;
+                    let mut sb = 0.0f64;
+                    let mut cnt = 0usize;
+                    let mut yy = 0usize;
+                    while yy < 4 {
+                        let mut xx = 0usize;
+                        while xx < 4 {
+                            let idx = ((ty + by + yy) * w + (tx + bx + xx)) * 4;
+                            unsafe {
+                                if *data.add(idx + 3) > 60 {
+                                    sr += *data.add(idx) as f64;
+                                    sg += *data.add(idx + 1) as f64;
+                                    sb += *data.add(idx + 2) as f64;
+                                    cnt += 1;
+                                }
+                            }
+                            xx += 1;
+                        }
+                        yy += 1;
+                    }
+                    if mode == 2 {
+                        let br = if cnt > 0 { sr / (cnt as f64) } else { tr * 0.88 };
+                        let bg = if cnt > 0 { sg / (cnt as f64) } else { tg * 0.88 };
+                        let bb = if cnt > 0 { sb / (cnt as f64) } else { tb * 0.88 };
+                        let tone = if (((bx >> 2) + (by >> 2)) & 1) == 1 { 1.08 } else { 0.94 };
+                        let (nr, ng, nb) = boost_cartoon(br, bg, bb, 1.38, 1.05 * tone, 0.14);
+                        let mut y2 = 0usize;
+                        while y2 < 4 {
+                            let mut x2 = 0usize;
+                            while x2 < 4 {
+                                let idx = ((ty + by + y2) * w + (tx + bx + x2)) * 4;
+                                unsafe {
+                                    *data.add(idx) = nr;
+                                    *data.add(idx + 1) = ng;
+                                    *data.add(idx + 2) = nb;
+                                    *data.add(idx + 3) = 255;
+                                }
+                                x2 += 1;
+                            }
+                            y2 += 1;
+                        }
+                    } else if cnt >= 3 {
+                        let cf = cnt as f64;
+                        let (qr, qg, qb) = boost_cartoon(sr / cf, sg / cf, sb / cf, 1.35, 1.06, 0.12);
+                        let nr = ((qr / 6) * 6).min(255);
+                        let ng = ((qg / 6) * 6).min(255);
+                        let nb = ((qb / 6) * 6).min(255);
+                        let mut y2 = 0usize;
+                        while y2 < 4 {
+                            let mut x2 = 0usize;
+                            while x2 < 4 {
+                                let idx = ((ty + by + y2) * w + (tx + bx + x2)) * 4;
+                                unsafe {
+                                    if *data.add(idx + 3) > 60 {
+                                        *data.add(idx) = nr;
+                                        *data.add(idx + 1) = ng;
+                                        *data.add(idx + 2) = nb;
+                                    }
+                                }
+                                x2 += 1;
+                            }
+                            y2 += 1;
+                        }
+                    }
+                    bx += 4;
+                }
+                by += 4;
+            }
+            painted += 1;
+        } else if mode == 3 {
+            let mut by = 0usize;
+            while by + 1 < tp {
+                let mut bx = 0usize;
+                while bx + 1 < tp {
+                    let mut sr = 0.0f64;
+                    let mut sg = 0.0f64;
+                    let mut sb = 0.0f64;
+                    let mut cnt = 0usize;
+                    let mut yy = 0usize;
+                    while yy < 2 {
+                        let mut xx = 0usize;
+                        while xx < 2 {
+                            let idx = ((ty + by + yy) * w + (tx + bx + xx)) * 4;
+                            unsafe {
+                                if *data.add(idx + 3) > 60 {
+                                    sr += *data.add(idx) as f64;
+                                    sg += *data.add(idx + 1) as f64;
+                                    sb += *data.add(idx + 2) as f64;
+                                    cnt += 1;
+                                }
+                            }
+                            xx += 1;
+                        }
+                        yy += 1;
+                    }
+                    if cnt >= 2 {
+                        let cf = cnt as f64;
+                        let (nr, ng, nb) = boost_cartoon(sr / cf, sg / cf, sb / cf, 1.40, 1.07, 0.12);
+                        let mut y2 = 0usize;
+                        while y2 < 2 {
+                            let mut x2 = 0usize;
+                            while x2 < 2 {
+                                let idx = ((ty + by + y2) * w + (tx + bx + x2)) * 4;
+                                unsafe {
+                                    if *data.add(idx + 3) > 60 {
+                                        *data.add(idx) = nr;
+                                        *data.add(idx + 1) = ng;
+                                        *data.add(idx + 2) = nb;
+                                        *data.add(idx + 3) = 255;
+                                    } else {
+                                        *data.add(idx + 3) = 0;
+                                    }
+                                }
+                                x2 += 1;
+                            }
+                            y2 += 1;
+                        }
+                    }
+                    bx += 2;
+                }
+                by += 2;
+            }
+            painted += 1;
+        } else if mode == 4 {
+            let mut yy = 0usize;
+            while yy < tp {
+                let mut xx = 0usize;
+                while xx < tp {
+                    let idx = ((ty + yy) * w + (tx + xx)) * 4;
+                    unsafe {
+                        let a = *data.add(idx + 3);
+                        if a > 12 {
+                            let (nr, ng, nb) = boost_cartoon(
+                                *data.add(idx) as f64,
+                                *data.add(idx + 1) as f64,
+                                *data.add(idx + 2) as f64,
+                                1.26,
+                                1.06,
+                                0.06,
+                            );
+                            *data.add(idx) = nr;
+                            *data.add(idx + 1) = ng;
+                            *data.add(idx + 2) = nb;
+                        }
+                    }
+                    xx += 1;
+                }
+                yy += 1;
+            }
+            painted += 1;
+        } else if mode == 5 {
+            let mut br = 0.0f64;
+            let mut bg = 0.0f64;
+            let mut bb = 0.0f64;
+            let mut bcnt = 0.0f64;
+            let mut yy = 0usize;
+            while yy < tp {
+                let mut xx = 0usize;
+                while xx < tp {
+                    if xx == 0 || yy == 0 || xx + 1 == tp || yy + 1 == tp {
+                        let idx = ((ty + yy) * w + (tx + xx)) * 4;
+                        unsafe {
+                            if *data.add(idx + 3) > 60 {
+                                br += *data.add(idx) as f64;
+                                bg += *data.add(idx + 1) as f64;
+                                bb += *data.add(idx + 2) as f64;
+                                bcnt += 1.0;
+                            }
+                        }
+                    }
+                    xx += 1;
+                }
+                yy += 1;
+            }
+            if bcnt > 0.0 {
+                br /= bcnt;
+                bg /= bcnt;
+                bb /= bcnt;
+            }
+            let (s_r, s_g, s_b) = boost_cartoon(br, bg, bb, 1.15, 1.03, 0.10);
+            let mut by = 0usize;
+            while by + 1 < tp {
+                let mut bx = 0usize;
+                while bx + 1 < tp {
+                    let mut gr = 0.0f64;
+                    let mut gg = 0.0f64;
+                    let mut gb = 0.0f64;
+                    let mut gcnt = 0usize;
+                    let mut y2 = 0usize;
+                    while y2 < 2 {
+                        let mut x2 = 0usize;
+                        while x2 < 2 {
+                            let idx = ((ty + by + y2) * w + (tx + bx + x2)) * 4;
+                            unsafe {
+                                if *data.add(idx + 3) > 60 {
+                                    let r = *data.add(idx) as f64;
+                                    let g = *data.add(idx + 1) as f64;
+                                    let b = *data.add(idx + 2) as f64;
+                                    let diff = (r - br).abs() + (g - bg).abs() + (b - bb).abs();
+                                    if diff >= 80.0 {
+                                        gr += r;
+                                        gg += g;
+                                        gb += b;
+                                        gcnt += 1;
+                                    }
+                                }
+                            }
+                            x2 += 1;
+                        }
+                        y2 += 1;
+                    }
+                    let (fr, fg, fb) = if gcnt >= 1 {
+                        let gf = gcnt as f64;
+                        boost_cartoon(gr / gf, gg / gf, gb / gf, 1.45, 1.08, 0.10)
+                    } else {
+                        (s_r, s_g, s_b)
+                    };
+                    let mut y3 = 0usize;
+                    while y3 < 2 {
+                        let mut x3 = 0usize;
+                        while x3 < 2 {
+                            let idx = ((ty + by + y3) * w + (tx + bx + x3)) * 4;
+                            unsafe {
+                                if *data.add(idx + 3) > 60 {
+                                    *data.add(idx) = fr;
+                                    *data.add(idx + 1) = fg;
+                                    *data.add(idx + 2) = fb;
+                                }
+                            }
+                            x3 += 1;
+                        }
+                        y3 += 1;
+                    }
+                    bx += 2;
+                }
+                by += 2;
+            }
+            painted += 1;
+        }
+        t_idx += 1;
+    }
+    painted
 }

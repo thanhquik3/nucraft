@@ -164,6 +164,11 @@
       const restorePreset = window._preCartoonShaderPreset || (CFG.loadGfxPrefs ? (CFG.loadGfxPrefs().shaderPreset || 'eclipse') : 'eclipse');
       applyShaderPreset(restorePreset === 'cartoon_barebones' ? 'eclipse' : restorePreset, false);
     }
+    if (typeof chunks !== 'undefined' && chunks) {
+      for (const ch of chunks.values()) {
+        if (ch && ch.leavesCrossMesh) ch.leavesCrossMesh.visible = !on;
+      }
+    }
     window._postFxDirty = true;
   }
   window.syncCartoonExclusiveShaderUI = syncCartoonExclusiveShaderUI;
