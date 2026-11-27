@@ -8874,9 +8874,6 @@
                 sb.m.position.y = sb.by + Math.sin(elapsed * (3.6 + bi * 0.7) + i + bi * 1.4) * 0.035;
               }
             }
-            if (m.type === 'sulfur_slime' && isMobVis && ((frameCounter + i) % 24) === 0) {
-              spawnPixelFx('sulfur_steam', m.x, m.y + 0.65, m.z, { count: 1, scale: 0.42, life: 0.75, vy: 0.55, spread: 0.16, randV: 0.1 });
-            }
             if (m.anim.slices && m.anim.slices.length) {
               const lift = Math.max(0, Math.abs(m.vy) > 0.35 ? Math.min(0.18, Math.abs(m.vy) * 0.025) : 0);
               for (let si = 0; si < m.anim.slices.length; si++) {

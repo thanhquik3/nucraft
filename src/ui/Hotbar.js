@@ -2474,6 +2474,10 @@
       c2d.drawImage(atlasCanvas, sx, sy + 9, 16, 4, Math.round(W * 0.12), Math.round(H * 0.56), Math.round(W * 0.76), Math.round(H * 0.14));
       return;
     }
+    if (def.stalactite) {
+      c2d.drawImage(atlasCanvas, sx + 4, sy, 8, 16, Math.round(W * 0.28), Math.round(H * 0.08), Math.round(W * 0.44), Math.round(H * 0.84));
+      return;
+    }
     if (def.wall) {
       c2d.drawImage(atlasCanvas, sx + 3, sy, 10, 16, Math.round(W * 0.30), Math.round(H * 0.12), Math.round(W * 0.40), Math.round(H * 0.78));
       c2d.drawImage(atlasCanvas, sx, sy + 4, 16, 12, Math.round(W * 0.10), Math.round(H * 0.30), Math.round(W * 0.80), Math.round(H * 0.60));

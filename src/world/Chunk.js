@@ -1416,6 +1416,7 @@
     let emLen = 0, secLen = 0;
     const lightNodes = [];
     const portalNodes = [];
+    const ventNodes = [];
     const secLightNodes = [];
     for (let ly = 0; ly <= maxLy; ly++) {
       const yOff = ly << 8;
@@ -1425,6 +1426,9 @@
           const id = data[zOff | lx];
           if (IS_EMISSIVE[id] === 0) continue;
           const lwx = wx0 + lx + 0.5, lwy = MIN_Y + ly + 0.5, lwz = wz0 + lz + 0.5;
+          if (id === B.SULFUR_VENT && ventNodes.length < 64) {
+            ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: 'vent' });
+          }
           if (id === B.LANTERN) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=1.28; _ownScanBuf[emLen+4]=0.96; _ownScanBuf[emLen+5]=0.54; _ownScanBuf[emLen+6]=400.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xffca7a, int: 1.38, dist: 28, lvl: 15, r: 1.28, g: 0.96, b: 0.54, rad: 20, rad2: 400.0, prio: 1 });
@@ -1452,6 +1456,9 @@
             const fRad = (id === B.FIRE) ? 144.0 : 169.0;
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.86; _ownScanBuf[emLen+4]=0.50; _ownScanBuf[emLen+5]=0.22; _ownScanBuf[emLen+6]=fRad; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xff8c2e, int: id === B.FIRE ? 0.68 : 0.78, r: 0.86, g: 0.50, b: 0.22, rad2: fRad });
+            if (id === B.CAMPFIRE && ventNodes.length < 48) {
+              ventNodes.push({ x: wx0 + lx, y: MIN_Y + ly, z: wz0 + lz, kind: 'campfire' });
+            }
           } else if (id === B.SEA_LANTERN) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.44; _ownScanBuf[emLen+4]=0.82; _ownScanBuf[emLen+5]=0.90; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0x72f5eb, int: 0.82, r: 0.44, g: 0.82, b: 0.90, rad2: 196.0 });
@@ -1505,8 +1512,10 @@
     targetCh._ownEm = emLen > 0 ? new Float32Array(_ownScanBuf.subarray(0, emLen)) : _EMPTY_EM_BUF;
     targetCh._ownNodes = lightNodes;
     targetCh._ownPortalNodes = portalNodes;
+    targetCh._ownVentNodes = ventNodes;
     targetCh.lightNodes = lightNodes;
     targetCh.portalNodes = portalNodes;
+    targetCh.ventNodes = ventNodes;
     targetCh._emitDirty = false;
   }
 
@@ -1521,6 +1530,7 @@
     const prevLightCnt = ch._prevLightCount || 0;
     ch.lightNodes = lightNodes;
     ch.portalNodes = portalNodes;
+    ch.ventNodes = (ch._ownVentNodes && ch._ownVentNodes.length > 0) ? ch._ownVentNodes : _EMPTY_NODES;
     ch._prevLightCount = lightNodes.length;
     if (lightNodes.length !== prevLightCnt) {
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
@@ -2187,13 +2197,16 @@
       emitBox(0.0, def.slabTop ? 0.5 : 0.0, 0.0, 1.0, def.slabTop ? 1.0 : 0.5, 1.0, tTop, tSide, tBot);
     } else if (def.fence) {
       emitBox(0.375, 0.0, 0.375, 0.625, 1.0, 0.625, tTop, tSide, tBot);
-      const canConn = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && (d.fence || d.wall || IS_OPAQUE[nb] === 1)); };
+      const canConn = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && !d.stalactite && (d.fence || d.wall || IS_OPAQUE[nb] === 1)); };
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz))) { emitBox(0.625, 0.75, 0.4375, 1.0, 0.9375, 0.5625, tTop, tSide, tBot); emitBox(0.625, 0.375, 0.4375, 1.0, 0.5625, 0.5625, tTop, tSide, tBot); }
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz))) { emitBox(0.0, 0.75, 0.4375, 0.375, 0.9375, 0.5625, tTop, tSide, tBot); emitBox(0.0, 0.375, 0.4375, 0.375, 0.5625, 0.5625, tTop, tSide, tBot); }
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1))) { emitBox(0.4375, 0.75, 0.625, 0.5625, 0.9375, 1.0, tTop, tSide, tBot); emitBox(0.4375, 0.375, 0.625, 0.5625, 0.5625, 1.0, tTop, tSide, tBot); }
       if (canConn(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1))) { emitBox(0.4375, 0.75, 0.0, 0.5625, 0.9375, 0.375, tTop, tSide, tBot); emitBox(0.4375, 0.375, 0.0, 0.5625, 0.5625, 0.375, tTop, tSide, tBot); }
+    } else if (def.stalactite) {
+      // BUILD v166: Stalactites stay standalone vertical pillars (never merge horizontally like fences/walls)
+      emitBox(0.25, 0.0, 0.25, 0.75, 1.0, 0.75, tTop, tSide, tBot);
     } else if (def.wall) {
-      const canW = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && (def.stalactite ? d.stalactite : (d.wall || d.fence || IS_OPAQUE[nb] === 1))); };
+      const canW = (nb) => { const d = BLOCK_DEF_ARR[nb]; return !!(d && !d.stalactite && (d.wall || d.fence || IS_OPAQUE[nb] === 1)); };
       const cPX = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz)), cNX = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz));
       const cPZ = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1)), cNZ = canW(_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1));
       const above = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);
@@ -2734,10 +2747,11 @@
       lGeo.setAttribute('aBlockLight', new THREE.BufferAttribute(_lBL.slice(0, st.lCount * 3), 3));
       lGeo.setIndex(_makeIdxAttr(_lIdx, st.liCount, st.lCount));
       _assignChunkBounds(lGeo, wx0, wz0, maxLy);
-      ch.leavesMesh = new THREE.Mesh(lGeo, _effLow ? leavesMatLow : leavesMat);
-      if (!_effLow) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
+      const _isCartoonMesh = !!window._cartoonAddonActive;
+      ch.leavesMesh = new THREE.Mesh(lGeo, _isCartoonMesh ? leavesMatCartoon : (_effLow ? leavesMatLow : leavesMat));
+      if (!_effLow && !_isCartoonMesh) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
       const nearLeafSh = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= Math.min(_shChunkRad, 2));
-      ch.leavesMesh.castShadow = (!_effLow && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
+      ch.leavesMesh.castShadow = (!_effLow && !_isCartoonMesh && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
       ch.leavesMesh.matrixAutoUpdate = false; ch.leavesMesh.updateMatrix();
       scene.add(ch.leavesMesh);
     }

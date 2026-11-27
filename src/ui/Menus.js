@@ -700,6 +700,7 @@
       document.querySelectorAll('#renderDistSeg .seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active'); renderDistance = parseInt(btn.dataset.val, 10); lastPlayerCx = 99999;
       if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ renderDistance });
+      showToast(`Tầm nhìn: ${btn.textContent}`);
     });
   });
   document.querySelectorAll('#qualitySeg .seg-btn').forEach(btn => {
@@ -2933,7 +2934,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
 
         // Build full spiral ring list of REAL visible chunks around player's actual destination (r = 0 .. loadRad)
         const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
-        const loadRad = Math.min(3, Math.max(3, renderDistance || 3));
+        const loadRad = Math.min(3, Math.max(1, renderDistance || 3));
         const gridRad = loadRad + 1;
         const genRings = [], meshRings = [];
         const chunkState = new Map();

@@ -32,11 +32,16 @@
   const _getSharpMaxPR = (q) => {
     const qn = CFG.normalizeQuality ? CFG.normalizeQuality(q, 'high') : q;
     const p = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[qn]) || { maxPixelRatio: 1.0 };
-    if (_initMobile) return (qn === 'extreme' || qn === 'ultra') ? Math.min(1.5, p.maxPixelRatio) : Math.min(1.0, p.maxPixelRatio);
-    const ded = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
-    const bigScreen = Math.max(window.innerWidth || 0, window.innerHeight || 0) >= 1500;
-    const baseMax = (qn === 'extreme') ? p.maxPixelRatio : ((!ded && bigScreen) ? Math.min(1.25, p.maxPixelRatio) : p.maxPixelRatio);
-    return Math.max(0.75, baseMax * _autoPerfPrScale);
+    let res;
+    if (_initMobile) res = (qn === 'extreme' || qn === 'ultra') ? Math.min(1.5, p.maxPixelRatio) : Math.min(1.0, p.maxPixelRatio);
+    else {
+      const ded = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
+      const bigScreen = Math.max(window.innerWidth || 0, window.innerHeight || 0) >= 1500;
+      const baseMax = (qn === 'extreme') ? p.maxPixelRatio : ((!ded && bigScreen) ? Math.min(1.25, p.maxPixelRatio) : p.maxPixelRatio);
+      res = Math.max(0.75, baseMax * _autoPerfPrScale);
+    }
+    if (window._cartoonAddonActive) return (_initMobile || _isWeakDevice) ? Math.min(1.0, res) : Math.min(1.25, res);
+    return res;
   };
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _getSharpMaxPR(shaderQuality)));
   renderer.shadowMap.enabled = (shaderQuality !== 'low');
@@ -883,6 +888,20 @@
   const leavesMatLow = new THREE.MeshStandardMaterial({
     map: shaderQuality === 'low' ? getAtlasSolidTex() : atlasTex, side: THREE.FrontSide, roughness: 0.80, metalness: 0.0, vertexColors: true
   });
+
+  // BUILD v166: Ultra-lightweight Lambert material for Bare Bones Cartoon leaves (FrontSide, zero PBR specular, zero wind trig/SSS/RT; preserves glass alphaTest & torch blockLight)
+  const leavesMatCartoon = new THREE.MeshLambertMaterial({
+    map: atlasTex, alphaTest: 0.5, side: THREE.FrontSide, vertexColors: true
+  });
+  leavesMatCartoon.customProgramCacheKey = () => 'luanti_leaves_cartoon_lite_v1';
+  leavesMatCartoon.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 aBlockLight;\nvarying vec3 vBlockLight;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBlockLight = aBlockLight;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBlockLight;')
+      .replace('#include <opaque_fragment>', 'outgoingLight += vBlockLight * (diffuseColor.rgb + vec3(0.04)) * 0.85;\n#include <opaque_fragment>');
+  };
 
   // Plant Material (Crisp 3-Plane Grass Tufts, Flowers, Wheat Gust Waves & Warm Golden Backlit Tip Glow!)
   const plantMat = new THREE.MeshStandardMaterial({
@@ -4550,7 +4569,7 @@
     mesh.visible = (cnt > 0);
   }
   function updateEclipseGrass(force = false) {
-    if (shaderPreset !== 'eclipse' ||
+    if (window._cartoonAddonActive || shaderPreset !== 'eclipse' ||
         typeof chunks === 'undefined' || typeof B === 'undefined' || typeof player === 'undefined' ||
         currentDimension === 'nether' || currentDimension === 'end' || currentDimension === 'warden' || depthOffset > 0 || player.y < -10) {
       if (eclipseGrassMesh.visible) eclipseGrassMesh.visible = false;

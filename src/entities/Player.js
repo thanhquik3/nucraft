@@ -3471,41 +3471,69 @@
   _partInstMesh.count = 0;
   scene.add(_partInstMesh);
 
-  // BUILD v165: True 3D Minecraft-Style Voxel Smoke & Geothermal Steam Cubes (1 GPU draw call, facet-shaded opaque 3D boxes, zero 2D sprite billboard or water X-ray glitch)
+  // BUILD v166: True 3D Minecraft Campfire Puffy Cloud-Cluster Smoke (5-box stepped voxel geometry, 1 draw call, upright vertical column, zero water/godray alpha glitches)
   const MAX_SMOKE_VOXELS = _isWeakDevice ? 140 : 320;
   const smokeVoxels = [], smokeVoxelPool = [];
-  const _smokeGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44);
-  (() => {
-    const nAttr = _smokeGeo.getAttribute('normal');
-    const cArr = new Float32Array(nAttr.count * 3);
-    for (let i = 0; i < nAttr.count; i++) {
-      const nx = nAttr.getX(i), ny = nAttr.getY(i);
-      const shade = ny > 0.5 ? 1.00 : (ny < -0.5 ? 0.74 : (Math.abs(nx) > 0.5 ? 0.85 : 0.92));
-      cArr[i * 3] = shade; cArr[i * 3 + 1] = shade; cArr[i * 3 + 2] = shade;
+  const _smokeGeo = (() => {
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    const uPos = unit.getAttribute('position'), uNorm = unit.getAttribute('normal'), uIdx = unit.getIndex();
+    const lobes = [
+      [ 0.00,  0.00,  0.00, 0.48, 0.34, 0.48],
+      [-0.10,  0.05,  0.02, 0.42, 0.32, 0.38],
+      [ 0.11, -0.03, -0.03, 0.40, 0.30, 0.36],
+      [ 0.01,  0.07, -0.09, 0.36, 0.30, 0.42],
+      [-0.02, -0.05,  0.10, 0.38, 0.30, 0.38]
+    ];
+    const vPer = uPos.count, iPer = uIdx.count, totV = vPer * lobes.length, totI = iPer * lobes.length;
+    const pos = new Float32Array(totV * 3), norm = new Float32Array(totV * 3), col = new Float32Array(totV * 3), idx = new Uint16Array(totI);
+    for (let li = 0; li < lobes.length; li++) {
+      const [ox, oy, oz, sx, sy, sz] = lobes[li], vBase = li * vPer, iBase = li * iPer;
+      for (let i = 0; i < vPer; i++) {
+        const vi = vBase + i, vp = vi * 3;
+        pos[vp] = uPos.getX(i) * sx + ox; pos[vp + 1] = uPos.getY(i) * sy + oy; pos[vp + 2] = uPos.getZ(i) * sz + oz;
+        const nx = uNorm.getX(i), ny = uNorm.getY(i), nz = uNorm.getZ(i);
+        norm[vp] = nx; norm[vp + 1] = ny; norm[vp + 2] = nz;
+        const shade = ny > 0.5 ? 1.00 : (ny < -0.5 ? 0.72 : (Math.abs(nx) > 0.5 ? 0.83 : 0.90));
+        col[vp] = shade; col[vp + 1] = shade; col[vp + 2] = shade;
+      }
+      for (let i = 0; i < iPer; i++) idx[iBase + i] = uIdx.getX(i) + vBase;
     }
-    _smokeGeo.setAttribute('color', new THREE.BufferAttribute(cArr, 3));
+    unit.dispose();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    return g;
   })();
-  const _smokeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, fog: true });
+  const _smokeMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, vertexColors: true, fog: true, transparent: true, opacity: 0.56, depthWrite: false,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor
+  });
   const _smokeInstMesh = new THREE.InstancedMesh(_smokeGeo, _smokeMat, MAX_SMOKE_VOXELS);
   _smokeInstMesh.frustumCulled = false;
   _smokeInstMesh.castShadow = false;
   _smokeInstMesh.receiveShadow = false;
-  _smokeInstMesh.renderOrder = 3;
+  _smokeInstMesh.renderOrder = 4;
   _smokeInstMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   _smokeInstMesh.setColorAt(0, _partColor);
   if (_smokeInstMesh.instanceColor) _smokeInstMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
   _smokeInstMesh.count = 0;
   scene.add(_smokeInstMesh);
   const _SMOKE_PALS = {
-    steam: [0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xfefce8],
-    smoke: [0xcbd5e1, 0x94a3b8, 0x64748b, 0xe2e8f0],
-    dark:  [0x64748b, 0x475569, 0x334155, 0x94a3b8]
+    campfire: [0xd8dee6, 0xc7cfd9, 0xb6c0cc, 0xe5eaf0],
+    steam:    [0xf8fafc, 0xf1f5f9, 0xe2e8f0, 0xfefce8],
+    smoke:    [0xcbd5e1, 0x94a3b8, 0x64748b, 0xe2e8f0],
+    dark:     [0x64748b, 0x475569, 0x334155, 0x94a3b8]
   };
   function spawn3DSmoke(wx, wy, wz, opts = {}) {
     if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
     const pdx = wx - player.x, pdz = wz - player.z, pd2 = pdx * pdx + pdz * pdz;
     if (pd2 > 9216.0) return; // Keep smoke/steam visible up to 96 blocks away
     const pal = _SMOKE_PALS[opts.style] || _SMOKE_PALS.smoke;
+    const isCf = !!(opts.campfire || opts.style === 'campfire');
     const cnt = Math.min(opts.count || 2, _isWeakDevice ? 3 : 6);
     const spr = opts.spread ?? 0.26;
     const rv = opts.randV ?? 0.22;
@@ -3517,21 +3545,29 @@
       let s;
       if (smokeVoxels.length >= MAX_SMOKE_VOXELS) s = smokeVoxels.shift();
       else if (smokeVoxelPool.length > 0) s = smokeVoxelPool.pop();
-      else s = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rxS: 0, ryS: 0, rzS: 0, phase: 0, amp: 0, scale: 1, grow: 0.6, life: 1, maxLife: 1, color: new THREE.Color(0xffffff) };
+      else s = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rxS: 0, ryS: 0, rzS: 0, phase: 0, amp: 0, scale: 1, grow: 0.6, life: 1, maxLife: 1, campfire: false, color: new THREE.Color(0xffffff) };
       s.color.setHex(pal[(Math.random() * pal.length) | 0]);
+      s.campfire = isCf;
       s.x = wx + (Math.random() - 0.5) * spr;
-      s.y = wy + i * 0.14 + (Math.random() - 0.5) * 0.14;
+      s.y = wy + i * 0.14 + (Math.random() - 0.5) * 0.10;
       s.z = wz + (Math.random() - 0.5) * spr;
       s.vx = opts.vx !== undefined ? opts.vx : (Math.random() - 0.5) * rv;
-      s.vy = baseVy * (0.84 + Math.random() * 0.34);
+      s.vy = baseVy * (isCf ? (0.94 + Math.random() * 0.14) : (0.84 + Math.random() * 0.34));
       s.vz = opts.vz !== undefined ? opts.vz : (Math.random() - 0.5) * rv;
-      s.rx = Math.random() * 3.14; s.ry = Math.random() * 3.14; s.rz = Math.random() * 3.14;
-      s.rxS = (Math.random() - 0.5) * 1.4; s.ryS = (Math.random() - 0.5) * 1.8; s.rzS = (Math.random() - 0.5) * 1.2;
+      if (isCf) {
+        s.rx = 0; s.rz = 0; s.rxS = 0; s.rzS = 0;
+        s.ry = Math.random() * Math.PI * 2;
+        s.ryS = (Math.random() - 0.5) * 0.28;
+        s.amp = 0.055 + Math.random() * 0.045;
+      } else {
+        s.rx = Math.random() * 3.14; s.ry = Math.random() * 3.14; s.rz = Math.random() * 3.14;
+        s.rxS = (Math.random() - 0.5) * 1.4; s.ryS = (Math.random() - 0.5) * 1.8; s.rzS = (Math.random() - 0.5) * 1.2;
+        s.amp = 0.24 + Math.random() * 0.22;
+      }
       s.phase = Math.random() * Math.PI * 2;
-      s.amp = 0.24 + Math.random() * 0.22;
-      s.scale = baseSc * (0.85 + Math.random() * 0.30);
+      s.scale = baseSc * (0.88 + Math.random() * 0.24);
       s.grow = growK;
-      s.life = s.maxLife = lifeBase * (0.86 + Math.random() * 0.28);
+      s.life = s.maxLife = lifeBase * (0.90 + Math.random() * 0.22);
       smokeVoxels.push(s);
     }
   }
@@ -3547,16 +3583,17 @@
         continue;
       }
       const prog = 1.0 - s.life / s.maxLife;
-      const windX = Math.sin(s.phase + prog * 5.2) * s.amp;
-      const windZ = Math.cos(s.phase * 1.3 + prog * 4.6) * s.amp;
+      const windX = Math.sin(s.phase + prog * (s.campfire ? 3.8 : 5.2)) * s.amp;
+      const windZ = Math.cos(s.phase * 1.3 + prog * (s.campfire ? 3.4 : 4.6)) * s.amp;
       s.x += (s.vx + windX) * dt;
       s.y += s.vy * dt;
       s.z += (s.vz + windZ) * dt;
-      s.vy *= Math.exp(-0.18 * dt);
+      s.vy *= Math.exp((s.campfire ? -0.035 : -0.18) * dt);
       s.rx += s.rxS * dt; s.ry += s.ryS * dt; s.rz += s.rzS * dt;
-      // Swell rapidly into puffy 3D Minecraft smoke cubes, then taper smoothly to zero before despawn
-      const env = prog < 0.18 ? (0.62 + (prog / 0.18) * 0.38) : (prog > 0.70 ? Math.max(0.02, (1.0 - prog) / 0.30) : 1.0);
-      const sc = Math.max(0.02, s.scale * (0.85 + prog * s.grow) * env);
+      const env = s.campfire
+        ? (prog < 0.14 ? (0.68 + (prog / 0.14) * 0.32) : (prog > 0.72 ? Math.max(0.02, (1.0 - prog) / 0.28) : 1.0))
+        : (prog < 0.18 ? (0.62 + (prog / 0.18) * 0.38) : (prog > 0.70 ? Math.max(0.02, (1.0 - prog) / 0.30) : 1.0));
+      const sc = Math.max(0.02, s.scale * (s.campfire ? (0.92 + prog * s.grow) : (0.85 + prog * s.grow)) * env);
       _partDummy.position.set(s.x, s.y, s.z);
       _partDummy.rotation.set(s.rx, s.ry, s.rz);
       _partDummy.scale.setScalar(sc);
@@ -5411,7 +5448,6 @@
     if (_inSulfurPool) {
       player._sulfurSoakT = (player._sulfurSoakT || 0) + dt;
       if ((frameCounter % 10) === 0) {
-        spawnPixelFx('sulfur_steam', player.x, player.y + 0.55, player.z, { count: 1, scale: 0.68, life: 0.95, vy: 0.85, spread: 0.25, randV: 0.14 });
         spawnParticles(player.x, player.y + 0.35, player.z, 0xfde047, 2, true);
       }
       if (player._sulfurSoakT >= 1.0 && !player._sulfurWarned) {

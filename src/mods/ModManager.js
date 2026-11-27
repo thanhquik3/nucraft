@@ -277,6 +277,7 @@
 
   // Built-in Bare Bones Cartoon Resource Pack (Rust WASM accelerated): flat graphic 2-tone blocks, solid lush/cherry leaf cubes, & trailer palette
   function applyCartoonBareBonesPack() {
+    if (typeof window !== 'undefined') window._cartoonAddonActive = true;
     if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 1.0;
     if (typeof atlasCtx === 'undefined' || typeof atlasCanvas === 'undefined') return 0;
     const cols = typeof ATLAS_COLS !== 'undefined' ? ATLAS_COLS : 8;
@@ -749,6 +750,7 @@
   async function applyAllEnabledMods() {
     ensureBaseSnapshots();
     if (_baseAtlasBackup && typeof atlasCtx !== 'undefined') atlasCtx.putImageData(_baseAtlasBackup, 0, 0);
+    if (typeof window !== 'undefined') window._cartoonAddonActive = false;
     if (typeof envUniforms !== 'undefined' && envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = 0.0;
     if (_baseBlockDefsBackup && typeof BLOCK_DEF !== 'undefined') {
       for (const [id, st] of _baseBlockDefsBackup.entries()) if (BLOCK_DEF[id]) Object.assign(BLOCK_DEF[id], st);
@@ -880,11 +882,12 @@
         id: 'builtin_cartoon_barebones',
         name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
         format: 'builtin-cartoon',
-        description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+        description: 'Gói đồ họa Hoạt Hình (Bare Bones) tối ưu siêu nhẹ cho máy yếu: texture phẳng gọn, bỏ bump/bóng lá/phản chiếu nặng giúp tăng FPS tối đa.',
         size: 4096,
         enabled: false,
         installedAt: Date.now() - 1000
       };
+      defC.description = 'Gói đồ họa Hoạt Hình (Bare Bones) tối ưu siêu nhẹ cho máy yếu: texture phẳng gọn, bỏ bump/bóng lá/phản chiếu nặng giúp tăng FPS tối đa.';
       defC.enabled = cartoonEnabled;
       next.unshift(defC);
       await dbPutMod(defC);
@@ -1074,7 +1077,7 @@
           id: 'builtin_cartoon_barebones',
           name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
           format: 'builtin-cartoon',
-          description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+          description: 'Gói đồ họa Hoạt Hình (Bare Bones) tối ưu siêu nhẹ cho máy yếu: texture phẳng gọn, bỏ bump/bóng lá/phản chiếu nặng giúp tăng FPS tối đa.',
           size: 4096,
           enabled: true,
           installedAt: Date.now()
@@ -1101,12 +1104,15 @@
       drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('dragover'); handleFiles(e.dataTransfer?.files); });
     }
     _installedMods = await dbGetAllMods();
-    if (!_installedMods.some(m => m.id === 'builtin_cartoon_barebones')) {
+    const existingCartoon = _installedMods.find(m => m.id === 'builtin_cartoon_barebones');
+    if (existingCartoon) {
+      existingCartoon.description = 'Gói đồ họa Hoạt Hình (Bare Bones) tối ưu siêu nhẹ cho máy yếu: texture phẳng gọn, bỏ bump/bóng lá/phản chiếu nặng giúp tăng FPS tối đa.';
+    } else {
       const defCartoon = {
         id: 'builtin_cartoon_barebones',
         name: '🎨 Đồ Họa Hoạt Hình (Bare Bones Cartoon)',
         format: 'builtin-cartoon',
-        description: 'Biến đổi toàn bộ khối, lá cây, bầu trời & nước sang phong cách hoạt hình Bare Bones mượt mà rực rỡ.',
+        description: 'Gói đồ họa Hoạt Hình (Bare Bones) tối ưu siêu nhẹ cho máy yếu: texture phẳng gọn, bỏ bump/bóng lá/phản chiếu nặng giúp tăng FPS tối đa.',
         size: 4096,
         enabled: false,
         installedAt: Date.now() - 1000

@@ -120,10 +120,8 @@
       const raw = JSON.parse(localStorage.getItem(GFX_PREFS_KEY) || 'null');
       if (raw && typeof raw === 'object') {
         if (raw.shaderQuality !== undefined) base.shaderQuality = normalizeQuality(raw.shaderQuality, defaultQuality);
-        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 3 && raw.renderDistance <= 8) {
+        if (typeof raw.renderDistance === 'number' && raw.renderDistance >= 1 && raw.renderDistance <= 8) {
           base.renderDistance = raw.renderDistance | 0;
-        } else if (typeof raw.renderDistance === 'number' && raw.renderDistance === 2) {
-          base.renderDistance = 3;
         }
         if (raw.shaderPreset === 'eclipse' || raw.shaderPreset === 'bsl' || raw.shaderPreset === 'bliss' || raw.shaderPreset === 'moonlit' || raw.shaderPreset === 'chill_sunset' || raw.shaderPreset === 'verdant_fresh' || raw.shaderPreset === 'dlss_ultra') {
           base.shaderPreset = raw.shaderPreset;

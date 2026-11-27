@@ -62,8 +62,10 @@
     renderer.shadowMap.enabled = effShadowOn;
     sunLight.castShadow = effShadowOn;
     const dedGpu = !!(_hwProfile && _hwProfile.gpu && _hwProfile.gpu.isDedicated);
+    const isCartoon = !!window._cartoonAddonActive;
     let wantShSize = isLow ? 1024 : (isExtreme ? ((dedGpu && !_initMobile) ? 3072 : 2048) : ((effShadowOn && !_initMobile) ? (dedGpu ? (preset.shadowSize || 2048) : 2048) : 1024));
     if (rtOn && !_initMobile) wantShSize = Math.max(wantShSize, 2048);
+    if (isCartoon) wantShSize = Math.min(wantShSize, 1024);
     if (sunLight.shadow.mapSize.width !== wantShSize) {
       sunLight.shadow.mapSize.set(wantShSize, wantShSize);
       if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
@@ -71,7 +73,7 @@
     if (preset.reflW > 0 && preset.reflH > 0 && (reflRT.width !== preset.reflW || reflRT.height !== preset.reflH)) {
       reflRT.setSize(preset.reflW, preset.reflH);
     }
-    renderer.shadowMap.type = (effShadowOn && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.type = (!isCartoon && effShadowOn && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
     _lastShCx = 999999; _lastShCz = 999999; _lastShQual = '';
     _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
@@ -81,7 +83,10 @@
       const sTex = getAtlasSolidTex();
       if (leavesMatLow.map !== sTex) { leavesMatLow.map = sTex; leavesMatLow.needsUpdate = true; }
     }
-    terrainMat.bumpScale = (isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
+    if (terrainMat._baseBumpMap === undefined) terrainMat._baseBumpMap = terrainMat.bumpMap;
+    const wantBumpMap = isCartoon ? null : terrainMat._baseBumpMap;
+    if (terrainMat.bumpMap !== wantBumpMap) { terrainMat.bumpMap = wantBumpMap; terrainMat.needsUpdate = true; }
+    terrainMat.bumpScale = isCartoon ? 0.0 : ((isLow && !rtOn) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0)));
     leavesMat.bumpScale = 0.0;
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.97 : (shaderPreset === 'cartoon_barebones' ? 0.90 : 0.95);
@@ -164,6 +169,7 @@
       const restorePreset = window._preCartoonShaderPreset || (CFG.loadGfxPrefs ? (CFG.loadGfxPrefs().shaderPreset || 'eclipse') : 'eclipse');
       applyShaderPreset(restorePreset === 'cartoon_barebones' ? 'eclipse' : restorePreset, false);
     }
+    applyQualitySetting(shaderQuality, false);
     window._postFxDirty = true;
   }
   window.syncCartoonExclusiveShaderUI = syncCartoonExclusiveShaderUI;
@@ -662,46 +668,38 @@
       }
     }
 
-    // BUILD v164/v165: Billowing 3D white geothermal steam plumes across ALL Sulfur Hot Springs pools, vents & Sulfur Caves
-    if (isPlaying && !isWorldLoading) {
+    // BUILD v166: Deterministic 3D Minecraft campfire-style smoke ONLY from Sulfur Steam Vents & Campfires (zero water-surface smoke -> zero FPS drop!)
+    if (isPlaying && !isWorldLoading && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false)) {
       _sulfurSteamAcc += dt;
-      const _steamStep = (shaderQuality === 'low') ? 0.16 : 0.10;
+      const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.30 : 0.21;
       if (_sulfurSteamAcc >= _steamStep) {
         _sulfurSteamAcc = 0;
-        const pBio = getPlayerBiome();
-        const uBio = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - (depthOffset || 0)), Math.floor(player.z));
-        if (pBio === BIOMES.SULFUR_SPRINGS || uBio === UNDERGROUND_BIOMES.SULFUR_CAVE) {
-          const probes = (shaderQuality === 'low') ? 8 : 14;
-          const halfProbes = probes >> 1;
-          const fwdX = player.x - Math.sin(player.yaw) * 9.0;
-          const fwdZ = player.z - Math.cos(player.yaw) * 9.0;
-          const startY = Math.min(MAX_Y - 2, Math.floor(player.y + 8));
-          const minScan = Math.max(MIN_Y + 1, Math.min(Math.floor(player.y - 10), WATER_LEVEL - 2));
-          for (let k = 0; k < probes; k++) {
-            const nearFocus = k < halfProbes;
-            const cxBase = nearFocus ? fwdX : player.x;
-            const czBase = nearFocus ? fwdZ : player.z;
-            const span = nearFocus ? 28.0 : 56.0;
-            const sx = Math.floor(cxBase + (Math.random() - 0.5) * span);
-            const sz = Math.floor(czBase + (Math.random() - 0.5) * span);
-            for (let by = startY; by >= minScan; by--) {
-              const bid = getBlockWorld(sx, by, sz);
-              if (bid === B.AIR) continue;
-              if (bid === B.SULFUR_VENT) {
-                spawn3DSmoke(sx + 0.5, by + 1.15, sz + 0.5, {
-                  style: 'steam', count: 3, scale: 1.15, spread: 0.28, randV: 0.22, grow: 0.75, vy: 1.45, life: 2.8
-                });
-              } else if (bid === B.WATER && getBlockWorld(sx, by + 1, sz) === B.AIR && Math.random() < 0.88) {
-                spawn3DSmoke(sx + 0.5, by + 1.02, sz + 0.5, {
-                  style: 'steam', count: 2, scale: 0.98 + Math.random() * 0.35, spread: 0.36, randV: 0.24, grow: 0.70,
-                  vy: 1.05 + Math.random() * 0.38, life: 2.3 + Math.random() * 0.7
-                });
-              } else if (bid === B.SULFUR_CRYSTAL && Math.random() < 0.30) {
-                spawn3DSmoke(sx + 0.5, by + 1.05, sz + 0.5, {
-                  style: 'steam', count: 1, scale: 0.78, spread: 0.18, randV: 0.16, grow: 0.55, vy: 0.90, life: 1.7
+        const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
+        const vRad = Math.min(3, Math.max(1, renderDistance || 3));
+        const maxDistSq = (_isWeakDevice || shaderQuality === 'low') ? 1600.0 : 3600.0;
+        for (let dz = -vRad; dz <= vRad; dz++) {
+          for (let dx = -vRad; dx <= vRad; dx++) {
+            const vch = chunks.get(chunkKey(pcx + dx, pcz + dz));
+            const nodes = vch && vch.ventNodes;
+            if (!nodes || nodes.length === 0) continue;
+            for (let vi = 0; vi < nodes.length; vi++) {
+              const vn = nodes[vi];
+              const ddx = vn.x + 0.5 - player.x, ddz = vn.z + 0.5 - player.z;
+              if (ddx * ddx + ddz * ddz > maxDistSq) continue;
+              if (getBlockWorld(vn.x, vn.y + 1, vn.z) !== B.AIR) continue;
+              const isCf = (vn.kind === 'campfire');
+              spawn3DSmoke(vn.x + 0.5, vn.y + (isCf ? 0.78 : 1.04), vn.z + 0.5, {
+                style: 'campfire', campfire: true, count: 1,
+                scale: isCf ? 1.02 : 1.12, spread: 0.14, randV: 0.03,
+                grow: 0.38, vy: isCf ? 0.96 : 1.08, life: isCf ? 5.8 : 6.8
+              });
+              if (Math.random() < 0.35) {
+                spawn3DSmoke(vn.x + 0.5, vn.y + (isCf ? 0.92 : 1.18), vn.z + 0.5, {
+                  style: 'campfire', campfire: true, count: 1,
+                  scale: 0.52, spread: 0.34, randV: 0.05,
+                  grow: 0.25, vy: isCf ? 1.04 : 1.16, life: 4.8
                 });
               }
-              break;
             }
           }
         }
@@ -842,8 +840,11 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      scene.fog.near = 20; scene.fog.far = Math.max(64, renderDistance * 17);
-      envUniforms.uFogStart.value = 20; envUniforms.uFogEnd.value = Math.max(64, renderDistance * 17);
+      const _shF = (renderDistance <= 2);
+      const _wEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(64, renderDistance * 17);
+      const _wStart = _shF ? Math.min(20, _wEnd * 0.52) : 20;
+      scene.fog.near = _wStart; scene.fog.far = _wEnd;
+      envUniforms.uFogStart.value = _wStart; envUniforms.uFogEnd.value = _wEnd;
       renderer.setClearColor(_tmpFog, 1);
       sunLight.color.setHex(0x67e8f9);
       sunLight.intensity = 0.78;
@@ -875,8 +876,11 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      scene.fog.near = 28; scene.fog.far = Math.max(88, renderDistance * 21);
-      envUniforms.uFogStart.value = 28; envUniforms.uFogEnd.value = Math.max(88, renderDistance * 21);
+      const _shF = (renderDistance <= 2);
+      const _drEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(88, renderDistance * 21);
+      const _drStart = _shF ? Math.min(28, _drEnd * 0.52) : 28;
+      scene.fog.near = _drStart; scene.fog.far = _drEnd;
+      envUniforms.uFogStart.value = _drStart; envUniforms.uFogEnd.value = _drEnd;
       renderer.setClearColor(_tmpFog, 1);
       sunLight.color.setHex(0xe9d5ff);
       sunLight.intensity = 1.02;
@@ -908,8 +912,11 @@
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
       scene.fog.color.copy(_tmpFog);
-      scene.fog.near = 38; scene.fog.far = Math.max(76, renderDistance * 20);
-      envUniforms.uFogStart.value = 38; envUniforms.uFogEnd.value = Math.max(76, renderDistance * 20);
+      const _shF = (renderDistance <= 2);
+      const _sfEnd = _shF ? (renderDistance + 0.35) * 16.0 : Math.max(76, renderDistance * 20);
+      const _sfStart = _shF ? Math.min(38, _sfEnd * 0.52) : 38;
+      scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
+      envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
       sunLight.color.setHex(0xffccb8);
       sunLight.intensity = 0.94;
@@ -942,8 +949,10 @@
       _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : 0x451216)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.42 * dayWeight * (1 - rainIntensity * 0.5));
-      envUniforms.uFogStart.value = isBasalt ? 11.0 : 14.0;
-      envUniforms.uFogEnd.value = renderDistance * (isBasalt ? 14.5 : 16.5);
+      const _shF = (renderDistance <= 2);
+      const _nEnd = _shF ? Math.min(20.0, (renderDistance + 0.35) * (isBasalt ? 14.0 : 15.5)) : renderDistance * (isBasalt ? 14.5 : 16.5);
+      envUniforms.uFogStart.value = _shF ? Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.52) : (isBasalt ? 11.0 : 14.0);
+      envUniforms.uFogEnd.value = _nEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
       envUniforms.uSunColor.value.setHex(isBasalt ? 0xd8c4e8 : (isSoulV ? 0x67e8f9 : (isWarped ? 0x5eead4 : 0xff9b54)));
@@ -969,7 +978,10 @@
       _tmpTop.setHex(0x090414); _tmpHor.setHex(0x1b0e2e);
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor).lerp(_colAerialMist, 0.42 * dayWeight * (1 - rainIntensity * 0.5));
-      envUniforms.uFogStart.value = 26.0; envUniforms.uFogEnd.value = renderDistance * 24.0;
+      const _shF = (renderDistance <= 2);
+      const _eEnd = _shF ? (renderDistance + 0.35) * 16.0 : renderDistance * 24.0;
+      envUniforms.uFogStart.value = _shF ? Math.min(26.0, _eEnd * 0.52) : 26.0;
+      envUniforms.uFogEnd.value = _eEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.45, 0.80, 0.38).normalize();
       envUniforms.uSunColor.value.setHex(0xe9d5ff);
@@ -1088,12 +1100,13 @@
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);
       else if (activeWeatherKind === 'fog') envUniforms.uFogColor.value.lerp(_colDenseFog, 0.74 * rainIntensity);
       else if (activeWeatherKind === 'ashfall') envUniforms.uFogColor.value.lerp(_colAshFog, 0.74 * rainIntensity);
-      const maxChunkFog = Math.max(46, (renderDistance - 0.25) * 16.0);
+      const isUltraShort = (renderDistance <= 2);
+      const maxChunkFog = isUltraShort ? ((renderDistance + 0.35) * 16.0) : Math.max(46, (renderDistance - 0.25) * 16.0);
       const rawEnd = renderDistance * (16.4 - rainIntensity * 3.8 - nightFogMul * 1.8);
-      const baseEnd = Math.min(maxChunkFog, rawEnd);
-      const baseStart = Math.min(baseEnd * 0.58, renderDistance * (10.2 - rainIntensity * 2.8 - nightFogMul * 1.4));
-      envUniforms.uFogStart.value = inMegaCity ? 64.0 : Math.max(22.0, baseStart);
-      envUniforms.uFogEnd.value   = inMegaCity ? Math.max(165.0, renderDistance * 52.0) : Math.max(48.0, baseEnd);
+      const baseEnd = Math.min(maxChunkFog, isUltraShort ? Math.max(18.0, (renderDistance + 0.30) * 15.5 - rainIntensity * 3.0) : rawEnd);
+      const baseStart = Math.min(baseEnd * 0.56, renderDistance * (10.2 - rainIntensity * 2.8 - nightFogMul * 1.4));
+      envUniforms.uFogStart.value = (inMegaCity && !isUltraShort) ? 64.0 : Math.max(isUltraShort ? 9.0 : 22.0, baseStart);
+      envUniforms.uFogEnd.value   = (inMegaCity && !isUltraShort) ? Math.max(165.0, renderDistance * 52.0) : Math.max(isUltraShort ? 19.0 : 48.0, baseEnd);
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
         envUniforms.uFogColor.value.copy(_colNightmareFog);
         envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 4.5);
@@ -1369,10 +1382,12 @@
     if ((pcx !== _lastShCx || pcz !== _lastShCz || shaderQuality !== _lastShQual) && chunks.size > 0) {
       _lastShCx = pcx; _lastShCz = pcz; _lastShQual = shaderQuality;
       const _rtShOn = !!(typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing);
+      const _isCartoonSh = !!window._cartoonAddonActive;
       const preset = (CFG.GFX_PRESETS && CFG.GFX_PRESETS[shaderQuality]) || { shadowChunkRange: 26 };
       const effShRange = preset.shadowChunkRange > 0 ? preset.shadowChunkRange : (_rtShOn ? 32 : 0);
-      const maxChDist = effShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(effShRange / CHUNK_W))) : -1;
-      const allowLeafSh = (shaderQuality !== 'low' || _rtShOn);
+      let maxChDist = effShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(effShRange / CHUNK_W))) : -1;
+      if (_isCartoonSh && maxChDist > 1) maxChDist = 1;
+      const allowLeafSh = !_isCartoonSh && (shaderQuality !== 'low' || _rtShOn);
       const leafShDist = Math.min(maxChDist, 2);
       for (const ch of chunks.values()) {
         const dCh = Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz));
