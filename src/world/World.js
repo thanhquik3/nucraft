@@ -1293,28 +1293,28 @@
           const caveThresh = (b === BIOMES.DR_CAVERNS) ? 0.60 : 0.75;
           if (wy < topH - 2 && wy > MIN_Y + 4 && dArena >= 28 && sampleCaveFast(lx, ly, lz) > caveThresh) {
             const cH = hash3i(wx, wy, wz, worldSeed + 8707);
-            data[idx] = (wy === MIN_Y + 5 && cH > 0.90) ? B.GLOW_CRYSTAL : ((cH > 0.985 && wy < topH - 5) ? B.AMETHYST : B.AIR);
+            data[idx] = (wy === MIN_Y + 5 && cH > 0.90) ? B.GLOW_CRYSTAL : B.AIR;
             continue;
           }
           if (wy === topH) {
             if (dArena < 22) data[idx] = (dArena > 19.5) ? B.PURPUR_BLOCK : (((Math.abs(wx) + Math.abs(wz - 136)) % 4 === 0) ? B.END_STONE_BRICKS : B.OBSIDIAN);
             else if (b === BIOMES.DR_JUNGLE) data[idx] = pondN > 0.56 ? B.END_MOSS : B.END_CRYSTAL_STONE;
             else if (b === BIOMES.DR_PLATEAU) data[idx] = ((wx ^ wz) & 3) === 0 ? B.PURPUR_BLOCK : B.END_STONE_BRICKS;
-            else if (b === BIOMES.DR_PEAKS) data[idx] = wy >= 42 ? B.OBSIDIAN : (pondN > 0.58 ? B.AMETHYST : B.END_CRYSTAL_STONE);
-            else if (b === BIOMES.DR_CAVERNS) data[idx] = pondN > 0.52 ? B.AMETHYST : B.END_CRYSTAL_STONE;
+            else if (b === BIOMES.DR_PEAKS) data[idx] = wy >= 42 ? B.OBSIDIAN : (pondN > 0.58 ? B.PURPUR_BLOCK : B.END_CRYSTAL_STONE);
+            else if (b === BIOMES.DR_CAVERNS) data[idx] = pondN > 0.52 ? B.PURPUR_BLOCK : B.END_CRYSTAL_STONE;
             else data[idx] = pondN > 0.45 ? B.END_MOSS : B.END_STONE;
           } else {
             const oh = hash3i(wx, wy, wz, worldSeed + 8819);
-            if (wy < 12 && oh > 0.986) data[idx] = B.VOID_ORE;
+            if (wy < 12 && oh > 0.986) data[idx] = B.DRAGON_CRYSTAL_ORE;
             else if (wy < 22 && oh > 0.980) data[idx] = B.DIAMOND_ORE;
-            else if (oh > 0.968) data[idx] = B.AMETHYST;
+            else if (oh > 0.968) data[idx] = B.PURPUR_PILLAR;
             else data[idx] = (wy >= topH - 3) ? B.END_CRYSTAL_STONE : B.END_STONE;
           }
         }
         // Arena corner obelisks around (0, 136)
         if (Math.abs(Math.abs(wx) - 14) <= 1 && Math.abs(Math.abs(wz - 136) - 14) <= 1) {
           for (let py = topH + 1; py <= topH + 12; py++) {
-            setLocalSafe(data, lx, py, lz, (wx === 14 || wx === -14) && (wz === 150 || wz === 122) && py === topH + 12 ? B.END_CRYSTAL_BLOCK : ((py % 3 === 0) ? B.AMETHYST : B.OBSIDIAN), true);
+            setLocalSafe(data, lx, py, lz, (wx === 14 || wx === -14) && (wz === 150 || wz === 122) && py === topH + 12 ? B.END_CRYSTAL_BLOCK : ((py % 3 === 0) ? B.PURPUR_PILLAR : B.OBSIDIAN), true);
           }
           const aTop = Math.min(WORLD_H - 1, topH + 13 - MIN_Y);
           if (aTop > maxLy) maxLy = aTop;
@@ -1334,10 +1334,12 @@
             const topT = Math.min(WORLD_H - 1, topH + tH + 3 - MIN_Y);
             if (topT > maxLy) maxLy = topT;
           } else if ((b === BIOMES.DR_PEAKS || b === BIOMES.DR_CAVERNS) && fh > 0.978) {
-            const spH = 3 + (Math.abs(wx + wz) % 4);
-            for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, topH + sy, lz, sy === spH ? B.GLOW_CRYSTAL : B.AMETHYST, true);
-            const spTop = Math.min(WORLD_H - 1, topH + spH + 1 - MIN_Y);
-            if (spTop > maxLy) maxLy = spTop;
+            if (data[((topH - MIN_Y) << 8) | ci] !== B.AIR) {
+              const spH = 3 + (Math.abs(wx + wz) % 4);
+              for (let sy = 1; sy <= spH; sy++) setLocalSafe(data, lx, topH + sy, lz, sy === spH ? B.GLOW_CRYSTAL : B.PURPUR_PILLAR, true);
+              const spTop = Math.min(WORLD_H - 1, topH + spH + 1 - MIN_Y);
+              if (spTop > maxLy) maxLy = spTop;
+            }
           } else if (b === BIOMES.DR_PLAINS && fh > 0.985) {
             setLocalSafe(data, lx, topH + 1, lz, B.END_ROD, true);
           }
@@ -1393,9 +1395,15 @@
           const r = Math.hypot(dx - 7.5, dz - 7.5);
           if (r <= 4.6) setLocalSafe(data, dx, baseY + (r > 3.1 ? 1 : 0), dz, r > 3.1 ? B.OBSIDIAN : B.END_CRYSTAL_STONE, true);
         }
-        setLocalSafe(data, 7, baseY + 1, 7, B.AMETHYST, true);
+        setLocalSafe(data, 7, baseY + 1, 7, B.PURPUR_BLOCK, true);
         setLocalSafe(data, 8, baseY + 1, 8, B.GOLD_CHEST, true);
         maxLy = Math.max(maxLy, Math.min(WORLD_H - 1, baseY + 3 - MIN_Y));
+      }
+    }
+    for (let ly = 1; ly <= maxLy; ly++) {
+      const base = ly << 8, below = (ly - 1) << 8;
+      for (let i = 0; i < 256; i++) {
+        if (data[base | i] === B.GLOW_CRYSTAL && data[below | i] === B.AIR) data[base | i] = B.AIR;
       }
     }
     maxLy = applyChunkMods(cx, cz, data, Math.min(WORLD_H - 1, maxLy));
@@ -5398,6 +5406,7 @@
         seed: worldSeed,
         player: { x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z, yaw: player.yaw, pitch: player.pitch, dim: currentDimension, depthOffset: depthOffset || 0, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, mods: modsArr.slice(-12000),
+        savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
         ...serializeChestData()
       }));
       showToast('Đã lưu thế giới v17 thành công!');
@@ -8040,7 +8049,7 @@
     for (let dy = 1; dy <= 5; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         const isFrame = (dx === -2 || dx === 2 || dy === 5);
-        setBlockWorld(px + dx, py + dy, pz, isFrame ? (dy === 5 && Math.abs(dx) === 2 ? B.AMETHYST : B.OBSIDIAN) : B.DRAGON_REALM_PORTAL, true, true);
+        setBlockWorld(px + dx, py + dy, pz, isFrame ? (dy === 5 && Math.abs(dx) === 2 ? B.PURPUR_BLOCK : B.OBSIDIAN) : B.DRAGON_REALM_PORTAL, true, true);
       }
     }
     setBlockWorld(px - 2, py + 6, pz, B.END_ROD, true, true);

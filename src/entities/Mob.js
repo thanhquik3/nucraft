@@ -4401,9 +4401,15 @@
     const hpBar = null; // Lazy-created in updateMobHpBar() only when mob actually takes damage!
     const _isDrgType = IS_DRAGON_MOB.has(type);
     if (_isDrgType && st.flying && !(opts && opts.tamed)) {
-      const minAirY = _getSafeDragonSkyY(wx, wz, 8);
-      if (wy < minAirY || isSolidAt(Math.floor(wx), Math.floor(wy), Math.floor(wz)) || isSolidAt(Math.floor(wx), Math.floor(wy + 1), Math.floor(wz))) {
-        wy = _getSafeDragonSkyY(wx, wz, 14);
+      if (opts && opts.fromSave) {
+        if (isSolidAt(Math.floor(wx), Math.floor(wy), Math.floor(wz)) || isSolidAt(Math.floor(wx), Math.floor(wy + 1), Math.floor(wz))) {
+          wy = _getSafeDragonSkyY(wx, wz, 14);
+        }
+      } else {
+        const minAirY = _getSafeDragonSkyY(wx, wz, 8);
+        if (wy < minAirY || isSolidAt(Math.floor(wx), Math.floor(wy), Math.floor(wz)) || isSolidAt(Math.floor(wx), Math.floor(wy + 1), Math.floor(wz))) {
+          wy = _getSafeDragonSkyY(wx, wz, 14);
+        }
       }
     }
     built.group.position.set(wx, wy, wz);
@@ -4419,7 +4425,8 @@
       woolColor: woolSpec ? woolSpec.key : null,
       woolBlockId: woolSpec ? (B[woolSpec.woolKey] || B.WHITE_WOOL) : 0,
       villagerProf: built.villagerProf || null,
-      hostile: !!st.hostile, neutral: !!st.neutral, eyeAggro: !!st.eyeAggro, guardian: !!st.guardian, villager: !!st.villager,
+      hostile: !(opts && opts.tamed) && !!st.hostile, neutral: !!st.neutral, eyeAggro: !!st.eyeAggro, guardian: !!st.guardian, villager: !!st.villager,
+      tamed: !!(opts && opts.tamed), sitting: !!(opts && opts.sitting),
       hopper: !!st.hopper, ranged: _rvRange || st.ranged || null, noSunBurn: !!st.noSunBurn,
       isBoss: !!st.isBoss, flying: !!st.flying, skyBird: !!st.skyBird, aqua: !!st.aqua,
       elemDragon: st.elementalDragon || null,
@@ -4450,7 +4457,7 @@
       glbKey: built.glbKey || (built.fromBlender ? type : null), hpBar
     };
     mobs.push(m);
-    if (st.isBoss && !(opts && opts.tamed)) {
+    if (st.isBoss && !(opts && opts.tamed) && !(opts && opts.silent)) {
       if (IS_DRAGON_MOB.has(type) && !st.flying) m._roarT = 1.25;
       playSfx('roar');
       showToast(st.bossLabel ? `${st.bossLabel} đã xuất hiện!` : '🔥 BOSS đã xuất hiện!');
@@ -6164,6 +6171,103 @@
           mobs[i] = mobs[mobs.length - 1]; mobs.pop();
         }
       }
+    }
+  }
+
+  function serializeMobsForSave(maxCount = 48) {
+    const dOff = depthOffset || 0;
+    const cands = [];
+    for (let i = 0; i < mobs.length; i++) {
+      const m = mobs[i];
+      if (!m || m._dead || (m.tamed && m.elemDragon)) continue;
+      const prio = (m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : (m.tamed ? 1 : ((m.villager || m.guardian) ? 2 : 3));
+      const d2 = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
+      cands.push({ m, prio, d2 });
+    }
+    cands.sort((a, b) => (a.prio - b.prio) || (a.d2 - b.d2));
+    const out = [];
+    for (let i = 0; i < cands.length && out.length < maxCount; i++) {
+      const m = cands[i].m;
+      const item = {
+        t: m.type,
+        x: +m.x.toFixed(2),
+        ty: +(m.y - dOff).toFixed(2),
+        z: +m.z.toFixed(2),
+        yw: +m.yaw.toFixed(3),
+        hp: Math.max(1, Math.ceil(m.hp))
+      };
+      if (m.maxHp && m.maxHp !== MOB_STATS[m.type]?.hp) item.mh = m.maxHp;
+      if (m.tamed) item.tm = 1;
+      if (m.sitting) item.st = 1;
+      if (m.flying) item.fl = 1;
+      if (m.woolColor) item.wc = m.woolColor;
+      if (m.villagerProf) item.vp = m.villagerProf.idx;
+      if (typeof m.homeX === 'number') {
+        item.hx = +m.homeX.toFixed(2);
+        item.hy = +((m.homeY !== undefined ? m.homeY : m.y) - dOff).toFixed(2);
+        item.hz = +m.homeZ.toFixed(2);
+        if (typeof m.homeRadius === 'number') item.hr = m.homeRadius;
+      }
+      if (typeof m.nestIdx === 'number') item.ni = m.nestIdx;
+      if (m.dragonStage !== undefined) item.ds = m.dragonStage;
+      if (m.dragonMode) item.dm = m.dragonMode;
+      out.push(item);
+    }
+    return out;
+  }
+
+  function restoreMobsFromSave(list) {
+    if (!Array.isArray(list)) return;
+    const dOff = depthOffset || 0;
+    for (let i = 0; i < list.length; i++) {
+      const it = list[i];
+      if (!it || !it.t) continue;
+      const known = (typeof ANIMAL_MAP !== 'undefined' && ANIMAL_MAP.has(it.t)) || !!MOB_STATS[it.t];
+      if (!known) continue;
+      const wx = Number.isFinite(it.x) ? it.x : player.x;
+      const wz = Number.isFinite(it.z) ? it.z : player.z;
+      const wy = (typeof it.ty === 'number' && Number.isFinite(it.ty)) ? (it.ty + dOff) : (player.y + 1.2);
+      const opts = { silent: true, fromSave: true };
+      if (it.tm) opts.tamed = true;
+      if (it.st) opts.sitting = true;
+      if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
+      if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
+      if (typeof it.hx === 'number' && typeof it.hz === 'number') {
+        opts.homeX = it.hx;
+        opts.homeY = (typeof it.hy === 'number' ? it.hy : (wy - dOff)) + dOff;
+        opts.homeZ = it.hz;
+        if (typeof it.hr === 'number') opts.homeRadius = it.hr;
+      }
+      if (typeof it.ni === 'number') { opts.nestIdx = it.ni; spawnedDragonNests.add(it.ni); }
+      if (it.ds !== undefined) opts.dragonStage = it.ds;
+      const m = spawnMobOfType(it.t, wx, wy, wz, opts);
+      if (!m) continue;
+      if (typeof it.yw === 'number' && Number.isFinite(it.yw)) {
+        m.yaw = it.yw;
+        m.ryaw = it.yw;
+        if (m.group) m.group.rotation.y = it.yw;
+      }
+      m.rx = m.x; m.ry = m.y; m.rz = m.z;
+      if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
+      if (typeof it.hp === 'number' && it.hp > 0) m.hp = Math.min(m.maxHp, it.hp);
+      if (it.dm) m.dragonMode = it.dm;
+      if (it.fl !== undefined) m.flying = !!it.fl;
+      if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
+    }
+    if (currentDimension === 'end') _endCrystalScanT = 0;
+  }
+
+  function spawnFallbackDimMobs() {
+    if (currentDimension === 'end' && Math.hypot(player.x, player.z) < 180) {
+      const landY = Math.max(8, getTerrainHeight(0, 18, BIOMES.THE_END));
+      const ed = spawnMobOfType('ender_dragon', 0.5, landY + 15.0, -10.0, { silent: true });
+      if (ed) { ed.homeX = 0.5; ed.homeY = landY + 15.0; ed.homeZ = 0.5; ed.homeRadius = 34; }
+    } else if (currentDimension === 'dragon_realm') {
+      const safeY = (wx, wz) => (typeof _getSafeDragonSkyY === 'function') ? _getSafeDragonSkyY(wx, wz, 16) : Math.max(24, getTerrainHeight(Math.floor(wx), Math.floor(wz), getBiomeAt(Math.floor(wx), Math.floor(wz))) + 16);
+      spawnMobOfType('void_end_dragon', -28, safeY(-28, 42), 42, { silent: true });
+      spawnMobOfType('amethyst_end_dragon', 30, safeY(30, 54), 54, { silent: true });
+      const sovY = safeY(0.5, 136.5);
+      spawnMobOfType('sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52, silent: true });
     }
   }
 

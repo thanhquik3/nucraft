@@ -1075,7 +1075,7 @@
               if (Array.isArray(msg.mods) && msg.mods.length && (msg.reusePrev || worldMods.size === 0)) applyModsChunkList(msg.mods);
               if (typeof restoreChestData === 'function' && msg.reusePrev) restoreChestData({ chests: msg.chests || [], consumedLoot: msg.consumedChests || [] });
               if (Array.isArray(msg.drops)) _applyRemoteDropBatch(msg.drops);
-              if (msg.savedPlayer && msg.reusePrev && isPlaying) applySavedPlayerRoomState(msg.savedPlayer);
+              if (msg.savedPlayer && msg.reusePrev && isPlaying && !(msg.isHost && (Date.now() - (window._justLoadedLocalSaveAt || 0)) < 6000)) applySavedPlayerRoomState(msg.savedPlayer);
               if (Array.isArray(msg.peers)) {
                 for (const p of msg.peers) {
                   if (!p || p.peerId === localPeerId || p.peerId === wsSelfPeerId) continue;
@@ -1092,7 +1092,7 @@
             if (!activeRoomId) activeRoomId = msg.roomId;
             if (!activeCoopTransport) activeCoopTransport = 'host';
             if (Array.isArray(msg.mods) && msg.mods.length && worldMods.size === 0) applyModsChunkList(msg.mods);
-            if (msg.savedPlayer && isPlaying) applySavedPlayerRoomState(msg.savedPlayer);
+            if (msg.savedPlayer && isPlaying && (Date.now() - (window._justLoadedLocalSaveAt || 0)) >= 6000) applySavedPlayerRoomState(msg.savedPlayer);
             updateRoomBadgeUI();
             if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
           }

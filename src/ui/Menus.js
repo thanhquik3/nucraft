@@ -1788,6 +1788,7 @@ function syncTitleAvatarFace() {
         updatedAt: Date.now(),
         player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, depthOffset, currentDimension, mods: modsArr.slice(-4000),
+        savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
         ...serializeChestData()
       });
       localStorage.setItem(WORLDS_KEY, JSON.stringify(list.slice(0, 8)));
@@ -1870,7 +1871,8 @@ function renderSavedWorldsList() {
       gameMode = currentWorldMeta.mode;
       if (typeof syncMobSpawnLockUI === 'function') syncMobSpawnLockUI();
       worldDifficulty = currentWorldMeta.difficulty;
-      resetWorld(w.seed);
+      window._justLoadedLocalSaveAt = Date.now();
+      resetWorld(w.seed, { deferSpawnChunks: true });
     if (typeof w.depthOffset === 'number') depthOffset = w.depthOffset;
     if (typeof w.currentDimension === 'string') currentDimension = w.currentDimension;
     if (w.player) Object.assign(player, w.player);
@@ -1887,13 +1889,21 @@ function renderSavedWorldsList() {
     }
     recalcPlayerArmor();
     if (typeof w.dayTime === 'number') dayTime = w.dayTime;
-    _clearWorldInteractiveCaches(false, false);
+    if (typeof w.weatherMode === 'string') weatherMode = w.weatherMode;
+    _clearWorldInteractiveCaches(true, false);
     if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
     if (Array.isArray(w.mods)) for (const [k, v] of w.mods) { worldMods.set(k, v); indexWorldModKey(k, v); }
-    restoreChestData(w);
     lastPlayerCx = 99999; lastPlayerCz = 99999;
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(pcx + dx, pcz + dz);
+    if (currentDimension === 'dragon_realm') generateChunk(1, 3);
+    restoreChestData(w);
+    if (Array.isArray(w.savedMobs)) {
+      if (typeof restoreMobsFromSave === 'function') restoreMobsFromSave(w.savedMobs);
+    } else if (typeof spawnFallbackDimMobs === 'function') {
+      spawnFallbackDimMobs();
+    }
+    mobSpawnTimer = 2.0;
     if (!isWorldLoading) { for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch); }
     applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (shaderPreset === 'eclipse' ? 'eclipse' : (currentWorldMeta.preset || 'eclipse')));
     renderHotbar(); renderStatusBars(); renderXpBar(); renderEquipmentUI();
