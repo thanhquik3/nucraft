@@ -285,9 +285,16 @@
   // Lazy on-demand GLB decoding: uses binary assets/models/*.glb on web (0MB startup) or embedded bundle on standalone Mobile HTML
   let _glbFetchCount = 0;
   const _glbFetching = new Map();
+  const _glbRetryCount = new Map();
   const DRAGON_SHARED_GLB = 'dragon_wyvern';
   const _END_FIERCE_DRAGONS = new Set(['void_end_dragon', 'amethyst_end_dragon', 'storm_end_dragon', 'abyss_end_dragon']);
-  const _resolveGlbKey = (type) => (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : type;
+  const _MOB_BASE_GLB = {
+    charged_creeper: 'creeper', icy_creeper: 'creeper', potato_creeper: 'creeper',
+    nerd_creeper: 'creeper', ghost_creeper: 'creeper',
+    zombified_piglin: 'piglin', zombie_horse: 'horse',
+    cluckshroom: 'chicken', wooly_cow: 'cow', spider_jockey: 'spider'
+  };
+  const _resolveGlbKey = (type) => (IS_DRAGON_MOB.has(type) || type === 'baby_dragon') ? DRAGON_SHARED_GLB : (_MOB_BASE_GLB[type] || type);
   const _hasGlbAsset = (type) => {
     const key = _resolveGlbKey(type);
     return (window.BLENDER_MOB_GLBS && (!!window.BLENDER_MOB_GLBS[key] || !!window.BLENDER_MOB_GLBS[type]))
@@ -363,12 +370,28 @@
         _glbFetchCount++;
         const tpl = parseGLB(ab);
         return Promise.resolve(tpl.userData && tpl.userData._texReady).then(() => {
+          _glbRetryCount.delete(key);
           blenderMobTemplates.set(key, tpl);
           hotSwapMobMeshesForType(key);
+          if (typeof drawDragonPreview === 'function' && typeof _dragonPrevRig !== 'undefined' && _dragonPrevRig && _dragonPrevRig.isPlaceholder) {
+            drawDragonPreview();
+          }
           return tpl;
         });
       })
-      .catch((err) => { console.warn('Failed to fetch Blender GLB', key, err); return null; })
+      .catch((err) => {
+        console.warn('Failed to fetch Blender GLB', key, err);
+        const tries = (_glbRetryCount.get(key) || 0) + 1;
+        if (tries <= 3) {
+          _glbRetryCount.set(key, tries);
+          setTimeout(() => {
+            if (blenderMobTemplates.has(key)) return;
+            const stillNeeded = mobs.some((mb) => mb && !mb._dead && (!mb.fromBlender || mb.isPlaceholder) && (mb.pendingGlbKey === key || _resolveGlbKey(mb.type) === key));
+            if (stillNeeded) preloadMobGlb(key);
+          }, tries * 1500);
+        }
+        return null;
+      })
       .finally(() => { _glbFetching.delete(key); });
     _glbFetching.set(key, p);
     return p;
@@ -2084,11 +2107,99 @@
         addBoxTo(leg, 0.17, 0.08, 0.17, 0x9e5466, 0, -0.24, 0, false, 0.85);
       }
     } else {
-      // Neutral cube creature fallback (never mis-renders magma_cube/unknown mobs as a pig!)
-      anim.torso = makePivot(g, 0, 0.48, 0);
-      addBoxTo(anim.torso, 0.62, 0.54, 0.62, 0x94a3b8, 0, 0, 0, false, 0.78);
-      addBoxTo(anim.torso, 0.10, 0.10, 0.03, 0x38bdf8, -0.15, 0.05, 0.328, true);
-      addBoxTo(anim.torso, 0.10, 0.10, 0.03, 0x38bdf8,  0.15, 0.05, 0.328, true);
+      // Archetype-matched voxel fallback (while GLB streams or offline; never renders as a grey slime cube!)
+      const stFb = (typeof MOB_STATS !== 'undefined' && MOB_STATS[type]) || {};
+      const FB_PAL = {
+        creeper: [0x4ade80, 0x15803d, 0x052e16], charged_creeper: [0x67e8f9, 0x0284c7, 0x0f172a],
+        icy_creeper: [0x7dd3fc, 0x0369a1, 0x0f172a], potato_creeper: [0xfacc15, 0xa16207, 0x422006],
+        nerd_creeper: [0x4ade80, 0xf8fafc, 0x111827], ghost_creeper: [0xd1fae5, 0x6ee7b7, 0x064e3b],
+        spider: [0x292524, 0x44403c, 0xef4444], chorus_crawler: [0x6b21a8, 0xa855f7, 0xf0abfc],
+        endermite: [0x4c1d95, 0x7c3aed, 0xf472b6], enderman: [0x18181b, 0x27272a, 0xd946ef],
+        void_stalker: [0x1e1b4b, 0x312e81, 0xe879f9], ghast: [0xf8fafc, 0xe2e8f0, 0xef4444],
+        blaze: [0xf59e0b, 0xfacc15, 0x7c2d12], wither: [0x18181b, 0x3f3f46, 0xe2e8f0],
+        wither_skeleton: [0x27272a, 0x18181b, 0xe2e8f0], piglin: [0xd97757, 0x92400e, 0xfacc15],
+        piglin_brute: [0x9a3412, 0x1c1917, 0xfacc15], zombified_piglin: [0x84cc16, 0x92400e, 0xfacc15],
+        hoglin: [0xb45309, 0xfde68a, 0x451a03], zoglin: [0x7c2d12, 0x84cc16, 0x451a03],
+        zombie_horse: [0x65a30d, 0x3f6212, 0x111827], ravager: [0x57534e, 0x292524, 0xfef3c7],
+        copper_golem: [0xc2612b, 0x2dd4bf, 0x38bdf8], rascal: [0x0d9488, 0xf97316, 0x0f172a],
+        glare_mob: [0x3f6212, 0x84cc16, 0xfacc15], snow_golem: [0xf8fafc, 0xf97316, 0x18181b],
+        breeze: [0xa5b4fc, 0x6366f1, 0xe0e7ff], creaking: [0x44403c, 0x292524, 0xf97316],
+        shulker: [0x9333ea, 0xc084fc, 0xfef08a], drowned: [0x0d9488, 0x115e59, 0x67e8f9],
+        guardian: [0x0d9488, 0xf97316, 0xef4444], witch: [0x581c87, 0x3b0764, 0x22c55e],
+        iceologer: [0x1d4ed8, 0x93c5fd, 0x38bdf8], ruin_stalker: [0x334155, 0x64748b, 0x38bdf8],
+        gargoyle: [0x64748b, 0x475569, 0xf59e0b], phantom_drake: [0x1e3a8a, 0x3b82f6, 0x4ade80],
+        end_phantom: [0x4c1d95, 0x7c3aed, 0xf0abfc], soul_wisp: [0x06b6d4, 0x67e8f9, 0xe0f2fe],
+        void_golem: [0x312e81, 0x6d28d9, 0xe879f9], magma_golem: [0x44403c, 0xf97316, 0xfacc15],
+        sculk_stalker: [0x0f172a, 0x0e7490, 0x22d3ee], sculk_brute: [0x0f172a, 0x155e75, 0x22d3ee],
+        sculk_sentinel: [0x0f172a, 0x0891b2, 0x67e8f9], sculk_soul_ravager: [0x0f172a, 0x0e7490, 0x67e8f9]
+      };
+      const [cMain, cAcc, cEye] = FB_PAL[type] || [0x64748b, 0x475569, 0x38bdf8];
+      if (type === 'spider' || type === 'chorus_crawler' || type === 'endermite') {
+        anim.torso = makePivot(g, 0, 0.34, 0);
+        addBoxTo(anim.torso, 0.56, 0.34, 0.72, cMain, 0, 0, -0.08);
+        anim.head = makePivot(anim.torso, 0, 0, 0.34);
+        addBoxTo(anim.head, 0.40, 0.30, 0.34, cAcc, 0, 0, 0.14);
+        addBoxTo(anim.head, 0.08, 0.07, 0.04, cEye, -0.10, 0.04, 0.32, true);
+        addBoxTo(anim.head, 0.08, 0.07, 0.04, cEye,  0.10, 0.04, 0.32, true);
+        for (const sx of [-1, 1]) for (let li = 0; li < 3; li++) {
+          const leg = makePivot(g, sx * 0.28, 0.32, (li - 1) * 0.22);
+          addBoxTo(leg, 0.44, 0.09, 0.09, cMain, sx * 0.22, -0.10, 0);
+          anim.legs.push({ p: leg, dir: ((li & 1) ? 1 : -1) * sx, isSpider: true });
+        }
+      } else if (stFb.flying || type === 'ghast' || type === 'blaze' || type === 'wither' || type === 'glare_mob' || type === 'soul_wisp') {
+        anim.torso = makePivot(g, 0, 0.72, 0);
+        addBoxTo(anim.torso, 0.58, 0.54, 0.58, cMain, 0, 0, 0);
+        addBoxTo(anim.torso, 0.10, 0.09, 0.04, cEye, -0.14, 0.06, 0.30, true);
+        addBoxTo(anim.torso, 0.10, 0.09, 0.04, cEye,  0.14, 0.06, 0.30, true);
+        for (const sx of [-1, 1]) {
+          const wp = makePivot(anim.torso, sx * 0.30, 0.06, 0);
+          addBoxTo(wp, 0.42, 0.08, 0.32, cAcc, sx * 0.21, 0, 0);
+          anim.wings.push({ p: wp, dir: sx });
+        }
+      } else if (type === 'ravager' || type === 'hoglin' || type === 'zoglin' || type === 'zombie_horse') {
+        anim.torso = makePivot(g, 0, 0.66, 0);
+        addBoxTo(anim.torso, 0.66, 0.52, 0.96, cMain, 0, 0, 0);
+        anim.head = makePivot(anim.torso, 0, 0.16, 0.50);
+        addBoxTo(anim.head, 0.46, 0.42, 0.44, cAcc, 0, 0.04, 0.16);
+        addBoxTo(anim.head, 0.08, 0.08, 0.04, cEye, -0.12, 0.08, 0.39, true);
+        addBoxTo(anim.head, 0.08, 0.08, 0.04, cEye,  0.12, 0.08, 0.39, true);
+        for (const [lx, lz, d] of [[-0.22, 0.30, 1], [0.22, 0.30, -1], [-0.22, -0.30, -1], [0.22, -0.30, 1]]) {
+          const leg = makePivot(g, lx, 0.42, lz);
+          addBoxTo(leg, 0.16, 0.42, 0.16, cAcc, 0, -0.21, 0);
+          anim.legs.push({ p: leg, dir: d });
+        }
+      } else if (stFb.aqua || type === 'guardian') {
+        anim.torso = makePivot(g, 0, 0.45, 0);
+        addBoxTo(anim.torso, 0.56, 0.52, 0.62, cMain, 0, 0, 0);
+        addBoxTo(anim.torso, 0.18, 0.14, 0.04, cEye, 0, 0.02, 0.32, true);
+        anim.tail = makePivot(anim.torso, 0, 0, -0.32);
+        addBoxTo(anim.tail, 0.12, 0.30, 0.36, cAcc, 0, 0, -0.18);
+      } else {
+        const isTall = (type === 'enderman' || type === 'void_stalker' || type.startsWith('sculk_'));
+        const legH = isTall ? 0.92 : 0.62, bodyH = isTall ? 0.72 : 0.62;
+        anim.torso = makePivot(g, 0, legH + bodyH * 0.5, 0);
+        addBoxTo(anim.torso, 0.46, bodyH, 0.28, cMain, 0, 0, 0);
+        anim.head = makePivot(anim.torso, 0, bodyH * 0.5, 0);
+        addBoxTo(anim.head, 0.44, 0.44, 0.44, cAcc, 0, 0.22, 0);
+        addBoxTo(anim.head, 0.09, 0.07, 0.04, cEye, -0.11, 0.24, 0.23, true);
+        addBoxTo(anim.head, 0.09, 0.07, 0.04, cEye,  0.11, 0.24, 0.23, true);
+        for (const [sx, d] of [[-0.33, 1], [0.33, -1]]) {
+          const arm = makePivot(anim.torso, sx, bodyH * 0.38, 0);
+          addBoxTo(arm, 0.18, isTall ? 0.82 : 0.54, 0.18, cMain, 0, isTall ? -0.38 : -0.24, 0);
+          anim.arms.push({ p: arm, dir: d });
+        }
+        for (const [lx, d] of [[-0.13, 1], [0.13, -1]]) {
+          const leg = makePivot(g, lx, legH, 0);
+          addBoxTo(leg, 0.18, legH, 0.20, cAcc, 0, -legH * 0.5, 0);
+          anim.legs.push({ p: leg, dir: d });
+        }
+      }
+      const res = finishMob();
+      if (_hasGlbAsset(type)) {
+        res.isPlaceholder = true;
+        res.pendingGlbKey = _resolveGlbKey(type);
+      }
+      return res;
     }
     return finishMob();
   }
@@ -2304,6 +2415,9 @@
         }
         return bm;
       }
+      const fb = _baseBuildMobMesh(type, wx, wz, opts);
+      if (fb) { fb.isPlaceholder = true; fb.pendingGlbKey = 'creeper'; }
+      return fb;
     }
 
     if (type === 'zombified_piglin' || type === 'zombie_horse') {
@@ -2316,6 +2430,9 @@
         }
         return bm;
       }
+      const fb = _baseBuildMobMesh(type, wx, wz, opts);
+      if (fb) { fb.isPlaceholder = true; fb.pendingGlbKey = cfg.base; }
+      return fb;
     }
 
     const ELEMENTAL_DRAGON_CFG = {
@@ -2329,11 +2446,17 @@
     const _isPlush = type.startsWith('plush_');
     const _isSkelVariant = (type === 'skeleton' || type === 'stray' || type === 'desert_skeleton' || type === 'bogged');
     const _isZombieVariant = (type === 'zombie' || type === 'husk' || type === 'frozen_zombie' || type === 'mossy_zombie');
-    const _isCustomV92 = _isPlush || _isSkelVariant || _isZombieVariant || type === 'chicken' || type === 'chicken_jockey' || type === 'spider_jockey'
-      || (!!ELEMENTAL_DRAGON_CFG[type] && !blenderMobTemplates.has(_resolveGlbKey(type)) && !(window.BLENDER_MOB_GLBS && (window.BLENDER_MOB_GLBS[_resolveGlbKey(type)] || window.BLENDER_MOB_GLBS[type]))) || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire'
+    const _hasReadyGlb = (k) => {
+      const rk = _resolveGlbKey(k);
+      return blenderMobTemplates.has(rk) || !!(window.BLENDER_MOB_GLBS && (window.BLENDER_MOB_GLBS[rk] || window.BLENDER_MOB_GLBS[k]));
+    };
+    const _usePendingCuteCustom = (type === 'blue_crab' || type === 'moobloom' || type === 'ocean_barnacle') && !_hasReadyGlb(type);
+    if (_usePendingCuteCustom) preloadMobGlb(type);
+    const _isCustomV92 = _isPlush || _isSkelVariant || _isZombieVariant || _usePendingCuteCustom || type === 'chicken' || type === 'chicken_jockey' || type === 'spider_jockey'
+      || (!!ELEMENTAL_DRAGON_CFG[type] && !_hasReadyGlb(type)) || type === 'magma_cube' || type === 'baby_ghast' || type === 'wildfire'
       || type === 'redstone_monstrosity' || type === 'prismarine_colossus' || type === 'abyssal_colossus' || type === 'cave_warden' || type === 'dream_warden'
       || type === 'antler_deer' || type === 'tuff_golem' || type === 'cinnamon_ferret' || type === 'mini_abomination'
-      || type === 'savanna_monkey' || type === 'pink_dolphin' || type === 'vulture' || type === 'moss_golem'
+      || type === 'vulture' || type === 'moss_golem'
       || type === 'villager' || type === 'pillager' || type === 'pillager_raider' || type === 'vindicator' || type === 'evoker';
 
     if (_isCustomV92) {
@@ -2366,7 +2489,12 @@
         addPart(parent, 0.07 * s, 0.05 * s, 0.07 * s, centerCol, x, y + 0.185 * s, z, false, 0.70);
       };
       let _villagerProfOut = null;
-      const finishCustom = () => { const fg = makeSharedFlameGroup(); g.add(fg); return { group: g, parts, flameGroup: fg, anim, fromBlender: false, villagerProf: _villagerProfOut }; };
+      const finishCustom = () => {
+        const fg = makeSharedFlameGroup(); g.add(fg);
+        const out = { group: g, parts, flameGroup: fg, anim, fromBlender: false, villagerProf: _villagerProfOut };
+        if (_usePendingCuteCustom) { out.isPlaceholder = true; out.pendingGlbKey = type; }
+        return out;
+      };
 
       if (type === 'villager') {
         // Authentic 100% Reference-Matched Minecraft Villagers (Images 7..10):
@@ -3365,25 +3493,25 @@
 
       if (type === 'spider_jockey') {
         const spBm = instantiateBlenderMob('spider');
-        if (spBm) {
-          const bio = getBiomeAt(wx, wz);
-          const rv = (opts && opts.riderVariant) || (
-            (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.TAIGA) ? 'stray' :
-            (bio === BIOMES.DESERT ? 'desert_skeleton' :
-            ((bio === BIOMES.SWAMP || bio === BIOMES.MANGROVE_SWAMP || bio === BIOMES.LUSH_GROVE) ? 'bogged' : 'skeleton'))
-          );
-          const rGrp = new THREE.Group();
-          rGrp.scale.setScalar(0.90);
-          rGrp.position.set(0, -0.02, 0.06);
-          const rAnim = { torso: null, head: null, jaw: null, core: null, legs: [], arms: [], wings: [], tail: null, bowIdle: null, bowAim: null };
-          parts.length = 0;
-          buildSkeletonInto(rGrp, rAnim, rv, true);
-          for (let pi = 0; pi < parts.length; pi++) spBm.parts.push(parts[pi]);
-          spBm.group.add(rGrp);
-          spBm.anim.rider = rAnim;
-          spBm.riderVariant = rv;
-          return spBm;
-        }
+        const bio = getBiomeAt(wx, wz);
+        const rv = (opts && opts.riderVariant) || (
+          (bio === BIOMES.SNOW || bio === BIOMES.ALPINE_PEAKS || bio === BIOMES.TAIGA) ? 'stray' :
+          (bio === BIOMES.DESERT ? 'desert_skeleton' :
+          ((bio === BIOMES.SWAMP || bio === BIOMES.MANGROVE_SWAMP || bio === BIOMES.LUSH_GROVE) ? 'bogged' : 'skeleton'))
+        );
+        const mount = spBm || _baseBuildMobMesh('spider', wx, wz, null);
+        const rGrp = new THREE.Group();
+        rGrp.scale.setScalar(0.90);
+        rGrp.position.set(0, -0.02, 0.06);
+        const rAnim = { torso: null, head: null, jaw: null, core: null, legs: [], arms: [], wings: [], tail: null, bowIdle: null, bowAim: null };
+        parts.length = 0;
+        buildSkeletonInto(rGrp, rAnim, rv, true);
+        for (let pi = 0; pi < parts.length; pi++) mount.parts.push(parts[pi]);
+        mount.group.add(rGrp);
+        mount.anim.rider = rAnim;
+        mount.riderVariant = rv;
+        if (!spBm) { mount.isPlaceholder = true; mount.pendingGlbKey = 'spider'; }
+        return mount;
       }
 
       if (_isZombieVariant) {
@@ -3845,6 +3973,13 @@
         }
         return bm;
       }
+      const fb = _baseBuildMobMesh(mCfg.base, wx, wz, opts);
+      if (fb) {
+        tintBlenderMob(fb, mCfg.tint, mCfg);
+        fb.isPlaceholder = true;
+        fb.pendingGlbKey = mCfg.base;
+      }
+      return fb;
     }
 
     return _baseBuildMobMesh(type, wx, wz, opts);
@@ -4079,7 +4214,7 @@
     if (id === 'shark_white' || id === 'marine_shark' || id === 'marine_hammer') return { key: 'shark_white', sc: id === 'marine_shark' ? 1.28 : 1.18 };
     if (id === 'anglerfish') return { key: 'anglerfish', sc: 1.02 };
     if (id === 'orca' || id === 'marine_orca') return { key: 'orca', sc: id === 'marine_orca' ? 1.34 : 1.25 };
-    if (id === 'dolphin_cute' || id === 'marine_dolphin') return { key: 'dolphin_cute', sc: 1.06 };
+    if (id === 'dolphin_cute' || id === 'marine_dolphin' || id === 'pink_dolphin') return { key: 'dolphin_cute', sc: id === 'pink_dolphin' ? 1.04 : 1.06 };
     if (id === 'manta_ray' || id === 'marine_ray') return { key: 'manta_ray', sc: 1.14 };
     if (id === 'clownfish' || id === 'fish_clown') return { key: 'clownfish', sc: 0.92 };
     if (id === 'pufferfish' || id === 'fish_puffer') return { key: 'pufferfish', sc: 0.96 };
@@ -4094,20 +4229,21 @@
     if (id === 'fennec' || id === 'fennec_fox') return { key: 'fennec', sc: 1.04 };
     if (id === 'allay') return { key: 'allay', sc: 1.05 };
     if (id === 'baby_dragon') return { key: 'baby_dragon', sc: 0.34 };
-    if (id === 'duck' || id === 'duck_mallard') return { key: 'duck', sc: 1.02 };
+    if (id === 'duck' || id === 'duck_mallard' || id === 'swan_white') return { key: 'duck', sc: id === 'swan_white' ? 1.14 : 1.02 };
     if (id === 'flamingo') return { key: 'flamingo', sc: 1.06 };
     if (id === 'hedgehog') return { key: 'hedgehog', sc: 1.04 };
     if (id === 'raccoon') return { key: 'raccoon', sc: 1.04 };
     if (id === 'otter') return { key: 'otter', sc: 1.04 };
-    if (id === 'seal') return { key: 'seal', sc: 1.06 };
+    if (id === 'seal' || id === 'walrus') return { key: 'seal', sc: id === 'walrus' ? 1.26 : 1.06 };
     if (id === 'koala') return { key: 'koala', sc: 1.05 };
-    if (id === 'alpaca') return { key: 'alpaca', sc: 1.04 };
+    if (id === 'alpaca' || id === 'llama') return { key: 'alpaca', sc: id === 'llama' ? 1.12 : 1.04 };
     if (id === 'squirrel') return { key: 'squirrel', sc: 1.08 };
     if (id === 'peacock') return { key: 'peacock', sc: 1.08 };
     if (id === 'strider') return { key: 'strider', sc: 1.05 };
     if (id === 'camel') return { key: 'camel', sc: 1.05 };
-    if (id === 'caravan_camel' || id === 'llama') return { key: 'caravan_camel', sc: 1.0 };
+    if (id === 'caravan_camel') return { key: 'caravan_camel', sc: 1.0 };
     if (id === 'rabbit_brown' || id === 'snow_hare') return { key: 'rabbit', sc: 1.05 };
+    if (id === 'wild_horse' || id === 'mustang_black' || id === 'zebra' || id === 'giraffe') return { key: 'horse', sc: id === 'giraffe' ? 1.32 : 1.04 };
     if (id === 'sika_deer' || id === 'stag_white' || id === 'reindeer' || id === 'moose' || a === 'horn') return { key: 'deer', sc: id === 'moose' ? 1.25 : 1.02 };
     if (id === 'panda') return { key: 'panda', sc: 1.05 };
     if (id === 'elephant') return { key: 'elephant', sc: 1.15 };
@@ -4115,7 +4251,6 @@
     if (id === 'arctic_fox') return { key: 'fox', sc: 1.0 };
     if (id === 'husky' || id === 'ice_wolf') return { key: 'wolf', sc: 1.02 };
     if (id === 'boar') return { key: 'pig', sc: 1.08 };
-    if (id === 'wild_horse' || id === 'mustang_black' || id === 'zebra' || id === 'giraffe') return { key: 'horse', sc: id === 'giraffe' ? 1.32 : 1.04 };
     if (a === 'frog') return { key: 'frog', sc: 1.0 };
     if (a === 'reptile') return { key: 'turtle', sc: Math.max(0.85, Math.min(1.25, spec.sc)) };
     if (a === 'crab') return { key: 'crab', sc: 0.95 };
@@ -4130,7 +4265,7 @@
   }
 
   const CUSTOM_VOXEL_ANIMALS = new Set([
-    'savanna_monkey', 'pink_dolphin', 'vulture',
+    'vulture',
     'plush_slime_mint', 'plush_strawberry_slime', 'plush_allay_lavender', 'plush_zombie_chibi',
     'plush_creeper_blossom', 'plush_enderman_ribbon', 'plush_bear_teal', 'plush_panda_berry',
     'plush_bat_heart', 'plush_duckling_bow', 'plush_chicken_daisy', 'plush_pig_crown',
@@ -4155,42 +4290,154 @@
       return m;
     };
     const mkP = (parent, x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); parent.add(p); return p; };
-    const c1 = spec.c1 || 0xfacc15, c2 = spec.c2 || 0x27272a, arch = spec.arch || 'quad';
-    if (spec.id === 'bee' || arch === 'insect') {
+    const c1 = spec.c1 || 0xfacc15, c2 = spec.c2 || 0x27272a, c3 = spec.c3 || c2, arch = spec.arch || 'quad', id = spec.id || '';
+    const addEyes = (parent, sep, ey, ez, col = 0x111827, glow = false) => {
+      addVoxel(parent, 0.055, 0.055, 0.03, col, -sep, ey, ez, { glow });
+      addVoxel(parent, 0.055, 0.055, 0.03, col,  sep, ey, ez, { glow });
+    };
+    if (id === 'bee' || arch === 'insect') {
       const torso = mkP(g, 0, 0.36, 0); anim.torso = torso;
-      addVoxel(torso, 0.38, 0.36, 0.56, spec.id === 'bee' ? 0xfacc15 : c1, 0, 0, 0);
-      addVoxel(torso, 0.39, 0.37, 0.12, spec.id === 'bee' ? 0x1c1917 : c2, 0, 0, -0.02);
-      addVoxel(torso, 0.39, 0.37, 0.12, spec.id === 'bee' ? 0x1c1917 : c2, 0, 0, -0.20);
-      addVoxel(torso, 0.08, 0.08, 0.04, spec.c3 || 0x38bdf8, -0.10, 0.03, 0.29, { glow: true });
-      addVoxel(torso, 0.08, 0.08, 0.04, spec.c3 || 0x38bdf8, 0.10, 0.03, 0.29, { glow: true });
+      addVoxel(torso, 0.38, 0.36, 0.56, id === 'bee' ? 0xfacc15 : c1, 0, 0, 0);
+      addVoxel(torso, 0.39, 0.37, 0.12, id === 'bee' ? 0x1c1917 : c2, 0, 0, -0.02);
+      addVoxel(torso, 0.39, 0.37, 0.12, id === 'bee' ? 0x1c1917 : c2, 0, 0, -0.20);
+      addEyes(torso, 0.10, 0.03, 0.29, c3 || 0x38bdf8, true);
       const wL = mkP(torso, 0.18, 0.19, 0.05), wR = mkP(torso, -0.18, 0.19, 0.05);
       addVoxel(wL, 0.36, 0.02, 0.24, 0xe0f2fe, 0.18, 0, 0, { op: 0.72 });
       addVoxel(wR, 0.36, 0.02, 0.24, 0xe0f2fe, -0.18, 0, 0, { op: 0.72 });
       anim.wings.push({ p: wL, dir: 1 }, { p: wR, dir: -1 });
-    } else if (arch === 'bird') {
-      const torso = mkP(g, 0, 0.42, 0); anim.torso = torso;
-      addVoxel(torso, 0.26, 0.24, 0.38, c1, 0, 0, 0);
-      const head = mkP(torso, 0, 0.14, 0.18); anim.head = head;
-      addVoxel(head, 0.22, 0.20, 0.22, c2, 0, 0.06, 0.04);
-      addVoxel(head, 0.10, 0.06, 0.12, 0xf59e0b, 0, 0.02, 0.18);
-      const wL = mkP(torso, 0.14, 0.04, 0), wR = mkP(torso, -0.14, 0.04, 0);
-      addVoxel(wL, 0.28, 0.04, 0.26, c2, 0.14, 0, 0);
-      addVoxel(wR, 0.28, 0.04, 0.26, c2, -0.14, 0, 0);
-      anim.wings.push({ p: wL, dir: 1 }, { p: wR, dir: -1 });
-    } else if (arch === 'fish' || arch === 'shark' || arch === 'ray' || arch === 'jelly') {
-      const torso = mkP(g, 0, 0.28, 0); anim.torso = torso;
-      addVoxel(torso, arch === 'ray' ? 0.80 : 0.24, 0.26, 0.54, c1, 0, 0, 0);
-      const tail = mkP(torso, 0, 0, -0.28); anim.tail = tail;
-      addVoxel(tail, 0.06, 0.22, 0.24, c2, 0, 0, -0.12);
-    } else {
+    } else if (arch === 'crab') {
+      const torso = mkP(g, 0, 0.24, 0); anim.torso = torso;
+      addVoxel(torso, 0.62, 0.22, 0.46, c1, 0, 0, 0);
+      addVoxel(torso, 0.50, 0.08, 0.36, c2, 0, 0.14, 0);
+      addVoxel(torso, 0.06, 0.12, 0.06, 0x111827, -0.16, 0.20, 0.18);
+      addVoxel(torso, 0.06, 0.12, 0.06, 0x111827,  0.16, 0.20, 0.18);
+      for (const sx of [-1, 1]) {
+        const cl = mkP(torso, sx * 0.36, 0.04, 0.24);
+        addVoxel(cl, 0.22, 0.18, 0.24, c2, sx * 0.04, 0, 0.12);
+        anim.arms.push({ p: cl, dir: sx });
+      }
+      for (const [lx, lz, d] of [[-0.34, 0.10, 1], [0.34, 0.10, -1], [-0.34, -0.12, -1], [0.34, -0.12, 1]]) {
+        const lp = mkP(g, lx, 0.16, lz);
+        addVoxel(lp, 0.09, 0.16, 0.09, c3, 0, -0.08, 0);
+        anim.legs.push({ p: lp, dir: d });
+      }
+    } else if (arch === 'primate') {
       const torso = mkP(g, 0, 0.44, 0); anim.torso = torso;
-      addVoxel(torso, 0.36, 0.30, 0.56, c1, 0, 0, 0);
-      const head = mkP(torso, 0, 0.14, 0.30); anim.head = head;
-      addVoxel(head, 0.28, 0.26, 0.28, c2, 0, 0.06, 0.08);
-      const lCoords = [[-0.12, 0.18], [0.12, 0.18], [-0.12, -0.18], [0.12, -0.18]];
+      addVoxel(torso, 0.34, 0.38, 0.26, c1, 0, 0, 0);
+      addVoxel(torso, 0.24, 0.26, 0.04, c2, 0, -0.02, 0.14);
+      const head = mkP(torso, 0, 0.24, 0.02); anim.head = head;
+      addVoxel(head, 0.32, 0.28, 0.30, c1, 0, 0.14, 0.02);
+      addVoxel(head, 0.22, 0.14, 0.06, c2, 0, 0.09, 0.18);
+      addEyes(head, 0.08, 0.17, 0.18);
+      for (const sx of [-1, 1]) {
+        addVoxel(head, 0.10, 0.10, 0.05, c2, sx * 0.20, 0.15, 0.02);
+        const ar = mkP(torso, sx * 0.22, 0.12, 0);
+        addVoxel(ar, 0.11, 0.34, 0.11, c1, 0, -0.16, 0);
+        anim.arms.push({ p: ar, dir: sx });
+        const lp = mkP(g, sx * 0.10, 0.26, 0);
+        addVoxel(lp, 0.11, 0.26, 0.12, c3, 0, -0.13, 0);
+        anim.legs.push({ p: lp, dir: sx });
+      }
+      const tail = mkP(torso, 0, -0.10, -0.14); anim.tail = tail;
+      addVoxel(tail, 0.08, 0.08, 0.36, c1, 0, 0.08, -0.18);
+    } else if (arch === 'bird' || arch === 'cockatiel' || arch === 'duck' || arch === 'allay') {
+      const isAllay = (arch === 'allay');
+      const torso = mkP(g, 0, isAllay ? 0.52 : 0.38, 0); anim.torso = torso;
+      addVoxel(torso, 0.28, 0.26, 0.38, c1, 0, 0, 0);
+      const head = mkP(torso, 0, 0.16, isAllay ? 0 : 0.16); anim.head = head;
+      addVoxel(head, 0.26, 0.24, 0.26, isAllay ? c1 : c2, 0, 0.08, 0.02);
+      addEyes(head, 0.07, 0.09, 0.16, isAllay ? 0xe0f2fe : 0x111827, isAllay);
+      if (!isAllay) addVoxel(head, 0.11, 0.06, 0.13, 0xf59e0b, 0, 0.04, 0.18);
+      for (const sx of [-1, 1]) {
+        const wp = mkP(torso, sx * 0.16, 0.06, 0);
+        addVoxel(wp, 0.30, 0.05, 0.26, c2, sx * 0.15, 0, 0, isAllay ? { op: 0.78 } : {});
+        anim.wings.push({ p: wp, dir: sx });
+        if (!isAllay) {
+          const lp = mkP(g, sx * 0.09, 0.24, 0);
+          addVoxel(lp, 0.06, 0.24, 0.06, 0xf59e0b, 0, -0.12, 0);
+          anim.legs.push({ p: lp, dir: sx });
+        }
+      }
+    } else if (arch === 'fish' || arch === 'shark' || arch === 'ray' || arch === 'jelly' || arch === 'whale' || arch === 'dolphin') {
+      const torso = mkP(g, 0, 0.30, 0); anim.torso = torso;
+      const bw = arch === 'ray' ? 0.86 : (arch === 'whale' ? 0.62 : (arch === 'dolphin' || arch === 'shark' ? 0.38 : 0.26));
+      const bh = arch === 'ray' ? 0.12 : (arch === 'whale' ? 0.52 : 0.30);
+      const bd = arch === 'whale' ? 1.12 : (arch === 'dolphin' || arch === 'shark' ? 0.84 : 0.54);
+      addVoxel(torso, bw, bh, bd, c1, 0, 0, 0);
+      if (arch === 'jelly') {
+        for (const [tx, tz] of [[-0.08, 0.08], [0.08, 0.08], [-0.08, -0.08], [0.08, -0.08]]) {
+          addVoxel(torso, 0.05, 0.32, 0.05, c2, tx, -0.26, tz, { op: 0.75 });
+        }
+      } else {
+        addEyes(torso, bw * 0.44, 0.04, bd * 0.36);
+        if (arch === 'shark' || arch === 'dolphin') addVoxel(torso, 0.06, 0.20, 0.20, c2, 0, bh * 0.5 + 0.08, -0.04);
+        const tail = mkP(torso, 0, 0, -bd * 0.5); anim.tail = tail;
+        addVoxel(tail, (arch === 'whale' || arch === 'dolphin') ? 0.46 : 0.07, (arch === 'whale' || arch === 'dolphin') ? 0.08 : 0.24, 0.28, c2, 0, 0, -0.14);
+      }
+    } else if (arch === 'bdragon') {
+      const torso = mkP(g, 0, 0.42, 0); anim.torso = torso;
+      addVoxel(torso, 0.44, 0.34, 0.72, c1, 0, 0, 0);
+      const head = mkP(torso, 0, 0.22, 0.38); anim.head = head;
+      addVoxel(head, 0.34, 0.28, 0.38, c1, 0, 0.04, 0.14);
+      addEyes(head, 0.12, 0.08, 0.34, c2, true);
+      for (const sx of [-1, 1]) {
+        const wp = mkP(torso, sx * 0.24, 0.12, 0.06);
+        addVoxel(wp, 0.56, 0.05, 0.38, c2, sx * 0.28, 0, -0.06);
+        anim.wings.push({ p: wp, dir: sx });
+        const lp = mkP(g, sx * 0.16, 0.26, -0.08);
+        addVoxel(lp, 0.13, 0.26, 0.14, c3, 0, -0.13, 0);
+        anim.legs.push({ p: lp, dir: sx });
+      }
+      const tail = mkP(torso, 0, 0, -0.36); anim.tail = tail;
+      addVoxel(tail, 0.14, 0.14, 0.52, c1, 0, 0, -0.26);
+    } else if (arch === 'axolotl' || arch === 'frog' || arch === 'reptile') {
+      const isAxo = (arch === 'axolotl'), isFrog = (arch === 'frog');
+      const torso = mkP(g, 0, 0.20, 0); anim.torso = torso;
+      addVoxel(torso, isFrog ? 0.36 : 0.46, isFrog ? 0.22 : 0.20, isFrog ? 0.40 : 0.62, c1, 0, 0, 0);
+      if (!isFrog && !isAxo) addVoxel(torso, 0.42, 0.10, 0.52, c2, 0, 0.12, 0);
+      const head = mkP(torso, 0, 0.04, isFrog ? 0.16 : 0.30); anim.head = head;
+      addVoxel(head, isAxo ? 0.36 : 0.30, 0.22, 0.28, isAxo ? c1 : c2, 0, 0.02, 0.10);
+      addEyes(head, 0.10, 0.06, 0.25);
+      if (isAxo) {
+        for (const sx of [-1, 1]) addVoxel(head, 0.14, 0.18, 0.05, c2, sx * 0.24, 0.04, 0.06);
+      }
+      if (!isFrog) {
+        const tail = mkP(torso, 0, 0, -0.32); anim.tail = tail;
+        addVoxel(tail, 0.10, 0.12, 0.34, c2, 0, 0, -0.17);
+      }
+      for (const [lx, lz, d] of [[-0.20, 0.18, 1], [0.20, 0.18, -1], [-0.20, -0.18, -1], [0.20, -0.18, 1]]) {
+        const lp = mkP(g, lx, 0.14, lz);
+        addVoxel(lp, 0.10, 0.14, 0.10, c3, 0, -0.07, 0);
+        anim.legs.push({ p: lp, dir: d });
+      }
+    } else if (arch === 'strider') {
+      const torso = mkP(g, 0, 0.72, 0); anim.torso = torso;
+      addVoxel(torso, 0.62, 0.52, 0.62, c1, 0, 0, 0);
+      addEyes(torso, 0.16, 0.02, 0.32);
+      for (const [lx, d] of [[-0.18, 1], [0.18, -1]]) {
+        const lp = mkP(g, lx, 0.46, 0);
+        addVoxel(lp, 0.14, 0.46, 0.14, c2, 0, -0.23, 0);
+        anim.legs.push({ p: lp, dir: d });
+      }
+    } else {
+      const tallNeck = (arch === 'camel' || arch === 'caravan' || id === 'alpaca' || id === 'llama' || id === 'giraffe');
+      const torso = mkP(g, 0, 0.44, 0); anim.torso = torso;
+      addVoxel(torso, 0.38, 0.32, 0.60, c1, 0, 0, 0);
+      const head = mkP(torso, 0, tallNeck ? 0.36 : 0.14, 0.30); anim.head = head;
+      if (tallNeck) addVoxel(head, 0.18, 0.36, 0.18, c1, 0, -0.12, -0.02);
+      addVoxel(head, 0.30, 0.26, 0.28, c1, 0, 0.08, 0.08);
+      addVoxel(head, 0.16, 0.10, 0.10, c2, 0, 0.02, 0.24);
+      addEyes(head, 0.09, 0.11, 0.23);
+      for (const sx of [-1, 1]) {
+        const earH = (arch === 'fennec' || id === 'rabbit_brown' || id === 'snow_hare') ? 0.22 : (arch === 'horn' ? 0.24 : 0.11);
+        addVoxel(head, 0.08, earH, 0.06, arch === 'horn' ? c3 : c2, sx * 0.11, 0.22 + earH * 0.4, 0.04);
+      }
+      const tail = mkP(torso, 0, 0.04, -0.31); anim.tail = tail;
+      addVoxel(tail, 0.10, 0.10, 0.26, c2, 0, 0, -0.13);
+      const lCoords = [[-0.13, 0.20], [0.13, 0.20], [-0.13, -0.20], [0.13, -0.20]];
       for (let li = 0; li < lCoords.length; li++) {
         const lp = mkP(g, lCoords[li][0], 0.28, lCoords[li][1]);
-        addVoxel(lp, 0.11, 0.28, 0.11, c2, 0, -0.14, 0);
+        addVoxel(lp, 0.11, 0.28, 0.11, c3, 0, -0.14, 0);
         anim.legs.push({ p: lp, dir: (li & 1) ? 1 : -1 });
       }
     }

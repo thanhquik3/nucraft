@@ -3563,7 +3563,7 @@
     if (!m) return;
     ensureDragonPreview3D();
     if (!_dragonPrevRenderer || !_dragonPrevScene || !_dragonPrevCam) return;
-    const prevKey = `${m.type}|${m.woolColor || ''}|${m.elemDragon ? (m.dragonStage || 0) : ''}`;
+    const prevKey = `${m.type}|${m.woolColor || ''}|${m.elemDragon ? (m.dragonStage || 0) : ''}|${m.fromBlender ? 1 : 0}|${m.isPlaceholder ? 1 : 0}`;
     if (_dragonPrevType !== prevKey || !_dragonPrevRig) {
       if (_dragonPrevRig) {
         if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.stopAllAction();
@@ -3592,6 +3592,9 @@
   }
   function tickDragonModalPreview(dt) {
     if (!_dragonModalTarget || !_elDragonModal || _elDragonModal.classList.contains('hidden')) return;
+    if (_dragonPrevRig && _dragonPrevRig.isPlaceholder && _dragonModalTarget.fromBlender && !_dragonModalTarget.isPlaceholder) {
+      drawDragonPreview();
+    }
     if (!_dragonPrevRig || !_dragonPrevRenderer) return;
     if (_dragonPrevRig.anim && _dragonPrevRig.anim.mixer) _dragonPrevRig.anim.mixer.update(Math.min(0.04, dt));
     _dragonPrevRig.group.rotation.y = _dragonPrevRotY;
