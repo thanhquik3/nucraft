@@ -5047,7 +5047,7 @@
   }
 
   function createAnimatedBlockVisual(wx, wy, wz, id, chKey) {
-    const def = BLOCK_DEF[id]; if (!def) return;
+    const def = BLOCK_DEF[id]; if (!def || def.isBarrel) return;
     const k = modKey(wx, wy, wz);
     const old = interactiveVisuals.get(k);
     let doorSig = '', chestSig = '';
@@ -8733,12 +8733,21 @@
     const diving = dist < 14;
 
     const grp = new THREE.Group();
-    const orb = new THREE.Mesh(_enderEyeOrbGeo, _enderEyeOrbMat);
-    const iris = new THREE.Mesh(_enderEyeIrisGeo, _enderEyeIrisMat);
-    iris.scale.set(1.06, 1.06, 0.85);
-    const pupil = new THREE.Mesh(_enderEyePupilGeo, _enderEyePupilMat);
+    if (typeof buildUnified3DItemMesh === 'function') {
+      const eyeMesh = buildUnified3DItemMesh(B.ENDER_EYE);
+      eyeMesh.position.set(0, 0, 0);
+      eyeMesh.rotation.set(0, 0, 0);
+      eyeMesh.scale.setScalar(1.35);
+      grp.add(eyeMesh);
+    } else {
+      const orb = new THREE.Mesh(_enderEyeOrbGeo, _enderEyeOrbMat);
+      const iris = new THREE.Mesh(_enderEyeIrisGeo, _enderEyeIrisMat);
+      iris.scale.set(1.06, 1.06, 0.85);
+      const pupil = new THREE.Mesh(_enderEyePupilGeo, _enderEyePupilMat);
+      grp.add(orb, iris, pupil);
+    }
     const halo = new THREE.Mesh(_enderEyeHaloGeo, _enderEyeHaloMat);
-    grp.add(orb, iris, pupil, halo);
+    grp.add(halo);
     const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
     const sx = player.x + fwdX * 1.15, sy = player.y + 1.38, sz = player.z + fwdZ * 1.15;
     grp.position.set(sx, sy, sz);

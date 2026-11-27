@@ -277,6 +277,33 @@
       })
       .catch(() => {});
   }
+  function clearAndRefreshOpenRooms() {
+    liveRoomsByCode.clear();
+    renderOpenRoomsList([]);
+    if (typeof renderSavedWorldsList === 'function') renderSavedWorldsList();
+    const canLocalApi = (location.protocol === 'http:' || location.protocol === 'https:')
+      && !/\.github\.io$/i.test(location.hostname || '') && !/[?&]standalone=1\b/.test(location.search || '');
+    if (canLocalApi) {
+      fetch('/api/rooms/clear', { method: 'POST', cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data.rooms)) {
+            updateLiveRoomsCache(data.rooms);
+            renderOpenRoomsList(data.rooms);
+          }
+        })
+        .catch(() => {});
+    }
+    if (wsConn && wsConn.readyState === 1) {
+      try { wsConn.send(JSON.stringify({ type: 'clear_rooms' })); } catch (_) {}
+    } else {
+      connectCoopSocket((online) => {
+        if (online && wsConn && wsConn.readyState === 1) {
+          try { wsConn.send(JSON.stringify({ type: 'clear_rooms' })); } catch (_) {}
+        }
+      });
+    }
+  }
 
   function _resolveRemoteSkinKey(peerId, skinId, customSkin) {
     if (customSkin && typeof customSkin.dataUrl === 'string' && typeof registerRemoteCustomSkin === 'function') {

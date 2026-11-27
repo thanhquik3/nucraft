@@ -3035,25 +3035,25 @@
       '................',
       '................'
     ], { s: '#374151', S: '#9ca3af', W: '#f8fafc', f: '#1f2937', L: '#d1d5db', M: '#4b5563', F: '#0f172a' });
-    // 284: Ender Pearl (Ngọc Ender) 16x16 authentic sprite
+    // 284: Ender Pearl (Ngọc Ender) 16x16 authentic Minecraft sprite matching reference
     drawSpriteMap(284, [
       '................',
       '................',
-      '.....dddddd.....',
-      '....dTTTTTTd....',
-      '...dTLLTTTTTd...',
-      '..dTLWWTTTTCCd..',
-      '..dTLWTTCCCTTD..',
-      '..dTTTTCCCCDDD..',
-      '..dTTTTTCCDDDD..',
-      '..dTTTTTDDDDDD..',
-      '...dTTTDDDDDd...',
-      '....dDDDDDDd....',
-      '.....dddddd.....',
-      '................',
-      '................',
+      '......ddd.......',
+      '....ddTMMdd.....',
+      '...dTMTMTTTd....',
+      '..dTMWCCTTTTd...',
+      '..dTWCDDDTTTd...',
+      '.dMTCDkkkDTTMd..',
+      '.dMTTDkkkDTBTd..',
+      '.dTTTDDkkDTCTd..',
+      '..dTTDDDDTCWd...',
+      '..dTTTDDTCTd....',
+      '...dTTMBTTd.....',
+      '....ddTTTdd.....',
+      '......ddd.......',
       '................'
-    ], { d: '#042f2e', T: '#0f766e', C: '#14b8a6', L: '#5eead4', W: '#ccfbf1', D: '#064e3b' });
+    ], { d: '#0b2c26', k: '#061b18', D: '#0d3e36', T: '#11584d', M: '#1c7265', B: '#2a8f7f', C: '#2cd8bc', W: '#9bfbe9' });
     // 285: Blaze Rod (Que Quỷ Lửa) 16x16 authentic sprite
     drawSpriteMap(285, [
       '................',
@@ -3092,25 +3092,25 @@
       '................',
       '................'
     ], { o: '#9a3412', O: '#ea580c', Y: '#facc15', L: '#fef08a', W: '#ffffff' });
-    // 287: Eye of Ender (Mắt Ender) 16x16 authentic sprite
+    // 287: Eye of Ender (Mắt Ender) 16x16 authentic Minecraft sprite matching reference
     drawSpriteMap(287, [
       '................',
       '................',
-      '.....dddddd.....',
-      '....dGGGGGGd....',
-      '...dGLLGGGGGd...',
-      '..dGLWGGPPGGGd..',
-      '..dGLGGGPPGGGd..',
-      '..dGGGGPPGGGGd..',
-      '..dGGGGPPGGGGd..',
-      '..dGGGGDDGGGDd..',
-      '...dGGGGDDDDd...',
-      '....dGDDDDDd....',
-      '.....dddddd.....',
-      '................',
-      '................',
+      '......tff.......',
+      '....ttsssff.....',
+      '...tssggggtf....',
+      '..fsgWLlgggtf...',
+      '..fsWLlpmgggf...',
+      '.ftgLlpPpmlgtd..',
+      '.ftlmLpPpmmgtd..',
+      '.ftsmlpPplmmtd..',
+      '..fsgmlplmgtd...',
+      '..ftsgmmlgttd...',
+      '...dtssssgtd....',
+      '....ddtttdd.....',
+      '......ddd.......',
       '................'
-    ], { d: '#022c22', G: '#10b981', L: '#6ee7b7', W: '#dcfce7', D: '#047857', P: '#020617' });
+    ], { d: '#0e2829', f: '#1a3f2f', t: '#315d60', s: '#4c7e7c', g: '#5d9375', m: '#6ca848', l: '#8ec54c', L: '#b8e05f', W: '#dcf9df', p: '#1e3e2d', P: '#141e0d' });
 
     // === v60 Tiles 288..300: THE SIFT Organic Pixel Textures (bit-mixed hash, ZERO %10 checkerboard!) ===
     const _siftH = (x, y, s) => {

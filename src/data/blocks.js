@@ -312,10 +312,10 @@ const {
     [B.FLINT_AND_STEEL]:      { name: 'Bật Lửa Thạch Anh',     hard: 0,    solid: false, tool: 'flint_steel', voxelItem: true, maxDur: 64, tiles: [283, 283, 283] },
     [B.FIRE]:                 { name: 'Lửa',                   hard: 0.02, solid: false, cross: true, trans: true, emissive: true, light: 14, fire: true, drop: 0, tiles: [324, 324, 324], mapColor: '#f97316' },
     [B.NETHER_PORTAL]:        { name: 'Cổng Địa Ngục',         hard: 0.25, solid: false, trans: true, emissive: true, light: 12, portal: 'nether', drop: 0, tiles: [277, 277, 277], mapColor: '#9333ea' },
-    [B.ENDER_PEARL]:          { name: 'Ngọc Ender (Ender Pearl)', hard: 0, solid: false, voxelItem: true, tiles: [284, 284, 284] },
+    [B.ENDER_PEARL]:          { name: 'Ngọc Ender (Ender Pearl)', hard: 0, solid: false, voxelItem: true, customAtlasTex: true, tiles: [284, 284, 284] },
     [B.BLAZE_ROD]:            { name: 'Que Quỷ Lửa (Blaze Rod)',  hard: 0, solid: false, voxelItem: true, tiles: [285, 285, 285] },
     [B.BLAZE_POWDER]:         { name: 'Bột Quỷ Lửa (Blaze Powder)', hard: 0, solid: false, voxelItem: true, tiles: [286, 286, 286] },
-    [B.ENDER_EYE]:            { name: 'Mắt Ender (Eye of Ender)', hard: 0, solid: false, voxelItem: true, tiles: [287, 287, 287] },
+    [B.ENDER_EYE]:            { name: 'Mắt Ender (Eye of Ender)', hard: 0, solid: false, voxelItem: true, customAtlasTex: true, tiles: [287, 287, 287] },
     [B.END_PORTAL_FRAME]:     { name: 'Khung Cổng Kết Thúc',   hard: 99,   solid: true,  stone: true, trans: true, drop: B.END_PORTAL_FRAME, tiles: [278, 279, 80], mapColor: '#2d6a62' },
     [B.END_PORTAL_FRAME_EYE]: { name: 'Khung Cổng End (Có Mắt)', hard: 99, solid: true,  stone: true, trans: true, emissive: false, light: 6, drop: B.END_PORTAL_FRAME, tiles: [278, 279, 80], mapColor: '#2d6a62' },
     [B.END_PORTAL]:           { name: 'Cổng Kết Thúc',         hard: 99,   solid: false, trans: true, emissive: true, light: 15, portal: 'end', drop: 0, tiles: [281, 281, 281], mapColor: '#090d16' },
@@ -974,7 +974,7 @@ const {
     if (!d) continue;
     if (d.solid) {
       IS_SOLID[i] = 1;
-      if (!d.foliage && !d.glass && !d.trans && !d.slab && !d.fence && !d.wall && !d.bamboo && !d.cactus && !d.bed && !d.endCrystal && !d.chest && !d.door && !d.trapdoor && !d.dragonEgg && !d.dragonHead && !d.windmillHub) IS_OPAQUE[i] = 1;
+      if (!d.foliage && !d.glass && !d.trans && !d.slab && !d.fence && !d.wall && !d.bamboo && !d.cactus && !d.bed && !d.endCrystal && (!d.chest || d.isBarrel) && !d.door && !d.trapdoor && !d.dragonEgg && !d.dragonHead && !d.windmillHub) IS_OPAQUE[i] = 1;
     }
     if (d.door) IS_DOOR[i] = 1;
     if (d.door || d.trapdoor) IS_DOOR_OR_TRAP[i] = 1;

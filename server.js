@@ -232,6 +232,17 @@ function getAllRoomsSummary() {
   return Array.from(rooms.values()).map(serializeRoomListEntry);
 }
 
+function clearStaleRooms() {
+  for (const [rid, r] of Array.from(rooms.entries())) {
+    for (const [pid, p] of Array.from(r.peers.entries())) {
+      if (!p || !p.socket || p.socket.destroyed) r.peers.delete(pid);
+    }
+    if (r.peers.size === 0) rooms.delete(rid);
+  }
+  saveRoomsToDiskSync();
+  broadcastRoomsList();
+}
+
 function broadcastRoomsList() {
   if (allWsPeers.size === 0) return;
   const buf = encodeWsFrame(JSON.stringify({ type: 'rooms_list', rooms: getAllRoomsSummary() }));
@@ -608,6 +619,8 @@ function handleMessage(peer, msg) {
     removePeerFromRoom(peer);
   } else if (msg.type === 'list_rooms') {
     sendJson(peer, { type: 'rooms_list', rooms: getAllRoomsSummary() });
+  } else if (msg.type === 'clear_rooms') {
+    clearStaleRooms();
   } else if (msg.type === 'register_uid') {
     const uidKey = sanitizeUidKey(msg.uid);
     if (!uidKey) return;
@@ -658,6 +671,12 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (urlPath === '/api/rooms') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ok: true, rooms: getAllRoomsSummary() }));
+    return;
+  }
+  if (urlPath === '/api/rooms/clear' && req.method === 'POST') {
+    clearStaleRooms();
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ ok: true, rooms: getAllRoomsSummary() }));
     return;

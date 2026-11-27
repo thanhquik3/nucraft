@@ -3029,7 +3029,11 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
   initLobbyOreUI();
 }
   document.getElementById('btnRefreshRooms').addEventListener('click', () => {
-    connectCoopSocket((online) => { if (online && wsConn && wsConn.readyState === 1) wsConn.send(JSON.stringify({ type: 'list_rooms' })); });
+    if (typeof clearAndRefreshOpenRooms === 'function') clearAndRefreshOpenRooms();
+    else {
+      if (typeof renderOpenRoomsList === 'function') renderOpenRoomsList([]);
+      connectCoopSocket((online) => { if (online && wsConn && wsConn.readyState === 1) wsConn.send(JSON.stringify({ type: 'clear_rooms' })); });
+    }
   });
   document.getElementById('roomBadge').addEventListener('click', () => {
     if (!activeRoomId) return;

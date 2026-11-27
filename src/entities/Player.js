@@ -1291,13 +1291,19 @@
       clone.position.set(0.0, 0.06, 0.10);
       clone.rotation.set(0.22, -Math.PI * 0.45, 0.06);
       rig.handHold.add(clone);
-    } else if (def.bucket || def.chest || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
+    } else if (def.bucket || (def.chest && !def.isBarrel) || def.trapdoor || def.stairs || def.slab || def.fence || def.wall || bid === B.ANVIL || bid === B.ENCHANT_TABLE || bid === B.CAKE_ITEM || bid === B.BOAT_ITEM) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(def.bucket ? 1.02 : 0.96);
       clone.position.set(0.0, 0.03, 0.13);
       clone.rotation.set(def.bucket ? 0.16 : 0.24, -0.48, 0.06);
       rig.handHold.add(clone);
-    } else if (bid === B.ENDER_EYE || bid === B.ENDER_PEARL || bid === B.BLAZE_POWDER || bid === B.FLINT_AND_STEEL || bid === B.END_PORTAL_FRAME || bid === B.END_PORTAL_FRAME_EYE) {
+    } else if (bid === B.ENDER_EYE || bid === B.ENDER_PEARL) {
+      clone.rotation.order = 'YXZ';
+      clone.scale.setScalar(0.95);
+      clone.position.set(0.0, 0.04, 0.14);
+      clone.rotation.set(0.14, -0.35, 0.06);
+      rig.handHold.add(clone);
+    } else if (bid === B.BLAZE_POWDER || bid === B.FLINT_AND_STEEL || bid === B.END_PORTAL_FRAME || bid === B.END_PORTAL_FRAME_EYE) {
       clone.rotation.order = 'YXZ';
       clone.scale.setScalar(1.02);
       clone.position.set(0.0, 0.03, 0.12);
@@ -5702,8 +5708,8 @@
     } else if (pdefS && pdefS.isBarrel) {
       // 6-way directional Minecraft Barrel: lid faces toward the player along X, Y, or Z
       const pitch = player.pitch || 0;
-      if (pitch < -0.78) placeId = B.BARREL;
-      else if (pitch > 0.78) placeId = B.BARREL_DOWN;
+      if (pitch < -0.62) placeId = B.BARREL;
+      else if (pitch > 0.62) placeId = B.BARREL_DOWN;
       else {
         const fdx = -Math.sin(player.yaw), fdz = -Math.cos(player.yaw);
         if (Math.abs(fdx) >= Math.abs(fdz)) placeId = fdx >= 0 ? B.BARREL_W : B.BARREL_E;

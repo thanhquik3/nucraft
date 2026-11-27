@@ -3717,26 +3717,6 @@
       g.userData.iconReady = true;
       return g;
     }
-    if (blockId === B.ENDER_PEARL || blockId === B.ENDER_EYE) {
-      const isEye = (blockId === B.ENDER_EYE);
-      const g = new THREE.Group();
-      const darkMat  = new THREE.MeshStandardMaterial({ color: isEye ? 0x064e3b : 0x042f2e, roughness: 0.25, metalness: 0.12 });
-      const mainMat  = new THREE.MeshStandardMaterial({ color: isEye ? 0x10b981 : 0x0f766e, roughness: 0.18, emissive: isEye ? 0x059669 : 0x0d9488, emissiveIntensity: isEye ? 0.52 : 0.42 });
-      const glintMat = new THREE.MeshStandardMaterial({ color: isEye ? 0xa7f3d0 : 0x5eead4, roughness: 0.12, emissive: isEye ? 0x6ee7b7 : 0x2dd4bf, emissiveIntensity: 0.58 });
-      const addB = (w, h, d, x, y, z, m) => { const bm = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); bm.position.set(x, y, z); g.add(bm); };
-      addB(0.18, 0.18, 0.18, 0, 0, 0, darkMat);
-      addB(0.15, 0.21, 0.15, 0, 0, 0, mainMat);
-      addB(0.21, 0.15, 0.15, 0, 0, 0, mainMat);
-      addB(0.15, 0.15, 0.21, 0, 0, 0, mainMat);
-      addB(0.06, 0.06, 0.06, -0.055, 0.055, 0.065, glintMat);
-      if (isEye) {
-        const pupilMat = new THREE.MeshStandardMaterial({ color: 0x020617, roughness: 0.1, metalness: 0.2 });
-        addB(0.042, 0.12, 0.222, 0, 0, 0, pupilMat);
-      }
-      g.rotation.order = 'YXZ'; g.position.set(0.01, -0.01, -0.05); g.rotation.set(0.20, -0.46, 0.08);
-      g.userData.iconReady = true;
-      return g;
-    }
     if (blockId === B.END_PORTAL_FRAME || blockId === B.END_PORTAL_FRAME_EYE) {
       const g = new THREE.Group();
       const creamMat = new THREE.MeshStandardMaterial({ color: 0xd5d29c, roughness: 0.85 });
@@ -3890,7 +3870,7 @@
       g.userData.iconReady = true;
       return g;
     }
-    if (_itemDef && _itemDef.chest && typeof _getChestMats === 'function') {
+    if (_itemDef && _itemDef.chest && !_itemDef.isBarrel && typeof _getChestMats === 'function') {
       const cm = _getChestMats(_itemDef.chestTier || 'oak');
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.26), cm.body);
@@ -4148,7 +4128,7 @@
       blockId === B.MUSIC_DISC_5 || blockId === B.MUSIC_DISC_OTHERSIDE || blockId === B.SNOWBALL ||
       blockId === B.COAL || blockId === B.CHARCOAL ||
       blockId === B.DIAMOND || blockId === B.EMERALD || blockId === B.RUBY || blockId === B.FLINT || blockId === B.REDSTONE ||
-      blockId === B.GUNPOWDER || blockId === B.VOID_PEARL || blockId === B.MAGMA_CORE ||
+      blockId === B.GUNPOWDER || blockId === B.VOID_PEARL || blockId === B.MAGMA_CORE || blockId === B.ENDER_PEARL || blockId === B.ENDER_EYE ||
       blockId === B.RAW_IRON || blockId === B.RAW_GOLD || blockId === B.RAW_COPPER ||
       blockId === B.NETHERITE_SCRAP || blockId === B.NETHERITE_INGOT ||
       blockId === B.DRAGON_SCALE || blockId === B.DRAGON_BONE || blockId === B.DRAGON_SADDLE || blockId === B.DRAGON_CRYSTAL || !!def.smithTemplate || !!def.dragonArmorSlot ||
@@ -4212,12 +4192,13 @@
     const isWarmGlow = (blockId === B.CAMPFIRE || blockId === B.FIRE_SWORD || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_BOW || blockId === B.DRAGON_CRYSTAL || blockId === B.DRAGON_SCALE || blockId === B.END_DRAGON_SCALE || blockId === B.END_DRAGON_BONE || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_BOW || blockId === B.ENCHANTED_BOOK || blockId === B.LAVA_BUCKET || blockId === B.TORCH_BLOCK || blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.WATER_BREATH_POTION || blockId === B.NIGHT_VISION_POTION || blockId === B.TOTEM_UNDYING || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.DREAM_FRUIT || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR);
     const isEnch = !!(meta && meta.ench);
     const isSpecialGlint = isRainbowItem || (blockId === B.FIRE_SWORD || blockId === B.ENCHANTED_BOOK || blockId === B.DRAGON_BONE_SWORD || blockId === B.DRAGON_BONE_AXE || blockId === B.DRAGON_BONE_PICK || blockId === B.DRAGON_BONE_BOW || blockId === B.SCULK_CHITIN_SWORD || blockId === B.SCULK_CHITIN_PICK || blockId === B.SCULK_CHITIN_AXE || blockId === B.SCULK_ECHO_BOW || blockId === B.RESONANT_SWORD || blockId === B.RESONANT_PICK || blockId === B.RESONANT_AXE || blockId === B.DEEP_SONIC_BOW || blockId === B.SOULFORGED_SWORD || blockId === B.SOULFORGED_PICK || blockId === B.SOULFORGED_AXE || blockId === B.SOUL_HARBINGER_BOW || blockId === B.END_DRAGON_SWORD || blockId === B.END_DRAGON_PICK || blockId === B.END_DRAGON_AXE || blockId === B.END_DRAGON_SHOVEL || blockId === B.END_DRAGON_HOE || blockId === B.END_DRAGON_BOW);
+    const isEnderOrb = (blockId === B.ENDER_EYE || blockId === B.ENDER_PEARL);
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: (isRainbowItem || isEnch || isSpecialGlint) ? 0.30 : (isChunky ? 0.62 : 0.72),
+      roughness: isEnderOrb ? 0.42 : ((isRainbowItem || isEnch || isSpecialGlint) ? 0.30 : (isChunky ? 0.62 : 0.72)),
       metalness: (isRainbowItem || isSpecialGlint) ? 0.28 : ((blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING) ? 0.28 : 0.06),
-      emissive: isWarmGlow ? new THREE.Color((blockId === B.WATER_BREATH_POTION || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR) ? 0x0ea5e9 : (blockId === B.NIGHT_VISION_POTION ? 0x3b82f6 : (blockId === B.DREAM_FRUIT ? 0xec4899 : (blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING ? 0xf59e0b : 0xd97706)))) : new THREE.Color(0x000000),
-      emissiveIntensity: isWarmGlow ? 0.08 : 0.0
+      emissive: isEnderOrb ? new THREE.Color(blockId === B.ENDER_EYE ? 0x4d7c2b : 0x0f6b5e) : (isWarmGlow ? new THREE.Color((blockId === B.WATER_BREATH_POTION || blockId === B.SWIFT_SNEAK_BOOK || blockId === B.SOUL_FLINT_AND_STEEL || blockId === B.SCULK_ECHO_BOW || blockId === B.DEEP_SONIC_BOW || blockId === B.SOUL_HARBINGER_BOW || blockId === B.RESONANT_SWORD || blockId === B.SOULFORGED_SWORD || blockId === B.SCULK_RESONANT_GEM || blockId === B.SCULK_HEART || blockId === B.SOUL_RESONATOR) ? 0x0ea5e9 : (blockId === B.NIGHT_VISION_POTION ? 0x3b82f6 : (blockId === B.DREAM_FRUIT ? 0xec4899 : (blockId === B.GOLD_APPLE || blockId === B.GOLDEN_CARROT || blockId === B.TOTEM_UNDYING ? 0xf59e0b : 0xd97706)))) : new THREE.Color(0x000000)),
+      emissiveIntensity: isEnderOrb ? 0.26 : (isWarmGlow ? 0.08 : 0.0)
     });
     if (isRainbowItem) {
       mat.userData = { isRainbowItem: true };
@@ -4276,6 +4257,11 @@
     } else if (blockId === B.TORCH_BLOCK) {
       mesh.position.set(-0.02, 0.01, -0.06);
       mesh.rotation.set(0.12, -0.35, 0.08);
+    } else if (blockId === B.ENDER_EYE || blockId === B.ENDER_PEARL) {
+      // Frame the full circular 3D Eye of Ender / Ender Pearl clearly inside 1st-person view
+      mesh.position.set(-0.048, 0.068, -0.055);
+      mesh.rotation.set(0.10, -0.32, 0.05);
+      mesh.scale.setScalar(0.80);
     } else {
       // Meats, food, buckets, ingots, ores, gems, potions & flowers raised clearly in 1st-person 3/4 view!
       mesh.position.set(0.0, 0.035, -0.03);
