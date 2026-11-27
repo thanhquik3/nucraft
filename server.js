@@ -543,11 +543,40 @@ function handleMessage(peer, msg) {
     const room = rooms.get(peer.roomId);
     if (!room || !Array.isArray(msg.mobs)) return;
     const dKey = String(msg.dim || 'overworld');
-    room.mobsByDim[dKey] = msg.mobs.slice(0, 120);
-    broadcastRoom(room, { type: 'mob_sync', peerId: peer.id, dim: dKey, mobs: room.mobsByDim[dKey] }, peer.id);
+    const isFull = (msg.full !== false);
+    const incoming = msg.mobs.slice(0, 120);
+    if (isFull) {
+      room.mobsByDim[dKey] = incoming;
+    } else {
+      const curList = Array.isArray(room.mobsByDim[dKey]) ? room.mobsByDim[dKey] : [];
+      const byUid = new Map();
+      for (let i = 0; i < curList.length; i++) {
+        const it = curList[i];
+        if (it && it.uid) byUid.set(it.uid, it);
+      }
+      if (Array.isArray(msg.rm)) {
+        for (let i = 0; i < msg.rm.length; i++) byUid.delete(msg.rm[i]);
+      }
+      for (let i = 0; i < incoming.length; i++) {
+        const it = incoming[i];
+        if (it && it.uid) byUid.set(it.uid, it);
+      }
+      room.mobsByDim[dKey] = Array.from(byUid.values()).slice(-120);
+    }
+    const outPkt = { type: 'mob_sync', peerId: peer.id, dim: dKey, full: isFull, mobs: incoming };
+    if (typeof msg.seq === 'number') outPkt.seq = msg.seq;
+    if (typeof msg.ts === 'number') outPkt.ts = msg.ts;
+    if (Array.isArray(msg.rm) && msg.rm.length) outPkt.rm = msg.rm;
+    broadcastRoom(room, outPkt, peer.id);
   } else if ((msg.type === 'mob_hit' || msg.type === 'mob_action' || msg.type === 'mob_remove') && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
+    if (msg.type === 'mob_remove' && msg.uid && room.mobsByDim) {
+      for (const dKey of Object.keys(room.mobsByDim)) {
+        const arr = room.mobsByDim[dKey];
+        if (Array.isArray(arr)) room.mobsByDim[dKey] = arr.filter(m => m && m.uid !== msg.uid);
+      }
+    }
     broadcastRoom(room, { ...msg, peerId: peer.id }, peer.id);
   } else if ((msg.type === 'door_toggle' || msg.type === 'weather_sync' || msg.type === 'explosion' || msg.type === 'ruin_origin') && peer.roomId) {
     const room = rooms.get(peer.roomId);
@@ -746,6 +775,7 @@ let nextPeerNum = 1;
 server.on('upgrade', (req, socket) => {
   const key = req.headers['sec-websocket-key'];
   if (!key) { socket.destroy(); return; }
+  try { socket.setNoDelay(true); } catch (_) {}
   const accept = crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(
     'HTTP/1.1 101 Switching Protocols\r\n' +

@@ -6095,6 +6095,10 @@
       else if (mob.aqua) spawnDroppedItem(bx, by, bz, mob.burning ? (Math.random() < 0.45 ? B.COOKED_SALMON : B.COOKED_FISH) : (Math.random() < 0.45 ? B.RAW_SALMON : B.RAW_FISH));
       else if (!mob.hostile && !mob.villager && !mob.guardian) spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_PORK : B.RAW_PORK);
       if (typeof mob.nestIdx === 'number') spawnedDragonNests.delete(mob.nestIdx);
+      if (mob.uid) {
+        _mobNetLastSent.delete(mob.uid);
+        if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && _mobNetRemQueue.length < 64) _mobNetRemQueue.push(mob.uid);
+      }
       if (activeRoomId && typeof broadcastMobRemove === 'function') broadcastMobRemove(mob.uid);
       disposeMobInstance(mob);
       const idx = mobs.indexOf(mob); if (idx !== -1) { mobs[idx] = mobs[mobs.length - 1]; mobs.pop(); }
@@ -6114,79 +6118,181 @@
   }
 
   let _mobNetSyncAccum = 0;
-  function serializeMobsForNet(dim = currentDimension) {
-    const out = [];
+  let _mobNetSeq = 0, _mobNetLastSyncMs = 0, _mobNetKeyframeMs = 0;
+  let _mobNetLastDim = '', _mobNetLastRoom = '';
+  const _mobNetLastSent = new Map();
+  const _mobNetRemQueue = [];
+  let _lastGuestMobSeq = -1;
+  const _mobSampleOut = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
+  function resetMobNetSyncCache() {
+    _mobNetLastSent.clear();
+    _mobNetKeyframeMs = 0;
+    _mobNetRemQueue.length = 0;
+    _lastGuestMobSeq = -1;
+  }
+  function serializeMobsForNet(dim = currentDimension, opts = null) {
+    const full = !(opts && opts.delta);
     const dOff = depthOffset || 0;
-    for (let i = 0; i < mobs.length && out.length < 100; i++) {
+    const netPeers = [];
+    if (typeof remotePlayers !== 'undefined' && remotePlayers) {
+      for (const rp of remotePlayers.values()) {
+        if (rp && !rp.isBuddy && (rp.dim || 'overworld') === dim) netPeers.push(rp);
+      }
+    }
+    const cands = [];
+    for (let i = 0; i < mobs.length; i++) {
       const m = mobs[i];
       if (!m || m._dead || !m.uid) continue;
-      out.push({
-        uid: m.uid,
-        t: m.type,
-        x: +m.x.toFixed(2),
-        ty: +(m.y - dOff).toFixed(2),
-        z: +m.z.toFixed(2),
-        yw: +m.yaw.toFixed(3),
-        hp: Math.max(0, Math.ceil(m.hp)),
-        mh: m.maxHp,
-        br: m.burning ? 1 : 0,
-        tm: m.tamed ? 1 : 0,
-        st: m.sitting ? 1 : 0,
-        fl: m.flying ? 1 : 0,
-        wc: m.woolColor || '',
-        vp: m.villagerProf ? m.villagerProf.idx : -1,
-        ak: +(m.atkAnimT || 0).toFixed(2),
-        hf: +(m.hurtFlash || 0).toFixed(2),
-        ds: m.dragonStage !== undefined ? m.dragonStage : 4,
-        sd: m.saddled ? 1 : 0,
-        da: m.dragonArmor || null
-      });
+      let minD2 = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
+      for (let pi = 0; pi < netPeers.length; pi++) {
+        const rp = netPeers[pi];
+        const pd2 = (m.x - rp.x) * (m.x - rp.x) + (m.z - rp.z) * (m.z - rp.z);
+        if (pd2 < minD2) minD2 = pd2;
+      }
+      cands.push({ m, minD2 });
+    }
+    if (cands.length > 100) cands.sort((a, b) => a.minD2 - b.minD2);
+    const lim = Math.min(100, cands.length);
+    const seenNow = full ? new Set() : null;
+    const out = [];
+    const q2 = v => Math.round(v * 100) / 100;
+    for (let i = 0; i < lim; i++) {
+      const m = cands[i].m;
+      if (seenNow) seenNow.add(m.uid);
+      const x = q2(m.x), ty = q2(m.y - dOff), z = q2(m.z);
+      const yw = Math.round((m.yaw || 0) * 1000) / 1000;
+      const hp = Math.max(0, Math.ceil(m.hp));
+      const vx = q2(m._netVx || 0), vy = q2(m._netVy || 0), vz = q2(m._netVz || 0);
+      const og = m.onGround === false ? 0 : 1;
+      const fp = (m.flying && Math.abs(m._flyPitch || 0) >= 0.02) ? q2(m._flyPitch) : 0;
+      const br = m.burning ? 1 : 0, tm = m.tamed ? 1 : 0, st = m.sitting ? 1 : 0, fl = m.flying ? 1 : 0;
+      const ak = q2(m.atkAnimT || 0), hf = q2(m.hurtFlash || 0);
+      const sd = m.saddled ? 1 : 0;
+      const ds = (m.elemDragon && m.dragonStage !== undefined && m.dragonStage !== 4) ? m.dragonStage : 4;
+      const moving = (Math.abs(vx) >= 0.04 || Math.abs(vy) >= 0.04 || Math.abs(vz) >= 0.04);
+
+      if (!full) {
+        const prev = _mobNetLastSent.get(m.uid);
+        if (prev) {
+          let dYw = ((yw - prev.yw + Math.PI) % (Math.PI * 2)) - Math.PI;
+          if (dYw < -Math.PI) dYw += Math.PI * 2;
+          const changed = Math.abs(x - prev.x) > 0.02 || Math.abs(ty - prev.ty) > 0.02 || Math.abs(z - prev.z) > 0.02
+            || Math.abs(dYw) > 0.03 || (prev.moving && !moving) || moving
+            || prev.hp !== hp || prev.br !== br || prev.tm !== tm || prev.st !== st || prev.fl !== fl
+            || prev.og !== og || prev.sd !== sd || prev.ds !== ds
+            || (ak > 0 && prev.ak !== ak) || (hf > 0 && prev.hf !== hf) || (prev.ak > 0 && ak === 0) || (prev.hf > 0 && hf === 0);
+          if (!changed) continue;
+        }
+      }
+      _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ak, hf, moving });
+      const item = { uid: m.uid, t: m.type, x, ty, z, yw, hp };
+      const baseHp = MOB_STATS[m.type] ? MOB_STATS[m.type].hp : 0;
+      if (m.maxHp && m.maxHp !== baseHp) item.mh = m.maxHp;
+      if (Math.abs(vx) >= 0.04) item.vx = vx;
+      if (Math.abs(vy) >= 0.04) item.vy = vy;
+      if (Math.abs(vz) >= 0.04) item.vz = vz;
+      if (og === 0) item.og = 0;
+      if (fp !== 0) item.fp = fp;
+      if (br) item.br = 1;
+      if (tm) item.tm = 1;
+      if (st) item.st = 1;
+      if (fl) item.fl = 1;
+      if (m.woolColor) item.wc = m.woolColor;
+      if (m.villagerProf) item.vp = m.villagerProf.idx;
+      if (ak > 0) item.ak = ak;
+      if (hf > 0) item.hf = hf;
+      if (ds !== 4) item.ds = ds;
+      if (sd) item.sd = 1;
+      if (m.dragonArmor) item.da = m.dragonArmor;
+      out.push(item);
+    }
+    if (full && seenNow) {
+      for (const k of _mobNetLastSent.keys()) if (!seenNow.has(k)) _mobNetLastSent.delete(k);
     }
     return out;
   }
 
-  function applyRemoteMobSync(list, dim = currentDimension, fullReset = false) {
+  function applyRemoteMobSync(list, dim = currentDimension, fullReset = false, meta = null) {
     if (!Array.isArray(list) || (dim && dim !== currentDimension)) return;
+    if (meta && typeof meta.seq === 'number' && !fullReset) {
+      if (_lastGuestMobSeq >= 0 && meta.seq <= _lastGuestMobSeq && (_lastGuestMobSeq - meta.seq) < 1000) return;
+      _lastGuestMobSeq = meta.seq;
+    } else if (meta && typeof meta.seq === 'number') {
+      _lastGuestMobSeq = meta.seq;
+    }
+    if (meta && Array.isArray(meta.rm)) {
+      for (let ri = 0; ri < meta.rm.length; ri++) applyRemoteMobRemove(meta.rm[ri]);
+    }
     const dOff = depthOffset || 0;
+    const nowMs = performance.now();
+    const senderTs = (meta && typeof meta.ts === 'number' && Number.isFinite(meta.ts)) ? meta.ts : nowMs;
+    const pktSeq = (meta && typeof meta.seq === 'number') ? meta.seq : undefined;
     const byUid = new Map();
     for (let i = 0; i < mobs.length; i++) {
       const mb = mobs[i];
       if (mb && !mb._dead && mb.uid) byUid.set(mb.uid, mb);
     }
-    const seen = new Set();
+    const seen = fullReset ? new Set() : null;
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
       if (!it || !it.uid || !it.t) continue;
-      seen.add(it.uid);
-      const wy = (typeof it.ty === 'number' && Number.isFinite(it.ty)) ? (it.ty + dOff) : 14;
+      if (seen) seen.add(it.uid);
+      const hasTy = (typeof it.ty === 'number' && Number.isFinite(it.ty));
+      const wy = hasTy ? (it.ty + dOff) : 14;
+      const vxIn = typeof it.vx === 'number' ? it.vx : 0;
+      const vyIn = typeof it.vy === 'number' ? it.vy : 0;
+      const vzIn = typeof it.vz === 'number' ? it.vz : 0;
+      const yawIn = it.yw || 0;
+      const fpIn = typeof it.fp === 'number' ? it.fp : 0;
       let m = byUid.get(it.uid);
       if (!m) {
         const opts = { uid: it.uid };
         if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
         if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
-        if (it.tm) { opts.tamed = true; opts.dragonStage = it.ds; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
+        if (it.tm) { opts.tamed = true; opts.dragonStage = it.ds !== undefined ? it.ds : 4; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
         m = spawnMobOfType(it.t, it.x, wy, it.z, opts);
         if (m) {
-          m.yaw = it.yw || 0;
-          m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = it.yw || 0;
+          m.yaw = yawIn; m.ryaw = yawIn;
+          m.rx = it.x; m.ry = wy; m.rz = it.z;
+          m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
+          m._netBuf = createNetInterp(95);
+          pushNetSnap(m._netBuf, {
+            seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
+            vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
+          }, nowMs, dOff);
+          m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
+          m._netBuf.hasOut = true;
         }
       } else {
-        m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = it.yw || 0;
+        m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
+        if (!m._netBuf) {
+          m._netBuf = createNetInterp(95);
+          m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
+          m._netBuf.hasOut = true;
+        }
+        pushNetSnap(m._netBuf, {
+          seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
+          vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
+        }, nowMs, dOff);
       }
       if (m) {
-        m.hp = it.hp; m.maxHp = it.mh || m.maxHp;
+        if (typeof it.hp === 'number') m.hp = it.hp;
+        if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
         m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
+        m.onGround = (it.og !== 0);
+        m._flyPitch = fpIn;
+        m.vy = vyIn;
         if (m.elemDragon) {
           m.saddled = !!it.sd;
           m.dragonArmor = it.da ? { ...it.da } : null;
           _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
         }
-        if (it.ak > (m.atkAnimT || 0)) m.atkAnimT = it.ak;
-        if (it.hf > (m.hurtFlash || 0)) { m.hurtFlash = it.hf; playMobSfx(m.type, 'hurt'); }
+        if ((it.ak || 0) > (m.atkAnimT || 0)) m.atkAnimT = it.ak;
+        if ((it.hf || 0) > (m.hurtFlash || 0)) { m.hurtFlash = it.hf; playMobSfx(m.type, 'hurt'); }
         if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
       }
     }
-    if (fullReset || list.length > 0) {
+    if (fullReset && seen) {
       for (let i = mobs.length - 1; i >= 0; i--) {
         const mb = mobs[i];
         if (!mb || mb._dead || (player.ridingDragon === mb) || mb.tamed) continue;
@@ -7297,6 +7403,13 @@
 
   function updateMobs(_rawMobDt, elapsed) {
     const dt = _rawMobDt;
+    const _mobNowMs = performance.now();
+    const _curRoomKey = activeRoomId || '';
+    if (currentDimension !== _mobNetLastDim || _curRoomKey !== _mobNetLastRoom) {
+      _mobNetLastDim = currentDimension;
+      _mobNetLastRoom = _curRoomKey;
+      resetMobNetSyncCache();
+    }
     _culledEntitiesCount = 0;
     const _mobSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
     if (_mobSimAuth) {
@@ -7428,6 +7541,10 @@
       }
       if (_mobSimAuth && !player.dead && (minPeerD > keepDist || (!m.isBoss && !m.tamed && dyAbs > 40))) {
         if (typeof m.nestIdx === 'number') spawnedDragonNests.delete(m.nestIdx);
+        if (m.uid) {
+          _mobNetLastSent.delete(m.uid);
+          if (activeRoomId && _mobNetRemQueue.length < 64) _mobNetRemQueue.push(m.uid);
+        }
         if (activeRoomId && typeof broadcastMobRemove === 'function') broadcastMobRemove(m.uid);
         disposeMobInstance(m); const mi = mobs.indexOf(m); if (mi !== -1) { mobs[mi] = mobs[mobs.length - 1]; mobs.pop(); } continue;
       }
@@ -7444,12 +7561,14 @@
         }
       }
       if (!isMobVis) _culledEntitiesCount++;
-      // Lithium: distance & visibility-tiered tick scaling; dragons & mounted dragon always tick every frame for silky flight!
+      // Lithium: distance & visibility-tiered tick scaling; guests & near-peer mobs tick every frame for silky smoothness!
       const _isDrgTick = IS_DRAGON_MOB.has(m.type) || player.ridingDragon === m;
-      const _litStep = (!m.isBoss && !_isDrgTick)
-        ? ((dist > (renderDistance * CHUNK_W + 12) || (sodiumOpts.lithiumAi && !isMobVis && dist > 10))
+      const _effLitDist = _mobSimAuth ? minPeerD : dist;
+      const _forceFullTick = (!_mobSimAuth && (isMobVis || dist < 64)) || (_mobSimAuth && !!activeRoomId && minPeerD < 40);
+      const _litStep = (!_forceFullTick && !m.isBoss && !_isDrgTick)
+        ? ((_effLitDist > (renderDistance * CHUNK_W + 12) || (sodiumOpts.lithiumAi && !isMobVis && _effLitDist > 10))
             ? 4
-            : ((_isWeakDevice || _fpsSlow || sodiumOpts.lithiumAi) && dist > 26 ? 2 : 1))
+            : ((_isWeakDevice || _fpsSlow || sodiumOpts.lithiumAi) && _effLitDist > 26 ? 2 : 1))
         : 1;
       if (_litStep > 1 && ((frameCounter + i) % _litStep) !== 0) {
         if (m.isBoss && !m.tamed && m.hp > 0 && dist3D < 84 && (!activeBoss || dist3D < Math.hypot(activeBoss.x - player.x, activeBoss.y - player.y, activeBoss.z - player.z))) activeBoss = m;
@@ -7464,7 +7583,9 @@
         m.voiceT -= dt;
         if (m.voiceT <= 0) { m.voiceT = 6.5 + Math.random() * 10.5; if (Math.hypot(m.x - player.x, m.z - player.z) < 26) playMobSfx(m.type, 'idle'); }
       }
+      const _isGuestMobClient = !!(activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(m.tamed && player.ridingDragon === m));
 
+      if (!_isGuestMobClient) {
       // Mob Lava & Fire Burn Damage (Nether fire-immune mobs are immune; all others burn & take burn damage!)
       const mFeetB = getBlockWorld(Math.floor(m.x), Math.floor(m.y + 0.15), Math.floor(m.z));
       const mBodyB = getBlockWorld(Math.floor(m.x), Math.floor(m.y + 0.75), Math.floor(m.z));
@@ -7522,19 +7643,22 @@
           if (m.burnTime <= 0) { m.burning = false; m.burnTime = 0; }
         }
       }
+      }
       if (m.burning) {
-        if (!m.hostile && !m.neutral) m.fleeT = Math.max(m.fleeT || 0, 0.6);
+        if (!_isGuestMobClient && !m.hostile && !m.neutral) m.fleeT = Math.max(m.fleeT || 0, 0.6);
         if (m.flameGroup) {
           m.flameGroup.visible = true;
           const fScale = Math.max(0.75, m.hitboxH * 0.68);
           const fl = fScale * (0.94 + Math.sin(elapsed * 20 + i) * 0.08);
           m.flameGroup.scale.set(fl, fScale * (0.95 + Math.cos(elapsed * 18 + i) * 0.09), fl);
         }
-        m.burnTick += dt;
-        if (m.burnTick >= 0.55) {
-          m.burnTick = 0; spawnParticles(m.x, m.y + 1.2, m.z, Math.random() > 0.4 ? 0xff7b00 : 0xfef08a, 3, true);
-          if (Math.hypot(m.x - player.x, m.z - player.z) < 14) playSfx('burn');
-          if (hurtMob(m, 1.2, 0, 0, 0, false, false)) continue;
+        if (!_isGuestMobClient) {
+          m.burnTick += dt;
+          if (m.burnTick >= 0.55) {
+            m.burnTick = 0; spawnParticles(m.x, m.y + 1.2, m.z, Math.random() > 0.4 ? 0xff7b00 : 0xfef08a, 3, true);
+            if (Math.hypot(m.x - player.x, m.z - player.z) < 14) playSfx('burn');
+            if (hurtMob(m, 1.2, 0, 0, 0, false, false)) continue;
+          }
         }
       } else if (m.flameGroup) m.flameGroup.visible = false;
 
@@ -7559,85 +7683,89 @@
 
       const isSpiderAggro = (m.type === 'spider') ? (!isDaytime || isRaining || m.provoked > 0) : true;
       const isAggroToPlayer = (gameMode !== 'creative') && (m.type === 'spider' ? isSpiderAggro : (m.neutral ? (m.provoked > 0) : m.hostile));
-
-      if (m.hopper && !m.sitting) {
-        m.hopCd -= dt;
-        if (m.hopCd <= 0 && (m.onGround || Math.abs(m.vy) < 0.08)) {
-          m.vy = (m.type === 'sulfur_slime') ? 5.85 : 5.4;
-          m.onGround = false;
-          m.hopCd = 0.72 + Math.random() * 0.36;
-          if (m.type === 'sulfur_slime') spawnParticles(m.x, m.y + 0.12, m.z, 0xfde047, 2, true);
-        }
-      }
-
-      // 1) Iron Golem (Village Defender) & Tamed Pet Defender + 2) Hostile/Villager LOS & Threat AI (throttled ~4Hz!)
       const isHumanoidPillar = HUMANOID_PILLAR_MOBS.has(m.type);
       const chaseDyLimit = isHumanoidPillar ? 13.5 : 7.5;
-      const pElevated = isHumanoidPillar && dist < 12.5 && (player.y - m.y) > 1.4 && (player.y - m.y) < 12.5;
-      m._losT = (m._losT || 0) - dt;
-      if (m._losT <= 0) {
-        m._losT = 0.24 + (i & 3) * 0.03;
-        m._guardTarget = null;
-        if ((m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) {
-          let bestD2 = m.guardian ? 676 : 256;
-          for (let hi = 0; hi < _snapHostiles.length; hi++) {
-            const hm = _snapHostiles[hi];
-            if (!hm || hm._dead || hm === m || Math.abs(hm.y - m.y) > 7.5) continue;
-            const gx = hm.x - m.x, gz = hm.z - m.z, hd2 = gx * gx + gz * gz;
-            if (hd2 < bestD2) { bestD2 = hd2; m._guardTarget = hm; }
+      let guardianTarget = null, villagerTarget = null, villagerDist = 22.0, canChasePlayer = false, preferVillager = false, villagerThreat = null;
+
+      if (!_isGuestMobClient) {
+        if (m.hopper && !m.sitting) {
+          m.hopCd -= dt;
+          if (m.hopCd <= 0 && (m.onGround || Math.abs(m.vy) < 0.08)) {
+            m.vy = (m.type === 'sulfur_slime') ? 5.85 : 5.4;
+            m.onGround = false;
+            m.hopCd = 0.72 + Math.random() * 0.36;
+            if (m.type === 'sulfur_slime') spawnParticles(m.x, m.y + 0.12, m.z, 0xfde047, 2, true);
           }
         }
-        m._losPlayer = (!player.dead && isAggroToPlayer && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && (hasLineOfSight(m.x, m.y + 1.1, m.z, player.x, player.y + 1.1, player.z) || pElevated))));
-        m._vilTarget = null; m._vilDist = 22.0;
-        if (m.hostile && !m.aqua && !m.flying && !m.skyBird && m.type !== 'creeper' && m.type !== 'void_stalker' && isSpiderAggro) {
-          for (let vi = 0; vi < _snapVillagers.length; vi++) {
-            const vm = _snapVillagers[vi];
-            if (!vm || vm._dead || vm === m || Math.abs(vm.y - m.y) > 6.5) continue;
-            const vd = Math.hypot(vm.x - m.x, vm.z - m.z);
-            if (vd < m._vilDist && hasLineOfSight(m.x, m.y + 1.1, m.z, vm.x, vm.y + 1.1, vm.z)) {
-              m._vilDist = vd; m._vilTarget = vm;
+
+        // 1) Iron Golem (Village Defender) & Tamed Pet Defender + 2) Hostile/Villager LOS & Threat AI (throttled ~4Hz!)
+        const pElevated = isHumanoidPillar && dist < 12.5 && (player.y - m.y) > 1.4 && (player.y - m.y) < 12.5;
+        m._losT = (m._losT || 0) - dt;
+        if (m._losT <= 0) {
+          m._losT = 0.24 + (i & 3) * 0.03;
+          m._guardTarget = null;
+          if ((m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) {
+            let bestD2 = m.guardian ? 676 : 256;
+            for (let hi = 0; hi < _snapHostiles.length; hi++) {
+              const hm = _snapHostiles[hi];
+              if (!hm || hm._dead || hm === m || Math.abs(hm.y - m.y) > 7.5) continue;
+              const gx = hm.x - m.x, gz = hm.z - m.z, hd2 = gx * gx + gz * gz;
+              if (hd2 < bestD2) { bestD2 = hd2; m._guardTarget = hm; }
+            }
+          }
+          m._losPlayer = (!player.dead && isAggroToPlayer && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && (hasLineOfSight(m.x, m.y + 1.1, m.z, player.x, player.y + 1.1, player.z) || pElevated))));
+          m._vilTarget = null; m._vilDist = 22.0;
+          if (m.hostile && !m.aqua && !m.flying && !m.skyBird && m.type !== 'creeper' && m.type !== 'void_stalker' && isSpiderAggro) {
+            for (let vi = 0; vi < _snapVillagers.length; vi++) {
+              const vm = _snapVillagers[vi];
+              if (!vm || vm._dead || vm === m || Math.abs(vm.y - m.y) > 6.5) continue;
+              const vd = Math.hypot(vm.x - m.x, vm.z - m.z);
+              if (vd < m._vilDist && hasLineOfSight(m.x, m.y + 1.1, m.z, vm.x, vm.y + 1.1, vm.z)) {
+                m._vilDist = vd; m._vilTarget = vm;
+              }
+            }
+          }
+          m._vilThreat = null;
+          if (m.villager) {
+            let nearThreatD2 = 132.25;
+            for (let hi = 0; hi < _snapHostiles.length; hi++) {
+              const hm = _snapHostiles[hi];
+              if (!hm || hm._dead || Math.abs(hm.y - m.y) > 4.5) continue;
+              const tx = hm.x - m.x, tz = hm.z - m.z, td2 = tx * tx + tz * tz;
+              if (td2 < nearThreatD2) { nearThreatD2 = td2; m._vilThreat = hm; }
             }
           }
         }
-        m._vilThreat = null;
-        if (m.villager) {
-          let nearThreatD2 = 132.25;
-          for (let hi = 0; hi < _snapHostiles.length; hi++) {
-            const hm = _snapHostiles[hi];
-            if (!hm || hm._dead || Math.abs(hm.y - m.y) > 4.5) continue;
-            const tx = hm.x - m.x, tz = hm.z - m.z, td2 = tx * tx + tz * tz;
-            if (td2 < nearThreatD2) { nearThreatD2 = td2; m._vilThreat = hm; }
-          }
-        }
+        guardianTarget = (m._guardTarget && !m._guardTarget._dead && (m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) ? m._guardTarget : null;
+        villagerTarget = (m._vilTarget && !m._vilTarget._dead) ? m._vilTarget : null;
+        villagerDist = villagerTarget ? Math.hypot(villagerTarget.x - m.x, villagerTarget.z - m.z) : 22.0;
+        canChasePlayer = isAggroToPlayer && !player.dead && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && !!m._losPlayer));
+        if (m.elemDragon && !m.tamed) updateDragonMode(m, dt, dist);
+        preferVillager = !!(villagerTarget && (!canChasePlayer || villagerDist + 1.5 < dist));
+        villagerThreat = (m.villager && m._vilThreat && !m._vilThreat._dead) ? m._vilThreat : null;
       }
-      const guardianTarget = (m._guardTarget && !m._guardTarget._dead && (m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) ? m._guardTarget : null;
-      const villagerTarget = (m._vilTarget && !m._vilTarget._dead) ? m._vilTarget : null;
-      const villagerDist = villagerTarget ? Math.hypot(villagerTarget.x - m.x, villagerTarget.z - m.z) : 22.0;
-      const canChasePlayer = isAggroToPlayer && !player.dead && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && !!m._losPlayer));
-      if (m.elemDragon && !m.tamed) updateDragonMode(m, dt, dist);
-      const preferVillager = !!(villagerTarget && (!canChasePlayer || villagerDist + 1.5 < dist));
-      const villagerThreat = (m.villager && m._vilThreat && !m._vilThreat._dead) ? m._vilThreat : null;
 
       let speed = m.speed;
       if (m._chilledT > 0) { m._chilledT = Math.max(0, m._chilledT - dt); speed *= 0.52; }
       let visualTargetYaw = m.yaw;
-      const _isGuestMobClient = !!(activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(m.tamed && player.ridingDragon === m));
       if (_isGuestMobClient) {
-        if (m._netTx !== undefined) {
-          const prevX = m.x, prevZ = m.z;
-          const netK = 1 - Math.exp(-14.0 * dt);
-          m.x += (m._netTx - m.x) * netK;
-          m.y += (m._netTy - m.y) * netK;
-          m.z += (m._netTz - m.z) * netK;
-          let dNY = (m._netTyaw - m.yaw + Math.PI) % (Math.PI * 2) - Math.PI;
-          if (dNY < -Math.PI) dNY += Math.PI * 2;
-          m.yaw += dNY * netK;
-          speed = Math.hypot(m.x - prevX, m.z - prevZ) / Math.max(0.016, dt);
-          m.svx = (m.x - prevX) / Math.max(0.016, dt);
-          m.svz = (m.z - prevZ) / Math.max(0.016, dt);
+        if (m._netBuf && m._netBuf.snaps.length > 0) {
+          const prevYawG = m.yaw;
+          const maxTp = (m.flying || IS_DRAGON_MOB.has(m.type)) ? 24.0 : 12.0;
+          const s = sampleNetInterp(m._netBuf, _mobNowMs, dt, depthOffset || 0, maxTp, _mobSampleOut);
+          m.x = s.x; m.y = s.y; m.z = s.z;
+          m.yaw = s.yaw;
+          m.svx = s.vx; m.svz = s.vz; m.vy = s.vy;
+          speed = Math.hypot(s.vx, s.vz);
+          if (m.flying || IS_DRAGON_MOB.has(m.type)) {
+            m.flyVx = s.vx; m.flyVy = s.vy; m.flyVz = s.vz;
+            m._flyPitch = s.pitch;
+          }
+          m._guestTurnRate = _wrapNetAng(m.yaw - prevYawG);
           visualTargetYaw = m.yaw;
         }
       } else {
+      const _simPrevX = m.x, _simPrevY = m.y, _simPrevZ = m.z;
       if (m.tamed && m.sitting && !m.elemDragon) {
         speed = 0;
         m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
@@ -9069,6 +9197,16 @@
           }
         }
       }
+      const _simSafeDt = Math.max(0.004, Math.min(0.12, dt || 0.016));
+      const _sdx = m.x - _simPrevX, _sdy = m.y - _simPrevY, _sdz = m.z - _simPrevZ;
+      if (Math.hypot(_sdx, _sdy, _sdz) > 8.0) {
+        m._netVx = 0; m._netVy = 0; m._netVz = 0;
+      } else {
+        const _nvK = 1 - Math.exp(-22.0 * _simSafeDt);
+        m._netVx = (m._netVx || 0) + ((_sdx / _simSafeDt) - (m._netVx || 0)) * _nvK;
+        m._netVy = (m._netVy || 0) + ((_sdy / _simSafeDt) - (m._netVy || 0)) * _nvK;
+        m._netVz = (m._netVz || 0) + ((_sdz / _simSafeDt) - (m._netVz || 0)) * _nvK;
+      }
       } // end _isGuestMobClient else
 
       // Silky-Smooth Frame-Rate-Independent Interpolated Visual Position & Yaw Turning
@@ -9076,6 +9214,11 @@
       let dAng = 0;
       if (isRidingThis) {
         m.rx = m.x; m.ry = m.y; m.rz = m.z; m.ryaw = m.yaw;
+      } else if (_isGuestMobClient && m._netBuf) {
+        m.rx = m.x; m.ry = m.y; m.rz = m.z; m.ryaw = m.yaw;
+        dAng = Math.max(-0.5, Math.min(0.5, (m._guestTurnRate || 0) * 4.0));
+        m.group.position.set(m.rx, m.ry, m.rz);
+        m.group.rotation.y = m.ryaw;
       } else {
         if (m.rx === undefined) { m.rx = m.x; m.ry = m.y; m.rz = m.z; m.ryaw = visualTargetYaw; }
         const posK = 1 - Math.exp(-18.0 * dt);
@@ -9699,10 +9842,26 @@
       }
     }
     if (_mobSimAuth && activeRoomId && typeof broadcastMobSync === 'function') {
-      _mobNetSyncAccum += dt;
-      if (_mobNetSyncAccum >= 0.10) {
-        _mobNetSyncAccum = 0;
-        broadcastMobSync(currentDimension, serializeMobsForNet(currentDimension));
+      let hasNetPeer = false;
+      if (typeof remotePlayers !== 'undefined' && remotePlayers) {
+        for (const rp of remotePlayers.values()) {
+          if (rp && !rp.isBuddy) { hasNetPeer = true; break; }
+        }
+      }
+      const hasWs = (typeof wsConn !== 'undefined' && wsConn && wsConn.readyState === 1);
+      if (hasNetPeer || hasWs) {
+        const hasMqttPeer = (typeof mqttRoomPeers !== 'undefined' && mqttRoomPeers.size > 0);
+        const syncIntMs = hasNetPeer ? (hasMqttPeer ? 100 : 66) : 2500;
+        if ((_mobNowMs - _mobNetLastSyncMs) >= syncIntMs) {
+          _mobNetLastSyncMs = _mobNowMs;
+          const needFull = (_mobNetKeyframeMs === 0 || (_mobNowMs - _mobNetKeyframeMs) >= 2500);
+          const list = serializeMobsForNet(currentDimension, { delta: !needFull });
+          if (needFull) _mobNetKeyframeMs = _mobNowMs;
+          if (needFull || list.length > 0 || _mobNetRemQueue.length > 0) {
+            const rm = _mobNetRemQueue.splice(0, _mobNetRemQueue.length);
+            broadcastMobSync(currentDimension, list, { seq: ++_mobNetSeq, ts: Math.round(_mobNowMs), full: needFull, rm });
+          }
+        }
       }
     }
 

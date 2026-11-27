@@ -232,14 +232,16 @@
         }
       };
     }
-    function publish(topic, payloadObjOrEmpty, retain = false) {
+    function publish(topic, payloadObjOrEmpty, retain = false, dropIfCongested = false) {
       const payloadStr = (payloadObjOrEmpty === '' || payloadObjOrEmpty == null)
         ? ''
         : (typeof payloadObjOrEmpty === 'string' ? payloadObjOrEmpty : JSON.stringify(payloadObjOrEmpty));
       ensureConnected();
       if (ready && ws && ws.readyState === 1) {
+        if (dropIfCongested && ws.bufferedAmount > 48000) return false;
         try { ws.send(pktPublish(topic, payloadStr, retain)); return true; } catch (_) {}
       }
+      if (dropIfCongested) return false;
       if (outbox.length >= 64) outbox.shift();
       outbox.push({ topic, payloadStr, retain });
       return false;
@@ -290,6 +292,231 @@
     sendCoopMsg({ type: 'skin_sync', skinId: selectedSkinId, customSkin: cs });
   }
 
+  function _wrapNetAng(a) {
+    a = (a + Math.PI) % (Math.PI * 2);
+    return a < 0 ? a + Math.PI : a - Math.PI;
+  }
+  function _clampHermiteTan(vSpan, d) {
+    if (d === 0 || vSpan * d <= 0) return 0;
+    const maxMag = Math.abs(d) * 1.45;
+    return Math.abs(vSpan) > maxMag ? (vSpan > 0 ? maxMag : -maxMag) : vSpan;
+  }
+  function createNetInterp(baseDelayMs = 85) {
+    return {
+      snaps: [], lastSeq: -1, clockOff: null, jitterMs: 0,
+      avgIntMs: baseDelayMs, delayMs: baseDelayMs, renderT: null,
+      wasCoasting: false, _reconcile: false,
+      lastOutX: 0, lastOutY: 0, lastOutZ: 0, hasOut: false,
+      corrX: 0, corrY: 0, corrZ: 0,
+      lastPushNow: 0, lastSenderTs: null
+    };
+  }
+  function pushNetSnap(buf, snap, nowMs, localDepthOff = 0) {
+    if (!buf || !snap || !Number.isFinite(snap.x) || !Number.isFinite(snap.z)) return false;
+    if (typeof snap.seq === 'number') {
+      if (buf.lastSeq >= 0 && snap.seq <= buf.lastSeq && (buf.lastSeq - snap.seq) < 1000) return false;
+      buf.lastSeq = snap.seq;
+    }
+    const hasTs = (typeof snap.ts === 'number' && Number.isFinite(snap.ts));
+    const sTs = hasTs ? snap.ts : nowMs;
+    const rawDiff = nowMs - sTs;
+    if (buf.clockOff === null) {
+      buf.clockOff = rawDiff;
+      buf.jitterMs = 0;
+    } else if (hasTs) {
+      const diff = rawDiff - buf.clockOff;
+      if (Math.abs(diff) > 1500) {
+        buf.clockOff = rawDiff;
+        buf.jitterMs = 0;
+        buf.snaps.length = 0;
+        buf.renderT = null;
+        buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
+        buf._reconcile = false;
+        buf.wasCoasting = false;
+      } else if (diff < 0) {
+        buf.clockOff += diff * 0.25;
+        buf.jitterMs *= 0.90;
+      } else {
+        buf.clockOff += diff * 0.04;
+        const cj = Math.min(180, diff);
+        buf.jitterMs = Math.max(cj * 0.85, buf.jitterMs * 0.90 + cj * 0.10);
+      }
+    }
+    if (buf.lastSenderTs !== null) {
+      const rawDt = hasTs ? (sTs - buf.lastSenderTs) : (nowMs - buf.lastPushNow);
+      if (rawDt > 15 && rawDt <= 320) {
+        buf.avgIntMs = buf.avgIntMs * 0.85 + rawDt * 0.15;
+      }
+    }
+    buf.lastSenderTs = sTs;
+    buf.delayMs = Math.max(70, Math.min(250, buf.avgIntMs * 1.15 + buf.jitterMs * 1.25 + 14));
+
+    const snaps = buf.snaps;
+    let prev = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+    const hadPriorPastRender = !!(buf.hasOut && buf.renderT !== null && prev && buf.renderT > prev.t);
+    let t = hasTs ? (sTs + buf.clockOff) : nowMs;
+    if (prev && t <= prev.t) t = prev.t + 1;
+    if (prev && (t - prev.t) > 320) {
+      const anchorT = Math.max(prev.t + 1, t - Math.max(55, Math.min(120, buf.avgIntMs)));
+      snaps.push({
+        t: anchorT,
+        x: prev.x, y: prev.y, ty: prev.ty, z: prev.z,
+        vx: 0, vy: 0, vz: 0,
+        yaw: prev.yaw, pitch: prev.pitch, spd: 0
+      });
+      prev = snaps[snaps.length - 1];
+    }
+
+    const hasTy = (typeof snap.ty === 'number' && Number.isFinite(snap.ty));
+    const yVal = (typeof snap.y === 'number' && Number.isFinite(snap.y)) ? snap.y : (hasTy ? (snap.ty + localDepthOff) : 0);
+    let vx = (typeof snap.vx === 'number' && Number.isFinite(snap.vx)) ? snap.vx : null;
+    let vy = (typeof snap.vy === 'number' && Number.isFinite(snap.vy)) ? snap.vy : null;
+    let vz = (typeof snap.vz === 'number' && Number.isFinite(snap.vz)) ? snap.vz : null;
+    if (vx === null || vy === null || vz === null) {
+      const segS = prev ? ((t - prev.t) / 1000) : 0;
+      if (prev && segS > 0.008 && segS <= 0.35) {
+        const prevY = prev.ty !== null ? (prev.ty + localDepthOff) : prev.y;
+        if (vx === null) vx = (snap.x - prev.x) / segS;
+        if (vy === null) vy = (yVal - prevY) / segS;
+        if (vz === null) vz = (snap.z - prev.z) / segS;
+      } else {
+        if (vx === null) vx = 0;
+        if (vy === null) vy = 0;
+        if (vz === null) vz = 0;
+      }
+    }
+    snaps.push({
+      t,
+      x: snap.x, y: yVal, ty: hasTy ? snap.ty : null, z: snap.z,
+      vx, vy, vz,
+      yaw: typeof snap.yaw === 'number' ? snap.yaw : (prev ? prev.yaw : 0),
+      pitch: typeof snap.pitch === 'number' ? snap.pitch : (prev ? prev.pitch : 0),
+      spd: typeof snap.spd === 'number' ? snap.spd : Math.hypot(vx, vz)
+    });
+    while (snaps.length > 10) snaps.shift();
+    buf.lastPushNow = nowMs;
+    if (buf.hasOut && buf.renderT !== null && (buf.wasCoasting || hadPriorPastRender)) buf._reconcile = true;
+    return true;
+  }
+  function sampleNetInterp(buf, nowMs, dt, localDepthOff = 0, teleportDist = 12.0, outObj = null) {
+    const out = outObj || { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
+    const snaps = buf && buf.snaps;
+    if (!snaps || snaps.length === 0) return out;
+    const safeDt = Math.max(0.001, Math.min(0.1, dt || 0.016));
+    const targetRT = nowMs - buf.delayMs;
+    if (buf.renderT === null || Math.abs(targetRT - buf.renderT) > 420) {
+      buf.renderT = targetRT;
+      buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
+      buf._reconcile = false;
+    } else {
+      const drift = targetRT - buf.renderT;
+      const rate = 1 + Math.max(-0.08, Math.min(0.08, drift * 0.002));
+      buf.renderT += safeDt * 1000 * rate;
+    }
+    while (snaps.length > 2 && snaps[1].t <= buf.renderT) snaps.shift();
+
+    const n = snaps.length;
+    const getY = (s) => (s.ty !== null ? (s.ty + localDepthOff) : s.y);
+    let rawX, rawY, rawZ, vx, vy, vz, yaw, pitch, spd;
+
+    if (n === 1 || buf.renderT <= snaps[0].t) {
+      const s0 = snaps[0];
+      rawX = s0.x; rawY = getY(s0); rawZ = s0.z;
+      vx = s0.vx; vy = s0.vy; vz = s0.vz;
+      yaw = s0.yaw; pitch = s0.pitch; spd = s0.spd;
+      buf.wasCoasting = false;
+    } else if (buf.renderT < snaps[n - 1].t) {
+      let idx = 0;
+      for (let k = 0; k < n - 1; k++) {
+        if (snaps[k + 1].t >= buf.renderT) { idx = k; break; }
+      }
+      const A = snaps[idx], B = snaps[idx + 1];
+      const ay = getY(A), by = getY(B);
+      const dx = B.x - A.x, dy = by - ay, dz = B.z - A.z;
+      if (Math.hypot(dx, dy, dz) > teleportDist) {
+        rawX = B.x; rawY = by; rawZ = B.z;
+        vx = B.vx; vy = B.vy; vz = B.vz;
+        yaw = B.yaw; pitch = B.pitch; spd = B.spd;
+        buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
+        buf._reconcile = false;
+      } else {
+        const segMs = Math.max(1, B.t - A.t);
+        const segSec = segMs / 1000;
+        const u = Math.max(0, Math.min(1, (buf.renderT - A.t) / segMs));
+        const u2 = u * u, u3 = u2 * u;
+        const h00 = 2 * u3 - 3 * u2 + 1;
+        const h10 = u3 - 2 * u2 + u;
+        const h01 = -2 * u3 + 3 * u2;
+        const h11 = u3 - u2;
+        const dh00 = 6 * u2 - 6 * u;
+        const dh10 = 3 * u2 - 4 * u + 1;
+        const dh01 = -6 * u2 + 6 * u;
+        const dh11 = 3 * u2 - 2 * u;
+
+        const m0x = _clampHermiteTan(A.vx * segSec, dx);
+        const m1x = _clampHermiteTan(B.vx * segSec, dx);
+        const m0z = _clampHermiteTan(A.vz * segSec, dz);
+        const m1z = _clampHermiteTan(B.vz * segSec, dz);
+        const maxY = Math.max(Math.abs(dy) * 1.5, 0.85);
+        const clampY = (v) => Math.max(-maxY, Math.min(maxY, v));
+        const m0y = clampY(A.vy * segSec);
+        const m1y = clampY(B.vy * segSec);
+
+        rawX = h00 * A.x + h10 * m0x + h01 * B.x + h11 * m1x;
+        rawY = h00 * ay  + h10 * m0y + h01 * by  + h11 * m1y;
+        rawZ = h00 * A.z + h10 * m0z + h01 * B.z + h11 * m1z;
+        const invSeg = 1 / segSec;
+        vx = (dh00 * A.x + dh10 * m0x + dh01 * B.x + dh11 * m1x) * invSeg;
+        vy = (dh00 * ay  + dh10 * m0y + dh01 * by  + dh11 * m1y) * invSeg;
+        vz = (dh00 * A.z + dh10 * m0z + dh01 * B.z + dh11 * m1z) * invSeg;
+        yaw = A.yaw + _wrapNetAng(B.yaw - A.yaw) * u;
+        pitch = A.pitch + (B.pitch - A.pitch) * u;
+        spd = A.spd + (B.spd - A.spd) * u;
+      }
+      buf.wasCoasting = false;
+    } else {
+      const last = snaps[n - 1];
+      const ly = getY(last);
+      const overSec = Math.max(0, Math.min(0.22, (buf.renderT - last.t) / 1000));
+      const damp = Math.exp(-7.5 * overSec);
+      const coastSec = (1 - damp) / 7.5;
+      rawX = last.x + last.vx * coastSec;
+      rawY = ly + last.vy * coastSec * 0.45;
+      rawZ = last.z + last.vz * coastSec;
+      vx = last.vx * damp;
+      vy = last.vy * damp * 0.45;
+      vz = last.vz * damp;
+      yaw = last.yaw;
+      pitch = last.pitch;
+      spd = last.spd * damp;
+      buf.wasCoasting = (overSec > 0.004);
+    }
+
+    if (buf._reconcile && buf.hasOut) {
+      buf._reconcile = false;
+      const ex = buf.lastOutX - rawX, ey = buf.lastOutY - rawY, ez = buf.lastOutZ - rawZ;
+      if (Math.hypot(ex, ey, ez) < teleportDist) {
+        buf.corrX = ex; buf.corrY = ey; buf.corrZ = ez;
+      } else {
+        buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
+      }
+    }
+    const cDecay = Math.exp(-12.0 * safeDt);
+    buf.corrX *= cDecay; buf.corrY *= cDecay; buf.corrZ *= cDecay;
+    if (Math.abs(buf.corrX) < 0.001) buf.corrX = 0;
+    if (Math.abs(buf.corrY) < 0.001) buf.corrY = 0;
+    if (Math.abs(buf.corrZ) < 0.001) buf.corrZ = 0;
+
+    out.x = rawX + buf.corrX;
+    out.y = rawY + buf.corrY;
+    out.z = rawZ + buf.corrZ;
+    out.vx = vx; out.vy = vy; out.vz = vz;
+    out.yaw = yaw; out.pitch = pitch; out.spd = spd;
+    buf.lastOutX = out.x; buf.lastOutY = out.y; buf.lastOutZ = out.z;
+    buf.hasOut = true;
+    return out;
+  }
+
   function ensureRemotePeer(peerId, name, color = '#38bdf8', isBuddy = false, skinId = null, playerKey = '', customSkin = null) {
     const resolvedSkin = _resolveRemoteSkinKey(peerId, skinId, customSkin);
     let rp = remotePlayers.get(peerId);
@@ -297,7 +524,7 @@
       if (name) rp.name = name;
       if (playerKey) rp.playerKey = String(playerKey);
       if (resolvedSkin && rp.skinId !== resolvedSkin) { rp.skinId = resolvedSkin; applySkinToRig(rp.rig, resolvedSkin); }
-      rp._lastPktAt = rp._lastPktAt || performance.now();
+      rp._createdAt = rp._createdAt || performance.now();
       return rp;
     }
     const cleanKey = playerKey ? String(playerKey) : '';
@@ -314,11 +541,13 @@
     const rig = createPlayerRig(chosenSkin, null, null, name, color);
     rig.g.position.set(player.x + 3, player.y, player.z + 3);
     scene.add(rig.g);
+    const nowP = performance.now();
     rp = {
       id: peerId, name: name || 'Bạn Chơi', color, isBuddy, skinId: chosenSkin, playerKey: cleanKey,
       x: player.x + 3.5, y: player.y, z: player.z + 3.5, tx: player.x + 3.5, ty: player.y, tz: player.z + 3.5,
+      trueY: undefined, vy: 0,
       yaw: 0, pitch: 0, speed: 0, sprinting: false, sneaking: false, inWater: false, onGround: true, swing: 0,
-      wanderT: 2.0, rig, _lastPktAt: performance.now()
+      wanderT: 2.0, rig, _hasNetState: false, _lastPktAt: 0, _createdAt: nowP, _netBuf: null
     };
     remotePlayers.set(peerId, rp);
     updateRoomBadgeUI();
@@ -598,9 +827,16 @@
     for (const id of ids) { _roomDropsCache.delete(String(id)); _hostAuthoritativeDrops.delete(String(id)); }
     sendCoopMsg({ type: 'drop_remove', dropIds: ids });
   }
-  function broadcastMobSync(dim, list) {
+  function broadcastMobSync(dim, list, opts = null) {
     if (!activeRoomId || !isSimAuthority() || !Array.isArray(list)) return;
-    sendCoopMsg({ type: 'mob_sync', dim: dim || currentDimension, mobs: list });
+    const pkt = { type: 'mob_sync', dim: dim || currentDimension, mobs: list };
+    if (opts) {
+      if (typeof opts.seq === 'number') pkt.seq = opts.seq;
+      if (typeof opts.ts === 'number') pkt.ts = opts.ts;
+      pkt.full = (opts.full !== false);
+      if (Array.isArray(opts.rm) && opts.rm.length) pkt.rm = opts.rm;
+    }
+    sendCoopMsg(pkt);
   }
   function broadcastMobHit(uid, dmg, kx, kz, ky, isFire) {
     if (!activeRoomId || !uid) return;
@@ -681,22 +917,36 @@
     isApplyingRemoteBlock = false;
   }
 
+  const _mqttRelayStateAt = new Map();
+  function _countNetRemotePeers() {
+    let n = 0;
+    for (const rp of remotePlayers.values()) if (rp && !rp.isBuddy) n++;
+    return n;
+  }
+  function _canSendP2P(conn, isEphemeral) {
+    if (!conn || !conn.open) return false;
+    if (isEphemeral && conn.dataChannel && conn.dataChannel.bufferedAmount > 64000) return false;
+    return true;
+  }
   function sendCoopMsg(obj) {
     if (!activeRoomId) return;
+    const isEphemeral = (obj.type === 'state' || (obj.type === 'mob_sync' && obj.full === false));
     if (p2pIsHost) {
       const pkt = { ...obj, _from: localPeerId };
       for (const conn of p2pClientConns.values()) {
-        if (conn && conn.open) { try { conn.send(pkt); } catch (_) {} }
+        if (_canSendP2P(conn, isEphemeral)) { try { conn.send(pkt); } catch (_) {} }
       }
       if (mqttRoomTopic && mqttRoomPeers.size > 0) {
         const now = performance.now();
-        if (obj.type !== 'state' || now - _lastMqttStateAt >= 95) {
+        if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
           if (obj.type === 'state') _lastMqttStateAt = now;
-          ncMqtt.publish(mqttRoomTopic, pkt);
+          ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
         }
       }
-      if (wsConn && wsConn.readyState === 1 && (obj.type !== 'state' || activeCoopTransport === 'ws' || remotePlayers.size > p2pClientConns.size)) {
-        try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+      if (wsConn && wsConn.readyState === 1 && (obj.type !== 'state' || activeCoopTransport === 'ws' || _countNetRemotePeers() > p2pClientConns.size)) {
+        if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
+          try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+        }
       }
       if (bcChannel && bcRoomPeers.size > 0) {
         try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {}
@@ -704,16 +954,18 @@
       return;
     }
     const pkt = { ...obj, _from: localPeerId };
-    if (activeCoopTransport === 'p2p' && p2pHostConn && p2pHostConn.open) {
+    if (activeCoopTransport === 'p2p' && _canSendP2P(p2pHostConn, isEphemeral)) {
       try { p2pHostConn.send(pkt); } catch (_) {}
     } else if (activeCoopTransport === 'mqtt' && mqttRoomTopic) {
       const now = performance.now();
-      if (obj.type !== 'state' || now - _lastMqttStateAt >= 95) {
+      if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
         if (obj.type === 'state') _lastMqttStateAt = now;
-        ncMqtt.publish(mqttRoomTopic, pkt);
+        ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
       }
     } else if (activeCoopTransport === 'ws' && wsConn && wsConn.readyState === 1) {
-      try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+      if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
+        try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+      }
     } else if (activeCoopTransport === 'bc' && bcChannel) {
       try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {}
     }
@@ -732,12 +984,18 @@
     if (m._to && m._to !== localPeerId) return;
     if (p2pIsHost) {
       if (_getP2PRoomRelays(m)) {
+        const isRelEphem = (m.type === 'state');
         const relay = { ...m, _from: fromId, _relayBy: localPeerId };
         for (const [cid, c] of p2pClientConns.entries()) {
-          if (cid !== senderId && c && c.open) { try { c.send(relay); } catch (_) {} }
+          if (cid !== senderId && _canSendP2P(c, isRelEphem)) { try { c.send(relay); } catch (_) {} }
         }
         if (viaTransport !== 'mqtt' && mqttRoomTopic && mqttRoomPeers.size > 0) {
-          ncMqtt.publish(mqttRoomTopic, relay);
+          const nowR = performance.now();
+          const prevR = _mqttRelayStateAt.get(fromId) || 0;
+          if (!isRelEphem || (nowR - prevR) >= 78) {
+            if (isRelEphem) _mqttRelayStateAt.set(fromId, nowR);
+            ncMqtt.publish(mqttRoomTopic, relay, false, isRelEphem);
+          }
         }
         if (viaTransport !== 'ws' && m.type !== 'state' && wsConn && wsConn.readyState === 1) {
           try { wsConn.send(JSON.stringify(m)); } catch (_) {}
@@ -773,6 +1031,7 @@
         const hItem = (m.state && m.state.held !== undefined) ? m.state.held : (m.held !== undefined ? m.held : undefined);
         if (hItem !== undefined) setRigHeldItem(rp.rig, hItem);
         const sp = m.playerKey ? (_hostSavedPlayers.get(String(m.playerKey)) || null) : null;
+        if (typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
         if (viaTransport === 'mqtt') {
           mqttRoomPeers.add(fromId);
           sendChunkedWelcome((pkt) => ncMqtt.publish(mqttRoomTopic, { ...pkt, _from: localPeerId }), { _to: fromId, savedPlayer: sp });
@@ -824,7 +1083,7 @@
       const ids = Array.isArray(m.dropIds) ? m.dropIds : (m.dropId ? [m.dropId] : []);
       for (const did of ids) { _roomDropsCache.delete(String(did)); _hostAuthoritativeDrops.delete(String(did)); if (typeof removeDroppedItemById === 'function') removeDroppedItemById(did); }
     } else if (m.type === 'mob_sync') {
-      if (!isSimAuthority() && typeof applyRemoteMobSync === 'function') applyRemoteMobSync(m.mobs, m.dim);
+      if (!isSimAuthority() && typeof applyRemoteMobSync === 'function') applyRemoteMobSync(m.mobs, m.dim, m.full !== false, m);
     } else if (m.type === 'mob_action') {
       if (typeof applyRemoteMobAction === 'function') applyRemoteMobAction(m);
     } else if (m.type === 'mob_remove') {
@@ -877,6 +1136,8 @@
     mqttRoomTopic = null;
     mqttRoomPeers.clear();
     bcRoomPeers.clear();
+    _mqttRelayStateAt.clear();
+    if (typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
     destroyP2P();
     if (wsConn && wsConn.readyState === 1) {
       try { wsConn.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
@@ -904,6 +1165,7 @@
       if (!m || m._from === localPeerId) return;
       if (m.type === 'bc_join_req' && p2pIsHost && activeRoomId && m.roomId === activeRoomId) {
         bcRoomPeers.add(m._from);
+        if (typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
         const modsArr = Array.from(worldMods.entries());
         const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
         const sp = m.playerKey ? (_hostSavedPlayers.get(String(m.playerKey)) || null) : null;
@@ -1117,6 +1379,7 @@
           p2pIsHost = true;
           _wsRoomHostId = wsSelfPeerId;
           activeCoopTransport = 'host';
+          if (typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
           updateRoomBadgeUI();
           if (typeof inPauseMenu !== 'undefined' && inPauseMenu && typeof renderPausePlayersList === 'function') renderPausePlayersList();
           showToast('👑 Chủ phòng đã rời — bạn là Chủ Phòng mới!');
@@ -1131,6 +1394,7 @@
         } else if (msg.type === 'peer_join') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
+            if (p2pIsHost && typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
             ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '', msg.customSkin || null);
             showToast(`👥 ${msg.name} đã tham gia phòng ${activeRoomId}!`);
           }
@@ -1152,8 +1416,15 @@
           applyRemotePeerState(rp, msg.state, msg.equip);
           if (p2pIsHost) {
             const relay = { type: 'state', _from: msg.peerId, _relayBy: localPeerId, name: msg.name, skinId: msg.skinId || null, equip: msg.equip || null, state: msg.state };
-            for (const c of p2pClientConns.values()) if (c && c.open) { try { c.send(relay); } catch (_) {} }
-            if (mqttRoomTopic && mqttRoomPeers.size > 0) ncMqtt.publish(mqttRoomTopic, relay);
+            for (const c of p2pClientConns.values()) if (_canSendP2P(c, true)) { try { c.send(relay); } catch (_) {} }
+            if (mqttRoomTopic && mqttRoomPeers.size > 0) {
+              const nowR = performance.now();
+              const prevR = _mqttRelayStateAt.get(msg.peerId) || 0;
+              if ((nowR - prevR) >= 78) {
+                _mqttRelayStateAt.set(msg.peerId, nowR);
+                ncMqtt.publish(mqttRoomTopic, relay, false, true);
+              }
+            }
           }
         } else if (msg.type === 'block') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
@@ -1183,7 +1454,7 @@
           const ids = Array.isArray(msg.dropIds) ? msg.dropIds : (msg.dropId ? [msg.dropId] : []);
           for (const did of ids) { _roomDropsCache.delete(String(did)); _hostAuthoritativeDrops.delete(String(did)); if (typeof removeDroppedItemById === 'function') removeDroppedItemById(did); }
         } else if (msg.type === 'mob_sync') {
-          if (!isSimAuthority() && typeof applyRemoteMobSync === 'function') applyRemoteMobSync(msg.mobs, msg.dim);
+          if (!isSimAuthority() && typeof applyRemoteMobSync === 'function') applyRemoteMobSync(msg.mobs, msg.dim, msg.full !== false, msg);
         } else if (msg.type === 'mob_hit') {
           if (isSimAuthority() && typeof applyRemoteMobHit === 'function') applyRemoteMobHit(msg);
         } else if (msg.type === 'mob_action') {
@@ -1355,7 +1626,7 @@
     setCoopStatus(`⏳ Đang kết nối tới phòng <b>${escHtml(roomId)}</b> qua Internet &amp; LAN... Vui lòng chờ!`, 'wait');
 
     let joinedOk = false, closedOut = false, remoteStarted = false;
-    let joinTimer = null, helloTimer = null, p2pRetryTimer = null, remoteDelayTimer = null;
+    let joinTimer = null, helloTimer = null, p2pRetryTimer = null, remoteDelayTimer = null, mqttDelayTimer = null;
     let guestMqttUnsub = null;
     const topic = `${MQTT_NS}/room/${roomId}`;
 
@@ -1364,6 +1635,7 @@
       if (helloTimer) { clearInterval(helloTimer); helloTimer = null; }
       if (p2pRetryTimer) { clearTimeout(p2pRetryTimer); p2pRetryTimer = null; }
       if (remoteDelayTimer) { clearTimeout(remoteDelayTimer); remoteDelayTimer = null; }
+      if (mqttDelayTimer) { clearTimeout(mqttDelayTimer); mqttDelayTimer = null; }
       window._triggerRemoteJoinNow = null;
     };
     _cancelActiveJoin = () => {
@@ -1420,7 +1692,8 @@
       if (remoteDelayTimer) { clearTimeout(remoteDelayTimer); remoteDelayTimer = null; }
       window._triggerRemoteJoinNow = null;
 
-      // 1) Internet WSS MQTT Relay
+      // 1) Internet WSS MQTT Relay (delayed 1100ms so direct WebRTC P2P wins first on broadband/Wi-Fi)
+      let mqttHelloStarted = false;
       guestMqttUnsub = ncMqtt.subscribe(topic, (m) => {
         if (!m || m._from === localPeerId || m._relayBy === localPeerId) return;
         if (m._to && m._to !== localPeerId) return;
@@ -1439,13 +1712,20 @@
           held: (curS && curS.count > 0) ? curS.id : 0
         });
       };
-      sendMqttHello();
-      if (helloTimer) clearInterval(helloTimer);
-      helloTimer = setInterval(sendMqttHello, 2500);
+      const startMqttHelloLoop = () => {
+        if (mqttHelloStarted || joinedOk || closedOut) return;
+        mqttHelloStarted = true;
+        if (mqttDelayTimer) { clearTimeout(mqttDelayTimer); mqttDelayTimer = null; }
+        sendMqttHello();
+        if (helloTimer) clearInterval(helloTimer);
+        helloTimer = setInterval(sendMqttHello, 2500);
+      };
+      mqttDelayTimer = setTimeout(startMqttHelloLoop, 1100);
 
       // 2) WebRTC P2P via PeerJS
       ensurePeerJsLoaded((ok) => {
-        if (!ok || joinedOk || closedOut) return;
+        if (!ok) { startMqttHelloLoop(); return; }
+        if (joinedOk || closedOut) return;
         try {
           p2pPeer = new Peer({ config: P2P_ICE_CFG });
           p2pPeer.on('open', () => {
@@ -1490,9 +1770,11 @@
             attemptConnect(1);
           });
           p2pPeer.on('error', () => {
-            // Do not abort prematurely: MQTT Relay / WS / BroadcastChannel continue connecting in parallel
+            startMqttHelloLoop();
           });
-        } catch (_) {}
+        } catch (_) {
+          startMqttHelloLoop();
+        }
       });
     };
 

@@ -5,24 +5,41 @@
     rp.dim = st.dim || rp.dim || 'overworld';
     rp.depthOffset = typeof st.depthOffset === 'number' ? st.depthOffset : (rp.depthOffset || 0);
     const localOff = depthOffset || 0;
-    const worldY = (typeof st.trueY === 'number') ? (st.trueY + localOff) : st.y;
-    if (!rp._lastPktAt) {
-      rp.x = rp.tx = st.x;
-      rp.y = rp.ty = worldY;
-      rp.z = rp.tz = st.z;
-      rp.tvx = 0; rp.tvy = 0; rp.tvz = 0;
-      rp.yaw = rp.tYaw = typeof st.yaw === 'number' ? st.yaw : 0;
-      rp.pitch = rp.tPitch = typeof st.pitch === 'number' ? st.pitch : 0;
-      rp._lastPktAt = performance.now();
-    } else {
-      const _nowNet = performance.now();
-      const _pdt = Math.max(0.02, Math.min(0.25, (_nowNet - rp._lastPktAt) / 1000));
-      rp.tvx = (typeof st.vx === 'number') ? st.vx : ((st.x - (rp.tx ?? st.x)) / _pdt);
-      rp.tvy = (typeof st.vy === 'number') ? st.vy : ((worldY - (rp.ty ?? worldY)) / _pdt);
-      rp.tvz = (typeof st.vz === 'number') ? st.vz : ((st.z - (rp.tz ?? st.z)) / _pdt);
-      rp.tx = st.x; rp.ty = worldY; rp.tz = st.z;
-      rp.tYaw = st.yaw; rp.tPitch = st.pitch;
-      rp._lastPktAt = _nowNet;
+    const hasTy = (typeof st.trueY === 'number' && Number.isFinite(st.trueY));
+    const worldY = hasTy ? (st.trueY + localOff) : st.y;
+    const nowNet = performance.now();
+    rp.trueY = hasTy ? st.trueY : undefined;
+    if (!rp._netBuf) rp._netBuf = createNetInterp(85);
+    const yawIn = (typeof st.yaw === 'number' && Number.isFinite(st.yaw)) ? st.yaw : (rp.yaw || 0);
+    const pitchIn = (typeof st.pitch === 'number' && Number.isFinite(st.pitch)) ? st.pitch : (rp.pitch || 0);
+    const accepted = pushNetSnap(rp._netBuf, {
+      seq: st.seq,
+      ts: st.ts,
+      x: st.x,
+      y: worldY,
+      ty: rp.trueY,
+      z: st.z,
+      vx: st.vx,
+      vy: st.vy,
+      vz: st.vz,
+      yaw: yawIn,
+      pitch: pitchIn,
+      spd: st.speed || 0
+    }, nowNet, localOff);
+    if (!accepted) return;
+
+    rp._lastPktAt = nowNet;
+    rp.tx = st.x; rp.ty = worldY; rp.tz = st.z;
+    rp.tYaw = yawIn; rp.tPitch = pitchIn;
+    rp.vy = typeof st.vy === 'number' ? st.vy : 0;
+    if (!rp._hasNetState) {
+      rp._hasNetState = true;
+      rp.x = st.x; rp.y = worldY; rp.z = st.z;
+      rp.yaw = yawIn; rp.pitch = pitchIn;
+      rp._netBuf.lastOutX = rp.x;
+      rp._netBuf.lastOutY = rp.y;
+      rp._netBuf.lastOutZ = rp.z;
+      rp._netBuf.hasOut = true;
     }
     rp.speed = st.speed || 0;
     rp.sprinting = !!st.sprinting; rp.sneaking = !!st.sneaking;
@@ -62,28 +79,63 @@
 
   const locatorDotEls = new Map();
   let _lastHasPeers = false;
-  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, bowStage: 0, eqSig: '', skinId: '', idleAt: 0, metaAt: 0 };
+  const _lastSentNet = { x: 1e9, y: 1e9, z: 1e9, yaw: 0, pitch: 0, held: -1, bowStage: 0, eqSig: '', skinId: '', customSkinSig: '', idleAt: 0, metaAt: 0, _hadSwing: false, _hadSwAtk: false };
+  let _localPrevPos = null;
+  let _localVelX = 0, _localVelY = 0, _localVelZ = 0;
+  let _localStateSeq = 0, _lastStateSendMs = 0, _wasMovingNet = false, _wasOnGroundNet = true;
+  const _rpSampleOut = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
   function updateCoopAndLocator(dt, tNow) {
-    // Adaptive 20Hz moving / 1Hz idle quantized delta broadcast for smooth multi-player sync!
+    // Adaptive 20Hz quantized snapshot broadcast with measured true velocity & edge-triggered flush
+    const nowPerf = performance.now();
+    const localOff = depthOffset || 0;
     if (activeRoomId) {
-      stateSendAccum += dt;
-      const _isMovingNet = (player.curSpeed || 0) > 0.05 || Math.abs(player.vy) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
-      const _sendInterval = _isMovingNet ? 0.05 : 0.20;
-      if (stateSendAccum >= _sendInterval) {
-        stateSendAccum = 0;
-        const q2 = v => Math.round(v * 100) / 100, q3 = v => Math.round(v * 1000) / 1000;
-        const qx = q2(player.x), qy = q2(player.y), qz = q2(player.z);
-        const qYaw = q3(player.yaw), qPitch = q3(player.pitch);
-        const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
+      const trueYNow = player.y - localOff;
+      const safeDt = Math.max(0.004, Math.min(0.1, dt || 0.016));
+      if (!_localPrevPos || _localPrevPos.dim !== currentDimension) {
+        _localPrevPos = { x: player.x, y: trueYNow, z: player.z, dim: currentDimension };
+        _localVelX = 0; _localVelY = 0; _localVelZ = 0;
+      } else {
+        const dxL = player.x - _localPrevPos.x;
+        const dyL = trueYNow - _localPrevPos.y;
+        const dzL = player.z - _localPrevPos.z;
+        const stepDist = Math.hypot(dxL, dyL, dzL);
+        if (stepDist > 8.0) {
+          _localVelX = 0; _localVelY = 0; _localVelZ = 0;
+        } else {
+          const vK = 1 - Math.exp(-24.0 * safeDt);
+          _localVelX += ((dxL / safeDt) - _localVelX) * vK;
+          _localVelY += ((dyL / safeDt) - _localVelY) * vK;
+          _localVelZ += ((dzL / safeDt) - _localVelZ) * vK;
+        }
+        _localPrevPos.x = player.x; _localPrevPos.y = trueYNow; _localPrevPos.z = player.z;
+      }
+      const measSpd = Math.hypot(_localVelX, _localVelZ);
+      const _isMovingNet = measSpd > 0.06 || Math.abs(_localVelY) > 0.08 || (player.curSpeed || 0) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
+      const q2 = v => Math.round(v * 100) / 100, q3 = v => Math.round(v * 1000) / 1000;
+      const qx = q2(player.x), qy = q2(player.y), qz = q2(player.z);
+      const qYaw = q3(player.yaw), qPitch = q3(player.pitch);
+      const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
+      const swingEdge = ((player.curSwing || 0) > 0.02 && !_lastSentNet._hadSwing) || (!!player.swordAtkActive && !_lastSentNet._hadSwAtk);
+      const rotChanged = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.008 || Math.abs(qPitch - _lastSentNet.pitch) > 0.008;
+      const edgeChanged = (_isMovingNet !== _wasMovingNet)
+        || (!!player.onGround !== _wasOnGroundNet)
+        || (Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.35)
+        || swingEdge
+        || (heldId !== _lastSentNet.held);
+      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? 50 : (rotChanged ? 120 : 1000);
+      if (edgeChanged || (nowPerf - _lastStateSendMs) >= _sendIntervalMs) {
         const eq = player.equip;
         const eqSig = `${eq.helmet||0}_${eq.chest||0}_${eq.legs||0}_${eq.boots||0}_${eq.offhand||0}`;
-        const nowPerf = performance.now();
         const posChanged = Math.abs(qx - _lastSentNet.x) > 0.01 || Math.abs(qy - _lastSentNet.y) > 0.01 || Math.abs(qz - _lastSentNet.z) > 0.01
-          || Math.abs(qYaw - _lastSentNet.yaw) > 0.005 || Math.abs(qPitch - _lastSentNet.pitch) > 0.005
-          || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
+          || rotChanged || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
           || !!player.bowDrawing || (player.bowStage || 0) !== (_lastSentNet.bowStage || 0);
-        const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || (nowPerf - _lastSentNet.metaAt) >= 2000);
-        if (_isMovingNet || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
+        const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || (nowPerf - _lastSentNet.metaAt) >= 4500);
+        if (_isMovingNet || edgeChanged || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
+          _lastStateSendMs = nowPerf;
+          _wasMovingNet = _isMovingNet;
+          _wasOnGroundNet = !!player.onGround;
+          _lastSentNet._hadSwing = (player.curSwing || 0) > 0.02;
+          _lastSentNet._hadSwAtk = !!player.swordAtkActive;
           _lastSentNet.idleAt = nowPerf;
           _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
           _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
@@ -92,14 +144,16 @@
             type: 'state',
             name: localPlayerName,
             state: {
+              seq: ++_localStateSeq,
+              ts: Math.round(nowPerf),
               dim: currentDimension,
-              depthOffset: depthOffset || 0,
-              x: qx, y: qy, trueY: q2(player.y - (depthOffset || 0)), z: qz,
-              vx: q2((player.smoothMoveX || 0) + (player.vx || 0)),
-              vy: q2(player.vy || 0),
-              vz: q2((player.smoothMoveZ || 0) + (player.vz || 0)),
+              depthOffset: localOff,
+              x: qx, y: qy, trueY: q2(trueYNow), z: qz,
+              vx: q2(_localVelX),
+              vy: q2(_localVelY),
+              vz: q2(_localVelZ),
               yaw: qYaw, pitch: qPitch,
-              speed: q2(player.curSpeed || 0), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
+              speed: q2(Math.max(measSpd, player.curSpeed || 0)), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
               inWater: !!player.inWater, deepWater: !!player.deepWater,
               swimMoving: (player.curSpeed || 0) > 0.2, sprintSwimming: !!player.sprintSwimming,
               lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying, gliding: !!player.gliding,
@@ -115,12 +169,22 @@
             pkt.skinId = selectedSkinId; pkt.equip = eq; pkt.dayTime = dayTime;
             if (typeof getLocalCustomSkinPayload === 'function') {
               const cs = getLocalCustomSkinPayload();
-              if (cs) pkt.customSkin = cs;
+              const csSig = cs ? `${cs.slim ? 1 : 0}:${cs.dataUrl.length}:${cs.dataUrl.slice(-16)}` : '';
+              if (cs && csSig !== _lastSentNet.customSkinSig) {
+                _lastSentNet.customSkinSig = csSig;
+                pkt.customSkin = cs;
+              } else if (!cs) {
+                _lastSentNet.customSkinSig = '';
+              }
             }
           }
           sendCoopMsg(pkt);
         }
       }
+    } else {
+      _localPrevPos = null;
+      _lastStateSendMs = 0;
+      _lastSentNet.customSkinSig = '';
     }
 
     // Update remote player interpolation, AI Co-op buddy movement & skeletal animation
@@ -138,7 +202,8 @@
     const barInnerW = locatorBarEl.clientWidth || 360;
 
     for (const [pid, rp] of remotePlayers.entries()) {
-      if (!rp.isBuddy && activeRoomId && rp._lastPktAt && typeof worldPaused !== 'undefined' && !worldPaused && (performance.now() - rp._lastPktAt > 12000)) {
+      const lastActiveAt = rp._lastPktAt || rp._createdAt;
+      if (!rp.isBuddy && activeRoomId && lastActiveAt && typeof worldPaused !== 'undefined' && !worldPaused && (nowPerf - lastActiveAt > 12000)) {
         removeRemotePeer(pid);
         continue;
       }
@@ -167,28 +232,18 @@
         rp.y += ((Math.max(WATER_LEVEL, gy) + 1.0) - rp.y) * Math.min(1, dt * 8);
         rp.onGround = !rp.deepWater;
       } else {
-        // Dead-reckoning prediction (clamped <= 150ms) + frame-rate-independent exponential smoothing + shortest-arc yaw!
-        const ageSec = rp._lastPktAt ? Math.min(0.15, Math.max(0, (performance.now() - rp._lastPktAt) / 1000)) : 0;
-        const baseY = (typeof rp.trueY === 'number') ? (rp.trueY + (depthOffset || 0)) : rp.ty;
-        const predX = rp.tx + (rp.tvx || 0) * ageSec;
-        const predY = baseY + (rp.tvy || 0) * ageSec * 0.5;
-        const predZ = rp.tz + (rp.tvz || 0) * ageSec;
-        const errDist = Math.hypot(predX - rp.x, predY - rp.y, predZ - rp.z);
-        if (errDist > 14.0) {
-          rp.x = rp.tx; rp.y = baseY; rp.z = rp.tz;
+        if (rp._netBuf && rp._netBuf.snaps.length > 0) {
+          const maxTp = (rp.gliding || rp.flying) ? 26.0 : 12.0;
+          const s = sampleNetInterp(rp._netBuf, nowPerf, dt, localOff, maxTp, _rpSampleOut);
+          rp.x = s.x; rp.y = s.y; rp.z = s.z;
+          rp.yaw = s.yaw; rp.pitch = s.pitch;
+          rp.vy = s.vy;
+          const visSpd = Math.hypot(s.vx, s.vz);
+          const animSpd = Math.max(s.spd * 0.4, visSpd);
+          rp.speed = animSpd < 0.08 ? 0 : animSpd;
         } else {
-          const kPos = 1 - Math.exp(-15.5 * dt);
-          rp.x += (predX - rp.x) * kPos;
-          rp.y += (predY - rp.y) * kPos;
-          rp.z += (predZ - rp.z) * kPos;
-        }
-        if (typeof rp.tYaw === 'number') {
-          let dYaw = ((rp.tYaw - (rp.yaw || 0) + Math.PI) % (Math.PI * 2)) - Math.PI;
-          if (dYaw < -Math.PI) dYaw += Math.PI * 2;
-          rp.yaw = (rp.yaw || 0) + dYaw * (1 - Math.exp(-18.0 * dt));
-        }
-        if (typeof rp.tPitch === 'number') {
-          rp.pitch = (rp.pitch || 0) + (rp.tPitch - (rp.pitch || 0)) * (1 - Math.exp(-18.0 * dt));
+          const baseY = (typeof rp.trueY === 'number') ? (rp.trueY + localOff) : rp.ty;
+          rp.x = rp.tx; rp.y = baseY; rp.z = rp.tz;
         }
       }
       const sameDim = !!rp.isBuddy || ((rp.dim || 'overworld') === currentDimension);
