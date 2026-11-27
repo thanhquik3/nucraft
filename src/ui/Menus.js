@@ -2967,6 +2967,15 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
         }
         const totalGen = genRings.length;
         const totalMesh = meshRings.length;
+        if (chunkWorkerPool.active && currentDimension === 'overworld' && (depthOffset || 0) === 0) {
+          const preN = Math.min(totalGen, _isMobilePerf ? 12 : 24);
+          for (let pi = 0; pi < preN; pi++) {
+            const pc = genRings[pi][0], pz = genRings[pi][1];
+            if (!chunks.has(chunkKey(pc, pz)) && !isAbandonedCity(pc * 16 + 8, pz * 16 + 8) && !isGrandRuins(pc * 16 + 8, pz * 16 + 8)) {
+              chunkWorkerPool.prefetchOverworld(pc, pz);
+            }
+          }
+        }
         const drawLoadGrid = (actCx = null, actCz = null) => {
           if (!gCtx || !gridCv) return;
           const W = gridCv.width, H = gridCv.height;
@@ -2998,7 +3007,19 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
           const frameDeadline = performance.now() + (_isMobilePerf ? 9.5 : 11.5);
           let genOps = 0, meshOps = 0;
           let activeCx = null, activeCz = null;
+          if (chunkWorkerPool.active) {
+            chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 6 : 12, 6.5);
+          }
           // Phase 1: Real Voxel Terrain & Cave/Structure Data Generation (5%..45%)
+          if (chunkWorkerPool.active && currentDimension === 'overworld' && (depthOffset || 0) === 0 && genIdx < totalGen) {
+            const lookEnd = Math.min(totalGen, genIdx + (_isMobilePerf ? 10 : 18));
+            for (let pi = genIdx; pi < lookEnd; pi++) {
+              const pc = genRings[pi][0], pz = genRings[pi][1];
+              if (!chunks.has(chunkKey(pc, pz)) && !isAbandonedCity(pc * 16 + 8, pz * 16 + 8) && !isGrandRuins(pc * 16 + 8, pz * 16 + 8)) {
+                chunkWorkerPool.prefetchOverworld(pc, pz);
+              }
+            }
+          }
           while (genIdx < totalGen && genOps < 4 && (genOps === 0 || performance.now() < frameDeadline)) {
             const [cx, cz] = genRings[genIdx++];
             const k = chunkKey(cx, cz);
@@ -3007,32 +3028,55 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
             activeCx = cx; activeCz = cz;
             genOps++;
           }
-          // Phase 2: Real 3D Chunk Geometry + ScalableLux Lighting Meshing (45%..86%)
+          // Phase 2: Parallel Worker Mesh Fan-out + Direct Near-Chunk Meshing (45%..86%)
+          if (genIdx >= totalGen && chunkWorkerPool.active) {
+            const fanLimit = Math.min(totalMesh, meshIdx + (_isMobilePerf ? 8 : 16));
+            for (let mi = meshIdx; mi < fanLimit; mi++) {
+              const [fcx, fcz] = meshRings[mi];
+              const d2 = (fcx - pcx) * (fcx - pcx) + (fcz - pcz) * (fcz - pcz);
+              if (d2 <= 1) continue;
+              const fch = chunks.get(chunkKey(fcx, fcz));
+              if (fch && (fch.dirty || fch.urgentDirty || !fch.meshed) && !fch._pendingSlice) {
+                _dispatchChunkMeshToWorker(fch);
+              }
+            }
+          }
           while (genIdx >= totalGen && meshIdx < totalMesh && meshOps < 2 && (meshOps === 0 || performance.now() < frameDeadline)) {
             const [cx, cz] = meshRings[meshIdx++];
             const k = chunkKey(cx, cz);
             const ch = chunks.get(k);
             if (ch && (ch.dirty || ch.urgentDirty || ch._pendingSlice || !ch.meshed)) {
+              const d2 = (cx - pcx) * (cx - pcx) + (cz - pcz) * (cz - pcz);
+              if (chunkWorkerPool.active && d2 > 1 && !ch._pendingSlice && (ch._meshInFlightGen === (ch._meshGen || 0) || _dispatchChunkMeshToWorker(ch))) {
+                activeCx = cx; activeCz = cz;
+                continue;
+              }
               rebuildChunkMesh(ch);
             }
             chunkState.set(k, 2);
             activeCx = cx; activeCz = cz;
             meshOps++;
           }
-          // Phase 2b: Drain any remaining urgent/dirty/border chunks inside loadRad before reveal
+          // Phase 2b: Drain remaining worker/dirty/border chunks inside loadRad before reveal
           let stillDirtyNear = false;
-          if (genIdx >= totalGen && meshIdx >= totalMesh && drainPasses < 16) {
+          if (genIdx >= totalGen && meshIdx >= totalMesh && drainPasses < 28) {
             drainPasses++;
+            if (chunkWorkerPool.active) chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 6 : 12, 7.0);
             const _drainSet = (s) => {
               for (const ch of Array.from(s)) {
                 if (!ch || chunks.get(chunkKey(ch.cx, ch.cz)) !== ch) { s.delete(ch); continue; }
                 if (Math.abs(ch.cx - pcx) > loadRad || Math.abs(ch.cz - pcz) > loadRad) continue;
                 if (ch.dirty || ch.urgentDirty || ch.borderDirty || ch._pendingSlice || !ch.meshed) {
+                  if (chunkWorkerPool.active && ch._meshInFlightGen === (ch._meshGen || 0) && drainPasses < 14) {
+                    stillDirtyNear = true;
+                    continue;
+                  }
                   if ((genOps + meshOps) > 0 && performance.now() >= frameDeadline) { stillDirtyNear = true; return true; }
                   rebuildChunkMesh(ch);
                   chunkState.set(chunkKey(ch.cx, ch.cz), 2);
                   meshOps++;
                 } else {
+                  chunkState.set(chunkKey(ch.cx, ch.cz), 2);
                   s.delete(ch);
                 }
               }

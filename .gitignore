@@ -9,6 +9,7 @@ skin/
 .nucraft_rooms_cache.json
 .nucraft_accounts.json
 rust/nucraft_core/target/
+rust/nucraft_core/Cargo.lock
 dragon_armor/
 *.blend
 *.blend1

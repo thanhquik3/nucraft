@@ -133,21 +133,15 @@ pub extern "C" fn build_far_lod_mesh(
     outer_radius_in: u32,
     mask_radius_in: u32,
 ) -> u32 {
-    let step = (step_in as i32).max(4).min(32);
-    let outer_r = (outer_radius_in as i32).max(step * 4).min(step * ((LOD_GRID_MAX as i32) / 2 - 1));
+    let step1 = (step_in as i32).max(4).min(32);
+    let r1 = (outer_radius_in as i32).max(step1 * 4).min(step1 * ((LOD_GRID_MAX as i32) / 2 - 1));
     let mask_r = (mask_radius_in as i32).max(0).min(30);
     let mask_w = mask_r * 2 + 1;
 
-    // Snap grid origin to step multiples so distant vertices stay world-locked (zero vertex swimming!)
-    let center_wx = center_cx * 16 + 8;
-    let center_wz = center_cz * 16 + 8;
-    let snap_x = center_wx.div_euclid(step) * step;
-    let snap_z = center_wz.div_euclid(step) * step;
-    let half_cells = (outer_r / step).min((LOD_GRID_MAX as i32 - 1) / 2);
-    let grid_n = (half_cells * 2 + 1) as usize;
-    let orig_x = snap_x - half_cells * step;
-    let orig_z = snap_z - half_cells * step;
-    let outer_r2 = (outer_r * outer_r) as i64;
+    let step2 = (step1 * 3).min(48);
+    let r2 = r1 * 3;
+    let inner_cut_r = (r1 - step1).max(0);
+    let inner_cut_r2 = (inner_cut_r * inner_cut_r) as i64;
 
     let mask_ptr = addr_of!(LOD_LOADED_MASK) as *const u8;
     let h_ptr = addr_of_mut!(LOD_CELL_H) as *mut i16;
@@ -162,159 +156,210 @@ pub extern "C" fn build_far_lod_mesh(
     let mut v_count: usize = 0;
     let mut i_count: usize = 0;
     let mut cells_emitted: u32 = 0;
+    let center_wx = center_cx * 16 + 8;
+    let center_wz = center_cz * 16 + 8;
+    let wl_f = water_level as f32;
 
     unsafe {
-        // Pass 1: sample heights, biomes & mask flags
-        for gz in 0..grid_n {
-            let wz0 = orig_z + (gz as i32) * step;
-            let wz_mid = wz0 + (step >> 1);
-            let dz_c = (wz_mid - snap_z) as i64;
-            for gx in 0..grid_n {
-                let wx0 = orig_x + (gx as i32) * step;
-                let wx_mid = wx0 + (step >> 1);
-                let dx_c = (wx_mid - snap_x) as i64;
-                let idx = gz * grid_n + gx;
+        // Shared emitter for Ring 1 (near-far, skips loaded chunks) and Ring 2 (mega horizon out to r2=768)
+        let mut emit_ring = |step: i32, outer_r: i32, y_bias: f32, extra_skirt: f32, is_outer: bool| {
+            let snap_x = center_wx.div_euclid(step) * step;
+            let snap_z = center_wz.div_euclid(step) * step;
+            let half_cells = (outer_r / step).min((LOD_GRID_MAX as i32 - 1) / 2);
+            let grid_n = (half_cells * 2 + 1) as usize;
+            let orig_x = snap_x - half_cells * step;
+            let orig_z = snap_z - half_cells * step;
+            let outer_r2 = (outer_r * outer_r) as i64;
+            let step_f = step as f32;
 
-                if dx_c * dx_c + dz_c * dz_c > outer_r2 {
-                    *skip_ptr.add(idx) = 2; // out of circular horizon disc
-                    continue;
-                }
+            for gz in 0..grid_n {
+                let wz0 = orig_z + (gz as i32) * step;
+                let wz_mid = wz0 + (step >> 1);
+                let dz_c = (wz_mid - snap_z) as i64;
+                for gx in 0..grid_n {
+                    let wx0 = orig_x + (gx as i32) * step;
+                    let wx_mid = wx0 + (step >> 1);
+                    let dx_c = (wx_mid - snap_x) as i64;
+                    let idx = gz * grid_n + gx;
 
-                // Skip only when ALL 4 corners of this LOD cell lie inside already-meshed chunks
-                let mut all_covered = true;
-                for &(ox, oz) in &[(0, 0), (step - 1, 0), (0, step - 1), (step - 1, step - 1)] {
-                    let ccx = (wx0 + ox).div_euclid(16) - center_cx;
-                    let ccz = (wz0 + oz).div_euclid(16) - center_cz;
-                    if ccx.abs() > mask_r || ccz.abs() > mask_r {
-                        all_covered = false;
-                        break;
+                    if dx_c * dx_c + dz_c * dz_c > outer_r2 {
+                        *skip_ptr.add(idx) = 2;
+                        continue;
                     }
-                    let mi = ((ccz + mask_r) * mask_w + (ccx + mask_r)) as usize;
-                    if mi >= LOD_MASK_CAP || *mask_ptr.add(mi) == 0 {
-                        all_covered = false;
-                        break;
+
+                    let mut covered;
+                    if !is_outer {
+                        covered = true;
+                        for &(ox, oz) in &[(0, 0), (step - 1, 0), (0, step - 1), (step - 1, step - 1)] {
+                            let ccx = (wx0 + ox).div_euclid(16) - center_cx;
+                            let ccz = (wz0 + oz).div_euclid(16) - center_cz;
+                            if ccx.abs() > mask_r || ccz.abs() > mask_r {
+                                covered = false;
+                                break;
+                            }
+                            let mi = ((ccz + mask_r) * mask_w + (ccx + mask_r)) as usize;
+                            if mi >= LOD_MASK_CAP || *mask_ptr.add(mi) == 0 {
+                                covered = false;
+                                break;
+                            }
+                        }
+                    } else {
+                        covered = true;
+                        for &(ox, oz) in &[(0, 0), (step, 0), (0, step), (step, step)] {
+                            let dx = (wx0 + ox - snap_x) as i64;
+                            let dz = (wz0 + oz - snap_z) as i64;
+                            if dx * dx + dz * dz > inner_cut_r2 {
+                                covered = false;
+                                break;
+                            }
+                        }
                     }
-                }
-                if all_covered {
-                    *skip_ptr.add(idx) = 1;
-                } else {
-                    *skip_ptr.add(idx) = 0;
-                }
+                    *skip_ptr.add(idx) = if covered { 1 } else { 0 };
 
-                let bio = terrain::get_overworld_biome_at(wx_mid, wz_mid, seed);
-                let raw_h = terrain::get_overworld_raw_height(wx_mid, wz_mid, bio, seed, water_level).floor() as i32;
-                let clamped_h = raw_h.max(-44).min(180);
-                *h_ptr.add(idx) = clamped_h as i16;
-                *b_ptr.add(idx) = bio;
-            }
-        }
-
-        // Pass 2: emit top quads + cliff skirts
-        let step_f = step as f32;
-        let wl_f = water_level as f32;
-
-        for gz in 0..grid_n {
-            let z0 = (orig_z + (gz as i32) * step) as f32;
-            let z1 = z0 + step_f;
-            for gx in 0..grid_n {
-                let idx = gz * grid_n + gx;
-                if *skip_ptr.add(idx) != 0 {
-                    continue;
-                }
-                let x0 = (orig_x + (gx as i32) * step) as f32;
-                let x1 = x0 + step_f;
-                let h = *h_ptr.add(idx) as i32;
-                let bio = *b_ptr.add(idx);
-                let is_water = h <= water_level;
-                // Sink slightly below real chunk surface so overlapping skirt edges never z-fight
-                let top_y = if is_water { wl_f + 0.72 } else { (h as f32) + 0.82 };
-
-                let (mut r, mut g, mut b) = biome_lod_rgb(bio, h, water_level);
-                let grain = (crate::hash2i_f64(gx as i32, gz as i32, seed.wrapping_add(131)) - 0.5) * 0.08;
-                r = (r + grain as f32).max(0.05).min(0.98);
-                g = (g + grain as f32).max(0.05).min(0.98);
-                b = (b + grain as f32).max(0.05).min(0.98);
-
-                if !emit_lod_quad(
-                    pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
-                    [[x0, top_y, z1], [x1, top_y, z1], [x1, top_y, z0], [x0, top_y, z0]],
-                    [0.0, 1.0, 0.0],
-                    [r, g, b],
-                ) {
-                    break;
-                }
-                cells_emitted += 1;
-
-                // Side color slightly darker for rock/soil cliffs
-                let sr = (r * 0.76).min(0.85);
-                let sg = (g * 0.74).min(0.85);
-                let sb = (b * 0.76).min(0.85);
-
-                let neighbor_y = |nx: isize, nz: isize| -> f32 {
-                    if nx < 0 || nz < 0 || nx >= grid_n as isize || nz >= grid_n as isize {
-                        return (water_level - 16) as f32;
-                    }
-                    let ni = (nz as usize) * grid_n + (nx as usize);
-                    if *skip_ptr.add(ni) == 2 {
-                        return (water_level - 16) as f32;
-                    }
-                    let nh = *h_ptr.add(ni) as i32;
-                    if nh <= water_level { wl_f + 0.72 } else { (nh as f32) + 0.82 }
-                };
-
-                let gx_i = gx as isize;
-                let gz_i = gz as isize;
-                // +X cliff skirt
-                let y_xp = neighbor_y(gx_i + 1, gz_i);
-                if top_y > y_xp + 0.05 {
-                    let bot = y_xp.max(top_y - 40.0);
-                    let _ = emit_lod_quad(
-                        pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
-                        [[x1, bot, z1], [x1, bot, z0], [x1, top_y, z0], [x1, top_y, z1]],
-                        [1.0, 0.0, 0.0],
-                        [sr, sg, sb],
-                    );
-                }
-                // -X cliff skirt
-                let y_xm = neighbor_y(gx_i - 1, gz_i);
-                if top_y > y_xm + 0.05 {
-                    let bot = y_xm.max(top_y - 40.0);
-                    let _ = emit_lod_quad(
-                        pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
-                        [[x0, bot, z0], [x0, bot, z1], [x0, top_y, z1], [x0, top_y, z0]],
-                        [-1.0, 0.0, 0.0],
-                        [sr, sg, sb],
-                    );
-                }
-                // +Z cliff skirt
-                let y_zp = neighbor_y(gx_i, gz_i + 1);
-                if top_y > y_zp + 0.05 {
-                    let bot = y_zp.max(top_y - 40.0);
-                    let _ = emit_lod_quad(
-                        pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
-                        [[x0, bot, z1], [x1, bot, z1], [x1, top_y, z1], [x0, top_y, z1]],
-                        [0.0, 0.0, 1.0],
-                        [sr * 0.94, sg * 0.94, sb * 0.94],
-                    );
-                }
-                // -Z cliff skirt
-                let y_zm = neighbor_y(gx_i, gz_i - 1);
-                if top_y > y_zm + 0.05 {
-                    let bot = y_zm.max(top_y - 40.0);
-                    let _ = emit_lod_quad(
-                        pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
-                        [[x1, bot, z0], [x0, bot, z0], [x0, top_y, z0], [x1, top_y, z0]],
-                        [0.0, 0.0, -1.0],
-                        [sr * 0.94, sg * 0.94, sb * 0.94],
-                    );
+                    let bio = terrain::get_overworld_biome_at(wx_mid, wz_mid, seed);
+                    let raw_h = terrain::get_overworld_raw_height(wx_mid, wz_mid, bio, seed, water_level).floor() as i32;
+                    let clamped_h = raw_h.max(-44).min(180);
+                    *h_ptr.add(idx) = clamped_h as i16;
+                    *b_ptr.add(idx) = bio;
                 }
             }
-        }
+
+            let h_at_norm = |gx: isize, gz: isize, fallback: i32| -> i32 {
+                if gx < 0 || gz < 0 || gx >= grid_n as isize || gz >= grid_n as isize {
+                    return fallback;
+                }
+                let ni = (gz as usize) * grid_n + (gx as usize);
+                if *skip_ptr.add(ni) == 2 {
+                    return fallback;
+                }
+                *h_ptr.add(ni) as i32
+            };
+
+            let neighbor_y = |nx: isize, nz: isize| -> (f32, bool) {
+                if nx < 0 || nz < 0 || nx >= grid_n as isize || nz >= grid_n as isize {
+                    return ((water_level - 20) as f32, true);
+                }
+                let ni = (nz as usize) * grid_n + (nx as usize);
+                if *skip_ptr.add(ni) == 2 {
+                    return ((water_level - 20) as f32, true);
+                }
+                let nh = *h_ptr.add(ni) as i32;
+                let ny = if nh <= water_level { wl_f + 0.72 + y_bias } else { (nh as f32) + 0.82 + y_bias };
+                (ny, false)
+            };
+
+            for gz in 0..grid_n {
+                let z0 = (orig_z + (gz as i32) * step) as f32;
+                let z1 = z0 + step_f;
+                for gx in 0..grid_n {
+                    let idx = gz * grid_n + gx;
+                    if *skip_ptr.add(idx) != 0 {
+                        continue;
+                    }
+                    let x0 = (orig_x + (gx as i32) * step) as f32;
+                    let x1 = x0 + step_f;
+                    let h = *h_ptr.add(idx) as i32;
+                    let bio = *b_ptr.add(idx);
+                    let is_water = h <= water_level;
+                    let top_y = if is_water { wl_f + 0.72 + y_bias } else { (h as f32) + 0.82 + y_bias };
+
+                    let (mut r, mut g, mut b) = biome_lod_rgb(bio, h, water_level);
+                    if !is_water && h >= 42
+                        && bio != terrain::B_DESERT
+                        && bio != terrain::B_MESA
+                        && bio != terrain::B_BADLANDS_SPIRES
+                        && bio != terrain::B_BADLANDS_CRATER
+                        && bio != terrain::B_VOLCANIC_BASALT
+                    {
+                        let snow_t = (((h - 42) as f32) * 0.045).min(0.82);
+                        r = r + (0.90 - r) * snow_t;
+                        g = g + (0.94 - g) * snow_t;
+                        b = b + (0.98 - b) * snow_t;
+                    }
+                    let grain = (crate::hash2i_f64(gx as i32, gz as i32, seed.wrapping_add(if is_outer { 271 } else { 131 })) - 0.5) * 0.07;
+                    r = (r + grain as f32).max(0.05).min(0.98);
+                    g = (g + grain as f32).max(0.05).min(0.98);
+                    b = (b + grain as f32).max(0.05).min(0.98);
+
+                    let gx_i = gx as isize;
+                    let gz_i = gz as isize;
+                    let top_norm = if is_water {
+                        [0.0, 1.0, 0.0]
+                    } else {
+                        let hx = (h_at_norm(gx_i - 1, gz_i, h) - h_at_norm(gx_i + 1, gz_i, h)) as f32;
+                        let hz = (h_at_norm(gx_i, gz_i - 1, h) - h_at_norm(gx_i, gz_i + 1, h)) as f32;
+                        let hy = 2.0 * step_f;
+                        let inv_len = 1.0 / (hx * hx + hy * hy + hz * hz).sqrt();
+                        [hx * inv_len, hy * inv_len, hz * inv_len]
+                    };
+
+                    if !emit_lod_quad(
+                        pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
+                        [[x0, top_y, z1], [x1, top_y, z1], [x1, top_y, z0], [x0, top_y, z0]],
+                        top_norm,
+                        [r, g, b],
+                    ) {
+                        return;
+                    }
+                    cells_emitted += 1;
+
+                    let sr = (r * 0.74).min(0.84);
+                    let sg = (g * 0.72).min(0.84);
+                    let sb = (b * 0.74).min(0.84);
+
+                    let (y_xp, b_xp) = neighbor_y(gx_i + 1, gz_i);
+                    if top_y > y_xp + 0.05 {
+                        let bot = if b_xp { (top_y - extra_skirt).max((water_level - 24) as f32) } else { y_xp.max(top_y - extra_skirt) };
+                        let _ = emit_lod_quad(
+                            pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
+                            [[x1, bot, z1], [x1, bot, z0], [x1, top_y, z0], [x1, top_y, z1]],
+                            [1.0, 0.0, 0.0],
+                            [sr, sg, sb],
+                        );
+                    }
+                    let (y_xm, b_xm) = neighbor_y(gx_i - 1, gz_i);
+                    if top_y > y_xm + 0.05 {
+                        let bot = if b_xm { (top_y - extra_skirt).max((water_level - 24) as f32) } else { y_xm.max(top_y - extra_skirt) };
+                        let _ = emit_lod_quad(
+                            pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
+                            [[x0, bot, z0], [x0, bot, z1], [x0, top_y, z1], [x0, top_y, z0]],
+                            [-1.0, 0.0, 0.0],
+                            [sr, sg, sb],
+                        );
+                    }
+                    let (y_zp, b_zp) = neighbor_y(gx_i, gz_i + 1);
+                    if top_y > y_zp + 0.05 {
+                        let bot = if b_zp { (top_y - extra_skirt).max((water_level - 24) as f32) } else { y_zp.max(top_y - extra_skirt) };
+                        let _ = emit_lod_quad(
+                            pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
+                            [[x0, bot, z1], [x1, bot, z1], [x1, top_y, z1], [x0, top_y, z1]],
+                            [0.0, 0.0, 1.0],
+                            [sr * 0.94, sg * 0.94, sb * 0.94],
+                        );
+                    }
+                    let (y_zm, b_zm) = neighbor_y(gx_i, gz_i - 1);
+                    if top_y > y_zm + 0.05 {
+                        let bot = if b_zm { (top_y - extra_skirt).max((water_level - 24) as f32) } else { y_zm.max(top_y - extra_skirt) };
+                        let _ = emit_lod_quad(
+                            pos_ptr, norm_ptr, col_ptr, idx_ptr, &mut v_count, &mut i_count,
+                            [[x1, bot, z0], [x0, bot, z0], [x0, top_y, z0], [x1, top_y, z0]],
+                            [0.0, 0.0, -1.0],
+                            [sr * 0.94, sg * 0.94, sb * 0.94],
+                        );
+                    }
+                }
+            }
+        };
+
+        // Pass 1+2: Ring 1 (near-far detail, drops slightly at rim to seal Ring 1 -> Ring 2 edge)
+        emit_ring(step1, r1, 0.0, 44.0, false);
+        // Pass 3+4: Ring 2 (mega horizon up to r2=768, sunk -0.35m so overlap never z-fights)
+        emit_ring(step2, r2, -0.35, 56.0, true);
 
         *meta_ptr.add(0) = v_count as u32;
         *meta_ptr.add(1) = i_count as u32;
         *meta_ptr.add(2) = cells_emitted;
-        *meta_ptr.add(3) = 0;
+        *meta_ptr.add(3) = r2 as u32;
         v_count as u32
     }
 }

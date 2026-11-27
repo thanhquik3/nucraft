@@ -57,7 +57,7 @@
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x9bc4e8, 48, 75);
 
-  const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 780);
+  const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 1150);
   scene.add(camera);
 
   const sunLight = new THREE.DirectionalLight(0xffe9c4, 1.04);
@@ -507,7 +507,7 @@
     metalness: 0.02,
     vertexColors: true
   });
-  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v75';
+  terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v170';
   terrainMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uTime: envUniforms.uTime, uSunDir: envUniforms.uSunDir,
@@ -529,6 +529,27 @@
         uniform float uTime, uRainWetness, uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uDlssMode, uEclipseMode, uGrassRadius, uGrassSoilRadius, uSurfaceLight, uRayTracing, uCartoonMode;
         uniform vec3 uSunDir, uSunColor, uFogColor, uSkyTop, uSkyHorizon, uPlayerPos;
         varying vec3 vBlockLight, vWPos, vWNorm;
+        bool isGreedyUv(vec2 uv) {
+          return (dot(abs(dFdx(uv)) + abs(dFdy(uv)), vec2(1.0)) < 1e-6);
+        }
+        vec2 greedyWorldUv() {
+          vec3 n = vWNorm;
+          if (n.y > 0.5) return vec2(vWPos.x, vWPos.z);
+          if (n.y < -0.5) return vec2(vWPos.x, -vWPos.z);
+          if (n.x > 0.5) return vec2(-vWPos.z, -vWPos.y);
+          if (n.x < -0.5) return vec2(vWPos.z, -vWPos.y);
+          if (n.z > 0.5) return vec2(vWPos.x, -vWPos.y);
+          return vec2(-vWPos.x, -vWPos.y);
+        }
+        vec2 resolveAtlasUv(vec2 uv, vec2 gUv, out vec2 tileOrigin, out vec2 tileSpan) {
+          float col = floor(uv.x * ${ATLAS_COLS}.0);
+          float row = floor(uv.y * ${ATLAS_ROWS}.0);
+          float uStep = 1.0 / ${ATLAS_COLS}.0;
+          float vStep = 1.0 / ${ATLAS_ROWS}.0;
+          tileOrigin = vec2(col * uStep + 0.002, row * vStep + 0.002);
+          tileSpan = vec2(uStep - 0.004, vStep - 0.004);
+          return tileOrigin + fract(gUv) * tileSpan;
+        }
         ${RT_DDA_GLSL}
         // Authentic BSL / Eclipse Rotated Cellular Underwater Caustics
         float waterCaustics(vec3 wp, float t) {
@@ -555,6 +576,52 @@
           }
           return baseC;
         }`)
+      .replace('#include <bumpmap_pars_fragment>', `#ifdef USE_BUMPMAP
+        uniform sampler2D bumpMap;
+        uniform float bumpScale;
+        vec2 dHdxy_fwd() {
+          vec2 bUv = vUv;
+          vec2 dSTdx = dFdx( vUv );
+          vec2 dSTdy = dFdy( vUv );
+          if ( isGreedyUv( vUv ) ) {
+            vec2 _to, _ts;
+            vec2 _gUv = greedyWorldUv();
+            bUv = resolveAtlasUv( vUv, _gUv, _to, _ts );
+            vec2 _bMax = _to + _ts;
+            dSTdx = dFdx( _gUv ) * _ts;
+            dSTdy = dFdy( _gUv ) * _ts;
+            float Hll = bumpScale * texture2D( bumpMap, bUv ).x;
+            float dBx = bumpScale * texture2D( bumpMap, clamp( bUv + dSTdx, _to, _bMax ) ).x - Hll;
+            float dBy = bumpScale * texture2D( bumpMap, clamp( bUv + dSTdy, _to, _bMax ) ).x - Hll;
+            return vec2( dBx, dBy );
+          }
+          float Hll = bumpScale * texture2D( bumpMap, bUv ).x;
+          float dBx = bumpScale * texture2D( bumpMap, bUv + dSTdx ).x - Hll;
+          float dBy = bumpScale * texture2D( bumpMap, bUv + dSTdy ).x - Hll;
+          return vec2( dBx, dBy );
+        }
+        vec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
+          vec3 vSigmaX = vec3( dFdx( surf_pos.x ), dFdx( surf_pos.y ), dFdx( surf_pos.z ) );
+          vec3 vSigmaY = vec3( dFdy( surf_pos.x ), dFdy( surf_pos.y ), dFdy( surf_pos.z ) );
+          vec3 vN = surf_norm;
+          vec3 R1 = cross( vSigmaY, vN );
+          vec3 R2 = cross( vN, vSigmaX );
+          float fDet = dot( vSigmaX, R1 );
+          fDet *= ( float( gl_FrontFacing ) * 2.0 - 1.0 );
+          vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );
+          return normalize( abs( fDet ) * surf_norm - vGrad );
+        }
+      #endif`)
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+        vec2 _mUv = vUv;
+        if ( isGreedyUv( vUv ) ) {
+          vec2 _to, _ts;
+          _mUv = resolveAtlasUv( vUv, greedyWorldUv(), _to, _ts );
+        }
+        vec4 texelColor = texture2D( map, _mUv );
+        texelColor = mapTexelToLinear( texelColor );
+        diffuseColor *= texelColor;
+      #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         // True original terrain block colors (preserve green grass, warm soil, autumn podzol & blue grass natively)
         diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.001)), vec3(1.01));
@@ -1482,7 +1549,7 @@
         gl_FragColor = vec4(col, uVolumetricClouds > 0.5 ? clamp(cloudAlpha * 0.62, 0.0, 0.74) : 0.0);
       }`
   });
-  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(640, 24, 16), skyMat); scene.add(skyDome);
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1024, 24, 16), skyMat); scene.add(skyDome);
 
   // Shooting Stars Pool (Night & Meteor Shower Sky Streaks — 0 heap allocs per frame)
   const SHOOTING_STAR_MAX = 14;

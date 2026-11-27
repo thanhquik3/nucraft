@@ -656,6 +656,37 @@ async function main() {
   for (let i = 0; i < 40; i++) w.mesh_chunk_solid(16, -32, MIN_Y, WATER_LEVEL, 0, maxLyTest, 7, 1 | 2 | 8 | 64, B.GRASS, B.AUTUMN_PODZOL, B.WATER, B.SEAGRASS, B.LAVA, B.BEDROCK, B.DEEPSLATE, BLK_SOLID);
   const wasmMeshMs = performance.now() - tWasmMesh0;
 
+  // 5b) ABI v4: 2D Greedy Face Merging verification (area conservation, bounds, unit normals & reduction)
+  const gV = w.mesh_chunk_solid(16, -32, MIN_Y, WATER_LEVEL, 0, maxLyTest, 7, 1 | 2 | 8 | 64 | 128, B.GRASS, B.AUTUMN_PODZOL, B.WATER, B.SEAGRASS, B.LAVA, B.BEDROCK, B.DEEPSLATE, BLK_SOLID) >>> 0;
+  const gI = meshMetaView[1] >>> 0;
+  assert.strictEqual(meshMetaView[3], 0);
+  assert.strictEqual(meshMetaView[2], jsMesh.spec.length);
+  for (let i = 0; i < jsMesh.spec.length; i++) assert.strictEqual(specVoxView[i], jsMesh.spec[i]);
+  let greedyArea = 0;
+  for (let v = 0; v < gV; v += 4) {
+    const o = v * 3;
+    const ax = meshPosView[o + 3] - meshPosView[o], ay = meshPosView[o + 4] - meshPosView[o + 1], az = meshPosView[o + 5] - meshPosView[o + 2];
+    const bx = meshPosView[o + 9] - meshPosView[o], by = meshPosView[o + 10] - meshPosView[o + 1], bz = meshPosView[o + 11] - meshPosView[o + 2];
+    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+    greedyArea += Math.round(Math.hypot(cx, cy, cz));
+    assert(Number.isFinite(meshPosView[o]) && Math.abs(Math.hypot(meshNormView[o], meshNormView[o + 1], meshNormView[o + 2]) - 1.0) < 1e-4);
+  }
+  for (let i = 0; i < gI; i++) assert(meshIdxView[i] < gV);
+  assert.strictEqual(greedyArea, (jsMesh.vCount / 4) | 0, `Greedy total quad area must match 1x1 face count: got=${greedyArea}, expected=${jsMesh.vCount / 4}`);
+  const tWasmGreedy0 = performance.now();
+  for (let i = 0; i < 40; i++) w.mesh_chunk_solid(16, -32, MIN_Y, WATER_LEVEL, 0, maxLyTest, 7, 1 | 2 | 8 | 64 | 128, B.GRASS, B.AUTUMN_PODZOL, B.WATER, B.SEAGRASS, B.LAVA, B.BEDROCK, B.DEEPSLATE, BLK_SOLID);
+  const wasmGreedyMs = performance.now() - tWasmGreedy0;
+  const greedySavePct = ((1 - gV / jsMesh.vCount) * 100);
+  // Flat slab chunk greedy merge reduction check
+  chunkDataView.fill(0); borderBufView.fill(0); autumnCellView.fill(0);
+  for (let ly = 0; ly <= 32; ly++) for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+    chunkDataView[(ly << 8) | (lz << 4) | lx] = ly === 0 ? B.BEDROCK : (ly < 32 ? B.STONE : B.GRASS);
+  }
+  const flat1x1V = w.mesh_chunk_solid(0, 0, MIN_Y, WATER_LEVEL, 0, 32, 0, 1 | 2 | 8 | 64, B.GRASS, B.AUTUMN_PODZOL, B.WATER, B.SEAGRASS, B.LAVA, B.BEDROCK, B.DEEPSLATE, BLK_SOLID) >>> 0;
+  const flatGreedyV = w.mesh_chunk_solid(0, 0, MIN_Y, WATER_LEVEL, 0, 32, 0, 1 | 2 | 8 | 64 | 128, B.GRASS, B.AUTUMN_PODZOL, B.WATER, B.SEAGRASS, B.LAVA, B.BEDROCK, B.DEEPSLATE, BLK_SOLID) >>> 0;
+  const flatSavePct = (1 - flatGreedyV / flat1x1V) * 100;
+  assert(flatSavePct >= 80, `Expected >=80% flat chunk vertex reduction, got ${flatSavePct.toFixed(1)}%`);
+
   // 6) ABI v4: Overworld Biome, Height & Base Chunk Parity + 32-chunk Benchmark
   fillTerrainBids(terrainBidsView);
   acCoordsView.set([240, 240, -240, 240, -240, -240, 240, -240]);
@@ -727,21 +758,32 @@ async function main() {
   codecInView.set([78, 67, 87, 49, 1, 0, 5, 0, 0, 0, 15], 0); // truncated
   assert.strictEqual(w.decode_world_mods_bin(11) >>> 0, 0xFFFFFFFF);
 
-  // 8) ABI v4: Far LOD Ring test
+  // 8) ABI v4: Dual-Ring 768m Slope-Lit Far LOD Ring test
   const maskR = 5, maskW = maskR * 2 + 1;
   lodMaskView.fill(0);
   for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
     lodMaskView[(dz + maskR) * maskW + (dx + maskR)] = 1;
   }
   const tLod0 = performance.now();
-  const lodVerts = w.build_far_lod_mesh(0, 0, 1337, WATER_LEVEL, 8, 256, maskR);
+  const lodVerts = w.build_far_lod_mesh(0, 0, 1337, WATER_LEVEL, 8, 256, maskR) >>> 0;
   const lodMs = performance.now() - tLod0;
-  const lodIdxLen = lodMetaView[1];
-  assert(lodVerts > 100 && lodIdxLen > 100 && lodIdxLen % 6 === 0);
+  const lodIdxLen = lodMetaView[1] >>> 0;
+  const lodOuterR = lodMetaView[3] >>> 0;
+  assert(lodVerts > 1000 && lodVerts <= 49152 && lodIdxLen > 1000 && lodIdxLen <= 73728 && lodIdxLen % 6 === 0);
+  assert.strictEqual(lodOuterR, 768);
   assert(lodMs < 25, `LOD took too long: ${lodMs}ms`);
-  for (let i = 0; i < lodVerts * 3; i++) {
-    assert(Number.isFinite(lodPosView[i]) && Number.isFinite(lodNormView[i]) && Number.isFinite(lodColView[i]));
+  let maxLodHoriz = 0;
+  for (let i = 0; i < lodVerts; i++) {
+    const o = i * 3;
+    const x = lodPosView[o], y = lodPosView[o + 1], z = lodPosView[o + 2];
+    const nx = lodNormView[o], ny = lodNormView[o + 1], nz = lodNormView[o + 2];
+    assert(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z));
+    assert(Math.abs(Math.hypot(nx, ny, nz) - 1.0) < 1e-4, `LOD non-unit normal at v=${i}`);
+    assert(Number.isFinite(lodColView[o]) && Number.isFinite(lodColView[o + 1]) && Number.isFinite(lodColView[o + 2]));
+    const hd = Math.hypot(x - 8, z - 8);
+    if (hd > maxLodHoriz) maxLodHoriz = hd;
   }
+  assert(maxLodHoriz > 560, `Expected Ring 2 extending past 560 blocks, got ${maxLodHoriz}`);
   for (let i = 0; i < lodIdxLen; i++) assert(lodIdxView[i] < lodVerts);
   // Ensure no LOD top quad is centered inside the masked central 4x4 chunks [-24..24]
   for (let i = 0; i < lodVerts; i += 4) {
@@ -754,10 +796,10 @@ async function main() {
 
   console.log(
     `[NUCRAFT wasm test] PASS | ABI v4 | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
-    `40-chunk solid mesh: JS=${jsMeshMs.toFixed(1)}ms vs RustWASM=${wasmMeshMs.toFixed(1)}ms | ` +
-    `32-chunk OW base gen RustWASM=${wasmGenMs.toFixed(1)}ms | ` +
-    `NCW1 50k mods: ${jsonBytes}B -> ${encBytes}B (${(jsonBytes / encBytes).toFixed(1)}x) | ` +
-    `FarLOD=${(lodIdxLen / 3) | 0} tris in ${lodMs.toFixed(2)}ms`
+    `40-chunk solid: JS=${jsMeshMs.toFixed(1)}ms, WASM=${wasmMeshMs.toFixed(1)}ms, Greedy=${wasmGreedyMs.toFixed(1)}ms (-${greedySavePct.toFixed(1)}% / flat -${flatSavePct.toFixed(1)}% verts) | ` +
+    `32-chunk OW gen=${wasmGenMs.toFixed(1)}ms | ` +
+    `NCW1 50k=${encBytes}B (${(jsonBytes / encBytes).toFixed(1)}x) | ` +
+    `FarLOD ${lodOuterR}m=${(lodIdxLen / 3) | 0} tris in ${lodMs.toFixed(2)}ms`
   );
 }
 

@@ -929,7 +929,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?abi=4').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=170').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
@@ -1145,7 +1145,7 @@
       },
       prefetchOverworld(cx, cz) {
         if (!active || currentDimension !== 'overworld' || (depthOffset || 0) !== 0) return false;
-        if (inFlightTerrain.size >= Math.max(12, workers.length * 6)) return false;
+        if (inFlightTerrain.size >= Math.max(16, workers.length * 8)) return false;
         if (!_ensureAllLuts()) return false;
         const key = `${_worldEpoch}:${cx},${cz}`;
         if (terrainCache.has(key) || inFlightTerrain.has(key)) return false;
@@ -1172,6 +1172,9 @@
         }, [ac.buffer]);
         return true;
       },
+      hasOverworld(cx, cz) {
+        return terrainCache.has(`${_worldEpoch}:${cx},${cz}`);
+      },
       takeOverworld(cx, cz) {
         const key = `${_worldEpoch}:${cx},${cz}`;
         const res = terrainCache.get(key);
@@ -1182,7 +1185,7 @@
         return res;
       },
       enqueueMesh(ch, maxLy, borderBuf, emitters, emitLen, flagsBits, autumnCell) {
-        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(12, workers.length * 6)) return false;
+        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(16, workers.length * 8)) return false;
         if (!_ensureAllLuts()) return false;
         const mGen = ch._meshGen || 0;
         const key = `${_worldEpoch}:${ch.cx},${ch.cz}:${mGen}`;
@@ -1654,35 +1657,55 @@
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
     farEntities: true,    // Sodium Extra: distant entity rendering toggle
     farLod: true,         // Horizon-style Rust WASM far-terrain LOD horizon ring
+    greedyMesh: true,     // Horizon-style Rust WASM 2D greedy solid face merging
     frameGen: 1,          // AI Frame Gen (1=Off, 2=x2, 4=x4 reprojection + optical-flow + RCAS super-res)
     rayTracing: false     // Real-time Ray Tracing GI, mirror water reflections & leaf light transmission
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
   if (typeof window !== 'undefined') window.sodiumOpts = sodiumOpts;
 
-  // Horizon-style Distant Terrain LOD Ring (renders simplified biome terrain outside loaded chunk radius)
+  // Horizon-style 2-Tier Cascading Far Terrain LOD Ring (256m Ring 1 + 768m Ring 2 with slope relief lighting)
   const farLodSystem = (() => {
     const step = _isMobilePerf ? 12 : 8;
-    const outerRadius = _isMobilePerf ? 176 : 256;
+    const innerOuterRadius = _isMobilePerf ? 176 : 256;
+    const outerRadius = innerOuterRadius * 3;
     const _maskScratch = new Uint8Array(4096);
     let _mesh = null, _mat = null, _lastCx = 99999, _lastCz = 99999, _lastSeed = -1, _meshedRev = 0, _builtRev = -1, _lastBuildMs = 0, _inFlight = false;
     function _getMat() {
       if (_mat) return _mat;
       _mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
-      _mat.customProgramCacheKey = () => 'nucraft_far_lod_v1';
+      _mat.customProgramCacheKey = () => 'nucraft_far_lod_v2';
       _mat.onBeforeCompile = (shader) => {
         if (typeof envUniforms !== 'undefined') {
           Object.assign(shader.uniforms, {
+            uSunDir: envUniforms.uSunDir,
+            uSunColor: envUniforms.uSunColor,
+            uSkyTop: envUniforms.uSkyTop,
+            uSkyHorizon: envUniforms.uSkyHorizon,
             uFogColor: envUniforms.uFogColor,
             uLodFogStart: envUniforms.uLodFogStart,
             uLodFogEnd: envUniforms.uLodFogEnd
           });
         }
         shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', '#include <common>\nvarying vec3 vLodWPos;')
-          .replace('#include <project_vertex>', '#include <project_vertex>\nvLodWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLodWPos;\nvarying vec3 vLodNorm;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvLodWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvLodNorm = normalize(mat3(modelMatrix) * objectNormal);');
         shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', '#include <common>\nuniform vec3 uFogColor;\nuniform float uLodFogStart, uLodFogEnd;\nvarying vec3 vLodWPos;')
-          .replace('#include <fog_fragment>', 'float lodDist = length(vLodWPos - cameraPosition);\nfloat lodFog = smoothstep(uLodFogStart, uLodFogEnd, lodDist);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, clamp(lodFog, 0.0, 1.0));\n#include <fog_fragment>');
+          .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor;\nuniform float uLodFogStart, uLodFogEnd;\nvarying vec3 vLodWPos, vLodNorm;')
+          .replace('#include <opaque_fragment>', `
+            vec3 sunL = normalize(uSunDir);
+            vec3 lNorm = normalize(vLodNorm);
+            float sunUp = smoothstep(-0.08, 0.25, sunL.y);
+            float ndl = max(dot(lNorm, sunL), 0.0);
+            float hemi = clamp(lNorm.y * 0.5 + 0.5, 0.0, 1.0);
+            vec3 skyAmb = mix(uSkyHorizon, uSkyTop, hemi * 0.65) * (0.34 + 0.54 * sunUp);
+            vec3 direct = uSunColor * (ndl * sunUp * 0.88);
+            vec3 lit = diffuseColor.rgb * (skyAmb + direct + vec3(0.06, 0.08, 0.14) * (1.0 - sunUp));
+            float lodDist = length(vLodWPos - cameraPosition);
+            float aerial = smoothstep(uLodFogStart * 0.72, uLodFogEnd * 0.90, lodDist) * 0.44;
+            lit = mix(lit, mix(uSkyHorizon, uFogColor, 0.55), clamp(aerial, 0.0, 0.52));
+            float lodFog = smoothstep(uLodFogStart, uLodFogEnd, lodDist);
+            gl_FragColor = vec4(mix(lit, uFogColor, clamp(lodFog, 0.0, 1.0)), 1.0);
+          `);
       };
       return _mat;
     }
@@ -1698,7 +1721,7 @@
       geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
       geo.setIndex(new THREE.BufferAttribute(idx, 1));
-      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx * 16 + 8, 24, cz * 16 + 8), outerRadius + 64);
+      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx * 16 + 8, 24, cz * 16 + 8), outerRadius + 96);
       if (_mesh) {
         if (_mesh.geometry) _mesh.geometry.dispose();
         _mesh.geometry = geo;
@@ -1765,7 +1788,7 @@
         _syncWasmViews();
         _nwLodMask.fill(0);
         _nwLodMask.set(maskView);
-        _nwExports.build_far_lod_mesh(pcx | 0, pcz | 0, worldSeed | 0, WATER_LEVEL | 0, step, outerRadius, maskR);
+        _nwExports.build_far_lod_mesh(pcx | 0, pcz | 0, worldSeed | 0, WATER_LEVEL | 0, step, innerOuterRadius, maskR);
         const vCount = _nwLodMeta[0] >>> 0, iCount = _nwLodMeta[1] >>> 0;
         const pos = _nwLodPos.slice(0, vCount * 3);
         const norm = _nwLodNorm.slice(0, vCount * 3);
@@ -1784,7 +1807,7 @@
         _inFlight = true;
         chunkWorkerPool.requestLod({
           centerCx: pcx, centerCz: pcz, seed: worldSeed | 0, waterLevel: WATER_LEVEL | 0,
-          step, outerRadius, maskRadius: maskR, loadedMask: maskView
+          step, outerRadius: innerOuterRadius, maskRadius: maskR, loadedMask: maskView
         }, (res) => {
           _inFlight = false;
           if (!res || res.type !== 'build_lod_ok') return;
@@ -2976,6 +2999,7 @@
     if (allOceanNbr) bits |= 16;
     if (hasFluidLevels) bits |= 32;
     if (sodiumOpts.fastLight) bits |= 64;
+    if (!sodiumOpts || sodiumOpts.greedyMesh !== false) bits |= 128;
     return { bits, allOceanNbr };
   }
   function _dispatchChunkMeshToWorker(ch) {

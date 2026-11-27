@@ -5375,8 +5375,22 @@
       return;
     }
 
-    // Horizon + Luanti-style frame-budgeted chunk streaming: worker meshing for non-urgent chunks, sync WASM for immediate standing chunks
+    // Horizon + Luanti-style frame-budgeted chunk streaming: parallel worker dispatch first, sync WASM for immediate standing chunks
     if (!document.body.classList.contains('in-lobby') && !window._isWorldPaused) {
+      if (chunkWorkerPool.active) {
+        let preDispatched = 0;
+        const maxPreDispatch = _isMobilePerf ? 2 : 4;
+        for (const ch of _dirtyChunkSet) {
+          if (preDispatched >= maxPreDispatch) break;
+          if (!ch || !ch.dirty || ch._pendingSlice || ch._meshInFlightGen === (ch._meshGen || 0)) continue;
+          const d2 = (ch.cx - pcx) * (ch.cx - pcx) + (ch.cz - pcz) * (ch.cz - pcz);
+          if (d2 > 1 && _dispatchChunkMeshToWorker(ch)) {
+            if (ch === dirtyCh) { dirtyCh = dirtyCh2; dirtyCh2 = null; }
+            else if (ch === dirtyCh2) { dirtyCh2 = null; }
+            preDispatched++;
+          }
+        }
+      }
       let ops = 0, meshOps = 0;
       const warming = _teleportWarmupFrames > 0;
       if (warming) _teleportWarmupFrames--;
@@ -5392,7 +5406,6 @@
           const d2 = (dirtyCh.cx - pcx) * (dirtyCh.cx - pcx) + (dirtyCh.cz - pcz) * (dirtyCh.cz - pcz);
           if (d2 > 1 && !dirtyCh._pendingSlice && _dispatchChunkMeshToWorker(dirtyCh)) {
             dirtyCh = dirtyCh2; dirtyCh2 = null;
-            ops++;
           } else {
             rebuildChunkMesh(dirtyCh);
             dirtyCh = dirtyCh2; dirtyCh2 = null;
@@ -5400,8 +5413,19 @@
           }
         } else if (canGen) {
           let generated = false;
+          const scanLim = (chunkWorkerPool.active && currentDimension === 'overworld' && (depthOffset || 0) === 0) ? Math.min(8, emergeQueue.length) : 1;
           while (emergeQueue.length > 0) {
-            const [cx, cz] = emergeQueue.pop(), k = chunkKey(cx, cz); emergeSet.delete(k);
+            let pickIdx = emergeQueue.length - 1;
+            if (scanLim > 1) {
+              const stopAt = Math.max(0, emergeQueue.length - scanLim);
+              for (let si = emergeQueue.length - 1; si >= stopAt; si--) {
+                const scx = emergeQueue[si][0], scz = emergeQueue[si][1];
+                const d2 = (scx - pcx) * (scx - pcx) + (scz - pcz) * (scz - pcz);
+                if (d2 <= 2 || chunkWorkerPool.hasOverworld(scx, scz)) { pickIdx = si; break; }
+              }
+            }
+            const picked = (pickIdx === emergeQueue.length - 1) ? emergeQueue.pop() : emergeQueue.splice(pickIdx, 1)[0];
+            const [cx, cz] = picked, k = chunkKey(cx, cz); emergeSet.delete(k);
             if (Math.abs(cx - pcx) <= renderDistance + 1 && Math.abs(cz - pcz) <= renderDistance + 1 && !chunks.has(k)) {
               generateChunk(cx, cz);
               generated = true;
@@ -5413,7 +5437,6 @@
           const d2 = (dirtyCh.cx - pcx) * (dirtyCh.cx - pcx) + (dirtyCh.cz - pcz) * (dirtyCh.cz - pcz);
           if (d2 > 1 && !dirtyCh._pendingSlice && _dispatchChunkMeshToWorker(dirtyCh)) {
             dirtyCh = dirtyCh2; dirtyCh2 = null;
-            ops++;
           } else {
             rebuildChunkMesh(dirtyCh);
             dirtyCh = dirtyCh2; dirtyCh2 = null;
@@ -5422,7 +5445,6 @@
         } else if (canMesh && borderCh && (borderScore <= 4.5 || (!isMoving && (frameCounter & (_isMobilePerf ? 3 : 1)) === 0))) {
           if (_dispatchChunkMeshToWorker(borderCh)) {
             borderCh = null;
-            ops++;
           } else {
             rebuildChunkMesh(borderCh);
             borderCh = null;

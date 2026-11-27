@@ -31,6 +31,7 @@ static mut MESH_IDX: [u32; MAX_MESH_INDICES] = [0; MAX_MESH_INDICES];
 static mut SPECIAL_VOXELS: [u16; CHUNK_VOXELS] = [0; CHUNK_VOXELS];
 // [v_count, i_count, special_count, overflow_flag]
 static mut MESH_META: [u32; 4] = [0; 4];
+static mut GREEDY_MASK: [u64; 4096] = [0; 4096];
 
 const AO_LUT: [f32; 4] = [1.0, 0.84, 0.68, 0.50];
 
@@ -302,6 +303,337 @@ unsafe fn eval_slice_light(
     )
 }
 
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn emit_solid_quad(
+    pos_ptr: *mut f32,
+    norm_ptr: *mut f32,
+    m_uv_ptr: *mut f32,
+    col_ptr: *mut f32,
+    bl_ptr: *mut f32,
+    idx_ptr: *mut u32,
+    uv_ptr: *const f32,
+    v_count: &mut usize,
+    i_count: &mut usize,
+    pts: [[f32; 3]; 4],
+    norm: [f32; 3],
+    aos: [f32; 4],
+    lr: f32,
+    lg: f32,
+    lb: f32,
+    tile: usize,
+    greedy_uv: bool,
+    flip_diag: bool,
+) -> bool {
+    if *v_count + 4 > MAX_MESH_VERTS || *i_count + 6 > MAX_MESH_INDICES {
+        return false;
+    }
+    let vc = *v_count;
+    let vp = vc * 3;
+    for c in 0..4usize {
+        let p_off = vp + c * 3;
+        let aoc = aos[c];
+        *pos_ptr.add(p_off) = pts[c][0];
+        *pos_ptr.add(p_off + 1) = pts[c][1];
+        *pos_ptr.add(p_off + 2) = pts[c][2];
+        *norm_ptr.add(p_off) = norm[0];
+        *norm_ptr.add(p_off + 1) = norm[1];
+        *norm_ptr.add(p_off + 2) = norm[2];
+        *col_ptr.add(p_off) = aoc;
+        *col_ptr.add(p_off + 1) = aoc;
+        *col_ptr.add(p_off + 2) = aoc;
+        *bl_ptr.add(p_off) = lr;
+        *bl_ptr.add(p_off + 1) = lg;
+        *bl_ptr.add(p_off + 2) = lb;
+    }
+
+    let t_off = (tile.min(MAX_TILES - 1)) * 4;
+    let u0 = *uv_ptr.add(t_off);
+    let u1 = *uv_ptr.add(t_off + 1);
+    let v0 = *uv_ptr.add(t_off + 2);
+    let v1 = *uv_ptr.add(t_off + 3);
+    let up = vc * 2;
+    if greedy_uv {
+        let um = (u0 + u1) * 0.5;
+        let vm = (v0 + v1) * 0.5;
+        for c in 0..4usize {
+            *m_uv_ptr.add(up + c * 2) = um;
+            *m_uv_ptr.add(up + c * 2 + 1) = vm;
+        }
+    } else {
+        *m_uv_ptr.add(up) = u0;
+        *m_uv_ptr.add(up + 1) = v1;
+        *m_uv_ptr.add(up + 2) = u1;
+        *m_uv_ptr.add(up + 3) = v1;
+        *m_uv_ptr.add(up + 4) = u1;
+        *m_uv_ptr.add(up + 5) = v0;
+        *m_uv_ptr.add(up + 6) = u0;
+        *m_uv_ptr.add(up + 7) = v0;
+    }
+
+    let vc32 = vc as u32;
+    let ip = *i_count;
+    if flip_diag {
+        *idx_ptr.add(ip) = vc32;
+        *idx_ptr.add(ip + 1) = vc32 + 1;
+        *idx_ptr.add(ip + 2) = vc32 + 2;
+        *idx_ptr.add(ip + 3) = vc32;
+        *idx_ptr.add(ip + 4) = vc32 + 2;
+        *idx_ptr.add(ip + 5) = vc32 + 3;
+    } else {
+        *idx_ptr.add(ip) = vc32 + 1;
+        *idx_ptr.add(ip + 1) = vc32 + 2;
+        *idx_ptr.add(ip + 2) = vc32 + 3;
+        *idx_ptr.add(ip + 3) = vc32 + 1;
+        *idx_ptr.add(ip + 4) = vc32 + 3;
+        *idx_ptr.add(ip + 5) = vc32;
+    }
+    *v_count = vc + 4;
+    *i_count = ip + 6;
+    true
+}
+
+#[inline(always)]
+fn quantize_ao_idx(ao: f32) -> u64 {
+    if ao > 0.92 {
+        0
+    } else if ao > 0.76 {
+        1
+    } else if ao > 0.59 {
+        2
+    } else {
+        3
+    }
+}
+
+#[inline(always)]
+fn pack_greedy_key(tile: usize, ao0: f32, lr: f32, lg: f32, lb: f32) -> u64 {
+    let lr8 = (lr.clamp(0.0, 2.0) * 127.5).round() as u64;
+    let lg8 = (lg.clamp(0.0, 2.0) * 127.5).round() as u64;
+    let lb8 = (lb.clamp(0.0, 2.0) * 127.5).round() as u64;
+    let aoi = quantize_ao_idx(ao0);
+    1u64
+        | (((tile as u64) & 0xffff) << 1)
+        | (aoi << 17)
+        | ((lr8 & 0xff) << 20)
+        | ((lg8 & 0xff) << 28)
+        | ((lb8 & 0xff) << 36)
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn sweep_greedy_slice(
+    mask_ptr: *mut u64,
+    w_dim: usize,
+    h_dim: usize,
+    face_idx: usize,
+    slice_coord: i32,
+    wx0: i32,
+    wz0: i32,
+    min_y: i32,
+    pos_ptr: *mut f32,
+    norm_ptr: *mut f32,
+    m_uv_ptr: *mut f32,
+    col_ptr: *mut f32,
+    bl_ptr: *mut f32,
+    idx_ptr: *mut u32,
+    uv_ptr: *const f32,
+    v_count: &mut usize,
+    i_count: &mut usize,
+) -> bool {
+    let face = &FACES[face_idx];
+    let norm = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+    let ux = face.u_axis[0] as f32;
+    let uy = face.u_axis[1] as f32;
+    let uz = face.u_axis[2] as f32;
+    let vx = face.v_axis[0] as f32;
+    let vy = face.v_axis[1] as f32;
+    let vz = face.v_axis[2] as f32;
+
+    for row in 0..h_dim {
+        let row_off = row * w_dim;
+        let mut col = 0usize;
+        while col < w_dim {
+            let key = *mask_ptr.add(row_off + col);
+            if key == 0 {
+                col += 1;
+                continue;
+            }
+            let mut w = 1usize;
+            while col + w < w_dim && *mask_ptr.add(row_off + col + w) == key {
+                w += 1;
+            }
+            let mut h = 1usize;
+            'grow_h: while row + h < h_dim {
+                let r_off = (row + h) * w_dim;
+                for k in 0..w {
+                    if *mask_ptr.add(r_off + col + k) != key {
+                        break 'grow_h;
+                    }
+                }
+                h += 1;
+            }
+            for r in row..(row + h) {
+                let r_off = r * w_dim;
+                for k in col..(col + w) {
+                    *mask_ptr.add(r_off + k) = 0;
+                }
+            }
+
+            let (lx, ly, lz) = match face_idx {
+                0 => (col as i32, slice_coord, (15 - row) as i32),
+                1 => (col as i32, slice_coord, row as i32),
+                2 => (slice_coord, row as i32, (15 - col) as i32),
+                3 => (slice_coord, row as i32, col as i32),
+                4 => (col as i32, row as i32, slice_coord),
+                _ => ((15 - col) as i32, row as i32, slice_coord),
+            };
+            let p0 = [
+                (wx0 + lx) as f32 + face.corners[0][0],
+                (min_y + ly) as f32 + face.corners[0][1],
+                (wz0 + lz) as f32 + face.corners[0][2],
+            ];
+            let wf = w as f32;
+            let hf = h as f32;
+            let p1 = [p0[0] + ux * wf, p0[1] + uy * wf, p0[2] + uz * wf];
+            let p2 = [p1[0] + vx * hf, p1[1] + vy * hf, p1[2] + vz * hf];
+            let p3 = [p0[0] + vx * hf, p0[1] + vy * hf, p0[2] + vz * hf];
+
+            let tile = ((key >> 1) & 0xffff) as usize;
+            let ao = AO_LUT[((key >> 17) & 3) as usize];
+            let lr = (((key >> 20) & 0xff) as f32) * (1.0 / 127.5);
+            let lg = (((key >> 28) & 0xff) as f32) * (1.0 / 127.5);
+            let lb = (((key >> 36) & 0xff) as f32) * (1.0 / 127.5);
+            let is_greedy = w > 1 || h > 1;
+            if !emit_solid_quad(
+                pos_ptr,
+                norm_ptr,
+                m_uv_ptr,
+                col_ptr,
+                bl_ptr,
+                idx_ptr,
+                uv_ptr,
+                v_count,
+                i_count,
+                [p0, p1, p2, p3],
+                norm,
+                [ao, ao, ao, ao],
+                lr,
+                lg,
+                lb,
+                tile,
+                is_greedy,
+                false,
+            ) {
+                return false;
+            }
+            col += w;
+        }
+    }
+    true
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn eval_face_ao(
+    face: &FaceSpec,
+    data: *const u16,
+    border: *const u16,
+    opaque_ptr: *const u8,
+    min_y: i32,
+    water_level: i32,
+    d_off: i32,
+    is_end: bool,
+    water_id: u16,
+    seagrass_id: u16,
+    lava_id: u16,
+    bedrock_id: u16,
+    deepslate_id: u16,
+    nlx: i32,
+    nly: i32,
+    nlz: i32,
+    compute_ao: bool,
+) -> (f32, f32, f32, f32) {
+    if !compute_ao {
+        return (1.0, 1.0, 1.0, 1.0);
+    }
+    let mut ao = [1.0f32; 4];
+    let uxa = face.u_axis[0];
+    let uya = face.u_axis[1];
+    let uza = face.u_axis[2];
+    let vxa = face.v_axis[0];
+    let vya = face.v_axis[1];
+    let vza = face.v_axis[2];
+    if nlx > 0 && nlx < 15 && nlz > 0 && nlz < 15 && nly > 0 && nly < (WORLD_H as i32) - 1 {
+        let n_idx = (((nly as usize) << 8) | ((nlz as usize) << 4) | (nlx as usize)) as isize;
+        let u_off = ((uya << 8) + (uza << 4) + uxa) as isize;
+        let v_off = ((vya << 8) + (vza << 4) + vxa) as isize;
+        for c in 0..4usize {
+            let su: isize = if c == 1 || c == 2 { 1 } else { -1 };
+            let sv: isize = if c == 2 || c == 3 { 1 } else { -1 };
+            let s1 = is_opaque_id(opaque_ptr, *data.offset(n_idx + u_off * su));
+            let s2 = is_opaque_id(opaque_ptr, *data.offset(n_idx + v_off * sv));
+            let cn = is_opaque_id(opaque_ptr, *data.offset(n_idx + u_off * su + v_off * sv));
+            ao[c] = if s1 != 0 && s2 != 0 { 0.50 } else { AO_LUT[(s1 + s2 + cn) as usize] };
+        }
+    } else {
+        for c in 0..4usize {
+            let su = if c == 1 || c == 2 { 1 } else { -1 };
+            let sv = if c == 2 || c == 3 { 1 } else { -1 };
+            let ux = uxa * su;
+            let uy = uya * su;
+            let uz = uza * su;
+            let vx = vxa * sv;
+            let vy = vya * sv;
+            let vz = vza * sv;
+            let s1 = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + ux, nly + uy, nlz + uz));
+            let s2 = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + vx, nly + vy, nlz + vz));
+            let cn = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + ux + vx, nly + uy + vy, nlz + uz + vz));
+            ao[c] = if s1 != 0 && s2 != 0 { 0.50 } else { AO_LUT[(s1 + s2 + cn) as usize] };
+        }
+    }
+    (ao[0], ao[1], ao[2], ao[3])
+}
+
+#[inline(always)]
+unsafe fn is_voxel_surrounded(
+    data: *const u16,
+    border: *const u16,
+    opaque_ptr: *const u8,
+    min_y: i32,
+    water_level: i32,
+    d_off: i32,
+    is_end: bool,
+    water_id: u16,
+    seagrass_id: u16,
+    lava_id: u16,
+    bedrock_id: u16,
+    deepslate_id: u16,
+    c_idx: usize,
+    lx: usize,
+    ly: usize,
+    lz: usize,
+) -> bool {
+    let lx_i = lx as i32;
+    let ly_i = ly as i32;
+    let lz_i = lz as i32;
+    if ly > 0 && ly < WORLD_H - 1 && lz > 0 && lz < 15 && lx > 0 && lx < 15 {
+        is_opaque_id(opaque_ptr, *data.add(c_idx + 1)) != 0
+            && is_opaque_id(opaque_ptr, *data.add(c_idx - 1)) != 0
+            && is_opaque_id(opaque_ptr, *data.add(c_idx + 256)) != 0
+            && is_opaque_id(opaque_ptr, *data.add(c_idx - 256)) != 0
+            && is_opaque_id(opaque_ptr, *data.add(c_idx + 16)) != 0
+            && is_opaque_id(opaque_ptr, *data.add(c_idx - 16)) != 0
+    } else {
+        is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i + 1, ly_i, lz_i)) != 0
+            && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i - 1, ly_i, lz_i)) != 0
+            && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i + 1, lz_i)) != 0
+            && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i - 1, lz_i)) != 0
+            && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i, lz_i + 1)) != 0
+            && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i, lz_i - 1)) != 0
+    }
+}
+
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn mesh_chunk_solid(
@@ -329,6 +661,7 @@ pub extern "C" fn mesh_chunk_solid(
     let all_ocean_nbr = (flags_bits & 16) != 0;
     let has_fluid_levels = (flags_bits & 32) != 0;
     let fast_light = (flags_bits & 64) != 0;
+    let use_greedy = (flags_bits & 128) != 0;
 
     let max_ly = (max_ly_in as usize).min(WORLD_H - 1);
     let em_len = (em_len_in as usize).min(crate::MAX_EMITTERS_LEN);
@@ -342,6 +675,7 @@ pub extern "C" fn mesh_chunk_solid(
     let uv_ptr = addr_of!(LUT_TILE_UV) as *const f32;
     let em_ptr = addr_of!(crate::EMITTERS_BUF) as *const f32;
     let slice_ptr = addr_of_mut!(SLICE_EMITTERS) as *mut f32;
+    let mask_ptr = addr_of_mut!(GREEDY_MASK) as *mut u64;
 
     let pos_ptr = addr_of_mut!(MESH_POS) as *mut f32;
     let norm_ptr = addr_of_mut!(MESH_NORM) as *mut f32;
@@ -360,6 +694,25 @@ pub extern "C" fn mesh_chunk_solid(
         let podzol_ok = (autumn_podzol_id as usize) < BLOCK_LUT_CAP
             && *tiles_ptr.add((autumn_podzol_id as usize) * 5) != 0xffff;
 
+        let mut g_min_x = 999.0f32;
+        let mut g_max_x = -999.0f32;
+        let mut g_min_z = 999.0f32;
+        let mut g_max_z = -999.0f32;
+        if use_greedy && em_len > 0 {
+            let mut ei = 0usize;
+            while ei + 6 < em_len {
+                let ex = *em_ptr.add(ei);
+                let ez = *em_ptr.add(ei + 2);
+                let r_pad = (*em_ptr.add(ei + 6)).sqrt() + 1.5;
+                if ex - r_pad < g_min_x { g_min_x = ex - r_pad; }
+                if ex + r_pad > g_max_x { g_max_x = ex + r_pad; }
+                if ez - r_pad < g_min_z { g_min_z = ez - r_pad; }
+                if ez + r_pad > g_max_z { g_max_z = ez + r_pad; }
+                ei += 7;
+            }
+        }
+
+        // Pass A: per-layer scan (collects SPECIAL_VOXELS identically, emits all faces in 1x1 mode or horizontal +-Y greedy slices)
         for ly in 0..=max_ly {
             let wy = min_y + (ly as i32);
             let y_off = ly << 8;
@@ -408,31 +761,28 @@ pub extern "C" fn mesh_chunk_solid(
                         *slice_ptr.add(slice_len + 5) = *em_ptr.add(ei + 5);
                         *slice_ptr.add(slice_len + 6) = rad2;
                         slice_len += 7;
-                        if ex - r_pad < s_min_x {
-                            s_min_x = ex - r_pad;
-                        }
-                        if ex + r_pad > s_max_x {
-                            s_max_x = ex + r_pad;
-                        }
-                        if ez - r_pad < s_min_z {
-                            s_min_z = ez - r_pad;
-                        }
-                        if ez + r_pad > s_max_z {
-                            s_max_z = ez + r_pad;
-                        }
+                        if ex - r_pad < s_min_x { s_min_x = ex - r_pad; }
+                        if ex + r_pad > s_max_x { s_max_x = ex + r_pad; }
+                        if ez - r_pad < s_min_z { s_min_z = ez - r_pad; }
+                        if ez + r_pad > s_max_z { s_max_z = ez + r_pad; }
                     }
                     ei += 7;
                 }
             }
 
-            let in_y = ly > 0 && ly < WORLD_H - 1;
+            if use_greedy {
+                for m in 0..512usize {
+                    *mask_ptr.add(m) = 0;
+                }
+            }
+
             let ly_i = ly as i32;
             let wy_f = wy as f32;
+            let f_end = if use_greedy { 2usize } else { 6usize };
 
             for lz in 0..16usize {
                 let z_off = y_off | (lz << 4);
                 let wz_f = (wz0 + (lz as i32)) as f32;
-                let in_z = lz > 0 && lz < 15;
                 let lz_i = lz as i32;
 
                 for lx in 0..16usize {
@@ -442,11 +792,7 @@ pub extern "C" fn mesh_chunk_solid(
                         continue;
                     }
                     let id_u = id as usize;
-                    let flags = if id_u < BLOCK_LUT_CAP {
-                        *flags_ptr.add(id_u)
-                    } else {
-                        0
-                    };
+                    let flags = if id_u < BLOCK_LUT_CAP { *flags_ptr.add(id_u) } else { 0 };
                     if flags != blk_solid_flag {
                         *spec_ptr.add(spec_count) = c_idx as u16;
                         spec_count += 1;
@@ -455,55 +801,34 @@ pub extern "C" fn mesh_chunk_solid(
                     if id_u >= BLOCK_LUT_CAP || *tiles_ptr.add(id_u * 5) == 0xffff {
                         continue;
                     }
-
-                    let lx_i = lx as i32;
-                    let is_int = in_y && in_z && lx > 0 && lx < 15;
-                    if is_int {
-                        if is_opaque_id(opaque_ptr, *data.add(c_idx + 1)) != 0
-                            && is_opaque_id(opaque_ptr, *data.add(c_idx - 1)) != 0
-                            && is_opaque_id(opaque_ptr, *data.add(c_idx + 256)) != 0
-                            && is_opaque_id(opaque_ptr, *data.add(c_idx - 256)) != 0
-                            && is_opaque_id(opaque_ptr, *data.add(c_idx + 16)) != 0
-                            && is_opaque_id(opaque_ptr, *data.add(c_idx - 16)) != 0
-                        {
-                            continue;
-                        }
-                    } else if is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i + 1, ly_i, lz_i)) != 0
-                        && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i - 1, ly_i, lz_i)) != 0
-                        && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i + 1, lz_i)) != 0
-                        && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i - 1, lz_i)) != 0
-                        && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i, lz_i + 1)) != 0
-                        && is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, lx_i, ly_i, lz_i - 1)) != 0
-                    {
+                    if is_voxel_surrounded(
+                        data, border, opaque_ptr, min_y, water_level, d_off, is_end,
+                        water_id, seagrass_id, lava_id, bedrock_id, deepslate_id,
+                        c_idx, lx, ly, lz,
+                    ) {
                         continue;
                     }
 
                     let use_id_u = if id == grass_id && is_overworld && podzol_ok {
                         let ac_idx = ((lz >> 2) << 2) | (lx >> 2);
-                        if *autumn_ptr.add(ac_idx) == 1 {
-                            autumn_podzol_id as usize
-                        } else {
-                            id_u
-                        }
+                        if *autumn_ptr.add(ac_idx) == 1 { autumn_podzol_id as usize } else { id_u }
                     } else {
                         id_u
                     };
                     let tile_base = use_id_u * 5;
                     let front_tile = *tiles_ptr.add(tile_base + 3);
                     let both_z = *tiles_ptr.add(tile_base + 4) != 0;
+                    let lx_i = lx as i32;
                     let wx_f = (wx0 + lx_i) as f32;
 
-                    for f in 0..6usize {
+                    for f in 0..f_end {
                         if f == 1 && ly == 0 && cull_bottom_bedrock {
                             continue;
                         }
                         let face = &FACES[f];
-                        let dx = face.dir[0];
-                        let dy = face.dir[1];
-                        let dz = face.dir[2];
-                        let nlx = lx_i + dx;
-                        let nly = ly_i + dy;
-                        let nlz = lz_i + dz;
+                        let nlx = lx_i + face.dir[0];
+                        let nly = ly_i + face.dir[1];
+                        let nlz = lz_i + face.dir[2];
 
                         let nb = if nlx >= 0 && nlx < 16 && nlz >= 0 && nlz < 16 && nly >= 0 && nly < WORLD_H as i32 {
                             *data.add(((nly as usize) << 8) | ((nlz as usize) << 4) | (nlx as usize))
@@ -516,13 +841,6 @@ pub extern "C" fn mesh_chunk_solid(
                         };
                         if is_opaque_id(opaque_ptr, nb) != 0 {
                             continue;
-                        }
-                        if v_count + 4 > MAX_MESH_VERTS || i_count + 6 > MAX_MESH_INDICES {
-                            *meta_ptr.add(0) = v_count as u32;
-                            *meta_ptr.add(1) = i_count as u32;
-                            *meta_ptr.add(2) = spec_count as u32;
-                            *meta_ptr.add(3) = 1;
-                            return 0xFFFF_FFFF;
                         }
 
                         let (lr, lg, lb) = eval_slice_light(
@@ -537,123 +855,188 @@ pub extern "C" fn mesh_chunk_solid(
                             s_min_z,
                             s_max_z,
                         );
-
-                        let mut ao0 = 1.0f32;
-                        let mut ao1 = 1.0f32;
-                        let mut ao2 = 1.0f32;
-                        let mut ao3 = 1.0f32;
-                        if compute_ao {
-                            let uxa = face.u_axis[0];
-                            let uya = face.u_axis[1];
-                            let uza = face.u_axis[2];
-                            let vxa = face.v_axis[0];
-                            let vya = face.v_axis[1];
-                            let vza = face.v_axis[2];
-                            let nl_int = nlx > 0 && nlx < 15 && nlz > 0 && nlz < 15 && nly > 0 && nly < (WORLD_H as i32) - 1;
-                            if nl_int {
-                                let n_idx = (((nly as usize) << 8) | ((nlz as usize) << 4) | (nlx as usize)) as isize;
-                                let u_off = ((uya << 8) + (uza << 4) + uxa) as isize;
-                                let v_off = ((vya << 8) + (vza << 4) + vxa) as isize;
-                                for c in 0..4usize {
-                                    let su: isize = if c == 1 || c == 2 { 1 } else { -1 };
-                                    let sv: isize = if c == 2 || c == 3 { 1 } else { -1 };
-                                    let s1 = is_opaque_id(opaque_ptr, *data.offset(n_idx + u_off * su));
-                                    let s2 = is_opaque_id(opaque_ptr, *data.offset(n_idx + v_off * sv));
-                                    let cn = is_opaque_id(opaque_ptr, *data.offset(n_idx + u_off * su + v_off * sv));
-                                    let ao = if s1 != 0 && s2 != 0 { 0.50 } else { AO_LUT[(s1 + s2 + cn) as usize] };
-                                    match c {
-                                        0 => ao0 = ao,
-                                        1 => ao1 = ao,
-                                        2 => ao2 = ao,
-                                        _ => ao3 = ao,
-                                    }
-                                }
-                            } else {
-                                for c in 0..4usize {
-                                    let su = if c == 1 || c == 2 { 1 } else { -1 };
-                                    let sv = if c == 2 || c == 3 { 1 } else { -1 };
-                                    let ux = uxa * su;
-                                    let uy = uya * su;
-                                    let uz = uza * su;
-                                    let vx = vxa * sv;
-                                    let vy = vya * sv;
-                                    let vz = vza * sv;
-                                    let s1 = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + ux, nly + uy, nlz + uz));
-                                    let s2 = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + vx, nly + vy, nlz + vz));
-                                    let cn = is_opaque_id(opaque_ptr, get_fast_block(data, border, opaque_ptr, min_y, water_level, d_off, is_end, water_id, seagrass_id, lava_id, bedrock_id, deepslate_id, nlx + ux + vx, nly + uy + vy, nlz + uz + vz));
-                                    let ao = if s1 != 0 && s2 != 0 { 0.50 } else { AO_LUT[(s1 + s2 + cn) as usize] };
-                                    match c {
-                                        0 => ao0 = ao,
-                                        1 => ao1 = ao,
-                                        2 => ao2 = ao,
-                                        _ => ao3 = ao,
-                                    }
-                                }
-                            }
-                        }
-
-                        let vc = v_count;
-                        let vp = vc * 3;
-                        let dxf = dx as f32;
-                        let dyf = dy as f32;
-                        let dzf = dz as f32;
-                        let aos = [ao0, ao1, ao2, ao3];
-                        for c in 0..4usize {
-                            let p_off = vp + c * 3;
-                            let aoc = aos[c];
-                            *pos_ptr.add(p_off) = wx_f + face.corners[c][0];
-                            *pos_ptr.add(p_off + 1) = wy_f + face.corners[c][1];
-                            *pos_ptr.add(p_off + 2) = wz_f + face.corners[c][2];
-                            *norm_ptr.add(p_off) = dxf;
-                            *norm_ptr.add(p_off + 1) = dyf;
-                            *norm_ptr.add(p_off + 2) = dzf;
-                            *col_ptr.add(p_off) = aoc;
-                            *col_ptr.add(p_off + 1) = aoc;
-                            *col_ptr.add(p_off + 2) = aoc;
-                            *bl_ptr.add(p_off) = lr;
-                            *bl_ptr.add(p_off + 1) = lg;
-                            *bl_ptr.add(p_off + 2) = lb;
-                        }
-
+                        let (ao0, ao1, ao2, ao3) = eval_face_ao(
+                            face, data, border, opaque_ptr, min_y, water_level, d_off, is_end,
+                            water_id, seagrass_id, lava_id, bedrock_id, deepslate_id,
+                            nlx, nly, nlz, compute_ao,
+                        );
+                        let dz = face.dir[2];
                         let tile = if front_tile != 0xffff && (dz == 1 || (both_z && dz == -1)) {
                             front_tile as usize
                         } else {
                             *tiles_ptr.add(tile_base + face.tile_idx) as usize
                         };
-                        let t_off = (tile.min(MAX_TILES - 1)) * 4;
-                        let u0 = *uv_ptr.add(t_off);
-                        let u1 = *uv_ptr.add(t_off + 1);
-                        let v0 = *uv_ptr.add(t_off + 2);
-                        let v1 = *uv_ptr.add(t_off + 3);
-                        let up = vc * 2;
-                        *m_uv_ptr.add(up) = u0;
-                        *m_uv_ptr.add(up + 1) = v1;
-                        *m_uv_ptr.add(up + 2) = u1;
-                        *m_uv_ptr.add(up + 3) = v1;
-                        *m_uv_ptr.add(up + 4) = u1;
-                        *m_uv_ptr.add(up + 5) = v0;
-                        *m_uv_ptr.add(up + 6) = u0;
-                        *m_uv_ptr.add(up + 7) = v0;
 
-                        let vc32 = vc as u32;
-                        let ip = i_count;
-                        if ao0 + ao2 > ao1 + ao3 {
-                            *idx_ptr.add(ip) = vc32;
-                            *idx_ptr.add(ip + 1) = vc32 + 1;
-                            *idx_ptr.add(ip + 2) = vc32 + 2;
-                            *idx_ptr.add(ip + 3) = vc32;
-                            *idx_ptr.add(ip + 4) = vc32 + 2;
-                            *idx_ptr.add(ip + 5) = vc32 + 3;
-                        } else {
-                            *idx_ptr.add(ip) = vc32 + 1;
-                            *idx_ptr.add(ip + 1) = vc32 + 2;
-                            *idx_ptr.add(ip + 2) = vc32 + 3;
-                            *idx_ptr.add(ip + 3) = vc32 + 1;
-                            *idx_ptr.add(ip + 4) = vc32 + 3;
-                            *idx_ptr.add(ip + 5) = vc32;
+                        let uniform_ao = ao0 == ao1 && ao1 == ao2 && ao2 == ao3;
+                        if use_greedy && uniform_ao {
+                            let row = if f == 0 { 15 - lz } else { lz };
+                            let m_off = f * 256 + row * 16 + lx;
+                            *mask_ptr.add(m_off) = pack_greedy_key(tile, ao0, lr, lg, lb);
+                            continue;
                         }
-                        v_count = vc + 4;
-                        i_count = ip + 6;
+
+                        let pts = [
+                            [wx_f + face.corners[0][0], wy_f + face.corners[0][1], wz_f + face.corners[0][2]],
+                            [wx_f + face.corners[1][0], wy_f + face.corners[1][1], wz_f + face.corners[1][2]],
+                            [wx_f + face.corners[2][0], wy_f + face.corners[2][1], wz_f + face.corners[2][2]],
+                            [wx_f + face.corners[3][0], wy_f + face.corners[3][1], wz_f + face.corners[3][2]],
+                        ];
+                        let norm = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                        if !emit_solid_quad(
+                            pos_ptr, norm_ptr, m_uv_ptr, col_ptr, bl_ptr, idx_ptr, uv_ptr,
+                            &mut v_count, &mut i_count,
+                            pts, norm, [ao0, ao1, ao2, ao3], lr, lg, lb,
+                            tile, false, ao0 + ao2 > ao1 + ao3,
+                        ) {
+                            *meta_ptr.add(0) = v_count as u32;
+                            *meta_ptr.add(1) = i_count as u32;
+                            *meta_ptr.add(2) = spec_count as u32;
+                            *meta_ptr.add(3) = 1;
+                            return 0xFFFF_FFFF;
+                        }
+                    }
+                }
+            }
+
+            if use_greedy {
+                for f in 0..2usize {
+                    if !sweep_greedy_slice(
+                        mask_ptr.add(f * 256), 16, 16, f, ly_i,
+                        wx0, wz0, min_y,
+                        pos_ptr, norm_ptr, m_uv_ptr, col_ptr, bl_ptr, idx_ptr, uv_ptr,
+                        &mut v_count, &mut i_count,
+                    ) {
+                        *meta_ptr.add(0) = v_count as u32;
+                        *meta_ptr.add(1) = i_count as u32;
+                        *meta_ptr.add(2) = spec_count as u32;
+                        *meta_ptr.add(3) = 1;
+                        return 0xFFFF_FFFF;
+                    }
+                }
+            }
+        }
+
+        // Pass B (greedy vertical walls +-X, +-Z)
+        if use_greedy {
+            let h_dim = max_ly + 1;
+            let mask_words = h_dim * 16;
+            for f in 2..6usize {
+                let face = &FACES[f];
+                let norm = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                for slice_coord in 0..16usize {
+                    for m in 0..mask_words {
+                        *mask_ptr.add(m) = 0;
+                    }
+                    for ly in 0..=max_ly {
+                        let wy = min_y + (ly as i32);
+                        let ly_i = ly as i32;
+                        let wy_f = wy as f32;
+                        for col in 0..16usize {
+                            let (lx, lz) = match f {
+                                2 => (slice_coord, 15 - col),
+                                3 => (slice_coord, col),
+                                4 => (col, slice_coord),
+                                _ => (15 - col, slice_coord),
+                            };
+                            let c_idx = (ly << 8) | (lz << 4) | lx;
+                            let id = *data.add(c_idx);
+                            if id == 0 {
+                                continue;
+                            }
+                            let id_u = id as usize;
+                            let flags = if id_u < BLOCK_LUT_CAP { *flags_ptr.add(id_u) } else { 0 };
+                            if flags != blk_solid_flag || id_u >= BLOCK_LUT_CAP || *tiles_ptr.add(id_u * 5) == 0xffff {
+                                continue;
+                            }
+                            let lx_i = lx as i32;
+                            let lz_i = lz as i32;
+                            let nlx = lx_i + face.dir[0];
+                            let nly = ly_i + face.dir[1];
+                            let nlz = lz_i + face.dir[2];
+
+                            let nb = if nlx >= 0 && nlx < 16 && nlz >= 0 && nlz < 16 && nly >= 0 && nly < WORLD_H as i32 {
+                                *data.add(((nly as usize) << 8) | ((nlz as usize) << 4) | (nlx as usize))
+                            } else {
+                                get_fast_block(
+                                    data, border, opaque_ptr, min_y, water_level, d_off, is_end,
+                                    water_id, seagrass_id, lava_id, bedrock_id, deepslate_id,
+                                    nlx, nly, nlz,
+                                )
+                            };
+                            if is_opaque_id(opaque_ptr, nb) != 0 {
+                                continue;
+                            }
+
+                            let use_id_u = if id == grass_id && is_overworld && podzol_ok {
+                                let ac_idx = ((lz >> 2) << 2) | (lx >> 2);
+                                if *autumn_ptr.add(ac_idx) == 1 { autumn_podzol_id as usize } else { id_u }
+                            } else {
+                                id_u
+                            };
+                            let tile_base = use_id_u * 5;
+                            let front_tile = *tiles_ptr.add(tile_base + 3);
+                            let both_z = *tiles_ptr.add(tile_base + 4) != 0;
+                            let dz = face.dir[2];
+                            let tile = if front_tile != 0xffff && (dz == 1 || (both_z && dz == -1)) {
+                                front_tile as usize
+                            } else {
+                                *tiles_ptr.add(tile_base + face.tile_idx) as usize
+                            };
+
+                            let (lr, lg, lb) = eval_slice_light(
+                                (nlx as f32) + 0.5,
+                                (nly as f32) + 0.5,
+                                (nlz as f32) + 0.5,
+                                em_ptr,
+                                em_len,
+                                fast_light,
+                                g_min_x,
+                                g_max_x,
+                                g_min_z,
+                                g_max_z,
+                            );
+                            let (ao0, ao1, ao2, ao3) = eval_face_ao(
+                                face, data, border, opaque_ptr, min_y, water_level, d_off, is_end,
+                                water_id, seagrass_id, lava_id, bedrock_id, deepslate_id,
+                                nlx, nly, nlz, compute_ao,
+                            );
+                            if ao0 == ao1 && ao1 == ao2 && ao2 == ao3 {
+                                *mask_ptr.add(ly * 16 + col) = pack_greedy_key(tile, ao0, lr, lg, lb);
+                                continue;
+                            }
+                            let wx_f = (wx0 + lx_i) as f32;
+                            let wz_f = (wz0 + lz_i) as f32;
+                            let pts = [
+                                [wx_f + face.corners[0][0], wy_f + face.corners[0][1], wz_f + face.corners[0][2]],
+                                [wx_f + face.corners[1][0], wy_f + face.corners[1][1], wz_f + face.corners[1][2]],
+                                [wx_f + face.corners[2][0], wy_f + face.corners[2][1], wz_f + face.corners[2][2]],
+                                [wx_f + face.corners[3][0], wy_f + face.corners[3][1], wz_f + face.corners[3][2]],
+                            ];
+                            if !emit_solid_quad(
+                                pos_ptr, norm_ptr, m_uv_ptr, col_ptr, bl_ptr, idx_ptr, uv_ptr,
+                                &mut v_count, &mut i_count,
+                                pts, norm, [ao0, ao1, ao2, ao3], lr, lg, lb,
+                                tile, false, ao0 + ao2 > ao1 + ao3,
+                            ) {
+                                *meta_ptr.add(0) = v_count as u32;
+                                *meta_ptr.add(1) = i_count as u32;
+                                *meta_ptr.add(2) = spec_count as u32;
+                                *meta_ptr.add(3) = 1;
+                                return 0xFFFF_FFFF;
+                            }
+                        }
+                    }
+                    if !sweep_greedy_slice(
+                        mask_ptr, 16, h_dim, f, slice_coord as i32,
+                        wx0, wz0, min_y,
+                        pos_ptr, norm_ptr, m_uv_ptr, col_ptr, bl_ptr, idx_ptr, uv_ptr,
+                        &mut v_count, &mut i_count,
+                    ) {
+                        *meta_ptr.add(0) = v_count as u32;
+                        *meta_ptr.add(1) = i_count as u32;
+                        *meta_ptr.add(2) = spec_count as u32;
+                        *meta_ptr.add(3) = 1;
+                        return 0xFFFF_FFFF;
                     }
                 }
             }

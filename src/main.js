@@ -1113,11 +1113,11 @@
         curBiome !== BIOMES.NIGHTMARE_WOODS && curBiome !== BIOMES.PALE_GARDEN && curBiome !== BIOMES.DARK_FOREST &&
         activeWeatherKind !== 'blizzard' && activeWeatherKind !== 'sandstorm' && activeWeatherKind !== 'fog' && activeWeatherKind !== 'ashfall');
       if (lodActive && envUniforms.uLodFogStart && envUniforms.uLodFogEnd) {
-        const lodOuter = farLodSystem.outerRadius || 240;
-        envUniforms.uLodFogStart.value = Math.max(44.0, (renderDistance || 3) * 15.0);
-        envUniforms.uLodFogEnd.value = Math.max(envUniforms.uLodFogStart.value + 36.0, lodOuter * 0.94);
+        const lodOuter = farLodSystem.outerRadius || 768;
+        envUniforms.uLodFogStart.value = Math.max(52.0, (renderDistance || 3) * 16.0);
+        envUniforms.uLodFogEnd.value = Math.max(envUniforms.uLodFogStart.value + 96.0, lodOuter * 0.94);
         envUniforms.uFogStart.value = Math.max(envUniforms.uFogStart.value, (renderDistance || 3) * 14.5);
-        envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, (renderDistance || 3) * 16.0 + 48.0);
+        envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, (renderDistance || 3) * 16.0 + 56.0);
       }
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
         envUniforms.uFogColor.value.copy(_colNightmareFog);
