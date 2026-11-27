@@ -2405,6 +2405,10 @@
   const _wDepthCache = new Float32Array(324);
   const _wDepthStamp = new Uint32Array(324);
   let _wDepthGen = 1;
+  function _bumpWaterDepthCache() {
+    _wDepthGen = (_wDepthGen + 1) >>> 0;
+    if (_wDepthGen === 0) { _wDepthStamp.fill(0); _wDepthGen = 1; }
+  }
 
   function _getFluidFaceConfig(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, fluidId, hasFluidLevels, lvStep) {
     const upNb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz);
@@ -3618,7 +3622,7 @@
         const ly = cIdx >> 8, lz = (cIdx >> 4) & 15, lx = cIdx & 15;
         const id = data[cIdx];
         if (id === 0) continue;
-        if (ly !== prevLy) { prevLy = ly; sliceLen = _prepLayerLightSlice(ly, emLen); }
+        if (ly !== prevLy) { prevLy = ly; _bumpWaterDepthCache(); sliceLen = _prepLayerLightSlice(ly, emLen); }
         _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx0 + lx, MIN_Y + ly, wz0 + lz, id, BLOCK_FLAGS[id], maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey);
       }
     } else if (_nwExports && _nwExports.mesh_chunk_solid && _syncMainWasmLuts(false)) {
@@ -3656,7 +3660,7 @@
           const ly = cIdx >> 8, lz = (cIdx >> 4) & 15, lx = cIdx & 15;
           const id = data[cIdx];
           if (id === 0) continue;
-          if (ly !== prevLy) { prevLy = ly; sliceLen = _prepLayerLightSlice(ly, emLen); }
+          if (ly !== prevLy) { prevLy = ly; _bumpWaterDepthCache(); sliceLen = _prepLayerLightSlice(ly, emLen); }
           _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx0 + lx, MIN_Y + ly, wz0 + lz, id, BLOCK_FLAGS[id], maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey);
         }
       }
@@ -3665,8 +3669,7 @@
     if (!usedFastMesh) {
     prebuiltSolid = null;
     for (let ly = 0; ly <= maxLy; ly++) {
-      _wDepthGen = (_wDepthGen + 1) >>> 0;
-      if (_wDepthGen === 0) { _wDepthStamp.fill(0); _wDepthGen = 1; }
+      _bumpWaterDepthCache();
       const wy = MIN_Y + ly, yOff = ly << 8;
       // Sodium: uniform air or interior ocean-water Y-layer skip
       const _uniId = data[yOff];
