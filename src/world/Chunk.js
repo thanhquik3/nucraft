@@ -1355,6 +1355,7 @@
     frameGen: 1,          // AI Frame Gen (1=Off, 2=x2, 4=x4 reprojection + optical-flow + RCAS super-res)
     rayTracing: false     // Real-time Ray Tracing GI, mirror water reflections & leaf light transmission
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
+  if (typeof window !== 'undefined') window.sodiumOpts = sodiumOpts;
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
     if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;
