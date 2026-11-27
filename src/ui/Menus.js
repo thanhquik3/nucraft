@@ -1241,7 +1241,7 @@
     '🌿 Xanh Tươi Mát': '🌿 Fresh Lush',
     'Đêm Trăng': 'Moonlit Silver',
     '✨ DLSS Siêu Thực': '✨ DLSS Ultra',
-    '☀️ Shader Thường': '☀️ Standard Shader',
+    'Shader: NCR1': 'Shader: NCR1',
     'Mây 3D': '3D Clouds',
     '☁️ Mây Volumetric': '☁️ Volumetric Clouds',
     '🧊 Mây Khối Luanti': '🧊 Luanti Block Clouds',
@@ -2551,7 +2551,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
   // Minecraft Dungeons Settings Navigation (Q/E tabs, Audio tab, Live Inspector, X Reset section)
   const _GM_TAB_DEFAULTS = {
     play:     { t: 'CÀI ĐẶT CHUNG',       d: 'Điều chỉnh ngôn ngữ, sơ đồ điều khiển PC/Mobile, tọa độ HUD, bộ lọc chat và quyền quản trị.', f: 'Tiếng Việt' },
-    graphics: { t: 'ĐỒ HỌA & SHADER',     d: 'Cấu hình tầm nhìn chunk, chất lượng RTX, Shader Thường ánh nắng giờ vàng (giữ nước Eclipse, cỏ tự nhiên) và các tùy chọn Sodium/Culling.', f: 'Shader Thường' },
+    graphics: { t: 'ĐỒ HỌA & SHADER',     d: 'Cấu hình tầm nhìn chunk, chất lượng RTX, Shader: NCR1 ánh nắng giờ vàng (giữ nước Eclipse, cỏ tự nhiên) và các tùy chọn Sodium/Culling.', f: 'Shader: NCR1' },
     audio:    { t: 'ÂM THANH',            d: 'Điều chỉnh âm lượng tổng, nhạc nền khám phá, hiệu ứng đào/đặt khối và âm thanh quái vật.', f: '78%' },
     world:    { t: 'VÙNG ĐẤT & CHIỀU',     d: 'Dịch chuyển nhanh tới các quần xã, công trình và chiều không gian khác nhau (dành cho Admin).', f: 'Thế Giới Chính' },
     mobs:     { t: 'ĐỘNG VẬT & QUÁI VẬT', d: 'Triệu hồi thú voxel dễ thương hoặc Boss Blender 3D vào trước mặt bạn ở chế độ Sáng tạo.', f: 'Sáng tạo' }
@@ -2643,7 +2643,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
           if (k && sodiumOpts[k] === false) b.click();
         });
       }
-      showToast(tr('Đã đặt lại Đồ họa về mặc định (Shader Thường + Ultra)', 'Video settings reset to defaults'));
+      showToast(tr('Đã đặt lại Đồ họa về mặc định (Shader: NCR1 + Ultra)', 'Video settings reset to defaults'));
     } else if (act === 'play') {
       document.querySelector('#uiScaleSeg .seg-btn[data-uiscale="auto"]')?.click();
       document.getElementById('btnMobileMode1')?.click();
