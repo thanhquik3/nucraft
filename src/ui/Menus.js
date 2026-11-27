@@ -1782,12 +1782,13 @@ function syncTitleAvatarFace() {
       if (thumbUrl) currentWorldMeta.thumb = thumbUrl;
       const list = getSavedWorldsList().filter(w => w.id !== currentWorldMeta.id);
       const modsArr = []; for (const [k, v] of worldMods.entries()) modsArr.push([k, v]);
+      if (typeof saveWorldModsIdb === 'function') saveWorldModsIdb(currentWorldMeta.id, worldMods);
       list.unshift({
         ...currentWorldMeta,
         thumb: currentWorldMeta.thumb || undefined,
         updatedAt: Date.now(),
         player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
-        inventory, dayTime, weatherMode, depthOffset, currentDimension, mods: modsArr.slice(-4000),
+        inventory, dayTime, weatherMode, depthOffset, currentDimension, hasIdbMods: true, modsCount: worldMods.size, mods: modsArr.slice(-1500),
         savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
         ...serializeChestData()
       });
@@ -1850,6 +1851,7 @@ function renderSavedWorldsList() {
       e.stopPropagation();
       const next = getSavedWorldsList().filter(x => x.id !== w.id);
       try { localStorage.setItem(WORLDS_KEY, JSON.stringify(next)); } catch (_) {}
+      if (typeof deleteWorldModsIdb === 'function') deleteWorldModsIdb(w.id);
       renderSavedWorldsList();
     });
     card.addEventListener('click', () => loadSavedWorldEntry(w));
@@ -1863,7 +1865,11 @@ function renderSavedWorldsList() {
     document.getElementById('friendsModal')?.classList.add('hidden');
     document.getElementById('addFriendModal')?.classList.add('hidden');
     document.getElementById('profileModal')?.classList.add('hidden');
-    const _doLoadSaved = () => {
+    const _doLoadSaved = async () => {
+      let idbMods = null;
+      if (w.hasIdbMods && typeof loadWorldModsIdb === 'function') {
+        idbMods = await loadWorldModsIdb(w.id);
+      }
       const uid = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || localPlayerName || 'Người chơi';
       localPlayerName = uid;
       const permRoomId = w.roomId || (typeof mintPermanentRoomCode === 'function' ? mintPermanentRoomCode() : ('LC' + Math.random().toString(36).slice(2, 6).toUpperCase()));
@@ -1892,7 +1898,8 @@ function renderSavedWorldsList() {
     if (typeof w.weatherMode === 'string') weatherMode = w.weatherMode;
     _clearWorldInteractiveCaches(true, false);
     if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
-    if (Array.isArray(w.mods)) for (const [k, v] of w.mods) { worldMods.set(k, v); indexWorldModKey(k, v); }
+    const modsSrc = (Array.isArray(idbMods) && idbMods.length > 0) ? idbMods : w.mods;
+    if (Array.isArray(modsSrc)) for (const [k, v] of modsSrc) { worldMods.set(k, v); indexWorldModKey(k, v); }
     lastPlayerCx = 99999; lastPlayerCz = 99999;
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(pcx + dx, pcz + dz);
@@ -2934,11 +2941,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
     // Frame 1: Paint loading overlay immediately before executing world/biome target setup
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        try {
-          if (typeof workFn === 'function') workFn();
-        } catch (err) {
-          console.error('World load err:', err);
-        }
+        const _afterWork = () => {
         isPlaying = false;
         if (badge) badge.textContent = (opts && opts.badge) ? opts.badge : dimLabel(currentDimension);
 
@@ -3066,6 +3069,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
               lastPlayerCz = pcz;
               _teleportWarmupFrames = 0;
               _reflDoneOnce = false;
+              if (typeof farLodSystem !== 'undefined') farLodSystem.update(pcx, pcz, true);
               camera.rotation.order = 'YXZ';
               camera.rotation.y = player.yaw;
               camera.rotation.x = player.pitch;
@@ -3104,6 +3108,18 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
           }
         };
         requestAnimationFrame(stepRealChunkLoad);
+        };
+        let _workRes = null;
+        try {
+          if (typeof workFn === 'function') _workRes = workFn();
+        } catch (err) {
+          console.error('World load err:', err);
+        }
+        if (_workRes && typeof _workRes.then === 'function') {
+          _workRes.catch((err) => console.error('World load async err:', err)).finally(_afterWork);
+        } else {
+          _afterWork();
+        }
       });
     });
   }

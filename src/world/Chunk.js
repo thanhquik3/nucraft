@@ -768,12 +768,76 @@
   const caveGrid = new Float32Array(CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z);
   const colHeights = new Int16Array(256), colBiomes = new Uint8Array(256);
 
-  // Zero-GC Rust WebAssembly acceleration core (ABI v3: cave density, emitter light, wind/shadow snap, particles, culling, atlas/bump)
-  const _nucraftWasmState = { ready: false, abi: 0, caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0, atlasCalls: 0 };
+  // Zero-GC Rust WebAssembly acceleration core (ABI v4: cave density, emitter light, wind/shadow snap, particles, culling, atlas/bump, solid mesher, overworld terrain, NCW1 binary codec, far LOD)
+  const _nucraftWasmState = {
+    ready: false, abi: 0,
+    caveCalls: 0, lightCalls: 0, frameCalls: 0, partCalls: 0, atlasCalls: 0,
+    meshCalls: 0, workerMeshHits: 0, terrainCalls: 0, workerTerrainHits: 0,
+    codecCalls: 0, lodBuilds: 0, lodTriangles: 0, lodVisible: false
+  };
   if (typeof window !== 'undefined') window.__NUCRAFT_WASM__ = _nucraftWasmState;
   let _nwExports = null, _nwMemBuf = null, _nwCoarseView = null, _nwEmitView = null, _nwLightOut = null;
   let _nwFrameOut = null, _nwPartBuf = null, _nwSphIn = null, _nwSphOut = null;
   let _nwAtlasRgba = null, _nwAtlasBump = null, _nwTileModes = null;
+  let _nwChunkData = null, _nwBorderBuf = null, _nwAutumnCell = null;
+  let _nwLutOpaque = null, _nwLutFlags = null, _nwLutTiles = null, _nwLutUv = null;
+  let _nwMeshPos = null, _nwMeshNorm = null, _nwMeshUv = null, _nwMeshCol = null, _nwMeshBl = null, _nwMeshIdx = null, _nwSpecVox = null, _nwMeshMeta = null;
+  let _nwTerrainBids = null, _nwAcCoords = null, _nwColHeights = null, _nwColBiomes = null, _nwTerrainMeta = null;
+  let _nwCodecIn = null, _nwCodecOut = null;
+  let _nwLodMask = null, _nwLodPos = null, _nwLodNorm = null, _nwLodCol = null, _nwLodIdx = null, _nwLodMeta = null;
+  let _cachedWasmLuts = null, _mainLutsSynced = false;
+
+  function _buildTerrainBlockIds() {
+    const tb = new Uint16Array(64);
+    if (typeof B === 'undefined') return tb;
+    tb[1] = B.GRASS || 0; tb[2] = B.DIRT || 0; tb[3] = B.STONE || 0; tb[4] = B.SAND || 0;
+    tb[5] = B.SNOW || 0; tb[6] = B.ICE || 0; tb[7] = B.WATER || 0; tb[8] = B.TERRACOTTA || 0;
+    tb[9] = B.SANDSTONE || 0; tb[10] = B.GOLD_ORE || 0; tb[11] = B.DEEPSLATE || 0; tb[12] = B.BEDROCK || 0;
+    tb[13] = B.COAL_ORE || 0; tb[14] = B.IRON_ORE || 0; tb[15] = B.DIAMOND_ORE || 0; tb[16] = B.LAVA || 0;
+    tb[17] = B.GLOW_CRYSTAL || 0; tb[18] = B.MUD || 0; tb[19] = B.PACKED_ICE || 0; tb[20] = B.MYCELIUM || 0;
+    tb[21] = B.BASALT || 0; tb[22] = B.COPPER_ORE || 0; tb[23] = B.TIN_ORE || 0; tb[24] = B.EMERALD_ORE || 0;
+    tb[25] = B.RUBY_ORE || 0; tb[26] = B.MOSS_BLOCK || 0; tb[27] = B.FARMLAND || 0; tb[28] = B.AUTUMN_PODZOL || 0;
+    tb[29] = B.LAPIS_ORE || 0; tb[30] = B.GRAVEL || 0; tb[31] = B.REDSTONE_ORE || 0; tb[32] = B.BLUE_GRASS || 0;
+    tb[33] = B.SCULK || 0; tb[34] = B.RED_SAND || 0; tb[35] = B.TERRACOTTA_WHITE || 0; tb[36] = B.TERRACOTTA_ORANGE || 0;
+    tb[37] = B.TERRACOTTA_YELLOW || 0; tb[38] = B.TERRACOTTA_BROWN || 0; tb[39] = B.TERRACOTTA_RED || 0;
+    tb[40] = B.PALE_MOSS || 0; tb[41] = B.NIGHTMARE_MOSS || 0; tb[42] = B.SNOWY_DIRT || 0;
+    tb[43] = B.SULFUR_BLOCK || 0; tb[44] = B.SULFUR_ORE || 0; tb[45] = B.CINNABAR_STONE || 0;
+    tb[46] = B.TRAVERTINE_STONE || 0; tb[47] = B.THERMAL_CRUST || 0; tb[48] = B.STONE_BRICK || 0;
+    return tb;
+  }
+
+  function _getWasmLuts(forceRebuild = false) {
+    if (_cachedWasmLuts && !forceRebuild) return _cachedWasmLuts;
+    if (typeof IS_OPAQUE === 'undefined' || typeof BLOCK_FLAGS === 'undefined' || typeof BLOCK_DEF_ARR === 'undefined' || typeof TILE_U0 === 'undefined') return null;
+    const cap = BLOCK_LUT_CAP;
+    const opaque = new Uint8Array(cap);
+    opaque.set(IS_OPAQUE.subarray(0, cap));
+    const flags = new Uint16Array(cap);
+    flags.set(BLOCK_FLAGS.subarray(0, cap));
+    const blockTiles = new Uint16Array(cap * 5);
+    blockTiles.fill(0xffff);
+    for (let i = 0; i < cap; i++) {
+      const d = BLOCK_DEF_ARR[i];
+      if (!d || !Array.isArray(d.tiles)) continue;
+      const off = i * 5;
+      blockTiles[off] = d.tiles[0] & 0xffff;
+      blockTiles[off + 1] = (d.tiles[1] !== undefined ? d.tiles[1] : d.tiles[0]) & 0xffff;
+      blockTiles[off + 2] = (d.tiles[2] !== undefined ? d.tiles[2] : d.tiles[0]) & 0xffff;
+      blockTiles[off + 3] = (d.frontTile !== undefined) ? (d.frontTile & 0xffff) : 0xffff;
+      blockTiles[off + 4] = d.bothZFront ? 1 : 0;
+    }
+    const tileUv = new Float32Array(1024 * 4);
+    const nTiles = Math.min(1024, _ATLAS_TILES);
+    for (let t = 0; t < nTiles; t++) {
+      const o = t * 4;
+      tileUv[o] = TILE_U0[t]; tileUv[o + 1] = TILE_U1[t];
+      tileUv[o + 2] = TILE_V0[t]; tileUv[o + 3] = TILE_V1[t];
+    }
+    const terrainBids = _buildTerrainBlockIds();
+    _cachedWasmLuts = { opaque, flags, blockTiles, tileUv, terrainBids };
+    return _cachedWasmLuts;
+  }
+
   function _syncWasmViews() {
     if (!_nwExports) return;
     const buf = _nwExports.memory.buffer;
@@ -789,11 +853,64 @@
     if (_nwExports.atlas_rgba_ptr) _nwAtlasRgba = new Uint8Array(buf, _nwExports.atlas_rgba_ptr(), 1048576);
     if (_nwExports.atlas_bump_ptr) _nwAtlasBump = new Uint8Array(buf, _nwExports.atlas_bump_ptr(), 1048576);
     if (_nwExports.tile_mode_ptr) _nwTileModes = new Uint8Array(buf, _nwExports.tile_mode_ptr(), 1024);
+    if (_nwExports.chunk_data_ptr) _nwChunkData = new Uint16Array(buf, _nwExports.chunk_data_ptr(), 65536);
+    if (_nwExports.border_buf_ptr) _nwBorderBuf = new Uint16Array(buf, _nwExports.border_buf_ptr(), 17408);
+    if (_nwExports.autumn_cell_ptr) _nwAutumnCell = new Uint8Array(buf, _nwExports.autumn_cell_ptr(), 16);
+    if (_nwExports.lut_opaque_ptr) _nwLutOpaque = new Uint8Array(buf, _nwExports.lut_opaque_ptr(), 2048);
+    if (_nwExports.lut_flags_ptr) _nwLutFlags = new Uint16Array(buf, _nwExports.lut_flags_ptr(), 2048);
+    if (_nwExports.lut_block_tiles_ptr) _nwLutTiles = new Uint16Array(buf, _nwExports.lut_block_tiles_ptr(), 2048 * 5);
+    if (_nwExports.lut_tile_uv_ptr) _nwLutUv = new Float32Array(buf, _nwExports.lut_tile_uv_ptr(), 1024 * 4);
+    if (_nwExports.mesh_pos_ptr) _nwMeshPos = new Float32Array(buf, _nwExports.mesh_pos_ptr(), 65536 * 3);
+    if (_nwExports.mesh_norm_ptr) _nwMeshNorm = new Float32Array(buf, _nwExports.mesh_norm_ptr(), 65536 * 3);
+    if (_nwExports.mesh_uv_ptr) _nwMeshUv = new Float32Array(buf, _nwExports.mesh_uv_ptr(), 65536 * 2);
+    if (_nwExports.mesh_col_ptr) _nwMeshCol = new Float32Array(buf, _nwExports.mesh_col_ptr(), 65536 * 3);
+    if (_nwExports.mesh_bl_ptr) _nwMeshBl = new Float32Array(buf, _nwExports.mesh_bl_ptr(), 65536 * 3);
+    if (_nwExports.mesh_idx_ptr) _nwMeshIdx = new Uint32Array(buf, _nwExports.mesh_idx_ptr(), 98304);
+    if (_nwExports.special_voxels_ptr) _nwSpecVox = new Uint16Array(buf, _nwExports.special_voxels_ptr(), 65536);
+    if (_nwExports.mesh_meta_ptr) _nwMeshMeta = new Uint32Array(buf, _nwExports.mesh_meta_ptr(), 4);
+    if (_nwExports.terrain_bids_ptr) _nwTerrainBids = new Uint16Array(buf, _nwExports.terrain_bids_ptr(), 64);
+    if (_nwExports.ac_coords_ptr) _nwAcCoords = new Int32Array(buf, _nwExports.ac_coords_ptr(), 8);
+    if (_nwExports.col_heights_ptr) _nwColHeights = new Int16Array(buf, _nwExports.col_heights_ptr(), 256);
+    if (_nwExports.col_biomes_ptr) _nwColBiomes = new Uint8Array(buf, _nwExports.col_biomes_ptr(), 256);
+    if (_nwExports.terrain_meta_ptr) _nwTerrainMeta = new Uint32Array(buf, _nwExports.terrain_meta_ptr(), 4);
+    if (_nwExports.codec_in_ptr) _nwCodecIn = new Uint8Array(buf, _nwExports.codec_in_ptr(), 2097152);
+    if (_nwExports.codec_out_ptr) _nwCodecOut = new Uint8Array(buf, _nwExports.codec_out_ptr(), 2097152);
+    if (_nwExports.lod_mask_ptr) _nwLodMask = new Uint8Array(buf, _nwExports.lod_mask_ptr(), 4096);
+    if (_nwExports.lod_pos_ptr) _nwLodPos = new Float32Array(buf, _nwExports.lod_pos_ptr(), 49152 * 3);
+    if (_nwExports.lod_norm_ptr) _nwLodNorm = new Float32Array(buf, _nwExports.lod_norm_ptr(), 49152 * 3);
+    if (_nwExports.lod_col_ptr) _nwLodCol = new Float32Array(buf, _nwExports.lod_col_ptr(), 49152 * 3);
+    if (_nwExports.lod_idx_ptr) _nwLodIdx = new Uint32Array(buf, _nwExports.lod_idx_ptr(), 73728);
+    if (_nwExports.lod_meta_ptr) _nwLodMeta = new Uint32Array(buf, _nwExports.lod_meta_ptr(), 4);
+  }
+  function _syncMainWasmLuts(force = false) {
+    const luts = _getWasmLuts(force);
+    if (!luts) return false;
+    if (_nwExports && (_mainLutsSynced === false || force)) {
+      _syncWasmViews();
+      if (_nwLutOpaque && _nwLutFlags && _nwLutTiles && _nwLutUv && _nwTerrainBids) {
+        _nwLutOpaque.set(luts.opaque);
+        _nwLutFlags.set(luts.flags);
+        _nwLutTiles.set(luts.blockTiles);
+        _nwLutUv.set(luts.tileUv);
+        _nwTerrainBids.set(luts.terrainBids);
+        _mainLutsSynced = true;
+      }
+    }
+    return _mainLutsSynced;
   }
   if (typeof window !== 'undefined') {
+    window._syncWasmBlockLuts = (force = false) => {
+      const luts = _getWasmLuts(force);
+      _syncMainWasmLuts(force);
+      if (luts && typeof chunkWorkerPool !== 'undefined' && chunkWorkerPool.syncLuts) {
+        chunkWorkerPool.syncLuts(luts);
+      }
+      return !!luts;
+    };
     window._getNucraftWasmCore = () => {
       if (!_nwExports) return null;
       _syncWasmViews();
+      _syncMainWasmLuts(false);
       return {
         exports: _nwExports,
         frameOut: _nwFrameOut,
@@ -803,6 +920,8 @@
         atlasRgba: _nwAtlasRgba,
         atlasBump: _nwAtlasBump,
         tileModes: _nwTileModes,
+        codecIn: _nwCodecIn,
+        codecOut: _nwCodecOut,
         state: _nucraftWasmState
       };
     };
@@ -810,10 +929,11 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?abi=4').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
+          _syncMainWasmLuts(true);
           _nucraftWasmState.abi = _nwExports.wasm_abi_version ? _nwExports.wasm_abi_version() : 1;
           _nucraftWasmState.ready = true;
         }
@@ -891,12 +1011,36 @@
     return (x00 + (x01 - x00) * fz) + ((x10 + (x11 - x10) * fz) - (x00 + (x01 - x00) * fz)) * fy;
   }
 
-  // Off-thread Coarse 3D Cave/Noise Worker Pool (keeps main render thread tear-free during chunk streaming)
+  // Off-thread Horizon Worker Pool (Overworld terrain gen, solid chunk meshing, Far LOD & cave grid)
   const chunkWorkerPool = (() => {
     const cache = new Map();
+    const terrainCache = new Map();
     const inFlight = new Set();
+    const inFlightTerrain = new Set();
+    const inFlightMesh = new Set();
+    const completedMeshes = [];
     const workers = [];
-    let rr = 0, seq = 0, workerHits = 0, active = false, blobUrl = null;
+    const workerLutsSent = [];
+    let rr = 0, seq = 0, workerHits = 0, active = false, blobUrl = null, _worldEpoch = 1;
+    let _lodCb = null, _lodInFlight = false;
+    const _sendLutsToWorker = (wi, luts) => {
+      if (!luts || workerLutsSent[wi]) return;
+      workers[wi].postMessage({
+        type: 'init_luts',
+        opaque: luts.opaque,
+        flags: luts.flags,
+        blockTiles: luts.blockTiles,
+        tileUv: luts.tileUv,
+        terrainBids: luts.terrainBids
+      });
+      workerLutsSent[wi] = true;
+    };
+    const _ensureAllLuts = () => {
+      const luts = _getWasmLuts(false);
+      if (!luts) return false;
+      for (let wi = 0; wi < workers.length; wi++) _sendLutsToWorker(wi, luts);
+      return true;
+    };
     try {
       if (typeof Worker === 'function') {
         const count = _initMobile ? 1 : Math.min(4, Math.max(2, Math.floor(((_hwProfile && _hwProfile.cores) || 4) / 2)));
@@ -907,9 +1051,39 @@
         if (workerUrl) {
           for (let i = 0; i < count; i++) {
             const w = new Worker(workerUrl);
+            workerLutsSent.push(false);
             w.onmessage = (ev) => {
               const d = ev && ev.data;
-              if (!d || !d.key || !d.caveGrid) return;
+              if (!d) return;
+              if (d.type === 'gen_overworld_ok' || d.type === 'gen_overworld_err') {
+                inFlightTerrain.delete(d.key);
+                if (d.type === 'gen_overworld_ok' && d.epoch === _worldEpoch) {
+                  terrainCache.set(d.key, d);
+                  if (terrainCache.size > 64) {
+                    const oldest = terrainCache.keys().next().value;
+                    if (oldest !== undefined) terrainCache.delete(oldest);
+                  }
+                }
+                return;
+              }
+              if (d.type === 'mesh_solid_ok' || d.type === 'mesh_solid_err') {
+                inFlightMesh.delete(d.key);
+                if (d.type === 'mesh_solid_ok' && d.epoch === _worldEpoch) {
+                  completedMeshes.push(d);
+                  if (completedMeshes.length > 48) completedMeshes.shift();
+                } else if (d.type === 'mesh_solid_err' && d.epoch === _worldEpoch) {
+                  const ch = chunks.get(chunkKey(d.cx, d.cz));
+                  if (ch) ch._meshInFlightGen = -1;
+                }
+                return;
+              }
+              if (d.type === 'build_lod_ok' || d.type === 'build_lod_err') {
+                _lodInFlight = false;
+                const cb = _lodCb; _lodCb = null;
+                if (cb && d.epoch === _worldEpoch) cb(d);
+                return;
+              }
+              if (!d.key || !d.caveGrid) return;
               inFlight.delete(d.key);
               if (!d.key.startsWith(`${seedMix.c1}:`)) return;
               cache.set(d.key, d.caveGrid);
@@ -931,6 +1105,18 @@
       get hits() { return workerHits; },
       get inFlight() { return inFlight; },
       get cache() { return cache; },
+      get epoch() { return _worldEpoch; },
+      get pendingMeshes() { return inFlightMesh.size; },
+      get readyMeshes() { return completedMeshes.length; },
+      get pendingTerrain() { return inFlightTerrain.size; },
+      get cachedTerrain() { return terrainCache.size; },
+      syncLuts(luts) {
+        if (!active || !luts) return;
+        for (let wi = 0; wi < workers.length; wi++) {
+          workerLutsSent[wi] = false;
+          _sendLutsToWorker(wi, luts);
+        }
+      },
       prefetch(cx, cz, dOff = 0) {
         if (!active || currentDimension !== 'overworld' || inFlight.size >= Math.max(16, workers.length * 8)) return;
         const wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W;
@@ -957,9 +1143,134 @@
         workerHits++;
         return true;
       },
+      prefetchOverworld(cx, cz) {
+        if (!active || currentDimension !== 'overworld' || (depthOffset || 0) !== 0) return false;
+        if (inFlightTerrain.size >= Math.max(12, workers.length * 6)) return false;
+        if (!_ensureAllLuts()) return false;
+        const key = `${_worldEpoch}:${cx},${cz}`;
+        if (terrainCache.has(key) || inFlightTerrain.has(key)) return false;
+        const acList = (typeof getAncientCityLocations === 'function') ? getAncientCityLocations() : [];
+        const ac = new Int32Array(8);
+        for (let i = 0; i < 4 && i < acList.length; i++) {
+          ac[i * 2] = acList[i].x | 0; ac[i * 2 + 1] = acList[i].z | 0;
+        }
+        inFlightTerrain.add(key);
+        const wi = rr++ % workers.length;
+        workers[wi].postMessage({
+          type: 'gen_overworld',
+          key,
+          epoch: _worldEpoch,
+          cx: cx | 0,
+          cz: cz | 0,
+          seed: worldSeed | 0,
+          seedMix: { ox: seedMix.ox, oy: seedMix.oy, oz: seedMix.oz, c1: seedMix.c1, c2: seedMix.c2, c3: seedMix.c3, c4: seedMix.c4, b1: seedMix.b1, b2: seedMix.b2, s1: seedMix.s1 },
+          acCoords: ac,
+          dOff: 0,
+          minY: MIN_Y | 0,
+          maxY: MAX_Y | 0,
+          waterLevel: WATER_LEVEL | 0
+        }, [ac.buffer]);
+        return true;
+      },
+      takeOverworld(cx, cz) {
+        const key = `${_worldEpoch}:${cx},${cz}`;
+        const res = terrainCache.get(key);
+        if (!res) return null;
+        terrainCache.delete(key);
+        workerHits++;
+        _nucraftWasmState.workerTerrainHits++;
+        return res;
+      },
+      enqueueMesh(ch, maxLy, borderBuf, emitters, emitLen, flagsBits, autumnCell) {
+        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(12, workers.length * 6)) return false;
+        if (!_ensureAllLuts()) return false;
+        const mGen = ch._meshGen || 0;
+        const key = `${_worldEpoch}:${ch.cx},${ch.cz}:${mGen}`;
+        if (inFlightMesh.has(key) || ch._meshInFlightGen === mGen) return true;
+        inFlightMesh.add(key);
+        ch._meshInFlightGen = mGen;
+        const sliceLen = Math.min(ch.data.length, (maxLy + 1) << 8);
+        const dataCopy = ch.data.slice(0, sliceLen);
+        const borderCopy = borderBuf.slice(0);
+        const emCopy = emitLen > 0 ? emitters.slice(0, emitLen) : new Float32Array(0);
+        const autCopy = autumnCell ? autumnCell.slice(0) : new Uint8Array(16);
+        const wi = rr++ % workers.length;
+        workers[wi].postMessage({
+          type: 'mesh_solid',
+          key,
+          epoch: _worldEpoch,
+          meshGen: mGen,
+          cx: ch.cx | 0,
+          cz: ch.cz | 0,
+          wx0: (ch.cx * CHUNK_W) | 0,
+          wz0: (ch.cz * CHUNK_W) | 0,
+          minY: MIN_Y | 0,
+          waterLevel: WATER_LEVEL | 0,
+          dOff: (depthOffset || 0) | 0,
+          maxLy: maxLy >>> 0,
+          emitLen: emitLen >>> 0,
+          flagsBits: flagsBits >>> 0,
+          grassId: B.GRASS & 0xffff,
+          autumnPodzolId: B.AUTUMN_PODZOL & 0xffff,
+          waterId: B.WATER & 0xffff,
+          seagrassId: B.SEAGRASS & 0xffff,
+          lavaId: B.LAVA & 0xffff,
+          bedrockId: B.BEDROCK & 0xffff,
+          deepslateId: B.DEEPSLATE & 0xffff,
+          blkSolidFlag: BLK_SOLID & 0xffff,
+          data: dataCopy,
+          borderBuf: borderCopy,
+          emitters: emCopy,
+          autumnCell: autCopy
+        }, [dataCopy.buffer, borderCopy.buffer, emCopy.buffer, autCopy.buffer]);
+        return true;
+      },
+      drainCompletedMeshes(maxApply = 4, budgetMs = 1.6) {
+        let applied = 0;
+        const t0 = performance.now();
+        while (completedMeshes.length > 0 && applied < maxApply && (applied === 0 || (performance.now() - t0) < budgetMs)) {
+          const rep = completedMeshes.shift();
+          if (!rep || rep.epoch !== _worldEpoch) continue;
+          const ch = chunks.get(chunkKey(rep.cx, rep.cz));
+          if (!ch || !ch.data || rep.meshGen !== (ch._meshGen || 0)) continue;
+          if (!ch.dirty && !ch.borderDirty && !ch.urgentDirty && ch.meshed) continue;
+          ch._meshInFlightGen = -1;
+          rebuildChunkMesh(ch, rep);
+          _nucraftWasmState.workerMeshHits++;
+          applied++;
+        }
+        return applied;
+      },
+      requestLod(params, cb) {
+        if (!active || _lodInFlight) return false;
+        _lodInFlight = true;
+        _lodCb = cb;
+        const maskCopy = params.loadedMask.slice(0);
+        const wi = rr++ % workers.length;
+        workers[wi].postMessage({
+          type: 'build_lod',
+          epoch: _worldEpoch,
+          centerCx: params.centerCx | 0,
+          centerCz: params.centerCz | 0,
+          seed: params.seed | 0,
+          waterLevel: params.waterLevel | 0,
+          step: params.step >>> 0,
+          outerRadius: params.outerRadius >>> 0,
+          maskRadius: params.maskRadius >>> 0,
+          loadedMask: maskCopy
+        }, [maskCopy.buffer]);
+        return true;
+      },
       clear() {
+        _worldEpoch++;
         cache.clear();
+        terrainCache.clear();
         inFlight.clear();
+        inFlightTerrain.clear();
+        inFlightMesh.clear();
+        completedMeshes.length = 0;
+        _lodInFlight = false;
+        _lodCb = null;
       }
     };
   })();
@@ -1279,6 +1590,7 @@
     TILE_V0[_t] = _ty * _MESH_VSTEP + _MESH_PADV;
     TILE_V1[_t] = (_ty + 1) * _MESH_VSTEP - _MESH_PADV;
   }
+  if (typeof window._syncWasmBlockLuts === 'function') window._syncWasmBlockLuts(false);
 
   let _sCap = 16384;
   let _sPos = new Float32Array(_sCap * 3), _sNorm = new Float32Array(_sCap * 3), _sUvs = new Float32Array(_sCap * 2), _sCols = new Float32Array(_sCap * 3), _sBL = new Float32Array(_sCap * 3);
@@ -1341,10 +1653,148 @@
     particles: true,      // Sodium Extra: block break & spell particles toggle
     animations: true,     // Sodium Extra: skeletal & crystal animations toggle
     farEntities: true,    // Sodium Extra: distant entity rendering toggle
+    farLod: true,         // Horizon-style Rust WASM far-terrain LOD horizon ring
     frameGen: 1,          // AI Frame Gen (1=Off, 2=x2, 4=x4 reprojection + optical-flow + RCAS super-res)
     rayTracing: false     // Real-time Ray Tracing GI, mirror water reflections & leaf light transmission
   }, (() => { try { return JSON.parse(localStorage.getItem(SODIUM_OPTS_KEY) || '{}') || {}; } catch (_) { return {}; } })());
   if (typeof window !== 'undefined') window.sodiumOpts = sodiumOpts;
+
+  // Horizon-style Distant Terrain LOD Ring (renders simplified biome terrain outside loaded chunk radius)
+  const farLodSystem = (() => {
+    const step = _isMobilePerf ? 12 : 8;
+    const outerRadius = _isMobilePerf ? 176 : 256;
+    const _maskScratch = new Uint8Array(4096);
+    let _mesh = null, _mat = null, _lastCx = 99999, _lastCz = 99999, _lastSeed = -1, _meshedRev = 0, _builtRev = -1, _lastBuildMs = 0, _inFlight = false;
+    function _getMat() {
+      if (_mat) return _mat;
+      _mat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false });
+      _mat.customProgramCacheKey = () => 'nucraft_far_lod_v1';
+      _mat.onBeforeCompile = (shader) => {
+        if (typeof envUniforms !== 'undefined') {
+          Object.assign(shader.uniforms, {
+            uFogColor: envUniforms.uFogColor,
+            uLodFogStart: envUniforms.uLodFogStart,
+            uLodFogEnd: envUniforms.uLodFogEnd
+          });
+        }
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLodWPos;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvLodWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nuniform vec3 uFogColor;\nuniform float uLodFogStart, uLodFogEnd;\nvarying vec3 vLodWPos;')
+          .replace('#include <fog_fragment>', 'float lodDist = length(vLodWPos - cameraPosition);\nfloat lodFog = smoothstep(uLodFogStart, uLodFogEnd, lodDist);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, clamp(lodFog, 0.0, 1.0));\n#include <fog_fragment>');
+      };
+      return _mat;
+    }
+    function _applyGeo(pos, norm, col, idx, vCount, iCount, cx, cz) {
+      if (vCount === 0 || iCount === 0) {
+        if (_mesh) _mesh.visible = false;
+        _nucraftWasmState.lodVisible = false;
+        _nucraftWasmState.lodTriangles = 0;
+        return;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx * 16 + 8, 24, cz * 16 + 8), outerRadius + 64);
+      if (_mesh) {
+        if (_mesh.geometry) _mesh.geometry.dispose();
+        _mesh.geometry = geo;
+      } else {
+        _mesh = new THREE.Mesh(geo, _getMat());
+        _mesh.castShadow = false;
+        _mesh.receiveShadow = false;
+        _mesh.frustumCulled = false;
+        _mesh.matrixAutoUpdate = false;
+        _mesh.updateMatrix();
+        if (typeof scene !== 'undefined' && scene) scene.add(_mesh);
+      }
+      _mesh.visible = true;
+      _nucraftWasmState.lodBuilds++;
+      _nucraftWasmState.lodTriangles = (iCount / 3) | 0;
+      _nucraftWasmState.lodVisible = true;
+    }
+    function isActive() {
+      return (typeof currentDimension === 'undefined' || currentDimension === 'overworld')
+        && (typeof depthOffset === 'undefined' || depthOffset === 0)
+        && !(typeof player !== 'undefined' && player && player.eyesInWater)
+        && (!sodiumOpts || sodiumOpts.farLod !== false)
+        && (typeof sodiumOpts === 'undefined' || sodiumOpts.fog !== false);
+    }
+    function hide() {
+      if (_mesh) _mesh.visible = false;
+      _nucraftWasmState.lodVisible = false;
+    }
+    function dispose() {
+      _inFlight = false;
+      _lastCx = 99999; _lastCz = 99999; _builtRev = -1;
+      if (_mesh) {
+        if (typeof scene !== 'undefined' && scene) scene.remove(_mesh);
+        if (_mesh.geometry) _mesh.geometry.dispose();
+        _mesh = null;
+      }
+      _nucraftWasmState.lodVisible = false;
+      _nucraftWasmState.lodTriangles = 0;
+    }
+    function markChunkMeshed() { _meshedRev++; }
+    function update(pcx, pcz, forceSync = false) {
+      if (!isActive()) { hide(); return; }
+      const now = performance.now();
+      const rd = (typeof renderDistance === 'number' ? renderDistance : 4);
+      const needRebuild = forceSync || !_mesh || pcx !== _lastCx || pcz !== _lastCz || _lastSeed !== worldSeed ||
+        (_meshedRev !== _builtRev && ((_meshedRev - _builtRev) >= 3 || (now - _lastBuildMs) > 450));
+      if (!needRebuild) {
+        if (_mesh && !_mesh.visible) { _mesh.visible = true; _nucraftWasmState.lodVisible = true; }
+        return;
+      }
+      if (_inFlight && !forceSync) return;
+      const maskR = Math.min(20, Math.max(2, rd + 2));
+      const maskW = maskR * 2 + 1;
+      let mi = 0;
+      for (let dz = -maskR; dz <= maskR; dz++) {
+        for (let dx = -maskR; dx <= maskR; dx++) {
+          const ch = chunks.get(chunkKey(pcx + dx, pcz + dz));
+          _maskScratch[mi++] = (ch && ch.meshed) ? 1 : 0;
+        }
+      }
+      const maskView = _maskScratch.subarray(0, maskW * maskW);
+      _lastCx = pcx; _lastCz = pcz; _lastSeed = worldSeed; _builtRev = _meshedRev; _lastBuildMs = now;
+      if ((forceSync || !_mesh) && _nwExports && _nwExports.build_far_lod_mesh) {
+        _syncWasmViews();
+        _nwLodMask.fill(0);
+        _nwLodMask.set(maskView);
+        _nwExports.build_far_lod_mesh(pcx | 0, pcz | 0, worldSeed | 0, WATER_LEVEL | 0, step, outerRadius, maskR);
+        const vCount = _nwLodMeta[0] >>> 0, iCount = _nwLodMeta[1] >>> 0;
+        const pos = _nwLodPos.slice(0, vCount * 3);
+        const norm = _nwLodNorm.slice(0, vCount * 3);
+        const col = _nwLodCol.slice(0, vCount * 3);
+        let idx;
+        if (vCount <= 65535) {
+          idx = new Uint16Array(iCount);
+          for (let i = 0; i < iCount; i++) idx[i] = _nwLodIdx[i];
+        } else {
+          idx = _nwLodIdx.slice(0, iCount);
+        }
+        _applyGeo(pos, norm, col, idx, vCount, iCount, pcx, pcz);
+        return;
+      }
+      if (chunkWorkerPool.active) {
+        _inFlight = true;
+        chunkWorkerPool.requestLod({
+          centerCx: pcx, centerCz: pcz, seed: worldSeed | 0, waterLevel: WATER_LEVEL | 0,
+          step, outerRadius, maskRadius: maskR, loadedMask: maskView
+        }, (res) => {
+          _inFlight = false;
+          if (!res || res.type !== 'build_lod_ok') return;
+          if (!isActive()) { hide(); return; }
+          _applyGeo(res.pos, res.norm, res.col, res.idx, res.vCount, res.iCount, res.centerCx, res.centerCz);
+        });
+      }
+    }
+    return { isActive, hide, dispose, markChunkMeshed, update, outerRadius };
+  })();
   if (typeof envUniforms !== 'undefined') {
     if (envUniforms.uSharpness) envUniforms.uSharpness.value = sodiumOpts.sharpness ? 0.18 : 0.0;
     if (envUniforms.uUsePlanarRefl) envUniforms.uUsePlanarRefl.value = sodiumOpts.waterRefl ? 1.0 : 0.0;
@@ -2420,12 +2870,287 @@
   }
 
   const _chAutumnCell = new Int8Array(16);
-  function rebuildChunkMesh(ch) {
+  const _borderScratch = new Uint16Array(17408);
+  const _autumnScratch = new Uint8Array(16);
+  function _computeAutumnCell(wx0, wz0, outU8) {
+    if (currentDimension !== 'overworld') { outU8.fill(0); return; }
+    for (let gz = 0; gz < 4; gz++) {
+      const wz = wz0 + (gz << 2);
+      for (let gx = 0; gx < 4; gx++) {
+        const ab = getBiomeAt(wx0 + (gx << 2), wz);
+        outU8[(gz << 2) | gx] = (ab === BIOMES.AUTUMN || ab === BIOMES.AUTUMN_GOLDEN || ab === BIOMES.AUTUMN_DEEP || ab === BIOMES.DAPPLED_FOREST) ? 1 : 0;
+      }
+    }
+  }
+  function _packChunkBorders(outU16, dXP, dXM, dZP, dZM, cx, cz, maxLy) {
+    outU16.fill(0);
+    const copyLy = Math.min(WORLD_H - 1, maxLy + 1);
+    const hasDepth = (depthOffset || 0) > 0;
+    if (dXP) {
+      for (let ly = 0; ly <= copyLy; ly++) {
+        const row = ly << 8, dst = ly << 4;
+        for (let lz = 0; lz < 16; lz++) outU16[dst | lz] = dXP[row | (lz << 4)];
+      }
+      if (hasDepth) {
+        const row = (WORLD_H - 1) << 8, dst = (WORLD_H - 1) << 4;
+        for (let lz = 0; lz < 16; lz++) outU16[dst | lz] = dXP[row | (lz << 4)];
+      }
+    }
+    if (dXM) {
+      for (let ly = 0; ly <= copyLy; ly++) {
+        const row = ly << 8, dst = 4096 + (ly << 4);
+        for (let lz = 0; lz < 16; lz++) outU16[dst | lz] = dXM[row | (lz << 4) | 15];
+      }
+      if (hasDepth) {
+        const row = (WORLD_H - 1) << 8, dst = 4096 + ((WORLD_H - 1) << 4);
+        for (let lz = 0; lz < 16; lz++) outU16[dst | lz] = dXM[row | (lz << 4) | 15];
+      }
+    }
+    if (dZP) {
+      for (let ly = 0; ly <= copyLy; ly++) {
+        const row = ly << 8, dst = 8192 + (ly << 4);
+        for (let lx = 0; lx < 16; lx++) outU16[dst | lx] = dZP[row | lx];
+      }
+      if (hasDepth) {
+        const row = (WORLD_H - 1) << 8, dst = 8192 + ((WORLD_H - 1) << 4);
+        for (let lx = 0; lx < 16; lx++) outU16[dst | lx] = dZP[row | lx];
+      }
+    }
+    if (dZM) {
+      for (let ly = 0; ly <= copyLy; ly++) {
+        const row = ly << 8, dst = 12288 + (ly << 4);
+        for (let lx = 0; lx < 16; lx++) outU16[dst | lx] = dZM[row | 240 | lx];
+      }
+      if (hasDepth) {
+        const row = (WORLD_H - 1) << 8, dst = 12288 + ((WORLD_H - 1) << 4);
+        for (let lx = 0; lx < 16; lx++) outU16[dst | lx] = dZM[row | 240 | lx];
+      }
+    }
+    const corners = [
+      [chunks.get(chunkKey(cx + 1, cz + 1))?.data || null, 0, 16384],
+      [chunks.get(chunkKey(cx + 1, cz - 1))?.data || null, 240, 16640],
+      [chunks.get(chunkKey(cx - 1, cz + 1))?.data || null, 15, 16896],
+      [chunks.get(chunkKey(cx - 1, cz - 1))?.data || null, 255, 17152]
+    ];
+    for (let ci = 0; ci < 4; ci++) {
+      const cd = corners[ci][0];
+      if (!cd) continue;
+      const cOff = corners[ci][1], base = corners[ci][2];
+      for (let ly = 0; ly <= copyLy; ly++) outU16[base + ly] = cd[(ly << 8) | cOff];
+      if (hasDepth) outU16[base + (WORLD_H - 1)] = cd[((WORLD_H - 1) << 8) | cOff];
+    }
+  }
+  function _prepLayerLightSlice(ly, emLen) {
+    if (emLen <= 0) return 0;
+    let sliceLen = 0, sMinX = 999, sMaxX = -999, sMinZ = 999, sMaxZ = -999;
+    const cyMid = ly + 0.5;
+    for (let ei = 0; ei < emLen; ei += 7) {
+      const dy = cyMid - _emBuf[ei + 1], rad2 = _emBuf[ei + 6];
+      if (dy * dy <= rad2 + 48.0) {
+        const ex = _emBuf[ei], ez = _emBuf[ei + 2], rPad = Math.sqrt(rad2) + 1.5;
+        _sliceEmBuf[sliceLen] = ex; _sliceEmBuf[sliceLen + 1] = _emBuf[ei + 1]; _sliceEmBuf[sliceLen + 2] = ez;
+        _sliceEmBuf[sliceLen + 3] = _emBuf[ei + 3]; _sliceEmBuf[sliceLen + 4] = _emBuf[ei + 4]; _sliceEmBuf[sliceLen + 5] = _emBuf[ei + 5]; _sliceEmBuf[sliceLen + 6] = rad2;
+        sliceLen += 7;
+        if (ex - rPad < sMinX) sMinX = ex - rPad;
+        if (ex + rPad > sMaxX) sMaxX = ex + rPad;
+        if (ez - rPad < sMinZ) sMinZ = ez - rPad;
+        if (ez + rPad > sMaxZ) sMaxZ = ez + rPad;
+      }
+    }
+    _sliceMinX = sMinX; _sliceMaxX = sMaxX; _sliceMinZ = sMinZ; _sliceMaxZ = sMaxZ;
+    if (_nwExports && sliceLen > 0 && sliceLen <= 3584) {
+      _syncWasmViews();
+      _nwEmitView.set(_sliceEmBuf.subarray(0, sliceLen));
+    }
+    return sliceLen;
+  }
+  function _buildChunkMeshFlagsBits(ch, cx, cz, computeAO, cullBottomBedrock, hasFluidLevels) {
+    const _cXP = chunks.get(chunkKey(cx + 1, cz)), _cXM = chunks.get(chunkKey(cx - 1, cz));
+    const _cZP = chunks.get(chunkKey(cx, cz + 1)), _cZM = chunks.get(chunkKey(cx, cz - 1));
+    const allOceanNbr = !!(ch.isOceanChunk && _cXP && _cXP.isOceanChunk && _cXM && _cXM.isOceanChunk && _cZP && _cZP.isOceanChunk && _cZM && _cZM.isOceanChunk);
+    let bits = 0;
+    if (computeAO) bits |= 1;
+    if (cullBottomBedrock) bits |= 2;
+    if (currentDimension === 'end') bits |= 4;
+    if (currentDimension === 'overworld') bits |= 8;
+    if (allOceanNbr) bits |= 16;
+    if (hasFluidLevels) bits |= 32;
+    if (sodiumOpts.fastLight) bits |= 64;
+    return { bits, allOceanNbr };
+  }
+  function _dispatchChunkMeshToWorker(ch) {
+    if (!chunkWorkerPool.active || !ch || !ch.data || ch._pendingSlice) return false;
+    const cx = ch.cx, cz = ch.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W, data = ch.data;
+    const maxLy = Math.min(WORLD_H - 1, ch.maxLy);
+    const emLen = _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy);
+    const dXP = chunks.get(chunkKey(cx + 1, cz))?.data || null, dXM = chunks.get(chunkKey(cx - 1, cz))?.data || null;
+    const dZP = chunks.get(chunkKey(cx, cz + 1))?.data || null, dZM = chunks.get(chunkKey(cx, cz - 1))?.data || null;
+    _packChunkBorders(_borderScratch, dXP, dXM, dZP, dZM, cx, cz, maxLy);
+    _computeAutumnCell(wx0, wz0, _autumnScratch);
+    const computeAO = (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing));
+    const cullBottomBedrock = (sodiumOpts.moreCulling && currentDimension !== 'end');
+    const { bits } = _buildChunkMeshFlagsBits(ch, cx, cz, computeAO, cullBottomBedrock, fluidLevel.size > 0);
+    return chunkWorkerPool.enqueueMesh(ch, maxLy, _borderScratch, _emBuf, emLen, bits, _autumnScratch);
+  }
+  function _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx, wy, wz, id, flags, maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey) {
+    const zOff = (ly << 8) | (lz << 4), inY = (ly > 0 && ly < WORLD_H - 1), inZ = (lz > 0 && lz < 15);
+    if (flags & BLK_WATER_SEA) {
+      _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, id, hasFluidLevels, _wBuf, st);
+      if (id === B.WATER) return;
+    }
+    if (flags & BLK_LAVA) {
+      _meshLavaVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, hasFluidLevels, _lvBuf, st);
+      return;
+    }
+    const def = BLOCK_DEF_ARR[id]; if (!def) return;
+    if (flags & BLK_CROSS) {
+      _meshCrossPlantVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, maxLy, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
+      return;
+    }
+    if (flags & BLK_TORCH) {
+      _meshTorchVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, ePos, eUvs, eType, eIndices, st);
+      return;
+    }
+    if (flags & BLK_LANTERN) {
+      _meshLanternVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, ePos, eUvs, eType, eIndices, st, id);
+      return;
+    }
+    if (flags & BLK_HANG) {
+      _meshHangingFruitVoxel(lx, ly, lz, wx, wy, wz, def, sliceLen, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
+      return;
+    }
+    if ((flags & (BLK_SOLID | BLK_PORTAL | BLK_SUB)) === 0) return;
+    if (flags & BLK_ANIM) {
+      if (waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) {
+        _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, B.WATER, hasFluidLevels, _wBuf, st);
+      }
+      createAnimatedBlockVisual(wx, wy, wz, id, thisChKey);
+      return;
+    }
+    if (flags & BLK_SUB) {
+      if ((waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) || (def.rootCage && wy <= WATER_LEVEL)) {
+        _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, B.WATER, hasFluidLevels, _wBuf, st);
+      }
+      _meshSubBlockVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
+      return;
+    }
+    if (flags & BLK_FOLIAGE) {
+      _meshFoliageVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, computeAO, sliceLen, st);
+      return;
+    }
+    if ((flags & (BLK_EMISSIVE | BLK_GLASS)) === 0) {
+      if (inY && inZ && lx > 0 && lx < 15) {
+        if (IS_OPAQUE[data[cIdx + 1]] === 1 && IS_OPAQUE[data[cIdx - 1]] === 1 &&
+            IS_OPAQUE[data[cIdx + 256]] === 1 && IS_OPAQUE[data[cIdx - 256]] === 1 &&
+            IS_OPAQUE[data[cIdx + 16]] === 1 && IS_OPAQUE[data[cIdx - 16]] === 1) return;
+      } else if (
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz)] === 1 &&
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz)] === 1 &&
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz)] === 1 &&
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz)] === 1 &&
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1)] === 1 &&
+          IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1)] === 1) return;
+    }
+    if (flags & (BLK_CRYSTAL | BLK_PORTAL)) {
+      _meshCrystalOrPortalVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, st);
+      return;
+    }
+    for (let f = 0; f < 6; f++) {
+      const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
+      const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
+      const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx, nly, nlz);
+      if (IS_OPAQUE[nb] === 1 || (def.glass && nb === B.GLASS) || (sodiumOpts.moreCulling && id === B.ICE && nb === B.ICE) || (def.portal && nb === id)) continue;
+      const tile = (def.frontTile !== undefined && dz === 1) ? def.frontTile : def.tiles[face.tileIdx], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
+      if (def.emissive) {
+        const et = (id === B.GLOW_CRYSTAL) ? 3.0 : 0.0;
+        for (let c = 0; c < 4; c++) { const cr = face.corners[c]; ePos.push(wx + cr[0], wy + cr[1], wz + cr[2]); eType.push(et); }
+        eUvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
+        eIndices.push(st.eCount, st.eCount + 1, st.eCount + 2, st.eCount, st.eCount + 2, st.eCount + 3); st.eCount += 4;
+        continue;
+      }
+      if (st.vCount + 4 > _sCap) _growSolidScratch(st.vCount + 4);
+      let lr = 0, lg = 0, lb = 0;
+      if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
+      let ao0 = 1, ao1 = 1, ao2 = 1, ao3 = 1;
+      const vc = st.vCount;
+      let vp = vc * 3;
+      for (let c = 0; c < 4; c++) {
+        const cr = face.corners[c];
+        _sPos[vp] = wx + cr[0]; _sPos[vp+1] = wy + cr[1]; _sPos[vp+2] = wz + cr[2];
+        _sNorm[vp] = dx; _sNorm[vp+1] = dy; _sNorm[vp+2] = dz;
+        let ao = 1.0;
+        if (computeAO) {
+          const su = (c === 1 || c === 2) ? 1 : -1, sv = (c === 2 || c === 3) ? 1 : -1;
+          const ux = face.uAxis[0] * su, uy = face.uAxis[1] * su, uz = face.uAxis[2] * su;
+          const vx = face.vAxis[0] * sv, vy = face.vAxis[1] * sv, vz = face.vAxis[2] * sv;
+          const s1 = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux, nly + uy, nlz + uz)];
+          const s2 = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + vx, nly + vy, nlz + vz)];
+          const cn = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux + vx, nly + uy + vy, nlz + uz + vz)];
+          ao = (s1 && s2) ? 0.50 : AO_LUT[s1 + s2 + cn];
+        }
+        _sCols[vp] = ao; _sCols[vp+1] = ao; _sCols[vp+2] = ao;
+        _sBL[vp] = lr; _sBL[vp+1] = lg; _sBL[vp+2] = lb;
+        vp += 3;
+        if (c === 0) ao0 = ao; else if (c === 1) ao1 = ao; else if (c === 2) ao2 = ao; else ao3 = ao;
+      }
+      const up = vc * 2;
+      _sUvs[up]=u0; _sUvs[up+1]=v1; _sUvs[up+2]=u1; _sUvs[up+3]=v1; _sUvs[up+4]=u1; _sUvs[up+5]=v0; _sUvs[up+6]=u0; _sUvs[up+7]=v0;
+      const ip = st.iCount;
+      if (ao0 + ao2 > ao1 + ao3) { _sIdx[ip]=vc; _sIdx[ip+1]=vc+1; _sIdx[ip+2]=vc+2; _sIdx[ip+3]=vc; _sIdx[ip+4]=vc+2; _sIdx[ip+5]=vc+3; }
+      else { _sIdx[ip]=vc+1; _sIdx[ip+1]=vc+2; _sIdx[ip+2]=vc+3; _sIdx[ip+3]=vc+1; _sIdx[ip+4]=vc+3; _sIdx[ip+5]=vc; }
+      st.vCount = vc + 4; st.iCount = ip + 6;
+    }
+  }
+  function _buildCombinedSolidGeo(prebuiltSolid, st) {
+    const preV = prebuiltSolid ? prebuiltSolid.vCount : 0;
+    const preI = prebuiltSolid ? prebuiltSolid.iCount : 0;
+    const extraV = st.vCount, extraI = st.iCount;
+    if (preV === 0 && extraV === 0) return null;
+    const geo = new THREE.BufferGeometry();
+    if (preV > 0 && extraV === 0) {
+      geo.setAttribute('position', new THREE.BufferAttribute(prebuiltSolid.pos, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(prebuiltSolid.norm, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(prebuiltSolid.uv, 2));
+      geo.setAttribute('color', new THREE.BufferAttribute(prebuiltSolid.col, 3));
+      geo.setAttribute('aBlockLight', new THREE.BufferAttribute(prebuiltSolid.bl, 3));
+      geo.setIndex(new THREE.BufferAttribute(prebuiltSolid.idx, 1));
+      return geo;
+    }
+    if (preV === 0) {
+      geo.setAttribute('position', new THREE.BufferAttribute(_sPos.slice(0, extraV * 3), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(_sNorm.slice(0, extraV * 3), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(_sUvs.slice(0, extraV * 2), 2));
+      geo.setAttribute('color', new THREE.BufferAttribute(_sCols.slice(0, extraV * 3), 3));
+      geo.setAttribute('aBlockLight', new THREE.BufferAttribute(_sBL.slice(0, extraV * 3), 3));
+      geo.setIndex(_makeIdxAttr(_sIdx, extraI, extraV));
+      return geo;
+    }
+    const totV = preV + extraV, totI = preI + extraI;
+    const pos = new Float32Array(totV * 3), norm = new Float32Array(totV * 3), uv = new Float32Array(totV * 2);
+    const col = new Float32Array(totV * 3), bl = new Float32Array(totV * 3);
+    pos.set(prebuiltSolid.pos); pos.set(_sPos.subarray(0, extraV * 3), preV * 3);
+    norm.set(prebuiltSolid.norm); norm.set(_sNorm.subarray(0, extraV * 3), preV * 3);
+    uv.set(prebuiltSolid.uv); uv.set(_sUvs.subarray(0, extraV * 2), preV * 2);
+    col.set(prebuiltSolid.col); col.set(_sCols.subarray(0, extraV * 3), preV * 3);
+    bl.set(prebuiltSolid.bl); bl.set(_sBL.subarray(0, extraV * 3), preV * 3);
+    const idx = totV <= 65535 ? new Uint16Array(totI) : new Uint32Array(totI);
+    idx.set(prebuiltSolid.idx);
+    for (let k = 0; k < extraI; k++) idx[preI + k] = _sIdx[k] + preV;
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('aBlockLight', new THREE.BufferAttribute(bl, 3));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    return geo;
+  }
+  function rebuildChunkMesh(ch, prebuiltSolid = null) {
     const cx = ch.cx, cz = ch.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W, data = ch.data;
     _chAutumnCell.fill(-1);
     const _autPodDef = BLOCK_DEF_ARR[B.AUTUMN_PODZOL];
     const thisChKey = chunkKey(cx, cz);
     if (ch._pendingSlice) {
+      prebuiltSolid = null;
       const ps = ch._pendingSlice;
       ch._pendingSlice = null;
       if (depthOffset === 0 && ps[0] === WORLD_H - 40 && (currentDimension === 'overworld' || currentDimension === 'nether')) {
@@ -2471,10 +3196,64 @@
     const st = _meshSt;
     st.vCount = 0; st.iCount = 0; st.lCount = 0; st.liCount = 0; st.eCount = 0; st.ptCount = 0; st.wCount = 0; st.wiCount = 0; st.lvCount = 0; st.lviCount = 0; st.pCount = 0;
     const cullBottomBedrock = (sodiumOpts.moreCulling && currentDimension !== 'end');
-    const _cXP = chunks.get(chunkKey(cx + 1, cz)), _cXM = chunks.get(chunkKey(cx - 1, cz));
-    const _cZP = chunks.get(chunkKey(cx, cz + 1)), _cZM = chunks.get(chunkKey(cx, cz - 1));
-    const _allOceanNbr = !!(ch.isOceanChunk && _cXP && _cXP.isOceanChunk && _cXM && _cXM.isOceanChunk && _cZP && _cZP.isOceanChunk && _cZM && _cZM.isOceanChunk);
+    const { bits: meshFlagsBits, allOceanNbr: _allOceanNbr } = _buildChunkMeshFlagsBits(ch, cx, cz, computeAO, cullBottomBedrock, hasFluidLevels);
 
+    let usedFastMesh = false;
+    if (prebuiltSolid && prebuiltSolid.specialVoxels) {
+      usedFastMesh = true;
+      const sv = prebuiltSolid.specialVoxels;
+      let prevLy = -1, sliceLen = 0;
+      for (let si = 0; si < sv.length; si++) {
+        const cIdx = sv[si];
+        const ly = cIdx >> 8, lz = (cIdx >> 4) & 15, lx = cIdx & 15;
+        const id = data[cIdx];
+        if (id === 0) continue;
+        if (ly !== prevLy) { prevLy = ly; sliceLen = _prepLayerLightSlice(ly, emLen); }
+        _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx0 + lx, MIN_Y + ly, wz0 + lz, id, BLOCK_FLAGS[id], maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey);
+      }
+    } else if (_nwExports && _nwExports.mesh_chunk_solid && _syncMainWasmLuts(false)) {
+      _syncWasmViews();
+      const copyWords = Math.min(data.length, (maxLy + 1) << 8);
+      _nwChunkData.fill(0);
+      _nwChunkData.set(data.subarray(0, copyWords));
+      _packChunkBorders(_nwBorderBuf, dXP, dXM, dZP, dZM, cx, cz, maxLy);
+      if (emLen > 0) _nwEmitView.set(_emBuf.subarray(0, Math.min(3584, emLen)));
+      _computeAutumnCell(wx0, wz0, _nwAutumnCell);
+      const ret = _nwExports.mesh_chunk_solid(
+        wx0 | 0, wz0 | 0, MIN_Y | 0, WATER_LEVEL | 0, (depthOffset || 0) | 0,
+        maxLy >>> 0, emLen >>> 0, meshFlagsBits >>> 0,
+        B.GRASS & 0xffff, B.AUTUMN_PODZOL & 0xffff, B.WATER & 0xffff, B.SEAGRASS & 0xffff,
+        B.LAVA & 0xffff, B.BEDROCK & 0xffff, B.DEEPSLATE & 0xffff, BLK_SOLID & 0xffff
+      ) >>> 0;
+      if (ret !== 0xFFFFFFFF && _nwMeshMeta[3] === 0) {
+        usedFastMesh = true;
+        _nucraftWasmState.meshCalls++;
+        const wV = _nwMeshMeta[0] >>> 0, wI = _nwMeshMeta[1] >>> 0, specN = _nwMeshMeta[2] >>> 0;
+        if (wV > 0) {
+          if (wV > _sCap) _growSolidScratch(wV);
+          _sPos.set(_nwMeshPos.subarray(0, wV * 3));
+          _sNorm.set(_nwMeshNorm.subarray(0, wV * 3));
+          _sUvs.set(_nwMeshUv.subarray(0, wV * 2));
+          _sCols.set(_nwMeshCol.subarray(0, wV * 3));
+          _sBL.set(_nwMeshBl.subarray(0, wV * 3));
+          _sIdx.set(_nwMeshIdx.subarray(0, wI));
+          st.vCount = wV;
+          st.iCount = wI;
+        }
+        let prevLy = -1, sliceLen = 0;
+        for (let si = 0; si < specN; si++) {
+          const cIdx = _nwSpecVox[si];
+          const ly = cIdx >> 8, lz = (cIdx >> 4) & 15, lx = cIdx & 15;
+          const id = data[cIdx];
+          if (id === 0) continue;
+          if (ly !== prevLy) { prevLy = ly; sliceLen = _prepLayerLightSlice(ly, emLen); }
+          _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx0 + lx, MIN_Y + ly, wz0 + lz, id, BLOCK_FLAGS[id], maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey);
+        }
+      }
+    }
+
+    if (!usedFastMesh) {
+    prebuiltSolid = null;
     for (let ly = 0; ly <= maxLy; ly++) {
       _wDepthGen = (_wDepthGen + 1) >>> 0;
       if (_wDepthGen === 0) { _wDepthStamp.fill(0); _wDepthGen = 1; }
@@ -2486,28 +3265,7 @@
         for (let _k = 1; _k < 256; _k++) { if (data[yOff | _k] !== _uniId) { _allSame = false; break; } }
         if (_allSame) continue;
       }
-      let sliceLen = 0, sMinX = 999, sMaxX = -999, sMinZ = 999, sMaxZ = -999;
-      if (emLen > 0) {
-        const cyMid = ly + 0.5;
-        for (let ei = 0; ei < emLen; ei += 7) {
-          const dy = cyMid - _emBuf[ei + 1], rad2 = _emBuf[ei + 6];
-          if (dy * dy <= rad2 + 48.0) {
-            const ex = _emBuf[ei], ez = _emBuf[ei + 2], rPad = Math.sqrt(rad2) + 1.5;
-            _sliceEmBuf[sliceLen] = ex; _sliceEmBuf[sliceLen+1] = _emBuf[ei+1]; _sliceEmBuf[sliceLen+2] = ez;
-            _sliceEmBuf[sliceLen+3] = _emBuf[ei+3]; _sliceEmBuf[sliceLen+4] = _emBuf[ei+4]; _sliceEmBuf[sliceLen+5] = _emBuf[ei+5]; _sliceEmBuf[sliceLen+6] = rad2;
-            sliceLen += 7;
-            if (ex - rPad < sMinX) sMinX = ex - rPad;
-            if (ex + rPad > sMaxX) sMaxX = ex + rPad;
-            if (ez - rPad < sMinZ) sMinZ = ez - rPad;
-            if (ez + rPad > sMaxZ) sMaxZ = ez + rPad;
-          }
-        }
-        _sliceMinX = sMinX; _sliceMaxX = sMaxX; _sliceMinZ = sMinZ; _sliceMaxZ = sMaxZ;
-        if (_nwExports && sliceLen > 0 && sliceLen <= 3584) {
-          _syncWasmViews();
-          _nwEmitView.set(_sliceEmBuf.subarray(0, sliceLen));
-        }
-      }
+      const sliceLen = _prepLayerLightSlice(ly, emLen);
       const inY = (ly > 0 && ly < WORLD_H - 1);
 
       for (let lz = 0; lz < 16; lz++) {
@@ -2602,117 +3360,10 @@
             continue;
           }
 
-          // Cold / special blocks path (exact original dispatch precedence)
-          if (flags & BLK_WATER_SEA) {
-            _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, id, hasFluidLevels, _wBuf, st);
-            if (id === B.WATER) continue;
-          }
-          if (flags & BLK_LAVA) {
-            _meshLavaVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, hasFluidLevels, _lvBuf, st);
-            continue;
-          }
-          const def = BLOCK_DEF_ARR[id]; if (!def) continue;
-          if (flags & BLK_CROSS) {
-            _meshCrossPlantVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, maxLy, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
-            continue;
-          }
-          if (flags & BLK_TORCH) {
-            _meshTorchVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, ePos, eUvs, eType, eIndices, st);
-            continue;
-          }
-          if (flags & BLK_LANTERN) {
-            _meshLanternVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, ePos, eUvs, eType, eIndices, st, id);
-            continue;
-          }
-          if (flags & BLK_HANG) {
-            _meshHangingFruitVoxel(lx, ly, lz, wx, wy, wz, def, sliceLen, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
-            continue;
-          }
-          if ((flags & (BLK_SOLID | BLK_PORTAL | BLK_SUB)) === 0) continue;
-          if (flags & BLK_ANIM) {
-            if (waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) {
-              _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, B.WATER, hasFluidLevels, _wBuf, st);
-            }
-            createAnimatedBlockVisual(wx, wy, wz, id, thisChKey);
-            continue;
-          }
-          if (flags & BLK_SUB) {
-            if ((waterloggedBlocks.size > 0 && waterloggedBlocks.has(modKey(wx, wy, wz))) || (def.rootCage && wy <= WATER_LEVEL)) {
-              _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, B.WATER, hasFluidLevels, _wBuf, st);
-            }
-            _meshSubBlockVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, sliceLen, ePos, eUvs, eType, eIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st);
-            continue;
-          }
-          if (flags & BLK_FOLIAGE) {
-            _meshFoliageVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, computeAO, sliceLen, st);
-            continue;
-          }
-          if ((flags & (BLK_EMISSIVE | BLK_GLASS)) === 0) {
-            if (inY && inZ && lx > 0 && lx < 15) {
-              if (IS_OPAQUE[data[cIdx + 1]] === 1 && IS_OPAQUE[data[cIdx - 1]] === 1 &&
-                  IS_OPAQUE[data[cIdx + 256]] === 1 && IS_OPAQUE[data[cIdx - 256]] === 1 &&
-                  IS_OPAQUE[data[cIdx + 16]] === 1 && IS_OPAQUE[data[cIdx - 16]] === 1) continue;
-            } else if (
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz)] === 1 &&
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz)] === 1 &&
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz)] === 1 &&
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz)] === 1 &&
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1)] === 1 &&
-                IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1)] === 1) continue;
-          }
-          if (flags & (BLK_CRYSTAL | BLK_PORTAL)) {
-            _meshCrystalOrPortalVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz, wx, wy, wz, id, def, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, st);
-            continue;
-          }
-
-          // Remaining full cubes (glass, emissive solid cubes)
-          for (let f = 0; f < 6; f++) {
-            const face = FACES[f], dx = face.dir[0], dy = face.dir[1], dz = face.dir[2];
-            const nlx = lx + dx, nly = ly + dy, nlz = lz + dz;
-            const nb = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx, nly, nlz);
-            if (IS_OPAQUE[nb] === 1 || (def.glass && nb === B.GLASS) || (sodiumOpts.moreCulling && id === B.ICE && nb === B.ICE) || (def.portal && nb === id)) continue;
-            const tile = (def.frontTile !== undefined && dz === 1) ? def.frontTile : def.tiles[face.tileIdx], u0 = TILE_U0[tile], u1 = TILE_U1[tile], v0 = TILE_V0[tile], v1 = TILE_V1[tile];
-            if (def.emissive) {
-              const et = (id === B.GLOW_CRYSTAL) ? 3.0 : 0.0;
-              for (let c = 0; c < 4; c++) { const cr = face.corners[c]; ePos.push(wx + cr[0], wy + cr[1], wz + cr[2]); eType.push(et); }
-              eUvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
-              eIndices.push(st.eCount, st.eCount + 1, st.eCount + 2, st.eCount, st.eCount + 2, st.eCount + 3); st.eCount += 4;
-              continue;
-            }
-            if (st.vCount + 4 > _sCap) _growSolidScratch(st.vCount + 4);
-            let lr = 0, lg = 0, lb = 0;
-            if (sliceLen > 0) { _evalLightSlice(nlx + 0.5, nly + 0.5, nlz + 0.5, _sliceEmBuf, sliceLen, _tmpLight); lr = _tmpLight[0]; lg = _tmpLight[1]; lb = _tmpLight[2]; }
-            let ao0 = 1, ao1 = 1, ao2 = 1, ao3 = 1;
-            const vc = st.vCount;
-            let vp = vc * 3;
-            for (let c = 0; c < 4; c++) {
-              const cr = face.corners[c];
-              _sPos[vp] = wx + cr[0]; _sPos[vp+1] = wy + cr[1]; _sPos[vp+2] = wz + cr[2];
-              _sNorm[vp] = dx; _sNorm[vp+1] = dy; _sNorm[vp+2] = dz;
-              let ao = 1.0;
-              if (computeAO) {
-                const su = (c === 1 || c === 2) ? 1 : -1, sv = (c === 2 || c === 3) ? 1 : -1;
-                const ux = face.uAxis[0] * su, uy = face.uAxis[1] * su, uz = face.uAxis[2] * su;
-                const vx = face.vAxis[0] * sv, vy = face.vAxis[1] * sv, vz = face.vAxis[2] * sv;
-                const s1 = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux, nly + uy, nlz + uz)];
-                const s2 = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + vx, nly + vy, nlz + vz)];
-                const cn = IS_OPAQUE[_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, nlx + ux + vx, nly + uy + vy, nlz + uz + vz)];
-                ao = (s1 && s2) ? 0.50 : AO_LUT[s1 + s2 + cn];
-              }
-              _sCols[vp] = ao; _sCols[vp+1] = ao; _sCols[vp+2] = ao;
-              _sBL[vp] = lr; _sBL[vp+1] = lg; _sBL[vp+2] = lb;
-              vp += 3;
-              if (c === 0) ao0 = ao; else if (c === 1) ao1 = ao; else if (c === 2) ao2 = ao; else ao3 = ao;
-            }
-            const up = vc * 2;
-            _sUvs[up]=u0; _sUvs[up+1]=v1; _sUvs[up+2]=u1; _sUvs[up+3]=v1; _sUvs[up+4]=u1; _sUvs[up+5]=v0; _sUvs[up+6]=u0; _sUvs[up+7]=v0;
-            const ip = st.iCount;
-            if (ao0 + ao2 > ao1 + ao3) { _sIdx[ip]=vc; _sIdx[ip+1]=vc+1; _sIdx[ip+2]=vc+2; _sIdx[ip+3]=vc; _sIdx[ip+4]=vc+2; _sIdx[ip+5]=vc+3; }
-            else { _sIdx[ip]=vc+1; _sIdx[ip+1]=vc+2; _sIdx[ip+2]=vc+3; _sIdx[ip+3]=vc+1; _sIdx[ip+4]=vc+3; _sIdx[ip+5]=vc; }
-            st.vCount = vc + 4; st.iCount = ip + 6;
-          }
+          _meshSpecialVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, cIdx, lx, ly, lz, wx, wy, wz, id, flags, maxLy, sliceLen, computeAO, hasFluidLevels, ePos, eUvs, eType, eIndices, ptPos, ptUvs, ptKind, ptIndices, pPos, pNorm, pUvs, pSway, pSkyShade, pBLights, pIndices, st, thisChKey);
         }
       }
+    }
     }
 
     disposeChunkMeshes(ch, true);
@@ -2724,14 +3375,8 @@
     const _rawShRange = _shPreset.shadowChunkRange > 0 ? _shPreset.shadowChunkRange : (_rtMeshOn ? 32 : 0);
     const _shChunkRad = _rawShRange > 0 ? Math.min(2, Math.max(1, Math.ceil(_rawShRange / CHUNK_W))) : -1;
     const nearShadow = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= _shChunkRad);
-    if (st.vCount > 0) {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(_sPos.slice(0, st.vCount * 3), 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(_sNorm.slice(0, st.vCount * 3), 3));
-      geo.setAttribute('uv', new THREE.BufferAttribute(_sUvs.slice(0, st.vCount * 2), 2));
-      geo.setAttribute('color', new THREE.BufferAttribute(_sCols.slice(0, st.vCount * 3), 3));
-      geo.setAttribute('aBlockLight', new THREE.BufferAttribute(_sBL.slice(0, st.vCount * 3), 3));
-      geo.setIndex(_makeIdxAttr(_sIdx, st.iCount, st.vCount));
+    const geo = _buildCombinedSolidGeo(prebuiltSolid, st);
+    if (geo) {
       _assignChunkBounds(geo, wx0, wz0, maxLy);
       ch.mesh = new THREE.Mesh(geo, terrainMat);
       ch.mesh.castShadow = nearShadow; ch.mesh.receiveShadow = true; ch.mesh.frustumCulled = true;
@@ -2825,6 +3470,8 @@
     ch.urgentDirty = false;
     ch.borderDirty = false;
     ch.meshed = true;
+    ch._meshInFlightGen = -1;
+    if (typeof farLodSystem !== 'undefined') farLodSystem.markChunkMeshed();
     _dirtyChunkSet.delete(ch);
     _urgentChunkSet.delete(ch);
     _borderChunkSet.delete(ch);

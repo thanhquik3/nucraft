@@ -1,10 +1,15 @@
 use core::ptr::{addr_of, addr_of_mut};
 
+mod mesher;
+mod terrain;
+mod codec;
+mod lod;
+
 const CAVE_GRID_X: usize = 5;
 const CAVE_GRID_Y: usize = 65;
 const CAVE_GRID_Z: usize = 5;
 const COARSE_LEN: usize = CAVE_GRID_X * CAVE_GRID_Y * CAVE_GRID_Z; // 1625
-const MAX_EMITTERS_LEN: usize = 3584; // up to 512 emitters * 7 floats
+pub(crate) const MAX_EMITTERS_LEN: usize = 3584; // up to 512 emitters * 7 floats
 const FRAME_OUT_LEN: usize = 16;
 const MAX_PARTICLES: usize = 512;
 const PARTICLE_STRIDE: usize = 8; // x, y, z, vx, vy, vz, grav, life
@@ -13,7 +18,7 @@ const MAX_ATLAS_BYTES: usize = 1_048_576; // fits up to 128 x 1664 x 4 RGBA8888 
 const MAX_TILES: usize = 1024;
 
 static mut COARSE_GRID: [f32; COARSE_LEN] = [0.0; COARSE_LEN];
-static mut EMITTERS_BUF: [f32; MAX_EMITTERS_LEN] = [0.0; MAX_EMITTERS_LEN];
+pub(crate) static mut EMITTERS_BUF: [f32; MAX_EMITTERS_LEN] = [0.0; MAX_EMITTERS_LEN];
 static mut LIGHT_OUT: [f32; 3] = [0.0; 3];
 static mut FRAME_OUT: [f32; FRAME_OUT_LEN] = [0.0; FRAME_OUT_LEN];
 static mut PARTICLE_BUF: [f32; MAX_PARTICLES * PARTICLE_STRIDE] = [0.0; MAX_PARTICLES * PARTICLE_STRIDE];
@@ -48,7 +53,7 @@ fn cos_approx(x: f64) -> f64 {
 }
 
 #[inline(always)]
-fn hash2i_f64(x: i32, z: i32, seed: i32) -> f64 {
+pub(crate) fn hash2i_f64(x: i32, z: i32, seed: i32) -> f64 {
     let mut h = x
         .wrapping_mul(374761393)
         .wrapping_add(z.wrapping_mul(668265263))
@@ -60,7 +65,7 @@ fn hash2i_f64(x: i32, z: i32, seed: i32) -> f64 {
 }
 
 #[inline(always)]
-fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
+pub(crate) fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
     let mut h = x
         .wrapping_mul(374761393)
         .wrapping_add(y.wrapping_mul(668265263))
@@ -74,7 +79,7 @@ fn hash3i_f64(x: i32, y: i32, z: i32, seed: i32) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn wasm_abi_version() -> u32 {
-    3
+    4
 }
 
 #[no_mangle]

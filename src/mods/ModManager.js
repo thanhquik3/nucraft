@@ -271,6 +271,7 @@
       terrainMat.bumpScale = toonOn ? 0.0 : 0.058;
     }
     if (typeof _rcGridBuiltSig !== 'undefined') _rcGridBuiltSig = '';
+    if (typeof window._syncWasmBlockLuts === 'function') window._syncWasmBlockLuts(true);
     if (typeof markAllLoadedChunksDirty === 'function' && typeof chunks !== 'undefined' && chunks.size) markAllLoadedChunksDirty(true);
     if (typeof renderHotbar === 'function') renderHotbar();
   }

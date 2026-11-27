@@ -1079,6 +1079,7 @@
     envUniforms.uWaterDepth.value = diveDepth;
     const abyssT = Math.min(1.0, Math.log1p(diveDepth * 0.045) / Math.log1p(700 * 0.045));
     if (player.eyesInWater) {
+      if (typeof farLodSystem !== 'undefined') farLodSystem.hide();
       const uwFogC = envUniforms.uFogColor.value;
       uwFogC.copy(_colUwNight).lerp(_colUwShallow, dayWeight);
       if (abyssT < 0.45) uwFogC.lerp(_colUwMid, abyssT / 0.45);
@@ -1089,6 +1090,7 @@
       envUniforms.uFogStart.value = 1.8 - abyssT * 1.1;
       envUniforms.uFogEnd.value = 30.0 - abyssT * 15.0;
     } else if (player.y < -8 || depthOffset > 0) {
+      if (typeof farLodSystem !== 'undefined') farLodSystem.hide();
       const ugBioFog = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - depthOffset), Math.floor(player.z));
       envUniforms.uFogColor.value.setHex(depthOffset >= 750 ? 0x260b0b : (ugBioFog ? ugBioFog.fogHex : 0x090d17));
       envUniforms.uFogStart.value = 12.0; envUniforms.uFogEnd.value = 34.0;
@@ -1107,6 +1109,16 @@
       const baseStart = Math.min(baseEnd * 0.56, renderDistance * (10.2 - rainIntensity * 2.8 - nightFogMul * 1.4));
       envUniforms.uFogStart.value = (inMegaCity && !isUltraShort) ? 64.0 : Math.max(isUltraShort ? 9.0 : 22.0, baseStart);
       envUniforms.uFogEnd.value   = (inMegaCity && !isUltraShort) ? Math.max(165.0, renderDistance * 52.0) : Math.max(isUltraShort ? 19.0 : 48.0, baseEnd);
+      const lodActive = (typeof farLodSystem !== 'undefined' && farLodSystem.isActive() &&
+        curBiome !== BIOMES.NIGHTMARE_WOODS && curBiome !== BIOMES.PALE_GARDEN && curBiome !== BIOMES.DARK_FOREST &&
+        activeWeatherKind !== 'blizzard' && activeWeatherKind !== 'sandstorm' && activeWeatherKind !== 'fog' && activeWeatherKind !== 'ashfall');
+      if (lodActive && envUniforms.uLodFogStart && envUniforms.uLodFogEnd) {
+        const lodOuter = farLodSystem.outerRadius || 240;
+        envUniforms.uLodFogStart.value = Math.max(44.0, (renderDistance || 3) * 15.0);
+        envUniforms.uLodFogEnd.value = Math.max(envUniforms.uLodFogStart.value + 36.0, lodOuter * 0.94);
+        envUniforms.uFogStart.value = Math.max(envUniforms.uFogStart.value, (renderDistance || 3) * 14.5);
+        envUniforms.uFogEnd.value = Math.max(envUniforms.uFogEnd.value, (renderDistance || 3) * 16.0 + 48.0);
+      }
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
         envUniforms.uFogColor.value.copy(_colNightmareFog);
         envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, 4.5);
@@ -2284,6 +2296,11 @@
         workerHits: chunkWorkerPool.hits,
         workerPending: chunkWorkerPool.inFlight.size,
         workerCached: chunkWorkerPool.cache.size,
+        workerPendingMeshes: chunkWorkerPool.pendingMeshes || 0,
+        workerReadyMeshes: chunkWorkerPool.readyMeshes || 0,
+        workerPendingTerrain: chunkWorkerPool.pendingTerrain || 0,
+        workerCachedTerrain: chunkWorkerPool.cachedTerrain || 0,
+        wasmStats: (typeof _nucraftWasmState !== 'undefined') ? { ..._nucraftWasmState } : null,
         glbFetched: typeof _glbFetchCount === 'number' ? _glbFetchCount : 0,
         audioFetched: typeof _audioFetchCount === 'number' ? _audioFetchCount : 0
       };
@@ -2291,7 +2308,33 @@
     applyQualitySetting,
     preloadMobGlb,
     preloadAllDragonGlbs,
-    getChunkWorkerStats: () => ({ active: chunkWorkerPool.active, hits: chunkWorkerPool.hits, pending: chunkWorkerPool.inFlight.size, cached: chunkWorkerPool.cache.size }),
+    getChunkWorkerStats: () => ({
+      active: chunkWorkerPool.active, hits: chunkWorkerPool.hits,
+      pending: chunkWorkerPool.inFlight.size, cached: chunkWorkerPool.cache.size,
+      pendingMeshes: chunkWorkerPool.pendingMeshes || 0,
+      readyMeshes: chunkWorkerPool.readyMeshes || 0,
+      pendingTerrain: chunkWorkerPool.pendingTerrain || 0,
+      cachedTerrain: chunkWorkerPool.cachedTerrain || 0,
+      epoch: chunkWorkerPool.epoch || 0
+    }),
+    testBinarySaveRoundtrip: (n = 2000) => {
+      if (typeof encodeWorldModsBinary !== 'function' || typeof decodeWorldModsBinary !== 'function') return { ok: false, reason: 'missing_codec' };
+      const sample = new Map();
+      const dims = ['overworld', 'nether', 'end', 'sift'];
+      for (let i = 0; i < n; i++) {
+        const d = dims[i % dims.length];
+        const x = (i % 64) - 32, y = (i % 80) - 20, z = ((i >> 6) % 64) - 32;
+        sample.set(dimModKey(x, y, z, d), 1 + (i % 400));
+      }
+      const bin = encodeWorldModsBinary(sample);
+      const decoded = decodeWorldModsBinary(bin);
+      if (!decoded || decoded.length !== sample.size) return { ok: false, expected: sample.size, got: decoded ? decoded.length : 0 };
+      for (const [k, v] of decoded) {
+        if (sample.get(k) !== v) return { ok: false, mismatchKey: k, expected: sample.get(k), got: v };
+      }
+      const jsonLen = JSON.stringify(Array.from(sample.entries())).length;
+      return { ok: true, entries: sample.size, binBytes: bin.length, jsonBytes: jsonLen, ratio: +(jsonLen / bin.length).toFixed(2) };
+    },
     setElapsedForTest: (v) => { elapsed = v; },
     getRigs: () => ({ playerAvatar, titleSkinRig, skinPreviewRig, invPreviewRig }),
     PLAYER_SKINS,

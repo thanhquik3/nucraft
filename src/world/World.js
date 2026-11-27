@@ -3127,11 +3127,63 @@
     if (currentDimension === 'nether') return _genNetherChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'overworld' && isAbandonedCity(wx0 + 8, wz0 + 8)) return _genCityChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'overworld' && isGrandRuins(wx0 + 8, wz0 + 8)) return _genGrandRuinsChunk(cx, cz, wx0, wz0, data);
-    let maxLy = 0;
+    let maxLy = 0, _isUniformBiome = false, _bC0 = BIOMES.PLAINS, _baseDone = false;
 
-    // ===================== DIMENSION 1: OVERWORLD (THẾ GIỚI CHÍNH) =====================
-    const _bC0 = getBiomeAt(wx0 + 8, wz0 + 8);
-    const _isUniformBiome = (
+    // ===================== DIMENSION 1: OVERWORLD (Worker / Rust WASM Base Terrain Fast-Path) =====================
+    const wPre = (typeof chunkWorkerPool !== 'undefined' && chunkWorkerPool.takeOverworld) ? chunkWorkerPool.takeOverworld(cx, cz) : null;
+    if (wPre && wPre.data) {
+      data.set(wPre.data);
+      if (wPre.isOceanChunk) {
+        maxLy = applyChunkMods(cx, cz, data, wPre.maxLy | 0);
+        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true, _meshGen: 0, _meshInFlightGen: -1 };
+        registerChunk(chunkKey(cx, cz), ch);
+        markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
+        return ch;
+      }
+      colHeights.set(wPre.colHeights);
+      colBiomes.set(wPre.colBiomes);
+      if (wPre.caveGrid && wPre.caveGrid.length === caveGrid.length) caveGrid.set(wPre.caveGrid);
+      maxLy = wPre.maxLy | 0;
+      _isUniformBiome = (wPre.uniformBiome !== 255);
+      if (_isUniformBiome && BIOME_LIST[wPre.uniformBiome]) _bC0 = BIOME_LIST[wPre.uniformBiome];
+      _baseDone = true;
+    } else if (_nwExports && _nwExports.generate_overworld_base_chunk && _syncMainWasmLuts(false)) {
+      _syncWasmViews();
+      const acList = getAncientCityLocations();
+      for (let ai = 0; ai < 4 && ai < acList.length; ai++) {
+        _nwAcCoords[ai * 2] = acList[ai].x | 0;
+        _nwAcCoords[ai * 2 + 1] = acList[ai].z | 0;
+      }
+      _nwExports.generate_overworld_base_chunk(
+        cx | 0, cz | 0, worldSeed | 0,
+        seedMix.ox, seedMix.oy, seedMix.oz,
+        seedMix.c1 | 0, seedMix.c2 | 0, seedMix.c3 | 0, seedMix.c4 | 0,
+        seedMix.b1 | 0, seedMix.b2 | 0, seedMix.s1 | 0,
+        0, MIN_Y | 0, MAX_Y | 0, WATER_LEVEL | 0
+      );
+      _nucraftWasmState.terrainCalls++;
+      data.set(_nwChunkData);
+      const wMaxLy = _nwTerrainMeta[0] | 0;
+      if (_nwTerrainMeta[1] === 1) {
+        maxLy = applyChunkMods(cx, cz, data, wMaxLy);
+        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true, _meshGen: 0, _meshInFlightGen: -1 };
+        registerChunk(chunkKey(cx, cz), ch);
+        markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
+        return ch;
+      }
+      colHeights.set(_nwColHeights);
+      colBiomes.set(_nwColBiomes);
+      caveGrid.set(_nwCoarseView);
+      maxLy = wMaxLy;
+      const uBio = _nwTerrainMeta[2] | 0;
+      _isUniformBiome = (uBio !== 255);
+      if (_isUniformBiome && BIOME_LIST[uBio]) _bC0 = BIOME_LIST[uBio];
+      _baseDone = true;
+    }
+
+    if (!_baseDone) {
+    _bC0 = getBiomeAt(wx0 + 8, wz0 + 8);
+    _isUniformBiome = (
       getBiomeAt(wx0 - 12, wz0 - 12) === _bC0 && getBiomeAt(wx0 + 28, wz0 - 12) === _bC0 &&
       getBiomeAt(wx0 - 12, wz0 + 28) === _bC0 && getBiomeAt(wx0 + 28, wz0 + 28) === _bC0 &&
       getBiomeAt(wx0 + 8, wz0 - 12) === _bC0 && getBiomeAt(wx0 + 8, wz0 + 28) === _bC0 &&
@@ -3147,7 +3199,7 @@
         const wTopLy = WATER_LEVEL - MIN_Y;
         data.fill(B.WATER, 0, (wTopLy + 1) << 8);
         maxLy = applyChunkMods(cx, cz, data, wTopLy);
-        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
+        const ch = { cx, cz, data, maxLy, isOceanChunk: true, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true, _meshGen: 0, _meshInFlightGen: -1 };
         registerChunk(chunkKey(cx, cz), ch);
         markChunkBorderDirty(cx + 1, cz); markChunkBorderDirty(cx - 1, cz); markChunkBorderDirty(cx, cz + 1); markChunkBorderDirty(cx, cz - 1);
         return ch;
@@ -3312,7 +3364,16 @@
           if (wy > h && wy <= WATER_LEVEL) id = ((biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && wy === WATER_LEVEL) ? B.ICE : B.WATER;
           data[(ly << 8) | (lz << 4) | lx] = id;
         }
-        // Varied Subterranean Biome Caves below the surface (lazy-evaluated only when column has cave air!)
+      }
+    }
+    }
+
+    // Varied Subterranean Biome Caves below the surface (lazy-evaluated only when column has cave air!)
+    for (let lz = 0; lz < CHUNK_W; lz++) {
+      const wz = wz0 + lz;
+      for (let lx = 0; lx < CHUNK_W; lx++) {
+        const wx = wx0 + lx, ci = (lz << 4) | lx, h = colHeights[ci];
+        if (h < MIN_Y) continue;
         let uBioCol = null;
         for (let ly = 5; ly < h - MIN_Y - 2; ly++) {
           const wy = MIN_Y + ly;
@@ -3856,7 +3917,7 @@
   function markChunkDirty(cx, cz, urgent = false) {
     const c = chunks.get(chunkKey(cx, cz));
     if (c) {
-      c.dirty = true; _dirtyChunkSet.add(c);
+      c.dirty = true; c._meshGen = (c._meshGen || 0) + 1; _dirtyChunkSet.add(c);
       if (urgent) { c.urgentDirty = true; _urgentChunkSet.add(c); }
     }
   }
@@ -3865,6 +3926,7 @@
     for (const ch of chunks.values()) {
       ch.dirty = true;
       ch._emitDirty = true;
+      ch._meshGen = (ch._meshGen || 0) + 1;
       _dirtyChunkSet.add(ch);
       if (urgentNear && Math.abs(ch.cx - pcx) <= 1 && Math.abs(ch.cz - pcz) <= 1) {
         ch.urgentDirty = true;
@@ -3874,7 +3936,7 @@
   }
   function markChunkBorderDirty(cx, cz) {
     const c = chunks.get(chunkKey(cx, cz));
-    if (c && !c.dirty) { c.borderDirty = true; _borderChunkSet.add(c); }
+    if (c && !c.dirty) { c.borderDirty = true; c._meshGen = (c._meshGen || 0) + 1; _borderChunkSet.add(c); }
   }
   function getBlockWorld(wx, wy, wz) {
     if (wy < MIN_Y) return currentDimension === 'end' ? B.AIR : B.BEDROCK; if (wy > MAX_Y) return B.AIR;
@@ -4016,7 +4078,7 @@
         if (typeof showToast === 'function') showToast('🛏️ Giường hồi sinh đã bị phá! Điểm hồi sinh đặt lại.');
       }
     }
-    c.dirty = true; c.urgentDirty = true;
+    c.dirty = true; c.urgentDirty = true; c._meshGen = (c._meshGen || 0) + 1;
     _dirtyChunkSet.add(c); _urgentChunkSet.add(c);
     const hk = modKey(wx, wy, wz);
     if ((prevId === B.WATER || prevId === B.LAVA) && id !== prevId) {
@@ -5264,10 +5326,20 @@
         _chunkFrustumScore(a[0], a[1], pcx, pcz, fwdX, fwdZ, acx, acz)
       );
     }
+    if (!isWorldLoading && chunkWorkerPool.active) {
+      if (chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 2 : 4, _isMobilePerf ? 1.2 : 1.6) > 0) {
+        window._chunkBuiltThisFrame = true;
+      }
+    }
     if (chunkWorkerPool.active && currentDimension === 'overworld' && emergeQueue.length > 0) {
       const lookAhead = _isMobilePerf ? 6 : 10;
       for (let pi = emergeQueue.length - 1, lim = Math.max(0, emergeQueue.length - lookAhead); pi >= lim; pi--) {
-        chunkWorkerPool.prefetch(emergeQueue[pi][0], emergeQueue[pi][1], depthOffset);
+        const ecx = emergeQueue[pi][0], ecz = emergeQueue[pi][1];
+        if ((depthOffset || 0) === 0 && !isAbandonedCity(ecx * 16 + 8, ecz * 16 + 8) && !isGrandRuins(ecx * 16 + 8, ecz * 16 + 8)) {
+          chunkWorkerPool.prefetchOverworld(ecx, ecz);
+        } else {
+          chunkWorkerPool.prefetch(ecx, ecz, depthOffset);
+        }
       }
     }
 
@@ -5280,6 +5352,7 @@
     if (!urgentCh) {
       for (const ch of _dirtyChunkSet) {
         if (!ch.dirty) { _dirtyChunkSet.delete(ch); continue; }
+        if (ch._meshInFlightGen === (ch._meshGen || 0)) continue;
         let sc = _chunkFrustumScore(ch.cx, ch.cz, pcx, pcz, fwdX, fwdZ, acx, acz);
         if (ch._pendingSlice) sc *= 0.35;
         if (sc < dirtyScore) { dirtyScore2 = dirtyScore; dirtyCh2 = dirtyCh; dirtyScore = sc; dirtyCh = ch; }
@@ -5288,6 +5361,7 @@
       if (!dirtyCh) {
         for (const ch of _borderChunkSet) {
           if (!ch.borderDirty) { _borderChunkSet.delete(ch); continue; }
+          if (ch._meshInFlightGen === (ch._meshGen || 0)) continue;
           const sc = _chunkFrustumScore(ch.cx, ch.cz, pcx, pcz, fwdX, fwdZ, acx, acz);
           if (sc < borderScore) { borderScore = sc; borderCh = ch; }
         }
@@ -5297,10 +5371,11 @@
     if (urgentCh) {
       window._chunkBuiltThisFrame = true;
       flushUrgentChunks(_isMobilePerf ? 3 : 6);
+      if (typeof farLodSystem !== 'undefined') farLodSystem.update(pcx, pcz);
       return;
     }
 
-    // Luanti-style frame-budgeted chunk streaming: keep normal movement stutter-free while allowing near seam fixes
+    // Horizon + Luanti-style frame-budgeted chunk streaming: worker meshing for non-urgent chunks, sync WASM for immediate standing chunks
     if (!document.body.classList.contains('in-lobby') && !window._isWorldPaused) {
       let ops = 0, meshOps = 0;
       const warming = _teleportWarmupFrames > 0;
@@ -5314,9 +5389,15 @@
         const canGen = emergeQueue.length > 0;
         const canMesh = (meshOps < maxMeshOps);
         if (canMesh && dirtyCh && (!canGen || _chunkPaceFlip === 0 || (dirtyCh._pendingSlice && dirtyScore <= 4.5))) {
-          rebuildChunkMesh(dirtyCh);
-          dirtyCh = dirtyCh2; dirtyCh2 = null;
-          meshOps++; ops++;
+          const d2 = (dirtyCh.cx - pcx) * (dirtyCh.cx - pcx) + (dirtyCh.cz - pcz) * (dirtyCh.cz - pcz);
+          if (d2 > 1 && !dirtyCh._pendingSlice && _dispatchChunkMeshToWorker(dirtyCh)) {
+            dirtyCh = dirtyCh2; dirtyCh2 = null;
+            ops++;
+          } else {
+            rebuildChunkMesh(dirtyCh);
+            dirtyCh = dirtyCh2; dirtyCh2 = null;
+            meshOps++; ops++;
+          }
         } else if (canGen) {
           let generated = false;
           while (emergeQueue.length > 0) {
@@ -5329,18 +5410,30 @@
           }
           if (generated) ops++; else break;
         } else if (canMesh && dirtyCh) {
-          rebuildChunkMesh(dirtyCh);
-          dirtyCh = dirtyCh2; dirtyCh2 = null;
-          meshOps++; ops++;
+          const d2 = (dirtyCh.cx - pcx) * (dirtyCh.cx - pcx) + (dirtyCh.cz - pcz) * (dirtyCh.cz - pcz);
+          if (d2 > 1 && !dirtyCh._pendingSlice && _dispatchChunkMeshToWorker(dirtyCh)) {
+            dirtyCh = dirtyCh2; dirtyCh2 = null;
+            ops++;
+          } else {
+            rebuildChunkMesh(dirtyCh);
+            dirtyCh = dirtyCh2; dirtyCh2 = null;
+            meshOps++; ops++;
+          }
         } else if (canMesh && borderCh && (borderScore <= 4.5 || (!isMoving && (frameCounter & (_isMobilePerf ? 3 : 1)) === 0))) {
-          rebuildChunkMesh(borderCh);
-          borderCh = null;
-          meshOps++; ops++;
+          if (_dispatchChunkMeshToWorker(borderCh)) {
+            borderCh = null;
+            ops++;
+          } else {
+            rebuildChunkMesh(borderCh);
+            borderCh = null;
+            meshOps++; ops++;
+          }
         } else {
           break;
         }
       }
-      window._chunkBuiltThisFrame = (ops > 0);
+      if (ops > 0) window._chunkBuiltThisFrame = true;
+      if (typeof farLodSystem !== 'undefined') farLodSystem.update(pcx, pcz);
       return;
     }
 
@@ -5369,6 +5462,7 @@
       rebuildChunkMesh(bestCh);
       rebuilt++;
     }
+    if (typeof farLodSystem !== 'undefined') farLodSystem.update(pcx, pcz);
   }
 
 
@@ -5398,14 +5492,256 @@
     return { x: cx + 0.5, y: Math.max(WATER_LEVEL + 2, getTerrainHeight(cx, cz, getBiomeAt(cx, cz)) + 2), z: cz + 0.5, yaw: -0.45 };
   }
 
+  const _DIM_TO_ID = { overworld: 0, nether: 1, end: 2, sift: 3, warden: 4, dragon_realm: 5 };
+  const _ID_TO_DIM = ['overworld', 'nether', 'end', 'sift', 'warden', 'dragon_realm'];
+  function _jsEncodeNcw1Batch(entries) {
+    const sorted = entries.slice().sort((a, b) => (a[0] - b[0]) || (a[3] - b[3]) || (a[2] - b[2]) || (a[1] - b[1]) || (a[5] - b[5]));
+    const uniq = [];
+    for (let i = 0; i < sorted.length; i++) {
+      let keep = sorted[i];
+      while (i + 1 < sorted.length && sorted[i + 1][0] === keep[0] && sorted[i + 1][1] === keep[1] && sorted[i + 1][2] === keep[2] && sorted[i + 1][3] === keep[3]) {
+        keep = sorted[++i];
+      }
+      uniq.push(keep);
+    }
+    const out = [78, 67, 87, 49, 1, 0, uniq.length & 255, (uniq.length >>> 8) & 255, (uniq.length >>> 16) & 255, (uniq.length >>> 24) & 255];
+    const pushV = (v) => { v >>>= 0; while (v >= 0x80) { out.push((v & 0x7f) | 0x80); v >>>= 7; } out.push(v); };
+    const zz = (v) => ((v << 1) ^ (v >> 31)) >>> 0;
+    let pDim = 0xff, px = 0, py = 0, pz = 0, pBid = 0xffff;
+    for (let i = 0; i < uniq.length;) {
+      const [dim, x, y, z, bid] = uniq[i];
+      let run = 1;
+      while (i + run < uniq.length && uniq[i + run][0] === dim && uniq[i + run][3] === z && uniq[i + run][2] === y && uniq[i + run][4] === bid && uniq[i + run][1] === ((x + run) | 0)) run++;
+      let fl = 0;
+      if (dim !== pDim) fl |= 1;
+      if (z !== pz || pDim === 0xff) fl |= 2;
+      if (y !== py || pDim === 0xff) fl |= 4;
+      if (bid !== pBid) fl |= 8;
+      if (run > 1) fl |= 16;
+      out.push(fl);
+      if (fl & 1) out.push(dim & 255);
+      if (fl & 2) pushV(zz((z - pz) | 0));
+      if (fl & 4) pushV(zz((y - py) | 0));
+      pushV(zz((x - px) | 0));
+      if (fl & 8) pushV(bid & 0xffff);
+      if (fl & 16) pushV(run - 2);
+      pDim = dim; pz = z; py = y; px = (x + run - 1) | 0; pBid = bid;
+      i += run;
+    }
+    return new Uint8Array(out);
+  }
+  function _jsDecodeNcw1Batch(u8) {
+    if (!u8 || u8.length < 10 || u8[0] !== 78 || u8[1] !== 67 || u8[2] !== 87 || u8[3] !== 49) return null;
+    const ver = u8[4] | (u8[5] << 8);
+    if (ver !== 1) return null;
+    const uniq = (u8[6] | (u8[7] << 8) | (u8[8] << 16) | (u8[9] << 24)) >>> 0;
+    let pos = 10;
+    const readV = () => {
+      let res = 0, sh = 0;
+      while (pos < u8.length && sh < 35) {
+        const b = u8[pos++];
+        res |= (b & 0x7f) << sh;
+        if ((b & 0x80) === 0) return res >>> 0;
+        sh += 7;
+      }
+      return null;
+    };
+    const unzz = (v) => (v >>> 1) ^ -(v & 1);
+    const res = [];
+    let dim = 0, x = 0, y = 0, z = 0, bid = 0;
+    while (res.length < uniq) {
+      if (pos >= u8.length) return null;
+      const fl = u8[pos++];
+      if (fl & 0xe0) return null;
+      if (fl & 1) { if (pos >= u8.length) return null; dim = u8[pos++]; }
+      if (fl & 2) { const v = readV(); if (v === null) return null; z = (z + unzz(v)) | 0; }
+      if (fl & 4) { const v = readV(); if (v === null) return null; y = ((y + unzz(v)) << 16) >> 16; }
+      const dx = readV(); if (dx === null) return null; x = (x + unzz(dx)) | 0;
+      if (fl & 8) { const b = readV(); if (b === null || b > 65535) return null; bid = b; }
+      let run = 1;
+      if (fl & 16) { const ex = readV(); if (ex === null) return null; run = 2 + ex; }
+      if (res.length + run > uniq) return null;
+      const dName = _ID_TO_DIM[dim] || 'overworld';
+      for (let r = 0; r < run; r++) res.push([dimModKey((x + r) | 0, y, z, dName), bid]);
+      x = (x + run - 1) | 0;
+    }
+    return pos === u8.length ? res : null;
+  }
+  function _encodeBatch(entries) {
+    if (_nwExports && _nwExports.encode_world_mods_bin && entries.length <= 160000) {
+      _syncWasmViews();
+      if (_nwCodecIn && _nwCodecOut) {
+        const dv = new DataView(_nwCodecIn.buffer, _nwCodecIn.byteOffset, entries.length * 13);
+        for (let i = 0; i < entries.length; i++) {
+          const e = entries[i], off = i * 13;
+          _nwCodecIn[off] = e[0] & 255;
+          dv.setInt32(off + 1, e[1] | 0, true);
+          dv.setInt16(off + 5, e[2] | 0, true);
+          dv.setInt32(off + 7, e[3] | 0, true);
+          dv.setUint16(off + 11, e[4] & 0xffff, true);
+        }
+        const byteLen = _nwExports.encode_world_mods_bin(entries.length >>> 0) >>> 0;
+        if (byteLen >= 10) {
+          _nucraftWasmState.codecCalls++;
+          return _nwCodecOut.slice(0, byteLen);
+        }
+      }
+    }
+    return _jsEncodeNcw1Batch(entries);
+  }
+  function _decodeBatch(u8) {
+    if (_nwExports && _nwExports.decode_world_mods_bin && u8.length <= 2097152) {
+      _syncWasmViews();
+      if (_nwCodecIn && _nwCodecOut) {
+        _nwCodecIn.set(u8);
+        const cnt = _nwExports.decode_world_mods_bin(u8.length >>> 0) >>> 0;
+        if (cnt === 0xFFFFFFFF) return null;
+        _nucraftWasmState.codecCalls++;
+        const dv = new DataView(_nwCodecOut.buffer, _nwCodecOut.byteOffset, cnt * 13);
+        const out = new Array(cnt);
+        for (let i = 0; i < cnt; i++) {
+          const off = i * 13;
+          const dim = _nwCodecOut[off];
+          const x = dv.getInt32(off + 1, true);
+          const y = dv.getInt16(off + 5, true);
+          const z = dv.getInt32(off + 7, true);
+          const bid = dv.getUint16(off + 11, true);
+          out[i] = [dimModKey(x, y, z, _ID_TO_DIM[dim] || 'overworld'), bid];
+        }
+        return out;
+      }
+    }
+    return _jsDecodeNcw1Batch(u8);
+  }
+  function encodeWorldModsBinary(modsMap) {
+    const entries = [];
+    let idx = 0;
+    for (const [mk, bid] of modsMap.entries()) {
+      const p = parseWorldModKey(mk);
+      if (!p || p.my < -32768 || p.my > 32767) continue;
+      const dId = _DIM_TO_ID[p.dim];
+      if (dId === undefined) continue;
+      entries.push([dId, p.mx | 0, p.my | 0, p.mz | 0, bid & 0xffff, idx++]);
+    }
+    if (entries.length <= 160000) return _encodeBatch(entries);
+    const parts = [];
+    for (let s = 0; s < entries.length; s += 160000) parts.push(_encodeBatch(entries.slice(s, s + 160000)));
+    let totalBytes = 8 + parts.length * 4;
+    for (const pt of parts) totalBytes += pt.length;
+    const out = new Uint8Array(totalBytes);
+    out.set([78, 67, 87, 77], 0); // "NCWM"
+    const dv = new DataView(out.buffer);
+    dv.setUint32(4, parts.length, true);
+    let pOff = 8;
+    for (const pt of parts) { dv.setUint32(pOff, pt.length, true); pOff += 4; out.set(pt, pOff); pOff += pt.length; }
+    return out;
+  }
+  function decodeWorldModsBinary(raw) {
+    const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw || 0);
+    if (u8.length < 10) return null;
+    if (u8[0] === 78 && u8[1] === 67 && u8[2] === 87 && u8[3] === 77) {
+      const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+      const count = dv.getUint32(4, true);
+      let pos = 8;
+      const all = [];
+      for (let p = 0; p < count; p++) {
+        if (pos + 4 > u8.length) return null;
+        const len = dv.getUint32(pos, true); pos += 4;
+        if (pos + len > u8.length) return null;
+        const part = _decodeBatch(u8.subarray(pos, pos + len));
+        if (!part) return null;
+        for (let i = 0; i < part.length; i++) all.push(part[i]);
+        pos += len;
+      }
+      return pos === u8.length ? all : null;
+    }
+    return _decodeBatch(u8);
+  }
+  const NucraftWorldDB = (() => {
+    const DB_NAME = 'nucraft_worlds_db_v1', STORE = 'world_mods';
+    let _dbProm = null;
+    const openDb = () => {
+      if (_dbProm) return _dbProm;
+      _dbProm = new Promise((resolve) => {
+        try {
+          if (typeof indexedDB === 'undefined') { resolve(null); return; }
+          const req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        } catch (_) { resolve(null); }
+      });
+      return _dbProm;
+    };
+    return {
+      async save(worldId, modsMap) {
+        try {
+          const db = await openDb();
+          if (!db || !worldId) return false;
+          const bin = encodeWorldModsBinary(modsMap);
+          return await new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE, 'readwrite');
+              tx.objectStore(STORE).put({ id: String(worldId), bin, count: modsMap.size, updatedAt: Date.now() });
+              tx.oncomplete = () => resolve(true);
+              tx.onerror = () => resolve(false);
+            } catch (_) { resolve(false); }
+          });
+        } catch (_) { return false; }
+      },
+      async load(worldId) {
+        try {
+          const db = await openDb();
+          if (!db || !worldId) return null;
+          return await new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE, 'readonly');
+              const req = tx.objectStore(STORE).get(String(worldId));
+              req.onsuccess = () => {
+                const rec = req.result;
+                if (!rec || !rec.bin) { resolve(null); return; }
+                resolve(decodeWorldModsBinary(rec.bin));
+              };
+              req.onerror = () => resolve(null);
+            } catch (_) { resolve(null); }
+          });
+        } catch (_) { return null; }
+      },
+      async remove(worldId) {
+        try {
+          const db = await openDb();
+          if (!db || !worldId) return false;
+          return await new Promise((resolve) => {
+            try {
+              const tx = db.transaction(STORE, 'readwrite');
+              tx.objectStore(STORE).delete(String(worldId));
+              tx.oncomplete = () => resolve(true);
+              tx.onerror = () => resolve(false);
+            } catch (_) { resolve(false); }
+          });
+        } catch (_) { return false; }
+      }
+    };
+  })();
+  function saveWorldModsIdb(worldId, modsMap) { return NucraftWorldDB.save(worldId, modsMap); }
+  function loadWorldModsIdb(worldId) { return NucraftWorldDB.load(worldId); }
+  function deleteWorldModsIdb(worldId) { return NucraftWorldDB.remove(worldId); }
+
   const SAVE_KEY = 'luanti_craft_v13_save';
   function saveWorld() {
     try {
       const modsArr = []; for (const [k, v] of worldMods.entries()) modsArr.push([k, v]);
+      if (typeof currentWorldMeta !== 'undefined' && currentWorldMeta && currentWorldMeta.id) {
+        saveWorldModsIdb(currentWorldMeta.id, worldMods);
+      }
+      saveWorldModsIdb('quick_save', worldMods);
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         seed: worldSeed,
         player: { x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z, yaw: player.yaw, pitch: player.pitch, dim: currentDimension, depthOffset: depthOffset || 0, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
-        inventory, dayTime, weatherMode, mods: modsArr.slice(-12000),
+        inventory, dayTime, weatherMode, hasIdbMods: true, modsCount: worldMods.size, mods: modsArr.slice(-1500),
         savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
         ...serializeChestData()
       }));
@@ -8204,6 +8540,7 @@
     document.getElementById('btnDragonMount')?.classList.remove('visible');
     document.getElementById('dragonFlightHud')?.classList.remove('visible');
     if (alsoClearChunks) {
+      if (typeof farLodSystem !== 'undefined') farLodSystem.dispose();
       for (const ch of chunks.values()) { disposeChunkMeshes(ch, true); _freeChunkData(ch); }
       chunks.clear(); _invChunkCache(); emergeQueue.length = 0; emergeSet.clear();
       _dirtyChunkSet.clear(); _urgentChunkSet.clear(); _borderChunkSet.clear();

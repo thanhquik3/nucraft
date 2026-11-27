@@ -113,6 +113,8 @@
     uFogColor: { value: new THREE.Color(0x9bc4e8) },
     uFogStart: { value: 48.0 },
     uFogEnd: { value: 78.0 },
+    uLodFogStart: { value: 64.0 },
+    uLodFogEnd: { value: 240.0 },
     uQuality: { value: (shaderQuality === 'extreme' || shaderQuality === 'ultra') ? 2.0 : (shaderQuality === 'low' ? 0.0 : 1.0) },
     uWaterQuality: { value: 1.0 },
     uReflMap: { value: reflRT.texture },

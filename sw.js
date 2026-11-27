@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nucraft-v168';
+const CACHE_NAME = 'nucraft-v169';
 const ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const ASSETS = [
   './src/config.js',
   './src/world/chunkWorker.js',
   './assets/nucraft_app.min.js',
-  './assets/nucraft_core.wasm',
+  './assets/nucraft_core.wasm?abi=4',
   './assets/three.min.js',
   './assets/player_skins_bundle.js',
   './assets/mc_icons_bundle.js',
@@ -38,7 +38,7 @@ self.addEventListener('fetch', (e) => {
     p.includes('/assets/models/') ||
     p.includes('/assets/luanti_sounds/') ||
     p.includes('/skin/') ||
-    /\.(glb|ogg|mp3|png|webp|svg|woff2?|wasm)$/i.test(p);
+    /\.(glb|ogg|mp3|png|webp|svg|woff2?)$/i.test(p);
 
   if (isImmutableBinary) {
     e.respondWith(
