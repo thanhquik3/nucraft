@@ -1141,6 +1141,7 @@
     _setEm(B.NETHER_PORTAL, 1, 0.69, 0.39, 0.81, 196.0, 0x08);
     _setEm(B.END_PORTAL, 1, 0.69, 0.39, 0.81, 196.0);
     _setEm(B.END_GATEWAY, 1, 0.49, 0.63, 0.88, 196.0);
+    if (B.DRAGON_REALM_PORTAL) _setEm(B.DRAGON_REALM_PORTAL, 1, 0.49, 0.63, 0.88, 196.0);
     _setEm(B.DREAM_PORTAL, 1, 0.45, 0.75, 0.81, 196.0, 0x08);
     _setEm(B.WARDEN_PORTAL, 1, 0.14, 0.80, 0.88, 196.0, 0x08);
     _setEm(B.SCULK_SENSOR, 2, 0.22, 0.68, 0.82, 121.0);
@@ -1159,7 +1160,7 @@
       [B.LAVA]: [255, 112, 22], [B.MAGMA_BLOCK]: [236, 86, 20], [B.FIRE]: [255, 176, 48], [B.SOUL_FIRE]: [72, 226, 255],
       [B.TORCH_BLOCK]: [255, 194, 80], [B.LANTERN]: [255, 206, 98], [B.SOUL_LANTERN]: [76, 236, 255], [B.CAMPFIRE]: [255, 158, 56],
       [B.SHROOMLIGHT]: [255, 184, 86], [B.SEA_LANTERN]: [166, 246, 240], [B.GLOW_CRYSTAL]: [120, 220, 255], [B.MUSHROOM_GLOW]: [125, 245, 215],
-      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245],
+      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245], [B.DRAGON_REALM_PORTAL]: [120, 178, 255],
       [B.END_PORTAL_FRAME_EYE]: [92, 244, 195], [B.END_CRYSTAL_BLOCK]: [244, 114, 225], [B.NETHER_PORTAL]: [188, 78, 255],
       [B.DREAM_PORTAL]: [110, 235, 255], [B.WARDEN_PORTAL]: [34, 211, 238], [B.CANDLE]: [255, 206, 115], [B.REDSTONE]: [235, 45, 35],
       [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255],
@@ -2097,7 +2098,7 @@
 
   // FerriteCore / ModernFix: Shared reusable scratch arrays for chunk sub-meshes (zero Array allocations per chunk rebuild!)
   const _ePos = [], _eUvs = [], _eType = [], _eIndices = [];
-  const _ptPos = [], _ptUvs = [], _ptKind = [], _ptIndices = [];
+  const _ptPos = [], _ptNorm = [], _ptUvs = [], _ptKind = [], _ptIndices = [], _ptQuads = [];
   const _makeFluidBuf = (cap) => ({ cap, pos: new Float32Array(cap * 3), norm: new Float32Array(cap * 3), isTop: new Float32Array(cap), shore: new Float32Array(cap), depth: new Float32Array(cap), idx: new Uint32Array((cap * 3) >> 1) });
   function _growFluidBuf(b, vNeed) {
     let nCap = b.cap; while (nCap < vNeed) nCap <<= 1;
@@ -2311,13 +2312,14 @@
           } else if (id === B.END_ROD) {
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=0.92; _ownScanBuf[emLen+4]=0.88; _ownScanBuf[emLen+5]=0.96; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
             lightNodes.push({ x: lwx, y: lwy, z: lwz, col: 0xfef3ff, int: 0.88, r: 0.92, g: 0.88, b: 0.96, rad2: 196.0, prio: 1 });
-          } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL || id === B.WARDEN_PORTAL) {
+          } else if (id === B.NETHER_PORTAL || id === B.END_PORTAL || id === B.END_GATEWAY || id === B.DREAM_PORTAL || id === B.WARDEN_PORTAL || id === B.DRAGON_REALM_PORTAL) {
             const isWardP = (id === B.WARDEN_PORTAL);
-            const pR = isWardP ? 0.14 : (id === B.DREAM_PORTAL ? 0.45 : (id === B.END_GATEWAY ? 0.49 : 0.69));
-            const pG = isWardP ? 0.80 : (id === B.DREAM_PORTAL ? 0.75 : (id === B.END_GATEWAY ? 0.63 : 0.39));
-            const pB = isWardP ? 0.88 : (id === B.END_GATEWAY ? 0.88 : 0.81);
+            const isEndP = (id === B.END_GATEWAY || id === B.DRAGON_REALM_PORTAL);
+            const pR = isWardP ? 0.14 : (id === B.DREAM_PORTAL ? 0.45 : (isEndP ? 0.49 : 0.69));
+            const pG = isWardP ? 0.80 : (id === B.DREAM_PORTAL ? 0.75 : (isEndP ? 0.63 : 0.39));
+            const pB = isWardP ? 0.88 : (isEndP ? 0.88 : 0.81);
             if (emLen < maxEm) { _ownScanBuf[emLen]=lx+0.5; _ownScanBuf[emLen+1]=ly+0.5; _ownScanBuf[emLen+2]=lz+0.5; _ownScanBuf[emLen+3]=pR; _ownScanBuf[emLen+4]=pG; _ownScanBuf[emLen+5]=pB; _ownScanBuf[emLen+6]=196.0; emLen+=7; }
-            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: isWardP ? 0x22d3ee : (id === B.DREAM_PORTAL ? 0x67e8f9 : (id === B.END_GATEWAY ? 0x818cf8 : 0xc084fc)), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
+            lightNodes.push({ x: lwx, y: lwy, z: lwz, col: isWardP ? 0x22d3ee : (id === B.DREAM_PORTAL ? 0x67e8f9 : (isEndP ? 0x818cf8 : 0xc084fc)), int: 0.78, r: pR, g: pG, b: pB, rad2: 196.0, prio: 1 });
             if ((id === B.NETHER_PORTAL || id === B.DREAM_PORTAL || isWardP) && portalNodes.length < 24) {
               portalNodes.push({ x: lwx, y: lwy, z: lwz, kind: isWardP ? 3 : (id === B.DREAM_PORTAL ? 1 : 0) });
             }
@@ -3368,38 +3370,89 @@
       return;
     }
     const emitPortalBox = (x0, y0, z0, x1, y1, z1, pKind) => {
-      const bx = [x0, x1], by = [y0, y1], bz = [z0, z1];
+      const wx0p = wx + x0, wx1p = wx + x1, wy0p = wy + y0, wy1p = wy + y1, wz0p = wz + z0, wz1p = wz + z1;
       for (let f = 0; f < 6; f++) {
         const face = FACES[f];
         if (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + face.dir[0], ly + face.dir[1], lz + face.dir[2]) === id) continue;
-        for (let c = 0; c < 4; c++) {
-          const cr = face.corners[c];
-          ptPos.push(wx + bx[cr[0]], wy + by[cr[1]], wz + bz[cr[2]]);
-          ptKind.push(pKind);
-        }
-        ptUvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
-        ptIndices.push(st.ptCount, st.ptCount + 1, st.ptCount + 2, st.ptCount, st.ptCount + 2, st.ptCount + 3); st.ptCount += 4;
+        let p, qU0, qU1, qV0, qV1;
+        if (f === 0)      { p = wy1p; qU0 = wx0p; qU1 = wx1p; qV0 = wz0p; qV1 = wz1p; }
+        else if (f === 1) { p = wy0p; qU0 = wx0p; qU1 = wx1p; qV0 = wz0p; qV1 = wz1p; }
+        else if (f === 2) { p = wx1p; qU0 = wz0p; qU1 = wz1p; qV0 = wy0p; qV1 = wy1p; }
+        else if (f === 3) { p = wx0p; qU0 = wz0p; qU1 = wz1p; qV0 = wy0p; qV1 = wy1p; }
+        else if (f === 4) { p = wz1p; qU0 = wx0p; qU1 = wx1p; qV0 = wy0p; qV1 = wy1p; }
+        else              { p = wz0p; qU0 = wx0p; qU1 = wx1p; qV0 = wy0p; qV1 = wy1p; }
+        _ptQuads.push({ f, pKind, p, pk: Math.round(p * 1000), u0: qU0, u1: qU1, v0: qV0, v1: qV1, u0t: u0, u1t: u1, v0t: v0, v1t: v1 });
       }
+    };
+    const _resolvePortalAlongZ = (fId) => {
+      const nbXM = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz);
+      const nbXP = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz);
+      const nbZM = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1);
+      const nbZP = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1);
+      const idX = (nbXM === id || nbXP === id), idZ = (nbZM === id || nbZP === id);
+      if (idX !== idZ) return idZ;
+      const frX = (nbXM === fId || nbXP === fId), frZ = (nbZM === fId || nbZP === fId);
+      return frZ && !frX;
     };
     if (id === B.END_GATEWAY) {
       emitPortalBox(0.04, 0.04, 0.04, 0.96, 0.96, 0.96, 2.0);
     } else if (id === B.END_PORTAL) {
       const aboveB = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly + 1, lz), belowB = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
-      const isUpright = (aboveB === B.END_PORTAL || aboveB === B.OBSIDIAN) && (belowB === B.END_PORTAL || belowB === B.OBSIDIAN);
+      const isUpright = (aboveB === B.END_PORTAL || aboveB === B.OBSIDIAN || aboveB === B.BEDROCK) && (belowB === B.END_PORTAL || belowB === B.OBSIDIAN || belowB === B.BEDROCK);
       if (!isUpright) emitPortalBox(0.0, 0.72, 0.0, 1.0, 0.75, 1.0, 2.0);
       else {
-        const hasX = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === B.OBSIDIAN || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === B.OBSIDIAN);
-        const hasZ = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === B.OBSIDIAN || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === B.OBSIDIAN);
-        const alongZ = hasZ && !hasX;
+        const alongZ = _resolvePortalAlongZ(B.OBSIDIAN);
         emitPortalBox(alongZ ? 0.45 : 0.0, 0.0, alongZ ? 0.0 : 0.45, alongZ ? 0.55 : 1.0, 1.0, alongZ ? 1.0 : 0.55, 2.0);
       }
     } else {
-      const fId = (id === B.DREAM_PORTAL) ? B.DREAM_PORTAL_FRAME : (id === B.WARDEN_PORTAL ? B.REINFORCED_DEEPSLATE : B.OBSIDIAN);
-      const pKind = (id === B.WARDEN_PORTAL) ? 3.0 : (id === B.DREAM_PORTAL ? 1.0 : 0.0);
-      const hasX = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) === fId || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) === fId);
-      const hasZ = (_getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === id || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) === fId || _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) === fId);
-      const alongZ = hasZ && !hasX;
+      const isDragonP = (id === B.DRAGON_REALM_PORTAL);
+      const fId = isDragonP ? B.BEDROCK : (id === B.DREAM_PORTAL ? B.DREAM_PORTAL_FRAME : (id === B.WARDEN_PORTAL ? B.REINFORCED_DEEPSLATE : B.OBSIDIAN));
+      const pKind = isDragonP ? 2.0 : (id === B.WARDEN_PORTAL ? 3.0 : (id === B.DREAM_PORTAL ? 1.0 : 0.0));
+      const alongZ = _resolvePortalAlongZ(fId);
       emitPortalBox(alongZ ? 0.45 : 0.0, 0.0, alongZ ? 0.0 : 0.45, alongZ ? 0.55 : 1.0, 1.0, alongZ ? 1.0 : 0.55, pKind);
+    }
+  }
+
+  // Greedy-merge coplanar portal quads per (face, kind, plane) inside a chunk to eliminate 1x1 MSAA seams across all portals
+  function _flushPortalQuads(ptPos, ptNorm, ptUvs, ptKind, ptIndices, st) {
+    const n = _ptQuads.length;
+    if (n === 0) return;
+    _ptQuads.sort((a, b) => (a.f - b.f) || (a.pKind - b.pKind) || (a.pk - b.pk) || (a.v0 - b.v0) || (a.v1 - b.v1) || (a.u0 - b.u0));
+    const uMerged = [];
+    for (let i = 0; i < n; i++) {
+      const q = _ptQuads[i];
+      const prev = uMerged.length > 0 ? uMerged[uMerged.length - 1] : null;
+      if (prev && prev.f === q.f && prev.pKind === q.pKind && prev.pk === q.pk &&
+          Math.abs(prev.v0 - q.v0) < 1e-4 && Math.abs(prev.v1 - q.v1) < 1e-4 && Math.abs(prev.u1 - q.u0) < 1e-4) {
+        prev.u1 = q.u1;
+      } else {
+        uMerged.push(q);
+      }
+    }
+    uMerged.sort((a, b) => (a.f - b.f) || (a.pKind - b.pKind) || (a.pk - b.pk) || (a.u0 - b.u0) || (a.u1 - b.u1) || (a.v0 - b.v0));
+    const finalQuads = [];
+    for (let i = 0; i < uMerged.length; i++) {
+      const q = uMerged[i];
+      const prev = finalQuads.length > 0 ? finalQuads[finalQuads.length - 1] : null;
+      if (prev && prev.f === q.f && prev.pKind === q.pKind && prev.pk === q.pk &&
+          Math.abs(prev.u0 - q.u0) < 1e-4 && Math.abs(prev.u1 - q.u1) < 1e-4 && Math.abs(prev.v1 - q.v0) < 1e-4) {
+        prev.v1 = q.v1;
+      } else {
+        finalQuads.push(q);
+      }
+    }
+    for (let i = 0; i < finalQuads.length; i++) {
+      const q = finalQuads[i], f = q.f, dir = FACES[f].dir, p = q.p;
+      if (f === 0)      ptPos.push(q.u0, p, q.v1, q.u1, p, q.v1, q.u1, p, q.v0, q.u0, p, q.v0);
+      else if (f === 1) ptPos.push(q.u0, p, q.v0, q.u1, p, q.v0, q.u1, p, q.v1, q.u0, p, q.v1);
+      else if (f === 2) ptPos.push(p, q.v0, q.u1, p, q.v0, q.u0, p, q.v1, q.u0, p, q.v1, q.u1);
+      else if (f === 3) ptPos.push(p, q.v0, q.u0, p, q.v0, q.u1, p, q.v1, q.u1, p, q.v1, q.u0);
+      else if (f === 4) ptPos.push(q.u0, q.v0, p, q.u1, q.v0, p, q.u1, q.v1, p, q.u0, q.v1, p);
+      else              ptPos.push(q.u1, q.v0, p, q.u0, q.v0, p, q.u0, q.v1, p, q.u1, q.v1, p);
+      for (let c = 0; c < 4; c++) { ptNorm.push(dir[0], dir[1], dir[2]); ptKind.push(q.pKind); }
+      ptUvs.push(q.u0t, q.v1t, q.u1t, q.v1t, q.u1t, q.v0t, q.u0t, q.v0t);
+      ptIndices.push(st.ptCount, st.ptCount + 1, st.ptCount + 2, st.ptCount, st.ptCount + 2, st.ptCount + 3);
+      st.ptCount += 4;
     }
   }
 
@@ -3735,10 +3788,10 @@
     const computeAO = (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && !!sodiumOpts.rayTracing));
 
     const ePos = _ePos, eUvs = _eUvs, eType = _eType, eIndices = _eIndices;
-    const ptPos = _ptPos, ptUvs = _ptUvs, ptKind = _ptKind, ptIndices = _ptIndices;
+    const ptPos = _ptPos, ptNorm = _ptNorm, ptUvs = _ptUvs, ptKind = _ptKind, ptIndices = _ptIndices;
     const pPos = _pPos, pNorm = _pNorm, pUvs = _pUvs, pSway = _pSway, pSkyShade = _pSkyShade, pBLights = _pBLights, pIndices = _pIndices;
     ePos.length = 0; eUvs.length = 0; eType.length = 0; eIndices.length = 0;
-    ptPos.length = 0; ptUvs.length = 0; ptKind.length = 0; ptIndices.length = 0;
+    ptPos.length = 0; ptNorm.length = 0; ptUvs.length = 0; ptKind.length = 0; ptIndices.length = 0; _ptQuads.length = 0;
     pPos.length = 0; pNorm.length = 0; pUvs.length = 0; pSway.length = 0; pSkyShade.length = 0; pBLights.length = 0; pIndices.length = 0;
     const st = _meshSt;
     st.vCount = 0; st.iCount = 0; st.lCount = 0; st.liCount = 0; st.eCount = 0; st.ptCount = 0; st.wCount = 0; st.wiCount = 0; st.lvCount = 0; st.lviCount = 0; st.pCount = 0;
@@ -3941,7 +3994,7 @@
       const _isCartoonMesh = !!window._cartoonAddonActive;
       ch.leavesMesh = new THREE.Mesh(lGeo, _isCartoonMesh ? leavesMatCartoon : (_effLow ? leavesMatLow : leavesMat));
       if (!_effLow && !_isCartoonMesh) ch.leavesMesh.customDepthMaterial = leavesDepthMat;
-      const nearLeafSh = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= Math.min(_shChunkRad, 2));
+      const nearLeafSh = (_shChunkRad >= 0) && (Math.max(Math.abs(cx - (Math.floor(player.x) >> 4)), Math.abs(cz - (Math.floor(player.z) >> 4))) <= Math.min(_shChunkRad, 1));
       ch.leavesMesh.castShadow = (!_effLow && !_isCartoonMesh && nearLeafSh); ch.leavesMesh.receiveShadow = false; ch.leavesMesh.frustumCulled = true;
       ch.leavesMesh.matrixAutoUpdate = false; ch.leavesMesh.updateMatrix();
       scene.add(ch.leavesMesh);
@@ -3958,9 +4011,11 @@
       ch.emissiveMesh.matrixAutoUpdate = false; ch.emissiveMesh.updateMatrix();
       scene.add(ch.emissiveMesh);
     }
+    if (_ptQuads.length > 0) _flushPortalQuads(ptPos, ptNorm, ptUvs, ptKind, ptIndices, st);
     if (st.ptCount > 0) {
       const ptGeo = new THREE.BufferGeometry();
       ptGeo.setAttribute('position', new THREE.Float32BufferAttribute(ptPos, 3));
+      ptGeo.setAttribute('normal', new THREE.Float32BufferAttribute(ptNorm, 3));
       ptGeo.setAttribute('uv', new THREE.Float32BufferAttribute(ptUvs, 2));
       ptGeo.setAttribute('aPortalKind', new THREE.Float32BufferAttribute(ptKind, 1));
       ptGeo.setIndex(_makeIdxAttr(ptIndices, ptIndices.length, st.ptCount));

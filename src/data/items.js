@@ -5220,13 +5220,12 @@
       // Fix Ender Dragon Egg sprite (obsidian + purple spots)
       drawDragonEggTile(V153_TILES.enderDragonEgg, '#05030a', '#0f071a', '#26103d', '#9333ea', '#f0abfc');
 
-      // End Dragon Realm Blocks
+      // End Dragon Realm Portal (deep End Portal starry cosmic void matching END_PORTAL)
       tilePixels(V153_TILES.dragonRealmPortal, (x, y, r) => {
-        const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy);
-        const sw = Math.sin(d * 0.85 - Math.atan2(dy, dx) * 3.0);
-        if (d < 3.4) return sw > 0 ? '#f0abfc' : '#67e8f9';
-        if (sw > 0.25) return r > 0.5 ? '#c084fc' : '#9333ea';
-        return r > 0.6 ? '#2e1065' : '#090514';
+        if ((x * 7 + y * 13) % 19 === 0) return '#38bdf8';
+        if ((x * 11 + y * 5) % 23 === 0) return '#818cf8';
+        if ((x * 3 + y * 17) % 29 === 0) return '#bef2ff';
+        return r > 0.72 ? '#0c1b2c' : (r > 0.35 ? '#060c18' : '#02040a');
       });
       tilePixels(V153_TILES.endMossTop, (x, y, r) => {
         if ((x * 5 + y * 7) % 13 === 0) return '#a855f7';

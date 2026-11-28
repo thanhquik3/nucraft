@@ -6299,8 +6299,8 @@
     const tBudgetStart = performance.now();
     const _sodiumTight = (typeof sodiumOpts === 'undefined' || sodiumOpts.sodium !== false);
     const frameBudgetMs = _sodiumTight
-      ? ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.2 : 1.5) : (_isMobilePerf ? 1.8 : 2.2))
-      : ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.4 : 1.8) : (_isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 2.2 : 4.2)));
+      ? ((rawDt && rawDt < 0.008) ? (_isMobilePerf ? 1.0 : 1.2) : ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.2 : 1.5) : (_isMobilePerf ? 1.6 : 2.0)))
+      : ((rawDt && rawDt > 0.028) ? (_isMobilePerf ? 1.4 : 1.8) : (_isMobilePerf ? 2.5 : ((rawDt && rawDt < 0.008) ? 1.5 : 4.2)));
     const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
     const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
     const isMoving = (player.curSpeed || 0) > 1.2 || !!player.sprinting || !!player.flying;
@@ -6381,7 +6381,8 @@
       }
     }
     if (!isWorldLoading && chunkWorkerPool.active) {
-      if (chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 2 : (renderDistance > 8 ? 6 : 4), _isMobilePerf ? 1.2 : (renderDistance > 8 ? 1.8 : 1.6)) > 0) {
+      const _hiHz = (rawDt && rawDt < 0.008);
+      if (chunkWorkerPool.drainCompletedMeshes(_isMobilePerf ? 2 : (_hiHz ? 2 : (renderDistance > 8 ? 6 : 4)), _isMobilePerf ? 1.0 : (_hiHz ? 1.0 : (renderDistance > 8 ? 1.8 : 1.5))) > 0) {
         window._chunkBuiltThisFrame = true;
       }
     }
@@ -9466,14 +9467,15 @@
     for (let cz = (pz - 5) >> 4; cz <= (pz + 5) >> 4; cz++) {
       for (let cx = (px - 5) >> 4; cx <= (px + 5) >> 4; cx++) if (!chunks.has(chunkKey(cx, cz))) generateChunk(cx, cz);
     }
+    // Unbreakable Bedrock base & portal frame with End-Portal cosmic void interior
     for (let dx = -3; dx <= 3; dx++) for (let dz = -2; dz <= 2; dz++) {
-      setBlockWorld(px + dx, py, pz + dz, (Math.abs(dx) === 3 || Math.abs(dz) === 2) ? B.PURPUR_BLOCK : B.OBSIDIAN, true, true);
+      setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
       for (let hy = 1; hy <= 7; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
     }
     for (let dy = 1; dy <= 5; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         const isFrame = (dx === -2 || dx === 2 || dy === 5);
-        setBlockWorld(px + dx, py + dy, pz, isFrame ? (dy === 5 && Math.abs(dx) === 2 ? B.PURPUR_BLOCK : B.OBSIDIAN) : B.DRAGON_REALM_PORTAL, true, true);
+        setBlockWorld(px + dx, py + dy, pz, isFrame ? B.BEDROCK : B.DRAGON_REALM_PORTAL, true, true);
       }
     }
     setBlockWorld(px - 2, py + 6, pz, B.END_ROD, true, true);
@@ -9869,6 +9871,8 @@
       _recordPortalPos('dragon_realm', 0, ly, -10);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(0, 0, 0, -1);
+      const _drLeftCh = chunks.get(chunkKey(-1, -1));
+      if (_drLeftCh) { _drLeftCh.dirty = true; rebuildChunkMesh(_drLeftCh); }
       player.x = 0.5; player.y = ly + 1.3; player.z = 2.5; player.yaw = Math.PI; player.pitch = 0.04;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof spawnMobOfType === 'function') {

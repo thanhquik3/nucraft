@@ -7749,9 +7749,13 @@
       }
     }
     if (lastTargetMobTimer > 0) { lastTargetMobTimer -= dt; if (lastTargetMobTimer <= 0) lastTargetMob = null; }
-    if (isPlaying && (frameCounter % 3) === 0) {
-      const aimedMob = raycastMob(12.0);
-      if (aimedMob && !aimedMob.isBoss) { lastTargetMob = aimedMob; lastTargetMobTimer = 2.6; }
+    if (isPlaying) {
+      updateMobs._aimAcc = (updateMobs._aimAcc || 0) + dt;
+      if (updateMobs._aimAcc >= 0.06) {
+        updateMobs._aimAcc = 0;
+        const aimedMob = raycastMob(12.0);
+        if (aimedMob && !aimedMob.isBoss) { lastTargetMob = aimedMob; lastTargetMobTimer = 2.6; }
+      }
     }
     const isDaytime = envUniforms.uSunDir.value.y > 0.12;
     const isRaining = rainIntensity > 0.20;
@@ -7822,6 +7826,7 @@
     const playerEyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
 
     window._hasActiveNearShadowMob = false;
+    window._hasActiveFlyingBoss = false;
     _mobSnapBuf.length = 0; _snapHostiles.length = 0; _snapVillagers.length = 0;
     for (let k = 0; k < mobs.length; k++) {
       const mk = mobs[k];
@@ -7829,6 +7834,10 @@
       if (mk && !mk._dead) {
         if (mk.hostile) _snapHostiles.push(mk);
         if (mk.villager) _snapVillagers.push(mk);
+        if (!window._hasActiveFlyingBoss && (IS_DRAGON_MOB.has(mk.type) || (mk.isBoss && mk.flying))) {
+          const bdx = mk.x - player.x, bdz = mk.z - player.z;
+          if (bdx * bdx + bdz * bdz < 22500) window._hasActiveFlyingBoss = true;
+        }
       }
     }
     for (let i = 0; i < _mobSnapBuf.length; i++) {

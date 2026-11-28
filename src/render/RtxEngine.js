@@ -154,6 +154,7 @@
     uNcr2Mode: { value: shaderPreset === 'ncr2' ? 1.0 : 0.0 },
     uPlayerPos: { value: new THREE.Vector3() },
     uWakePts: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -999, 0)) },
+    uWakeActive: { value: 0.0 },
     uGrassRadius: { value: _isMobilePerf ? 18.0 : 32.0 },
     uGrassSoilRadius: { value: _isMobilePerf ? 16.0 : 24.0 },
     uSurfaceLight: { value: 1.0 },
@@ -198,7 +199,7 @@
       [B.LAVA]: [255, 112, 22], [B.MAGMA_BLOCK]: [236, 86, 20], [B.FIRE]: [255, 176, 48], [B.SOUL_FIRE]: [72, 226, 255],
       [B.TORCH_BLOCK]: [255, 194, 80], [B.LANTERN]: [255, 206, 98], [B.SOUL_LANTERN]: [76, 236, 255], [B.CAMPFIRE]: [255, 158, 56],
       [B.SHROOMLIGHT]: [255, 184, 86], [B.SEA_LANTERN]: [166, 246, 240], [B.GLOW_CRYSTAL]: [120, 220, 255], [B.MUSHROOM_GLOW]: [125, 245, 215],
-      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245],
+      [B.GLOW_VINES]: [255, 214, 102], [B.END_ROD]: [248, 236, 255], [B.END_PORTAL]: [174, 92, 255], [B.END_GATEWAY]: [148, 78, 245], [B.DRAGON_REALM_PORTAL]: [120, 178, 255],
       [B.END_PORTAL_FRAME_EYE]: [92, 244, 195], [B.END_CRYSTAL_BLOCK]: [244, 114, 225], [B.NETHER_PORTAL]: [188, 78, 255],
       [B.DREAM_PORTAL]: [110, 235, 255], [B.WARDEN_PORTAL]: [34, 211, 238], [B.CANDLE]: [255, 206, 115], [B.REDSTONE]: [235, 45, 35],
       [B.REDSTONE_ORE]: [215, 55, 48], [B.ICHOR_ORE]: [240, 115, 245], [B.DRAGON_CRYSTAL_ORE]: [195, 95, 255],
@@ -527,13 +528,14 @@
   // Crisp 16x16 Pixel-Art Terrain Material w/ Linear-Rich BSL/Complementary Albedo, Warm Sun vs Soft Balanced Shadows & Anti-Glare Shoulder
   const terrainMat = new THREE.MeshStandardMaterial({
     map: atlasTex,
-    bumpMap: bumpTex,
-    bumpScale: 0.056,
+    bumpMap: (bumpEnabled && shaderQuality !== 'low') ? bumpTex : null,
+    bumpScale: (bumpEnabled && shaderQuality !== 'low') ? 0.056 : 0.0,
     alphaTest: 0.45,
     roughness: 0.90,
     metalness: 0.02,
     vertexColors: true
   });
+  terrainMat._baseBumpMap = bumpTex;
   terrainMat.extensions = { derivatives: true };
   terrainMat.customProgramCacheKey = () => 'luanti_terrain_bsl_v183';
   terrainMat.onBeforeCompile = (shader) => {
@@ -652,17 +654,17 @@
           vec2 _dxG = dFdx( _gUv );
           vec2 _dyG = dFdy( _gUv );
           float _fp = max( length( _dxG ), length( _dyG ) );
-          if ( uAaMode > 0.5 && _fp > 0.052 ) {
+          if ( uAaMode > 1.5 && _fp > 0.080 ) {
             // Zero-seam distance-adaptive 4-tap RGSS inside tile: razor-sharp up close (1 tap), zero shimmer far away!
-            float _aaW = smoothstep( 0.052, 0.145, _fp ) * ( uAaMode > 1.5 ? 1.0 : 0.82 );
+            float _aaW = smoothstep( 0.080, 0.165, _fp );
             vec2 _oA = clamp( _dxG * 0.375 + _dyG * 0.125, vec2( -0.42 ), vec2( 0.42 ) );
             vec2 _oB = clamp( -_dxG * 0.125 + _dyG * 0.375, vec2( -0.42 ), vec2( 0.42 ) );
             vec4 _s0 = texture2D( map, _to + fract( _gUv + _oA ) * _ts );
             vec4 _s1 = texture2D( map, _to + fract( _gUv - _oA ) * _ts );
             vec4 _s2 = texture2D( map, _to + fract( _gUv + _oB ) * _ts );
             vec4 _s3 = texture2D( map, _to + fract( _gUv - _oB ) * _ts );
-            vec4 _baseC = texture2D( map, _mUv );
-            texelColor = mix( _baseC, ( _s0 + _s1 + _s2 + _s3 ) * 0.25, _aaW );
+            vec4 _avgG = ( _s0 + _s1 + _s2 + _s3 ) * 0.25;
+            texelColor = ( _aaW >= 0.99 ) ? _avgG : mix( texture2D( map, _mUv ), _avgG, _aaW );
           } else {
             texelColor = texture2D( map, _mUv );
           }
@@ -670,24 +672,23 @@
           vec2 _dxU = dFdx( _mUv );
           vec2 _dyU = dFdy( _mUv );
           float _fpU = max( length( _dxU * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyU * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
-          if ( uAaMode > 0.5 && _fpU > 0.055 ) {
+          if ( uAaMode > 1.5 && _fpU > 0.082 ) {
             float _colU = floor( _mUv.x * ${ATLAS_COLS}.0 );
             float _rowU = floor( _mUv.y * ${ATLAS_ROWS}.0 );
             float _uSt = 1.0 / ${ATLAS_COLS}.0;
             float _vSt = 1.0 / ${ATLAS_ROWS}.0;
             vec2 _tMin = vec2( _colU * _uSt + 0.002, _rowU * _vSt + 0.002 );
             vec2 _tMax = vec2( ( _colU + 1.0 ) * _uSt - 0.002, ( _rowU + 1.0 ) * _vSt - 0.002 );
-            float _aaU = smoothstep( 0.055, 0.15, _fpU ) * ( uAaMode > 1.5 ? 1.0 : 0.80 );
+            float _aaU = smoothstep( 0.082, 0.17, _fpU );
             vec2 _o1 = _dxU * 0.35 + _dyU * 0.12;
             vec2 _o2 = -_dxU * 0.12 + _dyU * 0.35;
-            vec4 _c0 = texture2D( map, _mUv );
             vec4 _cAvg = (
               texture2D( map, clamp( _mUv + _o1, _tMin, _tMax ) ) +
               texture2D( map, clamp( _mUv - _o1, _tMin, _tMax ) ) +
               texture2D( map, clamp( _mUv + _o2, _tMin, _tMax ) ) +
               texture2D( map, clamp( _mUv - _o2, _tMin, _tMax ) )
             ) * 0.25;
-            texelColor = mix( _c0, _cAvg, _aaU );
+            texelColor = ( _aaU >= 0.99 ) ? _cAvg : mix( texture2D( map, _mUv ), _cAvg, _aaU );
           } else {
             texelColor = texture2D( map, _mUv );
           }
@@ -918,11 +919,11 @@
       .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uInLava, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode, uAaMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos, vWNormL;\n${RT_DDA_GLSL}`)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 texelColor = texture2D( map, vUv );
-        if ( uAaMode > 0.5 ) {
+        if ( uAaMode > 1.5 ) {
           vec2 _dxL = dFdx( vUv );
           vec2 _dyL = dFdy( vUv );
           float _fpL = max( length( _dxL * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyL * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
-          if ( _fpL > 0.060 && texelColor.a > 0.45 ) {
+          if ( _fpL > 0.080 && texelColor.a > 0.45 ) {
             float _cL = floor( vUv.x * ${ATLAS_COLS}.0 );
             float _rL = floor( vUv.y * ${ATLAS_ROWS}.0 );
             float _uS = 1.0 / ${ATLAS_COLS}.0;
@@ -937,7 +938,7 @@
             vec4 _t4 = texture2D( map, clamp( vUv - _oL2, _lMin, _lMax ) );
             float _wSum = 1.0 + step( 0.45, _t1.a ) + step( 0.45, _t2.a ) + step( 0.45, _t3.a ) + step( 0.45, _t4.a );
             vec3 _rgbAvg = ( texelColor.rgb + _t1.rgb * step( 0.45, _t1.a ) + _t2.rgb * step( 0.45, _t2.a ) + _t3.rgb * step( 0.45, _t3.a ) + _t4.rgb * step( 0.45, _t4.a ) ) / _wSum;
-            texelColor.rgb = mix( texelColor.rgb, _rgbAvg, smoothstep( 0.060, 0.16, _fpL ) * ( uAaMode > 1.5 ? 0.92 : 0.72 ) );
+            texelColor.rgb = mix( texelColor.rgb, _rgbAvg, smoothstep( 0.080, 0.175, _fpL ) * 0.92 );
           }
         }
         texelColor = mapTexelToLinear( texelColor );
@@ -1116,11 +1117,11 @@
       .replace('#include <common>', `#include <common>\nuniform float uFogStart, uFogEnd, uUnderwater, uInLava, uWaterDepth, uDimension, uQuality, uChillMode, uRainWetness, uDlssMode, uEclipseMode, uNcr2Mode, uSurfaceLight, uRayTracing, uCartoonMode, uAaMode;\nuniform vec3 uSunDir, uSunColor, uFogColor;\nvarying vec3 vBlockLight, vWPos;\nvarying float vPlantTip, vSkyShade;\n${RT_DDA_GLSL}`)
       .replace('#include <map_fragment>', `#ifdef USE_MAP
         vec4 texelColor = texture2D( map, vUv );
-        if ( uAaMode > 0.5 ) {
+        if ( uAaMode > 1.5 ) {
           vec2 _dxP = dFdx( vUv );
           vec2 _dyP = dFdy( vUv );
           float _fpP = max( length( _dxP * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ), length( _dyP * vec2( ${ATLAS_COLS}.0, ${ATLAS_ROWS}.0 ) ) );
-          if ( _fpP > 0.065 && texelColor.a > 0.42 ) {
+          if ( _fpP > 0.085 && texelColor.a > 0.42 ) {
             float _cP = floor( vUv.x * ${ATLAS_COLS}.0 );
             float _rP = floor( vUv.y * ${ATLAS_ROWS}.0 );
             float _uSp = 1.0 / ${ATLAS_COLS}.0;
@@ -1131,7 +1132,7 @@
             vec4 _q2 = texture2D( map, clamp( vUv - _dxP * 0.32, _pMin, _pMax ) );
             float _wP = 1.0 + step( 0.42, _q1.a ) + step( 0.42, _q2.a );
             vec3 _avgP = ( texelColor.rgb + _q1.rgb * step( 0.42, _q1.a ) + _q2.rgb * step( 0.42, _q2.a ) ) / _wP;
-            texelColor.rgb = mix( texelColor.rgb, _avgP, smoothstep( 0.065, 0.17, _fpP ) * 0.85 );
+            texelColor.rgb = mix( texelColor.rgb, _avgP, smoothstep( 0.085, 0.185, _fpP ) * 0.85 );
           }
         }
         texelColor = mapTexelToLinear( texelColor );
@@ -1380,15 +1381,17 @@
     fg.scale.set(wBase * pXZ, hBase * pY, wBase * pXZ);
   }
 
-  // Translucent Thin Portal Shader (Nether purple 0, Dream aura 1, End cosmic void 2, Warden sculk vortex 3)
+  // Translucent/Void Portal Shader (Nether purple 0, Dream aura 1, End & Dragon cosmic void 2, Warden sculk vortex 3)
+  // FrontSide on outward-wound greedy-merged portal slabs eliminates double-layer alpha ghosting & block-grid seams from all angles.
   const portalMat = new THREE.ShaderMaterial({
     uniforms: { uMap: { value: atlasTex }, uTime: envUniforms.uTime, uFogColor: envUniforms.uFogColor, uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uReflClipY: envUniforms.uReflClipY },
-    side: THREE.DoubleSide, transparent: true, depthWrite: false,
+    side: THREE.FrontSide, transparent: true, depthWrite: false,
     vertexShader: `
       attribute float aPortalKind;
-      varying vec2 vUv; varying float vDist, vKind; varying vec3 vWPos;
+      varying vec2 vUv; varying float vDist, vKind; varying vec3 vWPos, vNorm;
       void main() {
         vUv = uv; vKind = aPortalKind;
+        vNorm = normalize(normal);
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vWPos = wp.xyz;
         vec4 mv = viewMatrix * wp;
@@ -1397,7 +1400,7 @@
       }`,
     fragmentShader: `
       uniform sampler2D uMap; uniform float uTime, uFogStart, uFogEnd, uReflClipY, uInLava; uniform vec3 uFogColor;
-      varying vec2 vUv; varying float vDist, vKind; varying vec3 vWPos;
+      varying vec2 vUv; varying float vDist, vKind; varying vec3 vWPos, vNorm;
       float pHash(vec2 p) {
         return fract(sin(dot(mod(p, 256.0), vec2(127.1, 311.7))) * 43758.5453);
       }
@@ -1420,9 +1423,22 @@
       void main() {
         if (vWPos.y < uReflClipY) discard;
         vec3 vDirP = normalize(vWPos - cameraPosition);
-        vec2 par1 = vec2(vDirP.x + vDirP.z, vDirP.y) * 0.24;
-        vec2 par2 = par1 * 2.1;
-        vec2 pBase = vec2(vWPos.x + vWPos.z, vWPos.y);
+        // Surface-normal tangent projection: 100% stable from all 360-deg camera angles, pitches & portal orientations (X, Z, horizontal)
+        vec3 an = abs(vNorm);
+        vec2 pBase, pRay;
+        if (an.y > 0.5) {
+          pBase = vWPos.xz;
+          pRay = vDirP.xz / max(abs(vDirP.y), 0.30);
+        } else if (an.x > 0.5) {
+          pBase = vec2(vWPos.z, vWPos.y);
+          pRay = vec2(vDirP.z, vDirP.y) / max(abs(vDirP.x), 0.30);
+        } else {
+          pBase = vec2(vWPos.x, vWPos.y);
+          pRay = vec2(vDirP.x, vDirP.y) / max(abs(vDirP.z), 0.30);
+        }
+        vec2 pRayC = clamp(pRay, vec2(-2.2), vec2(2.2));
+        vec2 par1 = pRayC * 0.14;
+        vec2 par2 = par1 * 1.9;
         float tS = uTime * 0.42;
         vec2 q1 = vec2(pFbm(pBase * 0.95 + par1 + vec2(tS * 0.35, -tS * 0.55)),
                        pFbm(pBase * 0.95 + par1 + vec2(-tS * 0.42, tS * 0.38) + 4.3));
@@ -1439,7 +1455,7 @@
         float glint = spCore * (0.45 + 0.55 * sin(uTime * 3.2 + spRnd * 38.0));
         vec3 col; float a;
         if (vKind > 2.5) {
-          float pulse = 0.72 + 0.28 * sin(uTime * 3.2 - length(vWPos.xy) * 1.15);
+          float pulse = 0.72 + 0.28 * sin(uTime * 3.2 - length(pBase) * 1.15);
           float vein = smoothstep(0.46, 0.82, mist * 0.68 + warp * 0.42);
           float ripple = smoothstep(0.42, 0.96, sin((pBase.y - uTime * 1.65) * 2.4 + q1.x * 3.0) * 0.5 + 0.5);
           col = mix(vec3(0.015, 0.075, 0.12), vec3(0.04, 0.44, 0.54), smoothstep(0.24, 0.78, warp));
@@ -1461,9 +1477,9 @@
           col += mix(rb, vec3(1.0), 0.45) * glint * 0.92;
           a = mix(0.78, 0.94, clamp(mist * 0.65 + glint * 0.45, 0.0, 1.0));
         } else {
-          // Authentic Minecraft Multi-Layer Parallax Starry Cosmic Void (End Portal — Images 1, 2, 3)
-          vec2 ePlane = (abs(vDirP.y) > 0.14) ? vWPos.xz : vec2(vWPos.x + vWPos.z, vWPos.y);
-          vec2 eRay = (abs(vDirP.y) > 0.14) ? (vDirP.xz / max(abs(vDirP.y), 0.24)) : (vec2(vDirP.x + vDirP.z, vDirP.y) / max(abs(vDirP.x) + abs(vDirP.z), 0.28));
+          // Authentic Minecraft Multi-Layer Parallax Starry Cosmic Void (End Portal, End Gateway & Dragon Realm Portal)
+          vec2 ePlane = pBase;
+          vec2 eRay = pRayC;
           vec3 voidCol = vec3(0.005, 0.009, 0.018);
           // 7 parallax depth layers of tiny crisp pixel stars + deep teal/cobalt/violet nebula specks
           for (int li = 0; li < 7; li++) {
@@ -1472,7 +1488,7 @@
             float ang = fl * 0.87 + 0.35;
             float ca = cos(ang), sa = sin(ang);
             mat2 rMat = mat2(ca, -sa, sa, ca);
-            vec2 lUv = rMat * (ePlane * (0.48 + fl * 0.16) + eRay * (0.38 * depth)) + vec2(uTime * (0.045 + fl * 0.014), -uTime * (0.032 + fl * 0.011));
+            vec2 lUv = rMat * (ePlane * (0.48 + fl * 0.16) + eRay * (0.34 * depth)) + vec2(uTime * (0.045 + fl * 0.014), -uTime * (0.032 + fl * 0.011));
             // Crisp pixel-star grid matching vanilla Minecraft End Portal dots
             vec2 gCell = floor(lUv * 16.0);
             float rnd = pHash(gCell + fl * 37.0);
@@ -1490,7 +1506,7 @@
             voidCol += mix(vec3(0.02, 0.10, 0.14), vec3(0.08, 0.04, 0.18), fl / 6.0) * neb * att * 0.28;
           }
           col = voidCol;
-          a = 0.995;
+          a = 1.0;
         }
         float fogF = smoothstep(uFogStart, uFogEnd, max(length((vWPos - cameraPosition).xz), vDist * 0.88));
         gl_FragColor = vec4(mix(col, uFogColor, fogF), a);
@@ -1505,13 +1521,14 @@
       uSunColor: envUniforms.uSunColor, uTime: envUniforms.uTime,
       uCloudCover: envUniforms.uCloudCover, uVolumetricClouds: envUniforms.uVolumetricClouds,
       uDimension: envUniforms.uDimension, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth,
-      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uCartoonMode: envUniforms.uCartoonMode
+      uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode, uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uCartoonMode: envUniforms.uCartoonMode,
+      uReflClipY: envUniforms.uReflClipY, uQuality: envUniforms.uQuality
     },
     vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * (modelViewMatrix * vec4(position, 1.0)); }`,
     fragmentShader: `
       precision mediump float;
       uniform vec3 uSunDir, uSkyTop, uSkyHorizon, uSunColor, uFogColor;
-      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uCartoonMode;
+      uniform float uTime, uCloudCover, uVolumetricClouds, uDimension, uUnderwater, uInLava, uWaterDepth, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uCartoonMode, uReflClipY, uQuality;
       varying vec3 vDir;
       float cHash(vec2 p) { return fract(sin(dot(mod(p, 289.0), vec2(127.1, 311.7))) * 43758.5453); }
       float cNoise(vec2 p) {
@@ -1787,19 +1804,24 @@
           vec3 baseShC  = mix(shNightC, shDayC, sunUp);
           float fwdDotC = sunN.y > -0.05 ? sunDot : moonDot;
           float silverC = pow(fwdDotC, 6.0) * 0.14 * max(sunUp, moonPresence * 0.35);
+          bool fastClouds = (uReflClipY > -9000.0) || (uQuality < 0.5);
           for (int ci = 0; ci < 6; ci++) {
+            if (fastClouds && (ci == 1 || ci == 3 || ci >= 4)) continue;
             float hs = (float(ci) + 0.5) / 6.0;
             float dome = 0.72 + 0.28 * sin(hs * 3.14159);
             float altY = mix(2.65, 3.20, hs);
             vec2 cUv = (d.xz / max(d.y + 0.06, 0.09)) * altY + vec2(uTime * 0.016, uTime * 0.006);
             float m0 = puffCloudMask(cUv, uCloudCover - (1.0 - dome) * 0.10);
             if (m0 > 0.01) {
-              float mSun = puffCloudMask(cUv + lightD.xz / (abs(lightD.y) + 0.45) * 0.32, uCloudCover);
-              float litF = clamp(hs * 0.74 + (1.0 - mSun) * 0.32, 0.08, 1.0);
+              float litF = fastClouds
+                ? clamp(hs * 0.78 + 0.22, 0.15, 1.0)
+                : clamp(hs * 0.74 + (1.0 - puffCloudMask(cUv + lightD.xz / (abs(lightD.y) + 0.45) * 0.32, uCloudCover)) * 0.32, 0.08, 1.0);
               vec3 sCol = mix(baseShC, baseLitC, litF) + baseLitC * silverC * (1.0 - m0 * 0.5);
-              float sAlpha = m0 * mix(0.46, 0.66, dome) * horFade;
+              float sAlpha = m0 * mix(0.46, 0.66, dome) * horFade * (fastClouds ? 1.35 : 1.0);
+              sAlpha = min(sAlpha, 0.92);
               cAccum += cTrans * sCol * sAlpha;
               cTrans *= (1.0 - sAlpha);
+              if (cTrans < 0.04) break;
             }
           }
           cloudAlpha = clamp(1.0 - cTrans, 0.0, 0.96);
@@ -1814,7 +1836,9 @@
         gl_FragColor = vec4(col, uVolumetricClouds > 0.5 ? clamp(cloudAlpha * 0.62, 0.0, 0.74) : 0.0);
       }`
   });
-  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1024, 24, 16), skyMat); scene.add(skyDome);
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1024, 24, 16), skyMat);
+  skyDome.renderOrder = 1; // Render after opaque chunks (order 0) for Hardware Early-Z sky rejection, before water (order 2)
+  scene.add(skyDome);
 
   // Shooting Stars Pool (Night & Meteor Shower Sky Streaks — 0 heap allocs per frame)
   const SHOOTING_STAR_MAX = 14;
@@ -1895,7 +1919,7 @@
       uFogStart: envUniforms.uFogStart, uFogEnd: envUniforms.uFogEnd, uQuality: envUniforms.uQuality, uWaterQuality: envUniforms.uWaterQuality,
       uReflMap: envUniforms.uReflMap, uReflMatrix: envUniforms.uReflMatrix, uUsePlanarRefl: envUniforms.uUsePlanarRefl, uUnderwater: envUniforms.uUnderwater, uInLava: envUniforms.uInLava, uWaterDepth: envUniforms.uWaterDepth, uDimension: envUniforms.uDimension,
       uRainWetness: envUniforms.uRainWetness, uChillMode: envUniforms.uChillMode, uDlssMode: envUniforms.uDlssMode,
-      uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uWakePts: envUniforms.uWakePts, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing,
+      uEclipseMode: envUniforms.uEclipseMode, uNcr2Mode: envUniforms.uNcr2Mode, uWakePts: envUniforms.uWakePts, uWakeActive: envUniforms.uWakeActive, uPlayerPos: envUniforms.uPlayerPos, uRayTracing: envUniforms.uRayTracing,
       uRtVoxelTex: envUniforms.uRtVoxelTex, uRtOrigin: envUniforms.uRtOrigin, uRtQuality: envUniforms.uRtQuality,
       uCartoonMode: envUniforms.uCartoonMode, uSulfurWater: envUniforms.uSulfurWater
     },
@@ -1915,7 +1939,7 @@
         vReflClip = uReflMatrix * vec4(wp.x, wp.y, wp.z, 1.0);
       }`,
     fragmentShader: `
-      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uInLava, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uRayTracing, uCartoonMode, uSulfurWater;
+      uniform float uTime, uFogStart, uFogEnd, uQuality, uWaterQuality, uUsePlanarRefl, uUnderwater, uInLava, uWaterDepth, uDimension, uRainWetness, uChillMode, uDlssMode, uEclipseMode, uNcr2Mode, uRayTracing, uCartoonMode, uSulfurWater, uWakeActive;
       uniform vec3 uSunDir, uSunColor, uSkyTop, uSkyHorizon, uFogColor, uPlayerPos;
       uniform vec4 uWakePts[8];
       uniform sampler2D uReflMap;
@@ -1977,19 +2001,15 @@
         }
         return (hSum / 4.5) * max(largeWavesCurved, 0.3);
       }
-      vec2 getEclipseParallaxPos(vec2 pos, vec3 viewDir, float t, float dist, float shore) {
-        float largeWaves = eWaveNoise(pos / 600.0 * 14.0);
-        float largeWavesCurved = pow(1.0 - pow(1.0 - largeWaves, 2.5), 4.5);
+      vec2 getEclipseParallaxPos(vec2 pos, float largeWavesCurved, vec3 viewDir, float t, float dist, float shore) {
         float hPar = getEclipseWaterH(pos, largeWavesCurved, t * 0.035, false);
         float waterHeight = exp(-7.0 * exp(-7.0 * hPar)) * 0.25;
         float damp = (1.0 - smoothstep(0.35, 1.0, shore) * 0.65) * exp(-dist * 0.015);
         vec2 shift = (viewDir.xz / max(abs(viewDir.y), 0.28)) * waterHeight * damp;
         return pos + clamp(shift, vec2(-0.32), vec2(0.32));
       }
-      vec3 eclipseWaterGrad(vec2 p, float t, float dist, bool highDetail) {
+      vec3 eclipseWaterGrad(vec2 p, float largeWavesCurved, float t, float dist, bool highDetail) {
         float movement = t * 0.035;
-        float largeWaves = eWaveNoise(p / 600.0 * 14.0);
-        float largeWavesCurved = pow(1.0 - pow(1.0 - largeWaves, 2.5), 4.5);
         float deltaPos = mix(1.0, 0.15, largeWavesCurved) + min(dist / 384.0, 3.0);
         float h0 = getEclipseWaterH(p, largeWavesCurved, movement, highDetail);
         float h1 = getEclipseWaterH(p + vec2(deltaPos, 0.0), largeWavesCurved, movement, highDetail);
@@ -2003,15 +2023,22 @@
         float waveH = 0.0, wakeFoam = 0.0;
         if (vIsTop > 0.5) {
           float waveAmp = mix(1.38, 0.42, smoothstep(0.0, 1.0, vShore)) * mix(1.0, 0.72, uNcr2Mode);
-          vec2 wSamplePos = (uEclipseMode > 0.5 && highWater)
-            ? getEclipseParallaxPos(vWorldPos.xz, viewDir, uTime, vDist, vShore)
-            : vWorldPos.xz;
-          vec3 wg = uEclipseMode > 0.5 ? eclipseWaterGrad(wSamplePos, uTime, vDist, highWater) : waterWaveGrad(wSamplePos, uTime, highWater);
+          vec3 wg;
+          if (uEclipseMode > 0.5) {
+            float largeWaves = eWaveNoise(vWorldPos.xz / 600.0 * 14.0);
+            float largeWavesCurved = pow(1.0 - pow(1.0 - largeWaves, 2.5), 4.5);
+            vec2 wSamplePos = (highWater && vDist < 38.0)
+              ? getEclipseParallaxPos(vWorldPos.xz, largeWavesCurved, viewDir, uTime, vDist, vShore)
+              : vWorldPos.xz;
+            wg = eclipseWaterGrad(wSamplePos, largeWavesCurved, uTime, vDist, highWater && vDist < 34.0);
+          } else {
+            wg = waterWaveGrad(vWorldPos.xz, uTime, highWater && vDist < 36.0);
+          }
           waveH = wg.x;
           float ecWaveMul = mix(1.0, 1.18, uEclipseMode);
           n = normalize(vec3(-wg.y * waveAmp * ecWaveMul, 1.0, -wg.z * waveAmp * ecWaveMul));
-          // Player / Boat Wake Expanding Ripples (uWakePts[8]) for NCR1 & NCR2
-          if ((uEclipseMode > 0.5 || uNcr2Mode > 0.5) && vDist < 42.0) {
+          // Player / Boat Wake Expanding Ripples (uWakePts[8]) for NCR1 & NCR2 — skipped when idle via uWakeActive!
+          if (uWakeActive > 0.5 && (uEclipseMode > 0.5 || uNcr2Mode > 0.5) && vDist < 42.0) {
             for (int wi = 0; wi < 8; wi++) {
               vec4 wpW = uWakePts[wi];
               float strW = wpW.w;
@@ -2354,7 +2381,7 @@
   let sceneRT = null, bloomRT1 = null, bloomRT2 = null, bloomWide1 = null, bloomWide2 = null, godRayRT1 = null, godRayRT2 = null, fgRtA = null, fgRtB = null, fgPing = 0;
   let _sceneRtSamples = -1;
   function ensurePostRTs(needWide = false, needFg = false) {
-    const wantSamples = (!_initMobile && (aaMode === 'msaa' || aaMode === 'ultra') && renderer.capabilities && renderer.capabilities.isWebGL2) ? 4 : 0;
+    const wantSamples = (!_initMobile && renderer.capabilities && renderer.capabilities.isWebGL2) ? (aaMode === 'ultra' ? 4 : (aaMode === 'msaa' ? 2 : 0)) : 0;
     if (sceneRT && _sceneRtSamples !== wantSamples) {
       const oldW = sceneRT.width || 1280, oldH = sceneRT.height || 720;
       sceneRT.dispose();
@@ -2488,11 +2515,11 @@
       varying vec2 vUv;
       void main() {
         if (uShaftStrength <= 0.005) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        vec2 delta = (vUv - uLightScreen) * (0.92 / 24.0);
+        vec2 delta = (vUv - uLightScreen) * (0.92 / 16.0);
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
         vec2 sampleUv = vUv - delta * ign;
         float shafts = 0.0, decay = 1.0;
-        for (int i = 0; i < 24; i++) {
+        for (int i = 0; i < 16; i++) {
           sampleUv -= delta;
           if (sampleUv.x >= 0.0 && sampleUv.x <= 1.0 && sampleUv.y >= 0.0 && sampleUv.y <= 1.0) {
             vec4 s = texture2D(tScene, sampleUv);
@@ -2505,7 +2532,7 @@
               shafts += skyOcc * (0.32 + 0.68 * lum) * decay;
             }
           }
-          decay *= 0.932;
+          decay *= 0.90;
         }
         float radial = exp(-length(vUv - uLightScreen) * (uUnderwater > 0.5 ? 0.62 : 1.02));
         if (uUnderwater > 0.5) {
@@ -2514,7 +2541,7 @@
           float waveBeam = 0.50 + 0.50 * pow(0.5 + 0.5 * sin(ang * 19.0 + uTime * 0.9) * cos(ang * 13.0 - uTime * 0.6), 1.4);
           radial *= waveBeam;
         }
-        float val = (shafts / 24.0) * radial * uShaftStrength;
+        float val = (shafts / 16.0) * radial * uShaftStrength;
         gl_FragColor = vec4(uShaftColor * val, 1.0);
       }`
   });
@@ -2650,7 +2677,7 @@
             }
             if (uSharpness > 0.01) {
               float rtShScale = mix(1.0, 0.72, uRayTracing) * (1.0 - aaMask * 0.68);
-              if (uDlssMode > 0.5 || uEclipseMode > 0.5) {
+              if (isUltraC && (uDlssMode > 0.5 || uEclipseMode > 0.5)) {
                 vec3 nNE = texture2D(tScene, uv + vec2(uTexelSize.x, uTexelSize.y)).rgb;
                 vec3 nNW = texture2D(tScene, uv + vec2(-uTexelSize.x, uTexelSize.y)).rgb;
                 vec3 nSE = texture2D(tScene, uv + vec2(uTexelSize.x, -uTexelSize.y)).rgb;
