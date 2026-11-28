@@ -4917,6 +4917,7 @@
   }
 
   function tickIncubatingEggs(dt) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
     if (incubatingEggs.size <= 0) return;
     for (const [k, eg] of Array.from(incubatingEggs.entries())) {
       const curB = getBlockWorld(eg.x, eg.y, eg.z);
@@ -5770,7 +5771,7 @@
   const _arrowShaftMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.7 });
   const _arrowTipPlayerMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.7, roughness: 0.3 });
   const _arrowTipMobMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.7, roughness: 0.3 });
-  function fireArrow(ox, oy, oz, dirX, dirY, dirZ, speed, fromPlayer, dmg) {
+  function fireArrow(ox, oy, oz, dirX, dirY, dirZ, speed, fromPlayer, dmg, opts = null) {
     if (projectiles.length >= 48) { const oldP = projectiles.shift(); scene.remove(oldP.mesh); }
     const g = new THREE.Group();
     const shaft = new THREE.Mesh(arrowShaftGeo, _arrowShaftMat);
@@ -5779,7 +5780,17 @@
     g.add(shaft, tip);
     g.position.set(ox, oy, oz);
     scene.add(g);
-    projectiles.push({ kind: 'arrow', x: ox, y: oy, z: oz, vx: dirX * speed, vy: dirY * speed, vz: dirZ * speed, fromPlayer, dmg, stuck: false, life: 4.5, mesh: g });
+    const isRemote = !!(opts && opts._remoteVisual);
+    const pObj = { kind: 'arrow', x: ox, y: oy, z: oz, vx: dirX * speed, vy: dirY * speed, vz: dirZ * speed, fromPlayer, dmg, stuck: false, life: 4.5, mesh: g, _remoteVisual: isRemote };
+    projectiles.push(pObj);
+    playSfx('bow');
+    if (activeRoomId && !isRemote && typeof broadcastProjectileSpawn === 'function') broadcastProjectileSpawn(pObj);
+  }
+  function spawnRemoteSnowball(ox, oy, oz, vx, vy, vz, fromPlayer = true) {
+    if (projectiles.length >= 48) { const oldP = projectiles.shift(); scene.remove(oldP.mesh); }
+    const sbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshStandardMaterial({ color: 0xe0f2fe, roughness: 0.7 }));
+    sbMesh.position.set(ox, oy, oz); scene.add(sbMesh);
+    projectiles.push({ kind: 'snowball', x: ox, y: oy, z: oz, vx, vy, vz, fromPlayer, dmg: 0.5, stuck: false, life: 4.0, mesh: sbMesh, _remoteVisual: true });
     playSfx('bow');
   }
   const _orbSheetMap = {
@@ -5801,16 +5812,19 @@
     mesh.scale.setScalar(sc);
     mesh.position.set(ox, oy, oz);
     scene.add(mesh);
-    projectiles.push({
+    const isRemote = !!(opts && opts._remoteVisual);
+    const pObj = {
       kind, pfxKey, pfxSheet: sheet, pfxT: 0, x: ox, y: oy, z: oz,
       vx: dirX * speed, vy: dirY * speed, vz: dirZ * speed,
       fromPlayer: false, friendlyDragon: !!(opts && opts.friendlyDragon), ownerDragon: (opts && opts.ownerDragon) || null,
       dmg, scale: sc, splashR: (opts && opts.splashR) || (sc >= 2.0 ? sc * 1.9 : 3.2),
       gravity: (opts && opts.gravity) || 0, effect: (opts && opts.effect) || null,
       vfxScale: (opts && opts.vfxScale) || Math.max(1.2, sc * 0.95), trailScale: Math.max(0.44, sc * 0.42),
-      stuck: false, life: 4.2, mesh
-    });
+      stuck: false, life: 4.2, mesh, _remoteVisual: isRemote
+    };
+    projectiles.push(pObj);
     playSfx(kind === 'ghast_fire' || kind === 'dragon_ball' ? 'roar' : 'burn');
+    if (activeRoomId && !isRemote && typeof broadcastProjectileSpawn === 'function') broadcastProjectileSpawn(pObj);
   }
 
   // === v101 Sculk Vibration, Wool Muffling, Sculk Shrieker Warden Summoning & Deep Dark Synths ===
@@ -5995,50 +6009,70 @@
     }
   }
 
-  function triggerExplosion(wx, wy, wz, radius = 3.2, baseDmg = 14, reason = 'Bạn bị nổ tung!', opt = null) {
+  function _playExplosionFxAndLocalDamage(wx, wy, wz, radius = 3.2, baseDmg = 14, reason = 'Bạn bị nổ tung!', opt = null) {
     const distToP = Math.hypot(player.x - wx, player.y - wy, player.z - wz);
     const expGain = Math.max(0.08, Math.min(0.42, (1 - distToP / 34) * 0.42));
     if (!(opt && opt.silent)) playLuantiClip('tnt_explode', expGain, 0.90, 1.05, 220, 'exp', 'mob');
     cameraShake = Math.max(cameraShake, Math.max(0, 0.72 - Math.hypot(player.x - wx, player.z - wz) * 0.038));
     const isElec = !!(opt && opt.electric), isFrost = !!(opt && opt.frost), isCrystal = !!(opt && opt.crystal);
-    const destroyBlocks = !(opt && opt.destroyBlocks === false);
     spawnPixelFx(isCrystal ? 'explosion_ender' : (isElec ? 'explosion_electric' : (isFrost ? 'explosion_frost' : 'explosion_fire')), wx, wy + 0.85, wz, { count: isCrystal ? 3 : 2, scale: Math.min(3.8, radius * 0.95), life: 0.56, spread: 0.9, grow: 0.35 });
     spawnPixelFx('smoke_puff', wx, wy + 1.05, wz, { count: 3, scale: 1.35, life: 0.65, riseV: 1.4, spread: 1.2 });
     if (isCrystal) spawnPixelFx('end_crystal_burst', wx, wy + 0.85, wz, { count: 4, scale: 1.85, life: 0.54, spread: 1.6 });
     else if (isElec) spawnPixelFx('lightning_arc', wx, wy + 0.95, wz, { count: 4, scale: 1.45, life: 0.42, spread: 1.8 });
     else if (isFrost) spawnPixelFx('ice_shatter', wx, wy + 0.95, wz, { count: 4, scale: 1.45, life: 0.48, spread: 1.8 });
     else spawnPixelFx('fire_flame', wx, wy + 0.7, wz, { count: 3, scale: 1.15, life: 0.46, spread: 1.4, riseV: 1.6 });
-    const rCeil = Math.ceil(radius), cx0 = Math.floor(wx), cy0 = Math.floor(wy), cz0 = Math.floor(wz);
-    const chainCrystals = [];
-    for (let dy = -rCeil; dy <= rCeil; dy++) for (let dz = -rCeil; dz <= rCeil; dz++) for (let dx = -rCeil; dx <= rCeil; dx++) {
-      if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
-      const bx = cx0 + dx, by = cy0 + dy, bz = cz0 + dz;
-      const bid = getBlockWorld(bx, by, bz);
-      if (bid === B.END_CRYSTAL_BLOCK) {
-        if (bx !== cx0 || by !== cy0 || bz !== cz0) chainCrystals.push([bx, by, bz]);
-        continue;
-      }
-      if (!destroyBlocks) continue;
-      const bDef = BLOCK_DEF[bid];
-      if (bid === B.AIR || bid === B.BEDROCK || bid === B.WATER || (bDef && (bDef.indestructible || bDef.blastResist || bDef.blastProof))) continue;
-      if (bid === B.TNT) {
-        setBlockWorld(bx, by, bz, B.AIR, true);
-        spawnPrimedTnt(bx + 0.5, by, bz + 0.5, 0.35 + Math.random() * 0.3);
-        continue;
-      }
-      const drop = BLOCK_DEF[bid]?.drop;
-      if (bDef && bDef.chest) breakChestAt(bx, by, bz, bid);
-      setBlockWorld(bx, by, bz, B.AIR, true);
-      if (drop && !(bDef && bDef.chest) && Math.random() < 0.32) spawnDroppedItem(bx, by, bz, drop);
-    }
     const dp = Math.hypot(player.x - wx, player.y + 0.8 - wy, player.z - wz);
-    if (dp < radius * 2.1 && !player.dead) {
+    if (dp < radius * 2.1 && !player.dead && gameMode !== 'creative') {
       const f = 1 - dp / (radius * 2.1);
       hurtPlayer(Math.max(1, Math.round(baseDmg * f)), reason);
       const inv = 1 / (dp + 0.1);
       player.vx += (player.x - wx) * inv * (isCrystal ? 12.5 : 10) * f;
       player.vy += (isCrystal ? 8.2 : 6.5) * f;
       player.vz += (player.z - wz) * inv * (isCrystal ? 12.5 : 10) * f;
+    }
+    emitSculkVibration(wx, wy, wz, 'explosion', 16);
+  }
+
+  function triggerExplosion(wx, wy, wz, radius = 3.2, baseDmg = 14, reason = 'Bạn bị nổ tung!', opt = null) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(opt && opt._fromAuth)) {
+      return;
+    }
+    _playExplosionFxAndLocalDamage(wx, wy, wz, radius, baseDmg, reason, opt);
+    const isCrystal = !!(opt && opt.crystal);
+    const destroyBlocks = !(opt && opt.destroyBlocks === false);
+    const rCeil = Math.ceil(radius), cx0 = Math.floor(wx), cy0 = Math.floor(wy), cz0 = Math.floor(wz);
+    const chainCrystals = [];
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    let craterBlocks = [];
+    try {
+      for (let dy = -rCeil; dy <= rCeil; dy++) for (let dz = -rCeil; dz <= rCeil; dz++) for (let dx = -rCeil; dx <= rCeil; dx++) {
+        if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
+        const bx = cx0 + dx, by = cy0 + dy, bz = cz0 + dz;
+        const bid = getBlockWorld(bx, by, bz);
+        if (bid === B.END_CRYSTAL_BLOCK) {
+          if (bx !== cx0 || by !== cy0 || bz !== cz0) chainCrystals.push([bx, by, bz]);
+          continue;
+        }
+        if (!destroyBlocks) continue;
+        const bDef = BLOCK_DEF[bid];
+        if (bid === B.AIR || bid === B.BEDROCK || bid === B.WATER || (bDef && (bDef.indestructible || bDef.blastResist || bDef.blastProof))) continue;
+        if (bid === B.TNT) {
+          setBlockWorld(bx, by, bz, B.AIR, true);
+          spawnPrimedTnt(bx + 0.5, by, bz + 0.5, 0.35 + Math.random() * 0.3);
+          continue;
+        }
+        const drop = BLOCK_DEF[bid]?.drop;
+        if (bDef && bDef.chest) breakChestAt(bx, by, bz, bid);
+        if (bDef && bDef.furnaceType && typeof breakFurnaceAt === 'function') breakFurnaceAt(bx, by, bz, bid);
+        setBlockWorld(bx, by, bz, B.AIR, true);
+        if (drop && !(bDef && (bDef.chest || bDef.furnaceType)) && Math.random() < 0.32) spawnDroppedItem(bx, by, bz, drop);
+      }
+    } finally {
+      craterBlocks = (typeof endBlockBatch === 'function') ? endBlockBatch(true) : [];
+    }
+    if (craterBlocks.length > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(32, true);
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof broadcastExplosion === 'function') {
+      broadcastExplosion(wx, wy, wz, radius, baseDmg, reason, opt, craterBlocks);
     }
     for (let i = mobs.length - 1; i >= 0; i--) {
       const mb = mobs[i], dm = Math.hypot(mb.x - wx, mb.y + 0.8 - wy, mb.z - wz);
@@ -6052,11 +6086,14 @@
       const [cbx, cby, cbz] = chainCrystals[ci];
       if (getBlockWorld(cbx, cby, cbz) === B.END_CRYSTAL_BLOCK) detonateEndCrystalAt(cbx, cby, cbz, true);
     }
-    emitSculkVibration(wx, wy, wz, 'explosion', 16);
   }
 
   function detonateEndCrystalAt(bx, by, bz, fromChain = false) {
     if (getBlockWorld(bx, by, bz) !== B.END_CRYSTAL_BLOCK) return false;
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+      if (typeof broadcastWorldAction === 'function') broadcastWorldAction('detonate_crystal', bx, by, bz);
+      return true;
+    }
     const bk = modKey(bx, by, bz);
     const wasWL = waterloggedBlocks.delete(bk);
     const inWater = wasWL ||
@@ -6152,26 +6189,39 @@
     return true;
   }
 
-  function spawnPrimedTnt(x, y, z, fuse = 2.4) {
+  function spawnPrimedTnt(x, y, z, fuse = 2.4, opts = null) {
+    const isRemote = !!(opts && opts._remoteVisual);
     const mesh = build3DTexturedBlockMesh(B.TNT);
     // Clone material so each primed TNT flashes independently without mutating cached textures
     if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(m => m.clone());
     else if (mesh.material) mesh.material = mesh.material.clone();
     mesh.scale.setScalar(3.65); mesh.position.set(x, y + 0.5, z); mesh.rotation.set(0, 0, 0);
     scene.add(mesh);
-    primedTnts.push({ x, y, z, vy: 3.5, fuse, mesh });
+    primedTnts.push({ x, y, z, vy: 3.5, fuse, mesh, _remoteVisual: isRemote });
     playSfx('hiss');
+    if (activeRoomId && !isRemote && typeof isSimAuthority === 'function' && isSimAuthority() && typeof broadcastTntSpawn === 'function') {
+      broadcastTntSpawn(x, y, z, fuse);
+    }
   }
   function igniteAdjacentTnt(wx, wy, wz) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+      if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_adj_tnt', wx, wy, wz);
+      return 0;
+    }
     const dirs = [[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
     let lit = 0;
-    for (let i = 0; i < dirs.length; i++) {
-      const nx = wx + dirs[i][0], ny = wy + dirs[i][1], nz = wz + dirs[i][2];
-      if (getBlockWorld(nx, ny, nz) === B.TNT) {
-        setBlockWorld(nx, ny, nz, B.AIR, true);
-        spawnPrimedTnt(nx + 0.5, ny, nz + 0.5, 1.6 + lit * 0.15);
-        lit++;
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    try {
+      for (let i = 0; i < dirs.length; i++) {
+        const nx = wx + dirs[i][0], ny = wy + dirs[i][1], nz = wz + dirs[i][2];
+        if (getBlockWorld(nx, ny, nz) === B.TNT) {
+          setBlockWorld(nx, ny, nz, B.AIR, true);
+          spawnPrimedTnt(nx + 0.5, ny, nz + 0.5, 1.6 + lit * 0.15);
+          lit++;
+        }
       }
+    } finally {
+      if (typeof endBlockBatch === 'function') endBlockBatch();
     }
     if (lit > 0) {
       flushUrgentChunks(32);
@@ -6470,6 +6520,7 @@
       const og = m.onGround === false ? 0 : 1;
       const fp = (m.flying && Math.abs(m._flyPitch || 0) >= 0.02) ? _mobQ2(m._flyPitch) : 0;
       const br = m.burning ? 1 : 0, tm = m.tamed ? 1 : 0, st = m.sitting ? 1 : 0, fl = m.flying ? 1 : 0;
+      const fs = m.fusing ? 1 : 0;
       const ak = _mobQ2(m.atkAnimT || 0), hf = _mobQ2(m.hurtFlash || 0);
       const sd = m.saddled ? 1 : 0;
       const ds = (m.elemDragon && m.dragonStage !== undefined && m.dragonStage !== 4) ? m.dragonStage : 4;
@@ -6486,7 +6537,7 @@
           const rotEps = cand.minD2 > 1764 ? 0.14 : 0.03;
           const changed = Math.abs(x - prev.x) > posEps || Math.abs(ty - prev.ty) > posEps || Math.abs(z - prev.z) > posEps
             || Math.abs(dYw) > rotEps || (prev.moving && !moving) || (moving && cand.minD2 <= 1764)
-            || prev.hp !== hp || prev.br !== br || prev.tm !== tm || prev.st !== st || prev.fl !== fl
+            || prev.hp !== hp || prev.br !== br || prev.tm !== tm || prev.st !== st || prev.fl !== fl || prev.fs !== fs
             || prev.og !== og || prev.sd !== sd || prev.ds !== ds || prev.ow !== ow
             || (ak > 0 && prev.ak !== ak) || (hf > 0 && prev.hf !== hf) || (prev.ak > 0 && ak === 0) || (prev.hf > 0 && hf === 0);
           if (!changed) continue;
@@ -6495,10 +6546,10 @@
       const prevRec = _mobNetLastSent.get(m.uid);
       if (prevRec) {
         prevRec.x = x; prevRec.ty = ty; prevRec.z = z; prevRec.yw = yw; prevRec.hp = hp;
-        prevRec.br = br; prevRec.tm = tm; prevRec.st = st; prevRec.fl = fl; prevRec.og = og;
+        prevRec.br = br; prevRec.tm = tm; prevRec.st = st; prevRec.fl = fl; prevRec.fs = fs; prevRec.og = og;
         prevRec.sd = sd; prevRec.ds = ds; prevRec.ow = ow; prevRec.ak = ak; prevRec.hf = hf; prevRec.moving = moving;
       } else {
-        _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ow, ak, hf, moving });
+        _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, fs, og, sd, ds, ow, ak, hf, moving });
       }
       const item = { uid: m.uid, t: m.type, x, ty, z, yw, hp };
       const baseHp = MOB_STATS[m.type] ? MOB_STATS[m.type].hp : 0;
@@ -6512,6 +6563,7 @@
       if (tm) item.tm = 1;
       if (st) item.st = 1;
       if (fl) item.fl = 1;
+      if (fs) item.fs = 1;
       if (ow) item.ow = ow;
       if (m.woolColor) item.wc = m.woolColor;
       if (m.villagerProf) item.vp = m.villagerProf.idx;
@@ -6533,6 +6585,10 @@
     if (typeof it.hp === 'number') m.hp = it.hp;
     if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
     m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
+    const wasFusing = !!m.fusing;
+    m.fusing = !!it.fs;
+    if (m.fusing && !wasFusing && Math.hypot(m.x - player.x, m.z - player.z) < 22) playSfx('hiss');
+    if (!m.fusing && wasFusing && m.group) { m.fuseTimer = 0; m.group.scale.set(1, 1, 1); }
     if (m.tamed) m.hostile = false;
     if (it.ow) m.ownerPeerId = String(it.ow);
     m.onGround = (it.og !== 0);
@@ -8375,6 +8431,14 @@
           m._guestTurnRate = _wrapNetAng(m.yaw - prevYawG);
           visualTargetYaw = m.yaw;
         }
+        if (m.fusing && m.group) {
+          m.fuseTimer = Math.min(1.45, (m.fuseTimer || 0) + dt);
+          const sw = 1.0 + Math.sin(m.fuseTimer * 18) * 0.12 + m.fuseTimer * 0.16;
+          m.group.scale.set(sw, 1.0 + m.fuseTimer * 0.08, sw);
+        } else if (m.fuseTimer > 0 && m.group) {
+          m.fuseTimer = 0;
+          m.group.scale.set(1, 1, 1);
+        }
       } else {
       const _simPrevX = m.x, _simPrevY = m.y, _simPrevZ = m.z;
       if (m.tamed && m.sitting && !m.elemDragon) {
@@ -9341,6 +9405,7 @@
               const rad = cst.blastRadius || 3.2, dmg = cst.blastDmg || 16;
               const cName = m.displayName || 'Creeper';
               const isCharged = (m.type === 'charged_creeper'), isFrost = !!cst.frostBlast;
+              if (activeRoomId && typeof broadcastMobRemove === 'function' && m.uid) broadcastMobRemove(m.uid);
               disposeMobInstance(m); const mi = mobs.indexOf(m); if (mi !== -1) { mobs[mi] = mobs[mobs.length - 1]; mobs.pop(); }
               triggerExplosion(ex, ey, ez, rad, dmg, `Bạn bị ${cName} phát nổ!`, { electric: isCharged, frost: isFrost });
               continue;
@@ -10590,6 +10655,11 @@
       }
 
       if (isSolidAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))) {
+        if (p._remoteVisual) {
+          if (p.kind === 'arrow') { p.stuck = true; p.life = Math.min(p.life, 1.2); playSfx('dig'); continue; }
+          if (p.kind === 'snowball') { spawnParticles(p.x, p.y, p.z, 0xe0f2fe, 10, true); playSfx('dig'); }
+          scene.remove(p.mesh); projectiles[i] = projectiles[projectiles.length - 1]; projectiles.pop(); continue;
+        }
         const hitBId = getBlockWorld(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
         if (hitBId === B.END_CRYSTAL_BLOCK) {
           const cx = Math.floor(p.x), cy = Math.floor(p.y), cz = Math.floor(p.z);
@@ -10647,6 +10717,7 @@
         }
         p.stuck = true; p.life = Math.min(p.life, 1.5); playSfx('dig'); emitSculkVibration(p.x, p.y, p.z, 'projectile', 14); continue;
       }
+      if (p._remoteVisual) continue;
       if (p.fromPlayer || p.friendlyDragon) {
         let hit = false;
         const hitPad = p.friendlyDragon ? Math.max(0.95, (p.scale || 1) * 0.45) : 0.35;
@@ -10665,6 +10736,14 @@
       } else {
         let hitMobOrP = false;
         const pHitR = p.kind === 'arrow' ? 0.5 : Math.max(1.1, (p.scale || 1) * 0.52);
+        const hitMsgs = {
+          dragon_ball: 'Bạn trúng Cầu Lửa Rồng Ender Dragon!',
+          sonic_boom: 'Bạn trúng Sóng Âm của Warden!',
+          blaze_fire: 'Bạn bị Quỷ Lửa / Thần Lửa Wildfire thiêu đốt!',
+          ghast_fire: 'Bạn bị Hồn Ma Ghast bắn nổ!',
+          shulker_bolt: 'Bạn trúng đạn Lơ Lửng của Shulker!',
+          poison_arrow: 'Bạn trúng Mũi Tên Nấm Độc của Skeleton Bogged!'
+        };
         if (!player.dead && Math.hypot(player.x - p.x, player.z - p.z) < pHitR && p.y >= player.y - 0.3 && p.y <= player.y + PLAYER_HEIGHT + 0.5) {
           const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
           const pHoriz = Math.hypot(p.vx, p.vz) || 1;
@@ -10681,14 +10760,6 @@
             p.dmg = 0;
             continue;
           }
-          const hitMsgs = {
-            dragon_ball: 'Bạn trúng Cầu Lửa Rồng Ender Dragon!',
-            sonic_boom: 'Bạn trúng Sóng Âm của Warden!',
-            blaze_fire: 'Bạn bị Quỷ Lửa / Thần Lửa Wildfire thiêu đốt!',
-            ghast_fire: 'Bạn bị Hồn Ma Ghast bắn nổ!',
-            shulker_bolt: 'Bạn trúng đạn Lơ Lửng của Shulker!',
-            poison_arrow: 'Bạn trúng Mũi Tên Nấm Độc của Skeleton Bogged!'
-          };
           hurtPlayer(p.dmg, hitMsgs[p.kind] || 'Bạn bị quái vật tấn công!', false, true, { fromPos: { x: p.x - p.vx, z: p.z - p.vz } });
           if (p.kind && p.kind.startsWith('drg_')) applyElementalDragonImpact(p.kind, p.x, p.y, p.z, true);
           if (p.kind === 'shulker_bolt') player.vy = 9.5;
@@ -10698,25 +10769,36 @@
           }
           hitMobOrP = true;
         } else {
-          // Hostile ranged projectiles can also strike Villagers, Iron Golems, and Tamed Companions/Dragons!
-          for (let mi = mobs.length - 1; mi >= 0; mi--) {
-            const vm = mobs[mi];
-            if (!vm || vm._dead || (!vm.villager && !vm.guardian && !vm.tamed) || vm === p.ownerDragon) continue;
-            if (p.kind !== 'arrow' && !p.kind.startsWith('drg_') && p.kind !== 'dragon_ball' && !vm.villager && !vm.guardian) continue;
-            const hitR = vm.tamed ? (vm.hitboxR + (vm.elemDragon ? 1.65 : 0.95)) : (vm.hitboxR + 0.35);
-            let hitDrg3D = false;
-            if (vm.tamed) {
-              const svx = p.x - prevPx, svy = p.y - prevPy, svz = p.z - prevPz;
-              const sv2 = svx * svx + svy * svy + svz * svz;
-              const cy = vm.y + vm.hitboxH * 0.55;
-              const st = sv2 > 1e-6 ? Math.max(0, Math.min(1, ((vm.x - prevPx) * svx + (cy - prevPy) * svy + (vm.z - prevPz) * svz) / sv2)) : 1;
-              const cpx = prevPx + svx * st, cpy = prevPy + svy * st, cpz = prevPz + svz * st;
-              hitDrg3D = Math.hypot(vm.x - cpx, cy - cpy, vm.z - cpz) < hitR;
+            if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && typeof remotePlayers !== 'undefined' && remotePlayers) {
+              for (const [rpid, rp] of remotePlayers.entries()) {
+                if (!rp || rp.isBuddy || (rp.dim || 'overworld') !== currentDimension) continue;
+                if (Math.hypot(rp.x - p.x, rp.z - p.z) < pHitR && p.y >= rp.y - 0.3 && p.y <= rp.y + PLAYER_HEIGHT + 0.5) {
+                  sendCoopMsg({ type: 'mob_player_hit', _to: rpid, dim: currentDimension, dmg: p.dmg, msg: hitMsgs[p.kind] || 'Bạn bị quái vật bắn trúng!', fx: p.x - p.vx, fz: p.z - p.vz, kbY: p.kind === 'shulker_bolt' ? 9.5 : 0 });
+                  hitMobOrP = true; break;
+                }
+              }
             }
-            const hitBox = Math.hypot(vm.x - p.x, vm.z - p.z) < hitR && p.y >= vm.y - 0.5 && p.y <= vm.y + vm.hitboxH + 0.8;
-            if (hitDrg3D || hitBox) {
-              hurtMob(vm, p.dmg, p.vx, p.vz, 3.2, p.kind === 'drg_fire', false);
-              hitMobOrP = true; break;
+            if (!hitMobOrP) {
+            // Hostile ranged projectiles can also strike Villagers, Iron Golems, and Tamed Companions/Dragons!
+            for (let mi = mobs.length - 1; mi >= 0; mi--) {
+              const vm = mobs[mi];
+              if (!vm || vm._dead || (!vm.villager && !vm.guardian && !vm.tamed) || vm === p.ownerDragon) continue;
+              if (p.kind !== 'arrow' && !p.kind.startsWith('drg_') && p.kind !== 'dragon_ball' && !vm.villager && !vm.guardian) continue;
+              const hitR = vm.tamed ? (vm.hitboxR + (vm.elemDragon ? 1.65 : 0.95)) : (vm.hitboxR + 0.35);
+              let hitDrg3D = false;
+              if (vm.tamed) {
+                const svx = p.x - prevPx, svy = p.y - prevPy, svz = p.z - prevPz;
+                const sv2 = svx * svx + svy * svy + svz * svz;
+                const cy = vm.y + vm.hitboxH * 0.55;
+                const st = sv2 > 1e-6 ? Math.max(0, Math.min(1, ((vm.x - prevPx) * svx + (cy - prevPy) * svy + (vm.z - prevPz) * svz) / sv2)) : 1;
+                const cpx = prevPx + svx * st, cpy = prevPy + svy * st, cpz = prevPz + svz * st;
+                hitDrg3D = Math.hypot(vm.x - cpx, cy - cpy, vm.z - cpz) < hitR;
+              }
+              const hitBox = Math.hypot(vm.x - p.x, vm.z - p.z) < hitR && p.y >= vm.y - 0.5 && p.y <= vm.y + vm.hitboxH + 0.8;
+              if (hitDrg3D || hitBox) {
+                hurtMob(vm, p.dmg, p.vx, p.vz, 3.2, p.kind === 'drg_fire', false);
+                hitMobOrP = true; break;
+              }
             }
           }
         }
@@ -10736,7 +10818,9 @@
       t.mesh.scale.setScalar(sc);
       if (t.fuse <= 0) {
         scene.remove(t.mesh); primedTnts.splice(i, 1);
-        triggerExplosion(t.x, t.y, t.z, 3.6, 18, 'Bạn bị Thuốc Nổ TNT thổi bay!');
+        if (!t._remoteVisual && (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority())) {
+          triggerExplosion(t.x, t.y, t.z, 3.6, 18, 'Bạn bị Thuốc Nổ TNT thổi bay!');
+        }
       }
     }
   }

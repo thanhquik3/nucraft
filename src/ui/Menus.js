@@ -854,6 +854,7 @@
         return;
       }
       dayTime = parseFloat(btn.dataset.time);
+      if (typeof broadcastTimeSync === 'function' && activeRoomId && isSimAuthority()) broadcastTimeSync(dayTime, true);
       if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
       if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
       showToast(tr(`🕒 Đã chuyển thời gian: ${btn.textContent}`, `🕒 Time set to: ${btn.textContent}`));
@@ -873,6 +874,7 @@
       const hh = Math.max(0, Math.min(23, parseInt(m[1], 10)));
       const mm = Math.max(0, Math.min(59, parseInt(m[2], 10)));
       dayTime = ((hh * 60 + mm) / 1440) % 1.0;
+      if (typeof broadcastTimeSync === 'function' && activeRoomId && isSimAuthority()) broadcastTimeSync(dayTime, true);
       if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
       if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
       if (typeof playUiClickSfx === 'function') playUiClickSfx();

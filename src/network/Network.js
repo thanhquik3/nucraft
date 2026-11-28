@@ -69,7 +69,7 @@
     const _te = new TextEncoder(), _td = new TextDecoder();
     const subs = new Map(); // filter -> Set<cb>
     const outbox = []; // { topic, payloadStr, retain }
-    let ws = null, ready = false, connecting = false, brokerIdx = 0, retryMs = 1500, pidSeq = 1;
+    let ws = null, ready = false, connecting = false, hadOpenReady = false, brokerIdx = 0, brokerFailCount = 0, retryMs = 1500, pidSeq = 1;
     let pingTimer = null, reconTimer = null, rxBuf = new Uint8Array(0);
     const clientId = 'nc_' + Math.random().toString(36).slice(2, 10) + '_' + (Date.now() & 0xffff).toString(36);
 
@@ -124,11 +124,18 @@
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
       if (reconTimer) { clearTimeout(reconTimer); reconTimer = null; }
     }
-    function scheduleReconnect() {
+    function scheduleReconnect(handshakeFailed = false) {
       if (reconTimer || subs.size === 0 && outbox.length === 0) return;
       const wait = retryMs;
       retryMs = Math.min(8000, Math.round(retryMs * 1.5));
-      brokerIdx = (brokerIdx + 1) % MQTT_BROKERS.length;
+      if (handshakeFailed) {
+        brokerFailCount++;
+        // Stay pinned to primary broker across mid-session drops; only fail over after 3 failed handshakes
+        if (brokerFailCount >= 3) {
+          brokerIdx = (brokerIdx + 1) % MQTT_BROKERS.length;
+          brokerFailCount = 0;
+        }
+      }
       reconTimer = setTimeout(() => { reconTimer = null; ensureConnected(); }, wait);
     }
     function handleRx(chunk) {
@@ -151,7 +158,7 @@
         const body = rxBuf.subarray(idx, idx + remLen);
         rxBuf = rxBuf.subarray(idx + remLen);
         if (type === 2 && body.length >= 2 && body[1] === 0) {
-          ready = true; connecting = false; retryMs = 1500;
+          ready = true; connecting = false; hadOpenReady = true; brokerFailCount = 0; retryMs = 1500;
           for (const topic of subs.keys()) { try { ws.send(pktSubscribe(nextPid(), topic)); } catch (_) {} }
           while (outbox.length > 0 && ws && ws.readyState === 1) {
             const it = outbox.shift();
@@ -180,6 +187,7 @@
     function ensureConnected() {
       if (ready || connecting || typeof WebSocket === 'undefined') return;
       connecting = true;
+      hadOpenReady = false;
       rxBuf = new Uint8Array(0);
       try {
         const sock = new WebSocket(MQTT_BROKERS[brokerIdx % MQTT_BROKERS.length], 'mqtt');
@@ -204,14 +212,15 @@
         sock.onclose = () => {
           clearTimeout(openGuard);
           if (sock === ws) {
+            const failOpen = !hadOpenReady;
             ready = false; connecting = false; ws = null;
             clearTimers();
-            scheduleReconnect();
+            scheduleReconnect(failOpen);
           }
         };
       } catch (_) {
         connecting = false;
-        scheduleReconnect();
+        scheduleReconnect(true);
       }
     }
     function subscribe(topic, cb) {
@@ -249,7 +258,7 @@
       outbox.push({ topic, payloadStr, retain });
       return false;
     }
-    return { ensureConnected, subscribe, publish, isConnected: () => ready, _encStr: encStr, _pktPub: pktPublish, _topicMatches: topicMatches };
+    return { ensureConnected, subscribe, publish, isConnected: () => ready, getDebug: () => ({ ready, brokerIdx, brokerFailCount }), _encStr: encStr, _pktPub: pktPublish, _topicMatches: topicMatches };
   })();
 
   const liveRoomsByCode = new Map();
@@ -656,6 +665,8 @@
 
   let _wsRoomHostId = '';
   let _wsJoinedRoomId = '';
+  let _lastWsModVer = 0;
+  let _wsReconTimer = null;
   let _pendingWsMods = [];
   const _hostAuthoritativeDrops = new Map();
   const _roomDropsCache = new Map();
@@ -792,6 +803,11 @@
     window.addEventListener('pagehide', () => { if (activeRoomId) schedulePlayerRoomSave(true); });
     setInterval(() => { if (activeRoomId && isPlaying && !isWorldLoading) schedulePlayerRoomSave(false); }, 12000);
     setInterval(() => {
+      if (activeRoomId && isPlaying && !isWorldLoading && isSimAuthority() && !(wsConn && wsConn.readyState === 1)) {
+        broadcastTimeSync(dayTime, false);
+      }
+    }, 10000);
+    setInterval(() => {
       if (activeRoomId && isPlaying && !isWorldLoading && typeof document !== 'undefined' && document.hidden && typeof player !== 'undefined' && player) {
         const localOff = (typeof depthOffset === 'number') ? depthOffset : 0;
         const heldId = (typeof inventory !== 'undefined' && inventory[player.selectedSlot]?.count > 0) ? inventory[player.selectedSlot].id : 0;
@@ -843,6 +859,210 @@
     consumedLootChests.add(dk);
     if (typeof activeChestKey === 'string' && activeChestKey && typeof toDimChestKey === 'function' && toDimChestKey(activeChestKey) === dk) {
       if (typeof closeChestModal === 'function') closeChestModal();
+    }
+  }
+  function broadcastFurnaceSync(dimKey, fs) {
+    if (!activeRoomId || !dimKey || !fs) return;
+    const state = (typeof packFurnaceState === 'function') ? packFurnaceState(fs) : null;
+    if (state) sendCoopMsg({ type: 'furnace_sync', key: dimKey, state });
+  }
+  function broadcastFurnaceBreak(dimKey) {
+    if (!activeRoomId || !dimKey) return;
+    sendCoopMsg({ type: 'furnace_break', key: dimKey });
+  }
+  function _applyRemoteFurnaceSync(m) {
+    if (!m || !m.key || !m.state) return;
+    const fk = (typeof toDimFurnaceKey === 'function') ? toDimFurnaceKey(m.key) : String(m.key);
+    const fs = (typeof unpackFurnaceState === 'function') ? unpackFurnaceState(m.state) : null;
+    if (!fs) return;
+    furnaceStateMap.set(fk, fs);
+    if (typeof activeFurnaceKey === 'string' && activeFurnaceKey && (activeFurnaceKey === fk || (typeof toDimFurnaceKey === 'function' && toDimFurnaceKey(activeFurnaceKey) === fk))) {
+      if (typeof renderFurnaceModal === 'function') renderFurnaceModal();
+    }
+  }
+  function _applyRemoteFurnaceBreak(m) {
+    if (!m || !m.key) return;
+    const fk = (typeof toDimFurnaceKey === 'function') ? toDimFurnaceKey(m.key) : String(m.key);
+    furnaceStateMap.delete(fk);
+    if (typeof activeFurnaceKey === 'string' && activeFurnaceKey && (activeFurnaceKey === fk || (typeof toDimFurnaceKey === 'function' && toDimFurnaceKey(activeFurnaceKey) === fk))) {
+      if (typeof closeFurnaceModal === 'function') closeFurnaceModal();
+    }
+  }
+  function _applyRemoteDoorToggle(m) {
+    if (!m || (m.dim && m.dim !== currentDimension) || typeof setDoorOpenPair !== 'function') return;
+    const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : m.y;
+    setDoorOpenPair(m.x, wy, m.z, !!m.open, true, true);
+  }
+  function broadcastTimeSync(tVal, snap = false) {
+    if (!activeRoomId || typeof tVal !== 'number') return;
+    sendCoopMsg({ type: 'time_sync', dayTime: ((tVal % 1.0) + 1.0) % 1.0, snap: !!snap });
+  }
+  function _applyRemoteTimeSync(m) {
+    if (!m || typeof m.dayTime !== 'number' || !Number.isFinite(m.dayTime)) return;
+    const srv = ((m.dayTime % 1.0) + 1.0) % 1.0;
+    const diff = Math.abs(srv - dayTime);
+    const wrapDiff = Math.min(diff, 1.0 - diff);
+    if (m.snap || wrapDiff > 0.006 || !isSimAuthority()) {
+      dayTime = srv;
+      if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(false);
+    }
+  }
+  function broadcastExplosion(wx, wy, wz, radius, baseDmg, reason, opt, craterBlocks) {
+    if (!activeRoomId) return;
+    const list = Array.isArray(craterBlocks) ? craterBlocks : [];
+    const dim = currentDimension || 'overworld';
+    const slimOpt = {
+      electric: !!(opt && opt.electric),
+      frost: !!(opt && opt.frost),
+      crystal: !!(opt && opt.crystal),
+      silent: !!(opt && opt.silent),
+      destroyBlocks: !(opt && opt.destroyBlocks === false)
+    };
+    sendCoopMsg({
+      type: 'explosion',
+      dim,
+      x: Math.round(wx * 100) / 100,
+      trueY: Math.round((wy - (depthOffset || 0)) * 100) / 100,
+      z: Math.round(wz * 100) / 100,
+      radius,
+      baseDmg,
+      reason: String(reason || 'Bạn bị nổ tung!'),
+      opt: slimOpt,
+      blocks: list.slice(0, 260)
+    });
+    if (list.length > 260) broadcastBlockBatch(dim, list.slice(260));
+  }
+  function broadcastTntSpawn(x, wy, z, fuse) {
+    if (!activeRoomId || !isSimAuthority()) return;
+    sendCoopMsg({
+      type: 'tnt_spawn',
+      dim: currentDimension || 'overworld',
+      x: Math.round(x * 100) / 100,
+      trueY: Math.round((wy - (depthOffset || 0)) * 100) / 100,
+      z: Math.round(z * 100) / 100,
+      fuse: Math.round((fuse || 2.4) * 100) / 100
+    });
+  }
+  function _applyRemoteTntSpawn(m) {
+    if (!m || (m.dim && m.dim !== currentDimension) || typeof spawnPrimedTnt !== 'function') return;
+    const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : m.y;
+    spawnPrimedTnt(m.x, wy, m.z, m.fuse || 2.4, { _remoteVisual: true });
+  }
+  function broadcastProjectileSpawn(info) {
+    if (!activeRoomId || !info) return;
+    sendCoopMsg({
+      type: 'projectile_spawn',
+      dim: currentDimension || 'overworld',
+      kind: info.kind || 'arrow',
+      x: Math.round(info.x * 100) / 100,
+      ty: Math.round((info.y - (depthOffset || 0)) * 100) / 100,
+      z: Math.round(info.z * 100) / 100,
+      vx: Math.round(info.vx * 100) / 100,
+      vy: Math.round(info.vy * 100) / 100,
+      vz: Math.round(info.vz * 100) / 100,
+      fp: info.fromPlayer ? 1 : 0,
+      dmg: info.dmg || 2,
+      sc: info.scale || 1,
+      grav: info.gravity || 0,
+      eff: info.effect || null,
+      pfxKey: info.pfxKey || null,
+      sr: info.splashR || 3.2,
+      vsc: info.vfxScale || 1.2
+    });
+  }
+  function _applyRemoteProjectileSpawn(m) {
+    if (!m || (m.dim && m.dim !== currentDimension)) return;
+    const wy = Number(m.ty) + (depthOffset || 0);
+    const spd = Math.hypot(m.vx || 0, m.vy || 0, m.vz || 0) || 1;
+    if (m.kind === 'arrow' && typeof fireArrow === 'function') {
+      fireArrow(m.x, wy, m.z, m.vx / spd, m.vy / spd, m.vz / spd, spd, !!m.fp, m.dmg || 4, { _remoteVisual: true });
+    } else if (m.kind === 'snowball' && typeof spawnRemoteSnowball === 'function') {
+      spawnRemoteSnowball(m.x, wy, m.z, m.vx, m.vy, m.vz, !!m.fp);
+    } else if (typeof fireEnergyOrb === 'function') {
+      fireEnergyOrb(m.x, wy, m.z, m.vx / spd, m.vy / spd, m.vz / spd, spd, m.dmg || 4, m.kind || 'dragon_ball', {
+        _remoteVisual: true, scale: m.sc, gravity: m.grav, effect: m.eff, pfxKey: m.pfxKey, splashR: m.sr, vfxScale: m.vsc
+      });
+    }
+  }
+  function broadcastLightningFx(tx, wy, tz) {
+    if (!activeRoomId || !isSimAuthority()) return;
+    sendCoopMsg({
+      type: 'lightning_fx',
+      dim: currentDimension || 'overworld',
+      x: Math.round(tx * 100) / 100,
+      trueY: Math.round((wy - (depthOffset || 0)) * 100) / 100,
+      z: Math.round(tz * 100) / 100
+    });
+  }
+  function _applyRemoteLightningFx(m) {
+    if (!m || (m.dim && m.dim !== currentDimension) || typeof spawnLightningStrike !== 'function') return;
+    const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : m.y;
+    spawnLightningStrike(m.x, wy, m.z, false, { _remoteVisual: true });
+  }
+  function broadcastWorldAction(action, wx, wy, wz, extra = null) {
+    if (!activeRoomId || !action) return;
+    const pkt = {
+      type: 'world_action',
+      action,
+      dim: currentDimension || 'overworld',
+      x: Math.floor(Number(wx) || 0),
+      trueY: Math.floor(Number(wy) || 0) - (depthOffset || 0),
+      z: Math.floor(Number(wz) || 0)
+    };
+    if (extra && typeof extra === 'object') Object.assign(pkt, extra);
+    sendCoopMsg(pkt);
+  }
+  function _handleWorldAction(m, fromId) {
+    if (!m || !m.action) return;
+    const act = String(m.action);
+    if (act === 'sleep_dawn') {
+      if (isSimAuthority()) {
+        dayTime = 0.28;
+        broadcastTimeSync(dayTime, true);
+        if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(false);
+        if (typeof showToast === 'function') showToast('🌅 Một người chơi đã ngủ qua đêm — trời đã sáng!');
+      }
+      return;
+    }
+    if (!isSimAuthority()) return;
+    if ((m.dim || 'overworld') !== currentDimension) return;
+    const ix = Math.floor(Number(m.x) || 0);
+    const wy = Math.floor(Number(m.trueY) || 0) + (depthOffset || 0);
+    const iz = Math.floor(Number(m.z) || 0);
+    if (act === 'ignite_tnt') {
+      if (getBlockWorld(ix, wy, iz) === B.TNT) {
+        setBlockWorld(ix, wy, iz, B.AIR, true);
+        if (typeof spawnPrimedTnt === 'function') spawnPrimedTnt(ix + 0.5, wy, iz + 0.5, 2.4);
+        if (typeof flushUrgentChunks === 'function') flushUrgentChunks(16);
+      }
+    } else if (act === 'ignite_adj_tnt') {
+      if (typeof igniteAdjacentTnt === 'function') igniteAdjacentTnt(ix, wy, iz);
+    } else if (act === 'detonate_crystal') {
+      if (typeof detonateEndCrystalAt === 'function') detonateEndCrystalAt(ix, wy, iz);
+    } else if (act === 'bed_explode') {
+      const bid = getBlockWorld(ix, wy, iz);
+      beginBlockBatch();
+      if (BLOCK_DEF[bid] && BLOCK_DEF[bid].bed) {
+        setBlockWorld(ix, wy, iz, B.AIR, true);
+        for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nb = getBlockWorld(ix + dx, wy, iz + dz);
+          if (BLOCK_DEF[nb] && BLOCK_DEF[nb].bed) setBlockWorld(ix + dx, wy, iz + dz, B.AIR, true);
+        }
+      }
+      endBlockBatch();
+      if (typeof triggerExplosion === 'function') triggerExplosion(ix + 0.5, wy + 0.5, iz + 0.5, 4.5, 18, 'Bạn bị nổ khi nằm ngủ ở Nether/End!');
+    } else if (act === 'hatch_egg') {
+      const bid = getBlockWorld(ix, wy, iz);
+      const edef = BLOCK_DEF[bid];
+      if (edef && edef.dragonEgg) {
+        if (typeof incubatingEggs !== 'undefined') incubatingEggs.delete(modKey(ix, wy, iz));
+        setBlockWorld(ix, wy, iz, B.AIR, true);
+        if (typeof flushUrgentChunks === 'function') flushUrgentChunks(16);
+        if (typeof hatchTamedDragon === 'function') {
+          const drg = hatchTamedDragon(edef.dragonEgg, ix + 0.5, wy + 0.15, iz + 0.5);
+          if (drg && fromId) drg.ownerPeerId = fromId;
+        }
+      }
     }
   }
   function queueNetworkDropSpawn(dropObj) {
@@ -974,16 +1194,52 @@
   }
   function broadcastDoorToggle(wx, wy, wz, open) {
     if (!activeRoomId) return;
-    sendCoopMsg({ type: 'door_toggle', dim: currentDimension, x: wx, y: wy, trueY: wy - (depthOffset || 0), z: wz, open: !!open });
+    const ty = wy - (depthOffset || 0);
+    const dim = currentDimension || 'overworld';
+    const key = (typeof dimModKey === 'function') ? dimModKey(wx, ty, wz, dim) : modKey(wx, ty, wz);
+    sendCoopMsg({ type: 'door_toggle', dim, key, x: wx, y: wy, trueY: ty, z: wz, open: !!open });
   }
   function broadcastWeatherSync(mode, activeKind) {
     if (!activeRoomId || !isSimAuthority()) return;
     sendCoopMsg({ type: 'weather_sync', weatherMode: mode, activeWeatherKind: activeKind || '' });
   }
 
+  function _serializeDoorsForWelcome() {
+    if (typeof doorOpenState === 'undefined' || !doorOpenState || doorOpenState.size === 0) return [];
+    const out = [];
+    const curDim = (typeof currentDimension === 'string' && currentDimension) ? currentDimension : 'overworld';
+    const dOff = (typeof depthOffset === 'number') ? depthOffset : 0;
+    for (const [k, open] of doorOpenState.entries()) {
+      if (!open) continue;
+      const p = (typeof parseWorldModKey === 'function') ? parseWorldModKey(k) : null;
+      if (p) out.push([(k.includes(':') ? k : (curDim + ':' + p.mx + ',' + (p.my - dOff) + ',' + p.mz)), 1]);
+    }
+    return out;
+  }
+  function _restoreJoinedFurnacesAndDoors(extra) {
+    if (!extra) return;
+    if (Array.isArray(extra.furnaces) && typeof restoreFurnaceData === 'function') {
+      restoreFurnaceData(extra.furnaces);
+    }
+    if (Array.isArray(extra.doors) && typeof doorOpenState !== 'undefined') {
+      const curDim = (typeof currentDimension === 'string' && currentDimension) ? currentDimension : 'overworld';
+      const dOff = (typeof depthOffset === 'number') ? depthOffset : 0;
+      for (const entry of extra.doors) {
+        if (!Array.isArray(entry) || entry.length < 2) continue;
+        const p = (typeof parseWorldModKey === 'function') ? parseWorldModKey(String(entry[0])) : null;
+        if (p && p.dim === curDim && entry[1]) {
+          doorOpenState.set(modKey(p.mx, p.my + dOff, p.mz), true);
+        }
+      }
+      if (typeof _hingesAnimating !== 'undefined') _hingesAnimating = true;
+    }
+  }
+
   function sendChunkedWelcome(sendFn, extraFields = {}) {
     const allMods = Array.from(worldMods.entries());
     const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
+    const fData = (typeof serializeFurnaceData === 'function') ? serializeFurnaceData() : [];
+    const dData = _serializeDoorsForWelcome();
     const peerSnap = [{
       peerId: localPeerId, name: localPlayerName, color: '#38bdf8',
       skinId: selectedSkinId, customSkin: (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null, equip: player.equip,
@@ -999,10 +1255,12 @@
       ...extraFields,
       roomId: activeRoomId,
       hostId: localPeerId,
-      world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode },
+      world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
       dayTime,
       chests: cData.chests || [],
       consumedChests: cData.consumedLoot || [],
+      furnaces: fData,
+      doors: dData,
       drops: Array.from(_hostAuthoritativeDrops.values()).slice(-400),
       mobs: (typeof serializeMobsForNet === 'function') ? serializeMobsForNet(currentDimension) : [],
       mods: allMods.slice(0, 600),
@@ -1152,8 +1410,167 @@
 
 
   const _hostSavedPlayers = new Map();
+  let _blkBatchDepth = 0, _blkBatchDim = 'overworld';
+  const _blkBatchMap = new Map();
+  function beginBlockBatch() {
+    if (_blkBatchDepth === 0) {
+      _blkBatchDim = (typeof currentDimension === 'string' && currentDimension) ? currentDimension : 'overworld';
+      _blkBatchMap.clear();
+    }
+    _blkBatchDepth++;
+  }
+  function endBlockBatch(suppressBroadcast = false) {
+    if (_blkBatchDepth <= 0) return [];
+    _blkBatchDepth--;
+    if (_blkBatchDepth > 0) return [];
+    const arr = Array.from(_blkBatchMap.values());
+    const dim = _blkBatchDim;
+    _blkBatchMap.clear();
+    if (!suppressBroadcast && arr.length > 0 && activeRoomId) broadcastBlockBatch(dim, arr);
+    return arr;
+  }
+  function broadcastBlockBatch(dim, blocks) {
+    if (!activeRoomId || !Array.isArray(blocks) || blocks.length === 0) return;
+    const targetDim = dim || currentDimension || 'overworld';
+    for (let i = 0; i < blocks.length; i += 240) {
+      sendCoopMsg({ type: 'block_batch', dim: targetDim, blocks: blocks.slice(i, i + 240) });
+    }
+  }
+  function _applyRemoteBlockChange(bDim, x, ty, z, id, mkIn = null, opts = null) {
+    const dim = bDim || 'overworld';
+    const ix = Math.floor(Number(x));
+    const ity = Math.floor(Number(ty));
+    const iz = Math.floor(Number(z));
+    const bid = Number(id) || 0;
+    if (!Number.isFinite(ix) || !Number.isFinite(ity) || !Number.isFinite(iz)) return;
+    const mk = mkIn || ((typeof dimModKey === 'function') ? dimModKey(ix, ity, iz, dim) : modKey(ix, ity, iz));
+    worldMods.set(mk, bid);
+    if (typeof indexWorldModKey === 'function') indexWorldModKey(mk, bid);
+    if (dim !== currentDimension) return;
+    const wy = ity + (depthOffset || 0);
+    const hk = modKey(ix, wy, iz);
+    const prevId = getBlockWorld(ix, wy, iz);
+    if (opts && typeof opts.fl === 'number' && (bid === B.WATER || bid === B.LAVA) && typeof fluidLevel !== 'undefined') {
+      fluidLevel.set(hk, opts.fl);
+    }
+    const prevRemote = isApplyingRemoteBlock;
+    isApplyingRemoteBlock = true;
+    try {
+      setBlockWorld(ix, wy, iz, bid, false, true);
+    } finally {
+      isApplyingRemoteBlock = prevRemote;
+    }
+    if (prevId === bid && (bid === B.WATER || bid === B.LAVA) && opts && typeof opts.fl === 'number' && typeof markFluidDirty === 'function') {
+      markFluidDirty(ix, wy, iz);
+    }
+    if (bid === B.AIR || bid === B.WATER) {
+      if (typeof doorOpenState !== 'undefined') doorOpenState.delete(hk);
+      if (typeof incubatingEggs !== 'undefined') incubatingEggs.delete(hk);
+      if (typeof plantedSaplings !== 'undefined') { plantedSaplings.delete(hk); if (typeof saplingFertilizeCount !== 'undefined') saplingFertilizeCount.delete(hk); }
+      const pDef = prevId ? BLOCK_DEF[prevId] : null;
+      if (prevId !== bid && typeof _delInteractiveVisual === 'function' && (prevId === B.END_CRYSTAL_BLOCK || prevId === B.DRAGON_HEAD || prevId === B.WINDMILL_HUB || (pDef && (pDef.door || pDef.trapdoor || pDef.chest)))) {
+        _delInteractiveVisual(hk);
+      }
+      if (prevId === B.END_CRYSTAL_BLOCK && typeof _endCrystalScanT !== 'undefined') _endCrystalScanT = 0;
+      if (prevId !== bid && pDef && pDef.furnaceType && typeof furnaceStateMap !== 'undefined') {
+        const fk = (typeof toDimFurnaceKey === 'function') ? toDimFurnaceKey(ix, wy, iz) : hk;
+        furnaceStateMap.delete(fk);
+        furnaceStateMap.delete(hk);
+      }
+    }
+    if (isSimAuthority()) {
+      const bDef = BLOCK_DEF[bid];
+      if ((bid === B.WATER || bid === B.LAVA) && typeof scheduleFluid === 'function') {
+        const flVal = (opts && typeof opts.fl === 'number') ? opts.fl : 0;
+        if (typeof fluidLevel !== 'undefined') fluidLevel.set(hk, flVal);
+        if (flVal === 0 && typeof pouredFluidSources !== 'undefined') pouredFluidSources.add(hk);
+        scheduleFluid(ix, wy, iz, bid === B.LAVA ? 0.22 : 0.10);
+        if (bid === B.LAVA && typeof igniteAdjacentTnt === 'function') igniteAdjacentTnt(ix, wy, iz);
+      } else if (bid === B.TNT && typeof igniteAdjacentTnt === 'function') {
+        for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+          if (getBlockWorld(ix + dx, wy + dy, iz + dz) === B.LAVA) { igniteAdjacentTnt(ix, wy, iz); break; }
+        }
+      } else if ((bid === B.FIRE || bid === B.SOUL_FIRE) && typeof registerFireBlock === 'function') {
+        registerFireBlock(ix, wy, iz);
+        if (typeof igniteAdjacentTnt === 'function') igniteAdjacentTnt(ix, wy, iz);
+      } else if (bDef && bDef.isSapling && typeof plantedSaplings !== 'undefined') {
+        plantedSaplings.set(hk, { x: ix, y: wy, z: iz, id: bid, age: 0, targetAge: 35 + Math.random() * 45 });
+      } else if (bDef && bDef.dragonEgg && typeof incubatingEggs !== 'undefined') {
+        incubatingEggs.set(hk, { x: ix, y: wy, z: iz, el: bDef.dragonEgg, eggId: bid, timer: 8.0 });
+      } else if (bid === B.END_CRYSTAL_BLOCK && typeof tryRespawnEnderDragonWithCrystals === 'function') {
+        tryRespawnEnderDragonWithCrystals(ix, wy, iz);
+      }
+    }
+    if (opts && opts.playFx && typeof player !== 'undefined' && player && Math.hypot(ix - player.x, iz - player.z) < 28) {
+      const fxId = (bid === B.AIR && opts.prevId > 0) ? opts.prevId : prevId;
+      if (bid === B.AIR && fxId > 0) {
+        if (typeof spawnBlockBreakParticles === 'function') spawnBlockBreakParticles(ix, wy, iz, fxId, { count: 8 });
+        if (typeof playBlockSfx === 'function') playBlockSfx(fxId, true);
+      } else if (bid > 0 && prevId !== bid) {
+        if (typeof playBlockSfx === 'function') playBlockSfx(bid, false);
+      }
+    }
+  }
+  function _applyRemoteBlockBatch(dim, blocks) {
+    if (!Array.isArray(blocks) || blocks.length === 0) return;
+    const prevBulk = !!window._bulkRemoteModsApplying;
+    if (blocks.length > 48) window._bulkRemoteModsApplying = true;
+    try {
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        if (!Array.isArray(b) || b.length < 4) continue;
+        _applyRemoteBlockChange(dim, b[0], b[1], b[2], b[3], null, b.length >= 5 && typeof b[4] === 'number' ? { fl: b[4] } : null);
+      }
+    } finally {
+      window._bulkRemoteModsApplying = prevBulk;
+    }
+    if ((dim || 'overworld') === currentDimension && typeof flushUrgentChunks === 'function') {
+      flushUrgentChunks(32, true);
+    }
+  }
+  function _applyRemoteExplosion(m) {
+    if (!m) return;
+    const dim = m.dim || 'overworld';
+    if (Array.isArray(m.blocks) && m.blocks.length > 0) _applyRemoteBlockBatch(dim, m.blocks);
+    if (dim === currentDimension && typeof _playExplosionFxAndLocalDamage === 'function') {
+      const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : (Number(m.y) || 0);
+      _playExplosionFxAndLocalDamage(m.x, wy, m.z, m.radius || 3.2, m.baseDmg || 14, m.reason || 'Bạn bị nổ tung!', m.opt || null);
+    }
+  }
+  function _dispatchWorldSyncPacket(m, fromId = null) {
+    if (!m || typeof m !== 'object') return false;
+    if (m.type === 'block') {
+      const ty = (typeof m.trueY === 'number') ? m.trueY : m.y;
+      _applyRemoteBlockChange(m.dim || 'overworld', m.x, ty, m.z, m.id, m.key || null, { prevId: m.prevId, fl: m.fl, playFx: true });
+      if ((m.dim || 'overworld') === currentDimension && typeof flushUrgentChunks === 'function') flushUrgentChunks(6, true);
+      return true;
+    }
+    if (m.type === 'block_batch') {
+      _applyRemoteBlockBatch(m.dim || 'overworld', m.blocks);
+      return true;
+    }
+    if (m.type === 'explosion') {
+      _applyRemoteExplosion(m);
+      return true;
+    }
+    if (m.type === 'tnt_spawn') { _applyRemoteTntSpawn(m); return true; }
+    if (m.type === 'projectile_spawn') { _applyRemoteProjectileSpawn(m); return true; }
+    if (m.type === 'lightning_fx') { _applyRemoteLightningFx(m); return true; }
+    if (m.type === 'chest_sync') { _applyRemoteChestSync(m); return true; }
+    if (m.type === 'chest_break') { _applyRemoteChestBreak(m); return true; }
+    if (m.type === 'furnace_sync') { _applyRemoteFurnaceSync(m); return true; }
+    if (m.type === 'furnace_break') { _applyRemoteFurnaceBreak(m); return true; }
+    if (m.type === 'door_toggle') { _applyRemoteDoorToggle(m); return true; }
+    if (m.type === 'time_sync') { _applyRemoteTimeSync(m); return true; }
+    if (m.type === 'weather_sync') {
+      if (!isSimAuthority() && typeof applyRemoteWeatherSync === 'function') applyRemoteWeatherSync(m);
+      return true;
+    }
+    if (m.type === 'world_action') { _handleWorldAction(m, m.fromPeerId || fromId || m._from); return true; }
+    return false;
+  }
   function _getP2PRoomRelays(m) {
-    return (m.type === 'state' || m.type === 'block' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'mob_action' || m.type === 'leave' || m.type === 'peer_leave');
+    return (m.type === 'state' || m.type === 'block' || m.type === 'block_batch' || m.type === 'explosion' || m.type === 'tnt_spawn' || m.type === 'projectile_spawn' || m.type === 'lightning_fx' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'furnace_sync' || m.type === 'furnace_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'time_sync' || m.type === 'weather_sync' || m.type === 'mob_action' || m.type === 'leave' || m.type === 'peer_leave');
   }
   function handleIncomingP2PData(senderId, m, senderConn, viaTransport = 'p2p') {
     if (!m || typeof m !== 'object') return;
@@ -1173,7 +1590,8 @@
         const needP2PRelay = p2pClientConns.size > (viaTransport === 'p2p' ? 1 : 0);
         const needMqttRelay = (viaTransport !== 'mqtt' && !!mqttRoomTopic && mqttRoomPeers.size > 0);
         const needWsRelay = (viaTransport !== 'ws' && m.type !== 'state' && !!wsConn && wsConn.readyState === 1);
-        if (needP2PRelay || needMqttRelay || needWsRelay) {
+        const needBcRelay = (viaTransport !== 'bc' && !!bcChannel && bcRoomPeers.size > 0);
+        if (needP2PRelay || needMqttRelay || needWsRelay || needBcRelay) {
           const relay = { ...m, _from: fromId, _relayBy: localPeerId };
           if (needP2PRelay) {
             for (const [cid, c] of p2pClientConns.entries()) {
@@ -1193,7 +1611,17 @@
           if (needWsRelay) {
             try { wsConn.send(JSON.stringify(m)); } catch (_) {}
           }
+          if (needBcRelay) {
+            try { bcChannel.postMessage({ ...relay, _room: activeRoomId }); } catch (_) {}
+          }
         }
+      }
+      if (m.type === 'p2p_mqtt_hello') {
+        mqttRoomPeers.add(fromId);
+        ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
+        broadcastTimeSync(dayTime, true);
+        broadcastWeatherSync(weatherMode, typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear');
+        return;
       }
       if (m.type === 'player_save' && m.playerKey && m.playerState) {
         _hostSavedPlayers.set(String(m.playerKey), m.playerState);
@@ -1248,7 +1676,7 @@
     }
     if (m.type === 'p2p_welcome') {
       if (!pendingJoinCb && activeRoomId && activeRoomId === (m.roomId || activeRoomId)) return;
-      const extra = { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
+      const extra = { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
       if (pendingJoinCb) {
         pendingJoinCb(viaTransport, m.roomId || activeRoomId, m.world, m.mods || [], m.peers || [], m.dayTime, extra);
       } else {
@@ -1270,18 +1698,8 @@
         rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
       }
       applyRemotePeerState(rp, m.state, m.equip);
-    } else if (m.type === 'block') {
-      const bDim = m.dim || 'overworld';
-      const ty = (typeof m.trueY === 'number') ? m.trueY : m.y;
-      const mk = m.key || ((typeof dimModKey === 'function') ? dimModKey(m.x, ty + (depthOffset || 0), m.z, bDim) : modKey(m.x, ty, m.z));
-      worldMods.set(mk, m.id);
-      if (bDim === currentDimension) {
-        isApplyingRemoteBlock = true; setBlockWorld(m.x, ty + (depthOffset || 0), m.z, m.id, true); isApplyingRemoteBlock = false;
-      }
-    } else if (m.type === 'chest_sync') {
-      _applyRemoteChestSync(m);
-    } else if (m.type === 'chest_break') {
-      _applyRemoteChestBreak(m);
+    } else if (_dispatchWorldSyncPacket(m, fromId)) {
+      return;
     } else if (m.type === 'drop_batch' || m.type === 'drop_spawn') {
       _applyRemoteDropBatch(Array.isArray(m.drops) ? m.drops : (m.drop ? [m.drop] : []));
     } else if (m.type === 'drop_pickup_ack') {
@@ -1302,13 +1720,6 @@
         if (m.kbY) { player.vy = Math.max(player.vy, Number(m.kbY) || 0); cameraShake = Math.max(cameraShake, 0.22); }
         if (m.disableShield) player.shieldDisableT = Math.max(player.shieldDisableT || 0, Number(m.disableShield) || 0);
       }
-    } else if (m.type === 'door_toggle') {
-      if ((!m.dim || m.dim === currentDimension) && typeof setDoorOpenPair === 'function') {
-        const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : m.y;
-        setDoorOpenPair(m.x, wy, m.z, !!m.open, true, true);
-      }
-    } else if (m.type === 'weather_sync') {
-      if (!isSimAuthority() && typeof applyRemoteWeatherSync === 'function') applyRemoteWeatherSync(m);
     } else if (m.type === 'chat' && m.text) {
       appendChatLine(m.name || 'Bạn Chơi', m.text, false);
     } else if (m.type === 'leave' || m.type === 'peer_leave') {
@@ -1342,10 +1753,13 @@
 
   function leaveCoopRoom() {
     if (activeRoomId) { try { schedulePlayerRoomSave(true); } catch (_) {} }
+    if (_wsReconTimer) { clearTimeout(_wsReconTimer); _wsReconTimer = null; }
     if (_cancelActiveJoin) { try { _cancelActiveJoin(); } catch (_) {} _cancelActiveJoin = null; }
     pendingJoinCb = null;
     _wsRoomHostId = '';
     _wsJoinedRoomId = '';
+    _lastWsModVer = 0;
+    _blkBatchDepth = 0; _blkBatchMap.clear();
     _pendingWsMods.length = 0;
     _hostAuthoritativeDrops.clear();
     _roomDropsCache.clear();
@@ -1375,11 +1789,19 @@
     updateRoomBadgeUI();
   }
 
-  function broadcastBlockMod(wx, wy, wz, id) {
+  function broadcastBlockMod(wx, wy, wz, id, meta = null) {
     if (!activeRoomId) return;
     const ty = wy - (depthOffset || 0);
-    const key = (typeof dimModKey === 'function') ? dimModKey(wx, wy, wz, currentDimension) : modKey(wx, ty, wz);
-    sendCoopMsg({ type: 'block', key, dim: currentDimension, x: wx, y: wy, trueY: ty, z: wz, id });
+    const dim = currentDimension || 'overworld';
+    const key = (typeof dimModKey === 'function') ? dimModKey(wx, ty, wz, dim) : modKey(wx, ty, wz);
+    if (_blkBatchDepth > 0 && _blkBatchDim === dim) {
+      _blkBatchMap.set(key, (meta && typeof meta.fl === 'number') ? [wx, ty, wz, id, meta.fl] : [wx, ty, wz, id]);
+      return;
+    }
+    const pkt = { type: 'block', key, dim, x: wx, y: wy, trueY: ty, z: wz, id };
+    if (meta && meta.prevId > 0) pkt.prevId = meta.prevId;
+    if (meta && typeof meta.fl === 'number') pkt.fl = meta.fl;
+    sendCoopMsg(pkt);
   }
 
   function initBroadcastChannelFallback() {
@@ -1393,14 +1815,17 @@
         if (typeof resetMobNetSyncCache === 'function') resetMobNetSyncCache();
         const modsArr = Array.from(worldMods.entries());
         const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
+        const fData = (typeof serializeFurnaceData === 'function') ? serializeFurnaceData() : [];
+        const dData = _serializeDoorsForWelcome();
         const sp = m.playerKey ? (_hostSavedPlayers.get(String(m.playerKey)) || null) : null;
         bcChannel.postMessage({
           type: 'bc_join_ack', _from: localPeerId, _room: activeRoomId, target: m._from,
-          world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode },
+          world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
           dayTime, mods: modsArr, hostName: localPlayerName,
           hostSkinId: selectedSkinId,
           hostState: { dim: currentDimension, depthOffset: depthOffset || 0, x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z },
           chests: cData.chests || [], consumedChests: cData.consumedLoot || [],
+          furnaces: fData, doors: dData,
           drops: Array.from(_hostAuthoritativeDrops.values()).slice(-400),
           mobs: (typeof serializeMobsForNet === 'function') ? serializeMobsForNet(currentDimension) : [],
           savedPlayer: sp
@@ -1410,7 +1835,7 @@
       } else if (m.type === 'bc_join_ack' && m.target === localPeerId) {
         if (!pendingJoinCb && activeRoomId === m._room) return;
         const peers = [{ peerId: m._from, name: m.hostName, color: '#38bdf8', skinId: m.hostSkinId, state: m.hostState }];
-        const extra = { hostId: m._from, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
+        const extra = { hostId: m._from, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer };
         if (pendingJoinCb) {
           pendingJoinCb('bc', m._room, m.world, m.mods || [], peers, m.dayTime, extra);
         } else {
@@ -1457,6 +1882,8 @@
         if (typeof restoreChestData === 'function') {
           restoreChestData({ chests: extra.chests || [], consumedLoot: extra.consumedChests || [] });
         }
+        _restoreJoinedFurnacesAndDoors(extra);
+        if (typeof extra.modVer === 'number') _lastWsModVer = extra.modVer;
         const dtVal = (typeof srvDayTime === 'number') ? srvDayTime : w.dayTime;
         if (typeof dtVal === 'number') dayTime = dtVal;
 
@@ -1509,15 +1936,33 @@
     );
   }
 
+  function _getCustomWsServerUrl() {
+    try {
+      const m = /[?&]server=([^&#]+)/i.exec(location.search || '');
+      const raw = m ? decodeURIComponent(m[1]).trim() : (localStorage.getItem('nucraft_ws_server') || '').trim();
+      if (raw && /^wss?:\/\/[A-Za-z0-9.\-:[\]]+(\/[^\s]*)?$/i.test(raw)) return raw;
+    } catch (_) {}
+    return '';
+  }
+  function _relayWsToLocalPeers(msg) {
+    if (!p2pIsHost) return;
+    const pkt = { ...msg, _from: msg.peerId || localPeerId, _relayBy: localPeerId };
+    const isEphem = (msg.type === 'peer_state' || msg.type === 'state');
+    const fastOk = isEphem && _isFastSafePkt(pkt);
+    for (const c of p2pClientConns.values()) _sendP2PAuto(c, pkt, isEphem, fastOk);
+    if (mqttRoomTopic && mqttRoomPeers.size > 0) ncMqtt.publish(mqttRoomTopic, pkt, false, isEphem);
+    if (bcChannel && bcRoomPeers.size > 0) { try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {} }
+  }
   function connectCoopSocket(onReady) {
-    if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+    const customWs = _getCustomWsServerUrl();
+    if (!customWs && (location.protocol !== 'http:' && location.protocol !== 'https:')) {
       initBroadcastChannelFallback();
       const stEl = document.getElementById('coopServerStatus');
       if (stEl && !activeRoomId) stEl.innerHTML = '🌐 Chế độ Internet Relay & Tab: <b style="color:#4ade80;">Sẵn sàng kết nối qua Internet ✓</b>';
       if (onReady) onReady(false);
       return;
     }
-    if (/[?&]standalone=1\b/.test(location.search || '') || /\.github\.io$/i.test(location.hostname || '')) {
+    if (!customWs && (/[?&]standalone=1\b/.test(location.search || '') || /\.github\.io$/i.test(location.hostname || ''))) {
       initBroadcastChannelFallback();
       const stEl = document.getElementById('coopServerStatus');
       if (stEl && !activeRoomId) stEl.innerHTML = '🌐 Chế độ Internet Relay (P2P &amp; MQTT): <b style="color:#4ade80;">Sẵn sàng kết nối xuyên mạng Wi-Fi / 4G ✓</b>';
@@ -1535,16 +1980,38 @@
     }
     try {
       const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const sock = new WebSocket(`${wsProto}//${location.host}/ws`);
+      const wsUrl = customWs || `${wsProto}//${location.host}/ws`;
+      const sock = new WebSocket(wsUrl);
       wsConn = sock;
       sock.onopen = () => {
         if (sock !== wsConn || sock.readyState !== 1) return;
         const stEl = document.getElementById('coopServerStatus');
-        if (stEl && !activeRoomId) stEl.innerHTML = `🔌 Máy chủ Co-op LAN &amp; Internet: <b style="color:#4ade80;">Đã kết nối (${escHtml(location.host)}) ✓</b>`;
+        if (stEl && !activeRoomId) stEl.innerHTML = `🔌 Máy chủ Co-op LAN &amp; Internet: <b style="color:#4ade80;">Đã kết nối (${escHtml(customWs || location.host)}) ✓</b>`;
         try {
           sock.send(JSON.stringify({ type: 'list_rooms' }));
           const uid = (typeof getLockedPlayerUid === 'function' && getLockedPlayerUid()) || '';
           if (uid) sock.send(JSON.stringify({ type: 'register_uid', uid }));
+          if (activeRoomId && (activeCoopTransport === 'ws' || p2pIsHost) && isPlaying) {
+            if (p2pIsHost) {
+              const allMods = Array.from(worldMods.entries());
+              const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
+              const fData = (typeof serializeFurnaceData === 'function') ? serializeFurnaceData() : [];
+              sock.send(JSON.stringify({
+                type: 'create_room', roomId: activeRoomId, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(),
+                fresh: false, name: localPlayerName, skinId: selectedSkinId,
+                seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
+                preset: shaderPreset, dayTime, weatherMode,
+                ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ,
+                chests: cData.chests || [], consumedChests: cData.consumedLoot || [], furnaces: fData, doors: _serializeDoorsForWelcome(),
+                mods: allMods.slice(0, 2500)
+              }));
+            } else {
+              sock.send(JSON.stringify({
+                type: 'join_room', roomId: activeRoomId, rejoin: true, sinceVer: _lastWsModVer,
+                clientId: localPeerId, playerKey: getLocalPlayerSaveKey(), name: localPlayerName, skinId: selectedSkinId
+              }));
+            }
+          }
         } catch (_) {}
         if (onReady) onReady(true);
       };
@@ -1555,8 +2022,16 @@
         if (stEl && !activeRoomId) stEl.innerHTML = '🌐 Chế độ Internet Relay: <b style="color:#4ade80;">Sẵn sàng kết nối xuyên mạng Wi-Fi / 4G ✓</b>';
         if (onReady) onReady(false);
       };
+      sock.onclose = () => {
+        if (sock !== wsConn) return;
+        wsConn = null;
+        if (activeRoomId && (activeCoopTransport === 'ws' || p2pIsHost) && !_wsReconTimer) {
+          _wsReconTimer = setTimeout(() => { _wsReconTimer = null; connectCoopSocket(); }, 1800);
+        }
+      };
       sock.onmessage = (ev) => {
         let msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
+        if (typeof msg.ver === 'number' && msg.ver > _lastWsModVer) _lastWsModVer = msg.ver;
         if (msg.type === 'room_joined') {
           if (!pendingJoinCb && activeRoomId && activeCoopTransport && activeCoopTransport !== 'ws' && activeCoopTransport !== 'host') {
             if (sock.readyState === 1) { try { sock.send(JSON.stringify({ type: 'leave' })); } catch (_) {} }
@@ -1565,7 +2040,8 @@
           wsSelfPeerId = msg.peerId;
           _wsJoinedRoomId = msg.roomId || '';
           _wsRoomHostId = msg.hostId || (msg.isHost ? msg.peerId : '');
-          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, reusePrev: !!msg.reusePrev, chests: msg.chests, consumedChests: msg.consumedChests, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
+          if (typeof msg.modVer === 'number') _lastWsModVer = msg.modVer;
+          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, reusePrev: !!msg.reusePrev, modVer: msg.modVer, chests: msg.chests, consumedChests: msg.consumedChests, furnaces: msg.furnaces, doors: msg.doors, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
           if (pendingJoinCb) {
             pendingJoinCb('ws', msg.roomId, msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
           } else if (!msg.isHost || msg.reusePrev) {
@@ -1577,10 +2053,11 @@
             } else {
               if (msg.world && typeof msg.world.dayTime === 'number') dayTime = msg.world.dayTime;
               if (msg.world && typeof applyRemoteWeatherSync === 'function' && (msg.world.weatherMode || msg.world.activeWeatherKind)) applyRemoteWeatherSync(msg.world);
-              if (Array.isArray(msg.mods) && msg.mods.length && (msg.reusePrev || worldMods.size === 0)) applyModsChunkList(msg.mods);
+              if (Array.isArray(msg.mods) && msg.mods.length && (msg.reusePrev || worldMods.size === 0 || msg.rejoin)) applyModsChunkList(msg.mods);
               if (typeof restoreChestData === 'function' && msg.reusePrev) restoreChestData({ chests: msg.chests || [], consumedLoot: msg.consumedChests || [] });
+              if (msg.reusePrev || msg.rejoin) _restoreJoinedFurnacesAndDoors(joinExtra);
               if (Array.isArray(msg.drops)) _applyRemoteDropBatch(msg.drops);
-              if (msg.savedPlayer && msg.reusePrev && isPlaying && !(msg.isHost && (Date.now() - (window._justLoadedLocalSaveAt || 0)) < 6000)) applySavedPlayerRoomState(msg.savedPlayer);
+              if (!msg.rejoin && msg.savedPlayer && msg.reusePrev && isPlaying && !(msg.isHost && (Date.now() - (window._justLoadedLocalSaveAt || 0)) < 6000)) applySavedPlayerRoomState(msg.savedPlayer);
               if (Array.isArray(msg.peers)) {
                 for (const p of msg.peers) {
                   if (!p || p.peerId === localPeerId || p.peerId === wsSelfPeerId) continue;
@@ -1639,6 +2116,9 @@
         } else if (msg.type === 'ws_mods_chunk') {
           if (isWorldLoading && Array.isArray(msg.mods)) _pendingWsMods.push(...msg.mods);
           applyModsChunkList(msg.mods);
+        } else if (msg.type === 'ws_mods_catchup') {
+          if (typeof msg.modVer === 'number') _lastWsModVer = msg.modVer;
+          if (Array.isArray(msg.blocks)) _applyRemoteBlockBatch(msg.dim || currentDimension || 'overworld', msg.blocks);
         } else if (msg.type === 'peer_join') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId !== wsSelfPeerId && msg.peerId !== localPeerId) {
@@ -1682,25 +2162,11 @@
               }
             }
           }
-        } else if (msg.type === 'block') {
+        } else if (msg.type === 'block' || msg.type === 'block_batch' || msg.type === 'explosion' || msg.type === 'tnt_spawn' || msg.type === 'projectile_spawn' || msg.type === 'lightning_fx' || msg.type === 'chest_sync' || msg.type === 'chest_break' || msg.type === 'furnace_sync' || msg.type === 'furnace_break' || msg.type === 'door_toggle' || msg.type === 'time_sync' || msg.type === 'weather_sync' || msg.type === 'world_action') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
-          if (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId) return;
-          const bDim = msg.dim || 'overworld';
-          const ty = (typeof msg.trueY === 'number') ? msg.trueY : msg.y;
-          const mk = msg.key || ((typeof dimModKey === 'function') ? dimModKey(msg.x, ty + (depthOffset || 0), msg.z, bDim) : modKey(msg.x, ty, msg.z));
-          worldMods.set(mk, msg.id);
-          if (bDim === currentDimension) {
-            isApplyingRemoteBlock = true; setBlockWorld(msg.x, ty + (depthOffset || 0), msg.z, msg.id, true); isApplyingRemoteBlock = false;
-          }
-          if (p2pIsHost) {
-            const relay = { type: 'block', _from: msg.peerId, _relayBy: localPeerId, key: mk, dim: bDim, x: msg.x, y: msg.y, trueY: ty, z: msg.z, id: msg.id };
-            for (const c of p2pClientConns.values()) if (c && c.open) { try { c.send(relay); } catch (_) {} }
-            if (mqttRoomTopic && mqttRoomPeers.size > 0) ncMqtt.publish(mqttRoomTopic, relay);
-          }
-        } else if (msg.type === 'chest_sync') {
-          _applyRemoteChestSync(msg);
-        } else if (msg.type === 'chest_break') {
-          _applyRemoteChestBreak(msg);
+          if (msg.peerId && (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId)) return;
+          _dispatchWorldSyncPacket(msg, msg.peerId || msg.fromPeerId || _wsRoomHostId);
+          if (p2pIsHost && msg.type !== 'world_action') _relayWsToLocalPeers(msg);
         } else if (msg.type === 'drop_batch' || msg.type === 'drop_spawn') {
           _applyRemoteDropBatch(Array.isArray(msg.drops) ? msg.drops : (msg.drop ? [msg.drop] : []));
         } else if (msg.type === 'drop_pickup_ack') {
@@ -1723,13 +2189,6 @@
             if (msg.kbY) { player.vy = Math.max(player.vy, Number(msg.kbY) || 0); cameraShake = Math.max(cameraShake, 0.22); }
             if (msg.disableShield) player.shieldDisableT = Math.max(player.shieldDisableT || 0, Number(msg.disableShield) || 0);
           }
-        } else if (msg.type === 'door_toggle') {
-          if ((!msg.dim || msg.dim === currentDimension) && typeof setDoorOpenPair === 'function') {
-            const wy = (typeof msg.trueY === 'number') ? (msg.trueY + (depthOffset || 0)) : msg.y;
-            setDoorOpenPair(msg.x, wy, msg.z, !!msg.open, true, true);
-          }
-        } else if (msg.type === 'weather_sync') {
-          if (!isSimAuthority() && typeof applyRemoteWeatherSync === 'function') applyRemoteWeatherSync(msg);
         } else if (msg.type === 'ruin_origin') {
           if (typeof msg.x === 'number' && typeof msg.z === 'number') {
             _ruinOriginX = msg.x; _ruinOriginZ = msg.z; _ruinLocSeed = -1; _shLocSeed = -1; _acLocSeed = -1;
@@ -1865,14 +2324,16 @@
       if (online && wsConn && wsConn.readyState === 1 && activeRoomId === id && p2pIsHost) {
         const allMods = Array.from(worldMods.entries());
         const cData = (typeof serializeChestData === 'function') ? serializeChestData() : { chests: [], consumedLoot: [] };
+        const fData = (typeof serializeFurnaceData === 'function') ? serializeFurnaceData() : [];
         wsConn.send(JSON.stringify({
           type: 'create_room', roomId: id, clientId: localPeerId, playerKey: getLocalPlayerSaveKey(),
           fresh: isFreshCreate,
           name: localPlayerName, skinId: selectedSkinId, customSkin: (typeof getLocalCustomSkinPayload === 'function') ? getLocalCustomSkinPayload() : null,
           seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
-          preset: shaderPreset, dayTime, weatherMode,
+          preset: shaderPreset, dayTime, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear',
           ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ,
           chests: cData.chests || [], consumedChests: cData.consumedLoot || [],
+          furnaces: fData, doors: _serializeDoorsForWelcome(),
           state: { dim: currentDimension, depthOffset: depthOffset || 0, x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z, yaw: player.yaw, pitch: player.pitch },
           mods: allMods.slice(0, 2500)
         }));
@@ -2109,6 +2570,12 @@
                     if (activeCoopTransport === 'mqtt') handleIncomingP2PData(m._from, m, null, 'mqtt');
                   });
                   activeCoopTransport = 'mqtt';
+                  try {
+                    ncMqtt.publish(topic, {
+                      type: 'p2p_mqtt_hello', _from: localPeerId, playerKey: getLocalPlayerSaveKey(),
+                      name: localPlayerName, skinId: selectedSkinId
+                    });
+                  } catch (_) {}
                   if (typeof showToast === 'function') showToast('🌐 P2P gián đoạn — đã tự chuyển sang Internet Relay giữ kết nối!');
                 }
               });

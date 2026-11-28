@@ -5129,9 +5129,13 @@
       const isSoulSteel = (slot.id === B.SOUL_FLINT_AND_STEEL);
       player.swingT = 0.22;
       if (hit.id === B.TNT) {
-        setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
-        spawnPrimedTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 2.4);
-        flushUrgentChunks(32);
+        if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+          if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_tnt', hit.x, hit.y, hit.z);
+        } else {
+          setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
+          spawnPrimedTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 2.4);
+          flushUrgentChunks(32);
+        }
         if (gameMode !== 'creative') damageHeldTool(1);
         renderHotbar();
         showToast('💣 Đã châm ngòi TNT bằng Bật Lửa!');
@@ -5234,11 +5238,16 @@
         const eggK = modKey(hit.x, hit.y, hit.z);
         const eggDef = BLOCK_DEF[hit.id];
         if (incubatingEggs.has(eggK) && !player.sneaking) {
-          const eg = incubatingEggs.get(eggK);
-          incubatingEggs.delete(eggK);
-          setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
-          flushUrgentChunks(16);
-          hatchTamedDragon(eg.el, hit.x + 0.5, hit.y + 0.15, hit.z + 0.5);
+          if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+            if (typeof broadcastWorldAction === 'function') broadcastWorldAction('hatch_egg', hit.x, hit.y, hit.z);
+            incubatingEggs.delete(eggK);
+          } else {
+            const eg = incubatingEggs.get(eggK);
+            incubatingEggs.delete(eggK);
+            setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
+            flushUrgentChunks(16);
+            hatchTamedDragon(eg.el, hit.x + 0.5, hit.y + 0.15, hit.z + 0.5);
+          }
         } else {
           incubatingEggs.delete(eggK);
           setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
@@ -5278,10 +5287,19 @@
       }
       if (BLOCK_DEF[hit.id] && BLOCK_DEF[hit.id].bed) {
         if (currentDimension === 'nether' || currentDimension === 'end') {
-          setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
-          for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-            const nb = getBlockWorld(hit.x + dx, hit.y, hit.z + dz);
-            if (BLOCK_DEF[nb] && BLOCK_DEF[nb].bed) setBlockWorld(hit.x + dx, hit.y, hit.z + dz, B.AIR, true);
+          if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+            if (typeof broadcastWorldAction === 'function') broadcastWorldAction('bed_explode', hit.x, hit.y, hit.z);
+            return;
+          }
+          if (typeof beginBlockBatch === 'function') beginBlockBatch();
+          try {
+            setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
+            for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+              const nb = getBlockWorld(hit.x + dx, hit.y, hit.z + dz);
+              if (BLOCK_DEF[nb] && BLOCK_DEF[nb].bed) setBlockWorld(hit.x + dx, hit.y, hit.z + dz, B.AIR, true);
+            }
+          } finally {
+            if (typeof endBlockBatch === 'function') endBlockBatch();
           }
           triggerExplosion(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 4.5, 18, 'Bạn bị nổ khi nằm ngủ ở Nether/End!');
           return;
@@ -5289,7 +5307,17 @@
         player.bedSpawn = { dim: currentDimension || 'overworld', depthOffset: depthOffset || 0, bx: hit.x, by: hit.y, bz: hit.z, trueY: hit.y - (depthOffset || 0), x: hit.x + 0.5, y: hit.y + 1.2, z: hit.z + 0.5 };
         if (typeof schedulePlayerRoomSave === 'function') schedulePlayerRoomSave(true);
         player.hp = player.maxHp;
-        if (envUniforms.uSunDir.value.y < 0.12) { dayTime = 0.28; showToast('🛏️ Bạn đã ngủ qua đêm tới Bình Minh & hồi đầy máu!'); }
+        if (envUniforms.uSunDir.value.y < 0.12) {
+          dayTime = 0.28;
+          if (activeRoomId) {
+            if (typeof isSimAuthority === 'function' && isSimAuthority()) {
+              if (typeof broadcastTimeSync === 'function') broadcastTimeSync(dayTime, true);
+            } else if (typeof broadcastWorldAction === 'function') {
+              broadcastWorldAction('sleep_dawn', hit.x, hit.y, hit.z);
+            }
+          }
+          showToast('🛏️ Bạn đã ngủ qua đêm tới Bình Minh & hồi đầy máu!');
+        }
         else showToast('🛏️ Đã đặt điểm hồi sinh tại Giường & hồi đầy máu!');
         playSfx('pickup'); renderStatusBars();
         return;
@@ -5311,8 +5339,12 @@
         return;
       }
       if (hit.id === B.TNT) {
-        setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
-        spawnPrimedTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 2.4);
+        if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+          if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_tnt', hit.x, hit.y, hit.z);
+        } else {
+          setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
+          spawnPrimedTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 2.4);
+        }
         showToast('💣 Đã châm ngòi TNT!');
         return;
       }
@@ -5498,7 +5530,9 @@
       const sbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshStandardMaterial({ color: 0xe0f2fe, roughness: 0.7 }));
       const ox = player.x + _rayDir.x * 0.6, oy = eyeY - 0.05 + _rayDir.y * 0.6, oz = player.z + _rayDir.z * 0.6;
       sbMesh.position.set(ox, oy, oz); scene.add(sbMesh);
-      projectiles.push({ kind: 'snowball', x: ox, y: oy, z: oz, vx: _rayDir.x * 22.0, vy: _rayDir.y * 22.0 + 1.8, vz: _rayDir.z * 22.0, fromPlayer: true, dmg: 0.5, stuck: false, life: 4.0, mesh: sbMesh });
+      const sbProj = { kind: 'snowball', x: ox, y: oy, z: oz, vx: _rayDir.x * 22.0, vy: _rayDir.y * 22.0 + 1.8, vz: _rayDir.z * 22.0, fromPlayer: true, dmg: 0.5, stuck: false, life: 4.0, mesh: sbMesh };
+      projectiles.push(sbProj);
+      if (activeRoomId && typeof broadcastProjectileSpawn === 'function') broadcastProjectileSpawn(sbProj);
       playSfx('bow'); player.swingT = 0.20; renderHotbar();
       return;
     }
@@ -6078,6 +6112,7 @@
         spawnDroppedItem(hit.x, hit.y, hit.z, dropId);
       }
       if (def.chest) breakChestAt(hit.x, hit.y, hit.z, brokenId);
+      if (def.furnaceType && typeof breakFurnaceAt === 'function') breakFurnaceAt(hit.x, hit.y, hit.z, brokenId);
       if (brokenId === B.OBSIDIAN || brokenId === B.NETHER_PORTAL) {
         extinguishConnectedNetherPortal(hit.x, hit.y, hit.z);
       }
@@ -6086,11 +6121,16 @@
       // 1) Authentic Minecraft Bamboo & Sugar Cane Gravity Cascade (chopping bottom drops ALL blocks directly above!)
       if (brokenId === B.BAMBOO || brokenId === B.SUGAR_CANE) {
         let cy = hit.y + 1, cascaded = 0;
-        while (cy <= MAX_Y && getBlockWorld(hit.x, cy, hit.z) === brokenId) {
-          setBlockWorld(hit.x, cy, hit.z, B.AIR, true);
-          spawnBlockBreakParticles(hit.x, cy, hit.z, brokenId, { count: 8 });
-          spawnDroppedItem(hit.x, cy, hit.z, brokenId);
-          cy++; cascaded++;
+        if (typeof beginBlockBatch === 'function') beginBlockBatch();
+        try {
+          while (cy <= MAX_Y && getBlockWorld(hit.x, cy, hit.z) === brokenId) {
+            setBlockWorld(hit.x, cy, hit.z, B.AIR, true);
+            spawnBlockBreakParticles(hit.x, cy, hit.z, brokenId, { count: 8 });
+            spawnDroppedItem(hit.x, cy, hit.z, brokenId);
+            cy++; cascaded++;
+          }
+        } finally {
+          if (typeof endBlockBatch === 'function') endBlockBatch();
         }
         if (cascaded > 0) showToast(`🎋 Đã đốn ngã toàn bộ ${cascaded + 1} đốt ${def.name}!`);
       }

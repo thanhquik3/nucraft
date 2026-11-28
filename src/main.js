@@ -254,10 +254,15 @@
     m.quaternion.setFromUnitVectors(_boltUp, _boltTmpD);
     grp.add(m);
   }
-  function spawnLightningStrike(tx, ty, tz, explode = true) {
+  function spawnLightningStrike(tx, ty, tz, explode = true, opts = null) {
     // Biome Cánh Đồng Lúa luôn bình yên: có thể mưa chill nhẹ nhưng tuyệt đối không sét đánh phá lúa/công trình
     if (currentDimension === 'overworld' && typeof getBiomeAt === 'function' && getBiomeAt(Math.floor(tx), Math.floor(tz)) === BIOMES.WHEAT_VALLEY) {
       return false;
+    }
+    const isRemoteVis = !!(opts && opts._remoteVisual);
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && !isRemoteVis) {
+      if (typeof isSimAuthority === 'function' && !isSimAuthority()) return false;
+      if (typeof broadcastLightningFx === 'function') broadcastLightningFx(tx, ty, tz);
     }
     const grp = new THREE.Group();
     const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 });
@@ -293,6 +298,7 @@
     spawnPixelFx('lightning_arc', tx, ty + 5.8, tz, { count: 2, scale: 1.85, life: 0.36, spread: 1.4 });
     spawnPixelFx('electric_coil', tx, ty + 0.5, tz, { count: 2, scale: 1.15, life: 0.45, spread: 1.4 });
     // Authentic Minecraft: Lightning transforms nearby Creeper->Charged Creeper, Pig->Zombified Piglin, Villager->Witch!
+    if (isRemoteVis) return true;
     const _transformLightningMob = (m, nextType) => {
       if (!MOB_STATS[nextType]) return false;
       const prevY = m.y, prevYaw = m.yaw, prevX = m.x, prevZ = m.z;
@@ -631,22 +637,29 @@
     const inChillWheat = (inOverworld && biome === BIOMES.WHEAT_VALLEY);
     const isColdBio = (biome === BIOMES.SNOW || biome === BIOMES.SNOWY_PLAINS || biome === BIOMES.ALPINE_PEAKS);
     const isSandBio = (biome === BIOMES.DESERT || biome === BIOMES.MESA);
+    const _wSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
+    const prevWeatherKind = activeWeatherKind;
     if (weatherMode === 'auto') {
-      autoWeatherTimer -= dt;
-      if (autoWeatherTimer <= 0) {
-        autoWeatherTimer = 42 + Math.random() * 44;
-        const r = Math.random();
-        if (inChillWheat) activeWeatherKind = r < 0.22 ? 'drizzle' : (r < 0.34 ? 'rain' : (r < 0.42 ? 'meteor' : 'clear'));
-        else if (isColdBio) activeWeatherKind = r < 0.24 ? 'snow' : (r < 0.38 ? 'blizzard' : (r < 0.48 ? 'aurora' : (r < 0.56 ? 'fog' : 'clear')));
-        else if (isSandBio) activeWeatherKind = r < 0.24 ? 'sandstorm' : (r < 0.32 ? 'ashfall' : (r < 0.40 ? 'meteor' : 'clear'));
-        else if (biome === BIOMES.VOLCANIC_BASALT) activeWeatherKind = r < 0.38 ? 'ashfall' : (r < 0.50 ? 'fog' : 'clear');
-        else activeWeatherKind = r < 0.16 ? 'drizzle' : (r < 0.28 ? 'rain' : (r < 0.35 ? 'storm' : (r < 0.42 ? 'fog' : (r < 0.48 ? 'aurora' : (r < 0.53 ? 'meteor' : 'clear')))));
+      if (_wSimAuth) {
+        autoWeatherTimer -= dt;
+        if (autoWeatherTimer <= 0) {
+          autoWeatherTimer = 42 + Math.random() * 44;
+          const r = Math.random();
+          if (inChillWheat) activeWeatherKind = r < 0.22 ? 'drizzle' : (r < 0.34 ? 'rain' : (r < 0.42 ? 'meteor' : 'clear'));
+          else if (isColdBio) activeWeatherKind = r < 0.24 ? 'snow' : (r < 0.38 ? 'blizzard' : (r < 0.48 ? 'aurora' : (r < 0.56 ? 'fog' : 'clear')));
+          else if (isSandBio) activeWeatherKind = r < 0.24 ? 'sandstorm' : (r < 0.32 ? 'ashfall' : (r < 0.40 ? 'meteor' : 'clear'));
+          else if (biome === BIOMES.VOLCANIC_BASALT) activeWeatherKind = r < 0.38 ? 'ashfall' : (r < 0.50 ? 'fog' : 'clear');
+          else activeWeatherKind = r < 0.16 ? 'drizzle' : (r < 0.28 ? 'rain' : (r < 0.35 ? 'storm' : (r < 0.42 ? 'fog' : (r < 0.48 ? 'aurora' : (r < 0.53 ? 'meteor' : 'clear')))));
+        }
       }
       if (!inOverworld) activeWeatherKind = 'clear';
     } else {
       activeWeatherKind = inOverworld ? weatherMode : 'clear';
     }
     if (inChillWheat && activeWeatherKind === 'storm') activeWeatherKind = 'rain';
+    if (_wSimAuth && activeRoomId && activeWeatherKind !== prevWeatherKind && typeof broadcastWeatherSync === 'function') {
+      broadcastWeatherSync(weatherMode, activeWeatherKind);
+    }
 
     const wIntensityGoal = (activeWeatherKind === 'clear' || activeWeatherKind === 'meteor' || activeWeatherKind === 'aurora') ? 0.0
       : (activeWeatherKind === 'drizzle' ? 0.40 : (activeWeatherKind === 'ashfall' ? 0.55 : (activeWeatherKind === 'rain' ? 0.72 : (activeWeatherKind === 'snow' ? 0.68 : (activeWeatherKind === 'fog' ? 0.58 : 1.0)))));
@@ -657,7 +670,7 @@
     const windMul = (activeWeatherKind === 'blizzard' || activeWeatherKind === 'sandstorm') ? 2.15 : (activeWeatherKind === 'storm' ? 1.55 : ((inChillWheat || activeWeatherKind === 'drizzle') ? 0.68 : 1.15));
     envUniforms.uWindStrength.value = 1.0 + (inOverworld ? rainIntensity * windMul : 0.0);
 
-    if (inOverworld && !inChillWheat && activeWeatherKind === 'storm' && rainIntensity > 0.72) {
+    if (_wSimAuth && inOverworld && !inChillWheat && activeWeatherKind === 'storm' && rainIntensity > 0.72) {
       thunderTimer -= dt;
       if (thunderTimer <= 0) {
         thunderTimer = 5.5 + Math.random() * 7.5;
@@ -2467,6 +2480,16 @@
     getBlockWorld,
     setBlockWorld,
     flushUrgentChunks,
+    triggerExplosion,
+    spawnPrimedTnt,
+    detonateEndCrystalAt,
+    broadcastWorldAction,
+    setDoorOpenPair,
+    getDoorOpenState: (k) => doorOpenState.get(k),
+    worldMods,
+    worldModsByChunk,
+    dimModKey,
+    modKey,
     getChunks: () => chunks,
     mining,
     updateMining,

@@ -2010,6 +2010,7 @@
     if (modalName === 'furnace') {
       if (!tgt || !activeFurnaceKey) return;
       const fs = furnaceStateMap.get(activeFurnaceKey); if (!fs) return;
+      let changedFurn = false;
       if (srcType === 'furnInv' && tgt.kind === 'furnSlot') {
         const s = inventory[fromIdx]; if (!s || s.count <= 0) return;
         if (tgt.eqKey === 'inSlot') {
@@ -2020,6 +2021,7 @@
             const mv = Math.min(99 - fs.inSlot.count, s.count);
             fs.inSlot.id = s.id; fs.inSlot.count += mv; s.count -= mv;
             if (s.count <= 0) _clearSlotObj(s);
+            changedFurn = true;
             playSfx('place'); renderFurnaceModal(); if (fromIdx < 9) renderHotbar();
           }
         } else if (tgt.eqKey === 'fuelSlot') {
@@ -2028,6 +2030,7 @@
             const mv = s.id === B.LAVA_BUCKET ? 1 : Math.min(99 - fs.fuelSlot.count, s.count);
             fs.fuelSlot.id = s.id; fs.fuelSlot.count += mv; s.count -= mv;
             if (s.count <= 0) _clearSlotObj(s);
+            changedFurn = true;
             playSfx('place'); renderFurnaceModal(); if (fromIdx < 9) renderHotbar();
           }
         }
@@ -2038,6 +2041,7 @@
           const mv = Math.min(99 - dst.count, sl.count);
           dst.id = sl.id; dst.count += mv; sl.count -= mv;
           if (sl.count <= 0) _clearSlotObj(sl);
+          changedFurn = true;
         } else {
           takeFromFurnaceSlot(fromEq); return;
         }
@@ -2049,6 +2053,7 @@
           if (fromIdx < 9 || tgt.idx < 9) renderHotbar();
         }
       }
+      if (changedFurn && typeof broadcastFurnaceSync === 'function') broadcastFurnaceSync(activeFurnaceKey, fs);
       return;
     }
 
@@ -4038,10 +4043,12 @@
     if (allowRec && (fs.inSlot.count === 0 || fs.inSlot.id === s.id)) {
       const mv = Math.min(99 - fs.inSlot.count, s.count);
       fs.inSlot.id = s.id; fs.inSlot.count += mv; s.count -= mv; if (s.count <= 0) _clearSlotObj(s);
+      if (typeof broadcastFurnaceSync === 'function') broadcastFurnaceSync(activeFurnaceKey, fs);
       playSfx('place'); renderFurnaceModal(); if (idx < 9) renderHotbar();
     } else if (isFuel && (fs.fuelSlot.count === 0 || (fs.fuelSlot.id === s.id && s.id !== B.LAVA_BUCKET))) {
       const mv = s.id === B.LAVA_BUCKET ? 1 : Math.min(99 - fs.fuelSlot.count, s.count);
       fs.fuelSlot.id = s.id; fs.fuelSlot.count += mv; s.count -= mv; if (s.count <= 0) _clearSlotObj(s);
+      if (typeof broadcastFurnaceSync === 'function') broadcastFurnaceSync(activeFurnaceKey, fs);
       playSfx('place'); renderFurnaceModal(); if (idx < 9) renderHotbar();
     } else {
       showToast(fs.type === 'blast' ? '🔥 Lò Luyện Kim chỉ nung Quặng + Nhiên liệu (Than/Gỗ/Tre/Lava)!' : (fs.type === 'smoker' ? '🍖 Lò Hun Khói chỉ nướng Thức Ăn + Nhiên liệu!' : '🔥 Chọn Quặng/Thức Ăn/Đá/Cát hoặc Nhiên liệu (Than, Gỗ, Tre, Xô Lava)!'));
@@ -4059,7 +4066,12 @@
   function openFurnaceModal(wx, wy, wz, blockId) {
     isPlaying = false; mining.active = false; clearMoveKeys(); resetInvDragState();
     if (document.pointerLockElement) document.exitPointerLock();
-    activeFurnaceKey = modKey(wx, wy, wz);
+    activeFurnaceKey = (typeof toDimFurnaceKey === 'function') ? toDimFurnaceKey(wx, wy, wz) : modKey(wx, wy, wz);
+    const legacyK = modKey(wx, wy, wz);
+    if (legacyK !== activeFurnaceKey && furnaceStateMap.has(legacyK) && !furnaceStateMap.has(activeFurnaceKey)) {
+      furnaceStateMap.set(activeFurnaceKey, furnaceStateMap.get(legacyK));
+      furnaceStateMap.delete(legacyK);
+    }
     getOrCreateFurnaceState(activeFurnaceKey, blockId);
     renderFurnaceModal();
     document.getElementById('furnaceModal').classList.remove('hidden');
@@ -4079,6 +4091,7 @@
     const sl = fs[slotKey]; if (!sl || sl.count <= 0) return;
     addItemToInventory(sl.id, sl.count);
     _clearSlotObj(sl);
+    if (typeof broadcastFurnaceSync === 'function') broadcastFurnaceSync(activeFurnaceKey, fs);
     playSfx('pickup'); renderFurnaceModal(); renderHotbar();
   };
   [['furnInputSlot', 'inSlot'], ['furnFuelSlot', 'fuelSlot'], ['furnOutputSlot', 'outSlot']].forEach(([elId, skey]) => {

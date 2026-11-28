@@ -1854,6 +1854,7 @@
     activeFires.set(k, { x: wx, y: wy, z: wz, age: 0, maxAge: 4.5 + Math.random() * 4.0 });
   }
   function tickActiveFires(dt) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
     fireSimAccum += dt;
     if (fireSimAccum < 0.30 || activeFires.size === 0) return;
     const stepDt = fireSimAccum;
@@ -1861,6 +1862,8 @@
     const dirs6 = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
     const entries = Array.from(activeFires.entries());
     const rainingNow = (typeof rainIntensity !== 'undefined' && rainIntensity > 0.45);
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    try {
     for (let i = 0; i < entries.length; i++) {
       const [k, f] = entries[i];
       const { x, y, z } = f;
@@ -1964,6 +1967,9 @@
       }
     }
     flushUrgentChunks(4);
+    } finally {
+      if (typeof endBlockBatch === 'function') endBlockBatch();
+    }
   }
 
   function clearWorldModsAll() { worldMods.clear(); worldModsByChunk.clear(); activeFires.clear(); }

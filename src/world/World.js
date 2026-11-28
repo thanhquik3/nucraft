@@ -5474,9 +5474,13 @@
     c.mapDirty = true;
     if (typeof _mmTerrainVer === 'number') _mmTerrainVer++;
     if (ly > c.maxLy) c.maxLy = ly;
+    const hk = modKey(wx, wy, wz);
     if (persist) {
       recordWorldMod(wx, wy, wz, id);
-      if (typeof broadcastBlockMod === 'function' && !isApplyingRemoteBlock) broadcastBlockMod(wx, wy, wz, id);
+      if (typeof broadcastBlockMod === 'function' && !isApplyingRemoteBlock) {
+        const meta = (id === B.WATER || id === B.LAVA) ? { prevId, fl: fluidLevel.has(hk) ? fluidLevel.get(hk) : 0 } : { prevId };
+        broadcastBlockMod(wx, wy, wz, id, meta);
+      }
     }
     if ((prevId === B.BED || prevId === B.BED_FOOT) && id !== B.BED && id !== B.BED_FOOT && player.bedSpawn) {
       const bs = player.bedSpawn;
@@ -5492,7 +5496,6 @@
     c.dirty = true; c._meshGen = (c._meshGen || 0) + 1; c._meshInFlightGen = -1;
     _dirtyChunkSet.add(c);
     if (_nearLocalEdit) { c.urgentDirty = true; _urgentChunkSet.add(c); }
-    const hk = modKey(wx, wy, wz);
     if ((prevId === B.WATER || prevId === B.LAVA) && id !== prevId) {
       fluidLevel.delete(hk);
       pouredFluidSources.delete(hk);
@@ -5626,7 +5629,14 @@
   }
 
   function tickFluids(dt) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+      fluidQueue.length = 0; fluidQueuedSet.clear(); fluidQueueHead = 0;
+      return;
+    }
     if (fluidQueue.length === 0) { fluidQueueHead = 0; return; }
+    const syncFluid = !!(typeof activeRoomId !== 'undefined' && activeRoomId);
+    if (syncFluid && typeof beginBlockBatch === 'function') beginBlockBatch();
+    try {
     let processed = 0, changedVisuals = 0;
     const maxOps = 180;
     const startLen = fluidQueue.length;
@@ -5691,7 +5701,7 @@
             // Drain cleanly: clear fluidLevel BEFORE setBlockWorld so neighbor wakes see AIR immediately
             fluidLevel.delete(k);
             pouredFluidSources.delete(k);
-            setBlockWorld(x, y, z, B.AIR, false);
+            setBlockWorld(x, y, z, B.AIR, syncFluid);
             changedVisuals++;
             continue;
           }
@@ -5750,7 +5760,7 @@
             else if (belowId !== B.AIR && belowId !== curId) _dropReplacedFluidBlock(x, y - 1, z, belowId);
             const bk = modKey(x, y - 1, z);
             fluidLevel.set(bk, 8); // Set falling level BEFORE setBlockWorld so dirty mesh & wakes see level 8 immediately
-            if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, false);
+            if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, syncFluid);
             else markFluidDirty(x, y - 1, z);
             scheduleFluid(x, y - 1, z, delayStep);
             changedVisuals++;
@@ -5788,7 +5798,7 @@
             else if (nbId !== B.AIR && nbId !== curId) _dropReplacedFluidBlock(nx, y, nz, nbId);
             const nk = modKey(nx, y, nz);
             fluidLevel.set(nk, nextLvl); // Set flow level BEFORE setBlockWorld so mesh & wakes never mistake it for a source
-            if (nbId !== curId) setBlockWorld(nx, y, nz, curId, false);
+            if (nbId !== curId) setBlockWorld(nx, y, nz, curId, syncFluid);
             else markFluidDirty(nx, y, nz);
             scheduleFluid(nx, y, nz, delayStep);
             changedVisuals++;
@@ -5805,6 +5815,9 @@
     }
     fluidQueueHead = 0;
     if (changedVisuals > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(8, true);
+    } finally {
+      if (syncFluid && typeof endBlockBatch === 'function') endBlockBatch();
+    }
   }
 
 
@@ -5852,18 +5865,23 @@
     const minLy = Math.max(0, wy - 4 - MIN_Y), maxLy = Math.min(WORLD_H - 1, wy + 28 - MIN_Y);
     if (!_sapScratch) _sapScratch = new Uint16Array(16 * WORLD_H * 16);
     _sapScratch.fill(0, minLy << 8, (maxLy + 1) << 8);
-    setBlockWorld(wx, wy, wz, B.AIR, true);
-    placeLuantiTree(_sapScratch, 8, wy, 8, wx, wz, style);
-    for (let ly = minLy; ly <= maxLy; ly++) {
-      const py = MIN_Y + ly;
-      for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
-        const bid = _sapScratch[(ly << 8) | (lz << 4) | lx];
-        if (!bid) continue;
-        const px = wx - 8 + lx, pz = wz - 8 + lz;
-        if (lx === 8 && lz === 8 && py >= wy && py <= wy + 4) { setBlockWorld(px, py, pz, bid, true); continue; }
-        const cur = getBlockWorld(px, py, pz);
-        if (cur === B.AIR || IS_OPAQUE[cur] !== 1) setBlockWorld(px, py, pz, bid, true);
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    try {
+      setBlockWorld(wx, wy, wz, B.AIR, true);
+      placeLuantiTree(_sapScratch, 8, wy, 8, wx, wz, style);
+      for (let ly = minLy; ly <= maxLy; ly++) {
+        const py = MIN_Y + ly;
+        for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
+          const bid = _sapScratch[(ly << 8) | (lz << 4) | lx];
+          if (!bid) continue;
+          const px = wx - 8 + lx, pz = wz - 8 + lz;
+          if (lx === 8 && lz === 8 && py >= wy && py <= wy + 4) { setBlockWorld(px, py, pz, bid, true); continue; }
+          const cur = getBlockWorld(px, py, pz);
+          if (cur === B.AIR || IS_OPAQUE[cur] !== 1) setBlockWorld(px, py, pz, bid, true);
+        }
       }
+    } finally {
+      if (typeof endBlockBatch === 'function') endBlockBatch();
     }
     const sk = modKey(wx, wy, wz);
     plantedSaplings.delete(sk); saplingFertilizeCount.delete(sk);
@@ -6537,41 +6555,106 @@
     interactiveByChunk.delete(chKey);
   }
 
-  // Active Furnace / Blast Furnace / Smoker Smelting Ticker (runs continuously on real wall-clock dt while in-world)
+  function toDimFurnaceKey(kOrWx, wy, wz, dim = currentDimension) {
+    if (wy !== undefined) return (dim || 'overworld') + ':' + toTrueChestKey(kOrWx, wy, wz);
+    if (!kOrWx) return '';
+    if (String(kOrWx).includes(':')) return String(kOrWx);
+    return (dim || 'overworld') + ':' + toTrueChestKey(kOrWx);
+  }
+  function packFurnaceState(fs) {
+    if (!fs) return null;
+    const pSlot = (s) => (s && s.id && s.count > 0) ? [s.id, s.count] : null;
+    return [fs.type || 'furnace', pSlot(fs.inSlot), pSlot(fs.fuelSlot), pSlot(fs.outSlot), +fs.burnLeft.toFixed(2), +fs.burnMax.toFixed(2), +fs.cookT.toFixed(2), +fs.cookNeed.toFixed(2)];
+  }
+  function unpackFurnaceState(raw) {
+    if (!Array.isArray(raw) || raw.length < 4) return null;
+    const fType = raw[0] || 'furnace';
+    const uSlot = (s) => (Array.isArray(s) && s[0] && s[1] > 0) ? { id: Number(s[0]) || 0, count: Number(s[1]) || 0 } : { id: 0, count: 0 };
+    return {
+      type: fType,
+      inSlot: uSlot(raw[1]), fuelSlot: uSlot(raw[2]), outSlot: uSlot(raw[3]),
+      burnLeft: Number(raw[4]) || 0, burnMax: Math.max(0.1, Number(raw[5]) || 1),
+      cookT: Number(raw[6]) || 0, cookNeed: Math.max(0.1, Number(raw[7]) || (fType === 'furnace' ? 10.0 : 5.0)),
+      _uiSig: ''
+    };
+  }
+  function serializeFurnaceData() {
+    const out = [];
+    for (const [fk, fs] of furnaceStateMap.entries()) {
+      if (!fs) continue;
+      if (fs.inSlot.count > 0 || fs.fuelSlot.count > 0 || fs.outSlot.count > 0 || fs.burnLeft > 0) {
+        out.push([toDimFurnaceKey(fk), packFurnaceState(fs)]);
+      }
+    }
+    return out.slice(-400);
+  }
+  function restoreFurnaceData(list) {
+    if (!Array.isArray(list)) return;
+    for (const entry of list) {
+      if (!Array.isArray(entry) || entry.length < 2) continue;
+      const fs = unpackFurnaceState(entry[1]);
+      if (fs) furnaceStateMap.set(toDimFurnaceKey(entry[0]), fs);
+    }
+  }
+  function breakFurnaceAt(wx, wy, wz, brokenId = 0) {
+    const legacyK = modKey(wx, wy, wz);
+    const dk = toDimFurnaceKey(wx, wy, wz);
+    const fs = furnaceStateMap.get(dk) || furnaceStateMap.get(legacyK);
+    if (fs && typeof spawnDroppedItem === 'function') {
+      if (fs.inSlot && fs.inSlot.id && fs.inSlot.count > 0) spawnDroppedItem(wx, wy, wz, fs.inSlot.id, { count: fs.inSlot.count });
+      if (fs.fuelSlot && fs.fuelSlot.id && fs.fuelSlot.count > 0) spawnDroppedItem(wx, wy, wz, fs.fuelSlot.id, { count: fs.fuelSlot.count });
+      if (fs.outSlot && fs.outSlot.id && fs.outSlot.count > 0) spawnDroppedItem(wx, wy, wz, fs.outSlot.id, { count: fs.outSlot.count });
+    }
+    furnaceStateMap.delete(dk);
+    furnaceStateMap.delete(legacyK);
+    if (activeFurnaceKey && (activeFurnaceKey === dk || activeFurnaceKey === legacyK) && typeof closeFurnaceModal === 'function') {
+      closeFurnaceModal();
+    }
+    if (typeof broadcastFurnaceBreak === 'function') broadcastFurnaceBreak(dk);
+  }
+
+  // Active Furnace / Blast Furnace / Smoker Smelting Ticker (Authority-driven in co-op, smooth visual interpolation on guests)
   function tickFurnaces(dt) {
     if (furnaceStateMap.size <= 0) return;
+    const isAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
     let activeFurnUpdated = false;
     for (const [fk, fs] of furnaceStateMap.entries()) {
       const speedMul = (fs.type === 'blast' || fs.type === 'smoker') ? 2.0 : 1.0;
       const rec = fs.inSlot.count > 0 ? SMELT_RECIPES[fs.inSlot.id] : null;
       const allowRec = rec && (fs.type === 'furnace' || (fs.type === 'blast' && rec.kind === 'ore') || (fs.type === 'smoker' && rec.kind === 'food'));
       const canOut = allowRec && (fs.outSlot.count === 0 || (fs.outSlot.id === rec.out && fs.outSlot.count < 99));
+      let syncThisFurnace = false;
       if (fs.burnLeft > 0) fs.burnLeft = Math.max(0, fs.burnLeft - dt * speedMul);
-      if (canOut && fs.burnLeft <= 0 && fs.fuelSlot.count > 0 && FUEL_VALUES[fs.fuelSlot.id]) {
+      if (isAuth && canOut && fs.burnLeft <= 0 && fs.fuelSlot.count > 0 && FUEL_VALUES[fs.fuelSlot.id]) {
         const fId = fs.fuelSlot.id;
         fs.burnMax = FUEL_VALUES[fId];
         fs.burnLeft = fs.burnMax;
         if (fId === B.LAVA_BUCKET) { fs.fuelSlot.id = B.BUCKET; fs.fuelSlot.count = 1; }
         else { fs.fuelSlot.count--; if (fs.fuelSlot.count <= 0) fs.fuelSlot.id = 0; }
+        syncThisFurnace = true;
         if (fk === activeFurnaceKey) activeFurnUpdated = true;
       }
       if (canOut && fs.burnLeft > 0) {
         const cookNeed = (rec.cookTime || 10.0) / speedMul;
         fs.cookNeed = cookNeed;
-        fs.cookT += dt;
+        fs.cookT = isAuth ? (fs.cookT + dt) : Math.min(cookNeed, fs.cookT + dt);
         if (Math.random() < dt * 2.5) {
-          const pts = fk.split(',');
-          spawnParticles(+pts[0] + 0.5, +pts[1] + 0.65, +pts[2] + 0.5, 0xf97316, 1, true);
+          const fp = (typeof parseWorldModKey === 'function') ? parseWorldModKey(fk) : null;
+          if (fp && fp.dim === currentDimension) spawnParticles(fp.mx + 0.5, fp.my + (depthOffset || 0) + 0.65, fp.mz + 0.5, 0xf97316, 1, true);
         }
-        if (fs.cookT >= cookNeed) {
+        if (isAuth && fs.cookT >= cookNeed) {
           fs.cookT = 0;
           fs.inSlot.count--; if (fs.inSlot.count <= 0) fs.inSlot.id = 0;
           if (fs.outSlot.count === 0) { fs.outSlot.id = rec.out; fs.outSlot.count = 1; }
           else fs.outSlot.count++;
+          syncThisFurnace = true;
           if (fk === activeFurnaceKey) activeFurnUpdated = true;
         }
       } else {
         fs.cookT = Math.max(0, fs.cookT - dt * 2.0);
+      }
+      if (isAuth && syncThisFurnace && typeof broadcastFurnaceSync === 'function') {
+        broadcastFurnaceSync(toDimFurnaceKey(fk), fs);
       }
     }
     if (activeFurnaceKey) updateFurnaceModalLiveBars(activeFurnUpdated);
@@ -6669,36 +6752,44 @@
       }
     }
 
-    // 3) Natural Wheat Crop Growth Ticker (WHEAT_0 -> WHEAT_1 -> WHEAT_2 -> WHEAT_3 golden ripe!)
-    cropTickAccum += dt;
-    if (cropTickAccum >= 2.2) {
-      cropTickAccum = 0;
-      const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
-      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-        const ch = chunks.get(chunkKey(pcx + dx, pcz + dz));
-        if (!ch || (sodiumOpts.lithiumAi && ch.isOceanChunk)) continue;
-        const d = ch.data, wx0 = ch.cx * CHUNK_W, wz0 = ch.cz * CHUNK_W;
-        for (let tries = 0; tries < 28; tries++) {
-          const lx = (Math.random() * 16) | 0, lz = (Math.random() * 16) | 0;
-          const ly = Math.min(ch.maxLy, Math.max(2, (Math.floor(player.y) - MIN_Y) + ((Math.random() * 14 - 7) | 0)));
-          const id = d[(ly << 8) | (lz << 4) | lx];
-          if (id === B.WHEAT_0 || id === B.WHEAT_1 || id === B.WHEAT_2) {
-            setBlockWorld(wx0 + lx, MIN_Y + ly, wz0 + lz, id + 1, true);
-            spawnParticles(wx0 + lx + 0.5, MIN_Y + ly + 0.4, wz0 + lz + 0.5, 0x86efac, 3, true);
-          } else if (BLOCK_DEF[id]?.isSapling && Math.random() < 0.08) {
-            growSaplingAt(wx0 + lx, MIN_Y + ly, wz0 + lz, id);
+    // 3) Natural Wheat Crop Growth Ticker (Authority-driven in co-op)
+    const _worldSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
+    if (_worldSimAuth) {
+      cropTickAccum += dt;
+      if (cropTickAccum >= 2.2) {
+        cropTickAccum = 0;
+        if (typeof beginBlockBatch === 'function') beginBlockBatch();
+        try {
+          const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
+          for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+            const ch = chunks.get(chunkKey(pcx + dx, pcz + dz));
+            if (!ch || (sodiumOpts.lithiumAi && ch.isOceanChunk)) continue;
+            const d = ch.data, wx0 = ch.cx * CHUNK_W, wz0 = ch.cz * CHUNK_W;
+            for (let tries = 0; tries < 28; tries++) {
+              const lx = (Math.random() * 16) | 0, lz = (Math.random() * 16) | 0;
+              const ly = Math.min(ch.maxLy, Math.max(2, (Math.floor(player.y) - MIN_Y) + ((Math.random() * 14 - 7) | 0)));
+              const id = d[(ly << 8) | (lz << 4) | lx];
+              if (id === B.WHEAT_0 || id === B.WHEAT_1 || id === B.WHEAT_2) {
+                setBlockWorld(wx0 + lx, MIN_Y + ly, wz0 + lz, id + 1, true);
+                spawnParticles(wx0 + lx + 0.5, MIN_Y + ly + 0.4, wz0 + lz + 0.5, 0x86efac, 3, true);
+              } else if (BLOCK_DEF[id]?.isSapling && Math.random() < 0.08) {
+                growSaplingAt(wx0 + lx, MIN_Y + ly, wz0 + lz, id);
+              }
+            }
           }
+        } finally {
+          if (typeof endBlockBatch === 'function') endBlockBatch();
         }
       }
-    }
 
-    // 3b) Planted Sapling Growth Timer (grows naturally after targetAge seconds!)
-    if (plantedSaplings.size > 0) {
-      for (const [sk, sap] of plantedSaplings) {
-        if (getBlockWorld(sap.x, sap.y, sap.z) !== sap.id) { plantedSaplings.delete(sk); saplingFertilizeCount.delete(sk); continue; }
-        sap.age += dt;
-        if (sap.age >= sap.targetAge) {
-          if (!growSaplingAt(sap.x, sap.y, sap.z, sap.id)) sap.age = sap.targetAge - 6.0;
+      // 3b) Planted Sapling Growth Timer (grows naturally after targetAge seconds!)
+      if (plantedSaplings.size > 0) {
+        for (const [sk, sap] of plantedSaplings) {
+          if (getBlockWorld(sap.x, sap.y, sap.z) !== sap.id) { plantedSaplings.delete(sk); saplingFertilizeCount.delete(sk); continue; }
+          sap.age += dt;
+          if (sap.age >= sap.targetAge) {
+            if (!growSaplingAt(sap.x, sap.y, sap.z, sap.id)) sap.age = sap.targetAge - 6.0;
+          }
         }
       }
     }
@@ -10914,10 +11005,15 @@
     pushIfPortal(sx, sy, sz);
     const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
     for (const [dx, dy, dz] of dirs) pushIfPortal(sx + dx, sy + dy, sz + dz);
-    while (queue.length > 0 && seen.size < 48) {
-      const [x, y, z] = queue.shift();
-      setBlockWorld(x, y, z, B.AIR, true);
-      for (const [dx, dy, dz] of dirs) pushIfPortal(x + dx, y + dy, z + dz);
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    try {
+      while (queue.length > 0 && seen.size < 48) {
+        const [x, y, z] = queue.shift();
+        setBlockWorld(x, y, z, B.AIR, true);
+        for (const [dx, dy, dz] of dirs) pushIfPortal(x + dx, y + dy, z + dz);
+      }
+    } finally {
+      if (typeof endBlockBatch === 'function') endBlockBatch();
     }
   }
 
