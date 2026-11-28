@@ -268,6 +268,8 @@
     }
     if (low === '/testportals' && (gameMode === 'creative' || isAdminUnlocked)) {
       const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
+      if (typeof beginBlockBatch === 'function') beginBlockBatch();
+      try {
       // Clear flat staging platform ahead
       for (let dz = -8; dz <= -2; dz++) for (let dx = -7; dx <= 7; dx++) {
         setBlockWorld(px + dx, py - 1, pz + dz, B.STONE_BRICK, true);
@@ -295,6 +297,7 @@
         setBlockWorld(epx + i, py, epz - 2, B.END_PORTAL_FRAME, true);
         setBlockWorld(epx + i, py, epz + 2, B.END_PORTAL_FRAME, true);
       }
+      } finally { if (typeof endBlockBatch === 'function') endBlockBatch(); }
       flushUrgentChunks(32, true);
       showToast('🧪 Đã gọi khung Cổng Địa Ngục (trái) & 12 khung Cổng Kết Thúc (phải)! Hãy dùng Bật Lửa & 12 Mắt Ender!');
       return;

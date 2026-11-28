@@ -3117,7 +3117,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
     isPlaying = false;
     const tStartLoad = performance.now();
     _worldLoadYaw = (typeof player !== 'undefined' && player.yaw) || 0;
-    const dimLabel = (dim) => dim === 'nether' ? 'THE NETHER' : (dim === 'end' ? 'THE END' : (dim === 'sift' ? 'THE SIFT' : 'OVERWORLD'));
+    const dimLabel = (dim) => dim === 'nether' ? 'THE NETHER' : (dim === 'end' ? 'THE END' : (dim === 'sift' ? 'THE SIFT' : (dim === 'warden' ? 'WARDEN REALM' : (dim === 'dragon_realm' ? 'DRAGON REALM' : 'OVERWORLD'))));
     if (tEl) tEl.textContent = titleText || tr('Đang tạo thế giới...', 'Building Terrain...');
     if (tipEl) tipEl.textContent = tipText || tr('Đang khởi tạo hạt giống và kiến tạo bản đồ...', 'Generating terrain chunks around spawn...');
     if (badge) badge.textContent = (opts && opts.badge) ? opts.badge : dimLabel(currentDimension);
@@ -3200,6 +3200,7 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
 
         let genIdx = 0, meshIdx = 0, drainPasses = 0;
         const stepRealChunkLoad = () => {
+          try {
           const frameDeadline = performance.now() + (_isMobilePerf ? 9.5 : 11.5);
           let genOps = 0, meshOps = 0;
           let activeCx = null, activeCz = null;
@@ -3341,10 +3342,24 @@ if (typeof document !== 'undefined' && document.getElementById('lobbyScreen')) {
                   isWorldLoading = false;
                   ov.classList.add('hidden');
                   setPct(0);
+                  if (typeof remotePlayers !== 'undefined' && remotePlayers) {
+                    const nowSyncP = performance.now();
+                    for (const rp of remotePlayers.values()) if (rp && !rp.isBuddy) rp._lastPktAt = nowSyncP;
+                  }
                   startPlaying();
+                  if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof schedulePlayerRoomSave === 'function') {
+                    schedulePlayerRoomSave(true);
+                  }
                 });
               });
             });
+          }
+          } catch (err) {
+            console.error('Chunk load err:', err);
+            isWorldLoading = false;
+            ov.classList.add('hidden');
+            setPct(0);
+            startPlaying();
           }
         };
         requestAnimationFrame(stepRealChunkLoad);

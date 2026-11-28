@@ -426,6 +426,7 @@ function handleMessage(peer, msg) {
       peerId: peer.id,
       color: peer.color,
       isHost: amHost,
+      rejoin: !!msg.rejoin,
       reusePrev: hasServerState,
       modVer: room.modVer || 0,
       hostId: room.hostId,
@@ -698,7 +699,7 @@ function handleMessage(peer, msg) {
     if (typeof msg.ts === 'number') outPkt.ts = msg.ts;
     if (Array.isArray(msg.rm) && msg.rm.length) outPkt.rm = msg.rm;
     broadcastRoom(room, outPkt, peer.id, !isFull);
-  } else if ((msg.type === 'mob_hit' || msg.type === 'mob_action' || msg.type === 'mob_remove') && peer.roomId) {
+  } else if ((msg.type === 'mob_hit' || msg.type === 'mob_action' || msg.type === 'mob_remove' || msg.type === 'mob_player_hit') && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
     if (msg.type === 'mob_remove' && msg.uid && room.mobsByDim) {
@@ -706,6 +707,10 @@ function handleMessage(peer, msg) {
         const arr = room.mobsByDim[dKey];
         if (Array.isArray(arr)) room.mobsByDim[dKey] = arr.filter(m => m && m.uid !== msg.uid);
       }
+    }
+    if (msg.type === 'mob_player_hit' && msg._to && room.peers.has(msg._to)) {
+      sendJson(room.peers.get(msg._to), { ...msg, peerId: peer.id });
+      return;
     }
     broadcastRoom(room, { ...msg, peerId: peer.id }, peer.id);
   } else if (msg.type === 'furnace_sync' && peer.roomId) {
@@ -733,8 +738,19 @@ function handleMessage(peer, msg) {
         scheduleRoomsSave();
       } else {
         const hostPeer = room.hostId ? room.peers.get(room.hostId) : null;
-        if (hostPeer && hostPeer.id !== peer.id) sendJson(hostPeer, { ...msg, peerId: peer.id, fromPeerId: peer.id });
-        else if (hostPeer) sendJson(hostPeer, { ...msg, peerId: '__srv__', fromPeerId: peer.id });
+        const actDim = String(msg.dim || 'overworld');
+        const hostDim = (hostPeer && hostPeer.state && hostPeer.state.dim) ? String(hostPeer.state.dim) : 'overworld';
+        if (hostPeer && hostDim === actDim) {
+          sendJson(hostPeer, { ...msg, peerId: hostPeer.id !== peer.id ? peer.id : '__srv__', fromPeerId: peer.id });
+        } else {
+          let hasOtherInDim = false;
+          for (const [pid, p] of room.peers.entries()) {
+            if (pid !== peer.id && p.state && String(p.state.dim || 'overworld') === actDim) { hasOtherInDim = true; break; }
+          }
+          const outAct = { ...msg, peerId: peer.id, fromPeerId: peer.id };
+          if (hasOtherInDim) broadcastRoom(room, outAct, peer.id);
+          else broadcastRoom(room, { ...outAct, peerId: '__srv__' }, null);
+        }
       }
       return;
     }

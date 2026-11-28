@@ -5629,7 +5629,7 @@
   }
 
   function tickFluids(dt) {
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
       fluidQueue.length = 0; fluidQueuedSet.clear(); fluidQueueHead = 0;
       return;
     }
@@ -6616,7 +6616,7 @@
   // Active Furnace / Blast Furnace / Smoker Smelting Ticker (Authority-driven in co-op, smooth visual interpolation on guests)
   function tickFurnaces(dt) {
     if (furnaceStateMap.size <= 0) return;
-    const isAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
+    const isAuth = (!activeRoomId || typeof isDimSimAuthority !== 'function' || isDimSimAuthority());
     let activeFurnUpdated = false;
     for (const [fk, fs] of furnaceStateMap.entries()) {
       const speedMul = (fs.type === 'blast' || fs.type === 'smoker') ? 2.0 : 1.0;
@@ -6753,7 +6753,7 @@
     }
 
     // 3) Natural Wheat Crop Growth Ticker (Authority-driven in co-op)
-    const _worldSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
+    const _worldSimAuth = (!activeRoomId || typeof isDimSimAuthority !== 'function' || isDimSimAuthority());
     if (_worldSimAuth) {
       cropTickAccum += dt;
       if (cropTickAccum >= 2.2) {
@@ -10217,6 +10217,23 @@
   // v42 PORTAL ENGINE: Strongholds, Nether Portal (8x travel), End Portal & Eye of Ender
   // =========================================================================
   let _portalCooldown = 0;
+  function _runBatchedBlocks(fn) {
+    if (typeof beginBlockBatch === 'function') beginBlockBatch();
+    try { return fn(); }
+    finally { if (typeof endBlockBatch === 'function') endBlockBatch(); }
+  }
+  function _findBlockInBox(cx, cy, cz, rx, ryDown, ryUp, rz, targetId) {
+    for (let dy = -ryDown; dy <= ryUp; dy++) {
+      const y = cy + dy;
+      if (y <= MIN_Y || y > MAX_Y) continue;
+      for (let dz = -rz; dz <= rz; dz++) {
+        for (let dx = -rx; dx <= rx; dx++) {
+          if (getBlockWorld(cx + dx, y, cz + dz) === targetId) return { x: cx + dx, y, z: cz + dz };
+        }
+      }
+    }
+    return null;
+  }
   const _elNetherPortalOv = document.getElementById('netherPortalOverlay');
   const flyingEnderEyes = [];
 
@@ -10258,46 +10275,55 @@
     }
     const baseY = Math.max(WATER_LEVEL + 1, getTerrainHeight(rn.x, rn.z, getBiomeAt(rn.x, rn.z)));
     rn.y = baseY;
-    for (let rz = -7; rz <= 7; rz++) {
-      for (let rx = -7; rx <= 7; rx++) {
-        if (Math.hypot(rx, rz) > 7.4) continue;
-        const wx = rn.x + rx, wz = rn.z + rz;
-        setBlockWorld(wx, baseY - 1, wz, B.STONE_BRICK, true);
-        setBlockWorld(wx, baseY, wz, ((Math.abs(rx) + Math.abs(rz)) % 3 === 0) ? B.MOSS_BLOCK : B.STONE_BRICK, true);
-        for (let ay = 1; ay <= 8; ay++) setBlockWorld(wx, baseY + ay, wz, B.AIR, true);
-        if (Math.abs(rx) === 5 && Math.abs(rz) === 5) {
-          const ph = 4 + ((rx + rz) & 1);
-          for (let py = 1; py <= ph; py++) setBlockWorld(wx, baseY + py, wz, B.STONE_BRICK, true);
-          setBlockWorld(wx, baseY + ph + 1, wz, B.LANTERN, true);
-        }
-        if (Math.abs(rx) <= 2 && Math.abs(rz) <= 1) {
-          setBlockWorld(wx, baseY + 1, wz, B.STONE_BRICK, true);
+    if (_findBlockInBox(rn.x, baseY + 3, rn.z, 4, 2, 5, 2, B.DREAM_PORTAL)) return;
+    const ctrB = getBlockWorld(rn.x, baseY, rn.z);
+    if ((ctrB === B.STONE_BRICK || ctrB === B.MOSS_BLOCK) &&
+        getBlockWorld(rn.x, baseY + 1, rn.z) === B.STONE_BRICK &&
+        getBlockWorld(rn.x + 5, baseY + 1, rn.z + 5) === B.STONE_BRICK) return;
+    _runBatchedBlocks(() => {
+      for (let rz = -7; rz <= 7; rz++) {
+        for (let rx = -7; rx <= 7; rx++) {
+          if (Math.hypot(rx, rz) > 7.4) continue;
+          const wx = rn.x + rx, wz = rn.z + rz;
+          setBlockWorld(wx, baseY - 1, wz, B.STONE_BRICK, true);
+          setBlockWorld(wx, baseY, wz, ((Math.abs(rx) + Math.abs(rz)) % 3 === 0) ? B.MOSS_BLOCK : B.STONE_BRICK, true);
+          for (let ay = 1; ay <= 8; ay++) setBlockWorld(wx, baseY + ay, wz, B.AIR, true);
+          if (Math.abs(rx) === 5 && Math.abs(rz) === 5) {
+            const ph = 4 + ((rx + rz) & 1);
+            for (let py = 1; py <= ph; py++) setBlockWorld(wx, baseY + py, wz, B.STONE_BRICK, true);
+            setBlockWorld(wx, baseY + ph + 1, wz, B.LANTERN, true);
+          }
+          if (Math.abs(rx) <= 2 && Math.abs(rz) <= 1) {
+            setBlockWorld(wx, baseY + 1, wz, B.STONE_BRICK, true);
+          }
         }
       }
-    }
+    });
     for (const _ch of chunks.values()) if (_ch.dirty) rebuildChunkMesh(_ch);
   }
 
   function startRisingDreamPortal(cx, baseY, cz, instant = false) {
     if (instant) {
-      for (let dx = -4; dx <= 4; dx++) {
-        setBlockWorld(cx + dx, baseY + 1, cz, B.DREAM_PORTAL_FRAME, true);
-        setBlockWorld(cx + dx, baseY + 11, cz, B.DREAM_PORTAL_FRAME, true);
-      }
-      for (let dy = 2; dy <= 10; dy++) {
-        setBlockWorld(cx - 4, baseY + dy, cz, B.DREAM_PORTAL_FRAME, true);
-        setBlockWorld(cx + 4, baseY + dy, cz, B.DREAM_PORTAL_FRAME, true);
-        for (let dx = -3; dx <= 3; dx++) setBlockWorld(cx + dx, baseY + dy, cz, B.DREAM_PORTAL, true);
-      }
-      for (let dy = 1; dy <= 8; dy++) {
-        setBlockWorld(cx - 5, baseY + dy, cz, B.TERRACOTTA_RED, true);
-        setBlockWorld(cx + 5, baseY + dy, cz, B.TERRACOTTA_RED, true);
-      }
-      setBlockWorld(cx - 5, baseY + 9, cz, B.SIFT_CYAN_CRYSTAL, true);
-      setBlockWorld(cx + 5, baseY + 9, cz, B.SIFT_CYAN_CRYSTAL, true);
-      setBlockWorld(cx - 4, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
-      setBlockWorld(cx + 4, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
-      setBlockWorld(cx, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
+      _runBatchedBlocks(() => {
+        for (let dx = -4; dx <= 4; dx++) {
+          setBlockWorld(cx + dx, baseY + 1, cz, B.DREAM_PORTAL_FRAME, true);
+          setBlockWorld(cx + dx, baseY + 11, cz, B.DREAM_PORTAL_FRAME, true);
+        }
+        for (let dy = 2; dy <= 10; dy++) {
+          setBlockWorld(cx - 4, baseY + dy, cz, B.DREAM_PORTAL_FRAME, true);
+          setBlockWorld(cx + 4, baseY + dy, cz, B.DREAM_PORTAL_FRAME, true);
+          for (let dx = -3; dx <= 3; dx++) setBlockWorld(cx + dx, baseY + dy, cz, B.DREAM_PORTAL, true);
+        }
+        for (let dy = 1; dy <= 8; dy++) {
+          setBlockWorld(cx - 5, baseY + dy, cz, B.TERRACOTTA_RED, true);
+          setBlockWorld(cx + 5, baseY + dy, cz, B.TERRACOTTA_RED, true);
+        }
+        setBlockWorld(cx - 5, baseY + 9, cz, B.SIFT_CYAN_CRYSTAL, true);
+        setBlockWorld(cx + 5, baseY + 9, cz, B.SIFT_CYAN_CRYSTAL, true);
+        setBlockWorld(cx - 4, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
+        setBlockWorld(cx + 4, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
+        setBlockWorld(cx, baseY + 12, cz, B.SIFT_CYAN_CRYSTAL, true);
+      });
       return;
     }
     _risingDreamPortals.push({ cx, baseY, cz, step: 0, timer: 0 });
@@ -10313,28 +10339,32 @@
       if (rp.timer >= 0.14) {
         rp.timer = 0;
         const dy = rp.step + 1;
-        if (dy === 1 || dy === 11) {
-          for (let dx = -4; dx <= 4; dx++) setBlockWorld(rp.cx + dx, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
-          if (dy === 1) {
-            setBlockWorld(rp.cx - 5, rp.baseY + 1, rp.cz, B.PURPUR_PILLAR, true);
-            setBlockWorld(rp.cx + 5, rp.baseY + 1, rp.cz, B.PURPUR_PILLAR, true);
-          } else {
-            setBlockWorld(rp.cx - 4, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
-            setBlockWorld(rp.cx + 4, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
-            setBlockWorld(rp.cx, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
+        const rcx0 = (rp.cx - 5) >> 4, rcx1 = (rp.cx + 5) >> 4, rcz = rp.cz >> 4;
+        for (let c = rcx0; c <= rcx1; c++) if (!chunks.has(chunkKey(c, rcz))) generateChunk(c, rcz);
+        _runBatchedBlocks(() => {
+          if (dy === 1 || dy === 11) {
+            for (let dx = -4; dx <= 4; dx++) setBlockWorld(rp.cx + dx, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
+            if (dy === 1) {
+              setBlockWorld(rp.cx - 5, rp.baseY + 1, rp.cz, B.PURPUR_PILLAR, true);
+              setBlockWorld(rp.cx + 5, rp.baseY + 1, rp.cz, B.PURPUR_PILLAR, true);
+            } else {
+              setBlockWorld(rp.cx - 4, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
+              setBlockWorld(rp.cx + 4, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
+              setBlockWorld(rp.cx, rp.baseY + 12, rp.cz, B.GLOW_CRYSTAL, true);
+            }
+          } else if (dy >= 2 && dy <= 10) {
+            setBlockWorld(rp.cx - 4, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
+            setBlockWorld(rp.cx + 4, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
+            if (dy <= 8) {
+              setBlockWorld(rp.cx - 5, rp.baseY + dy, rp.cz, B.PURPUR_PILLAR, true);
+              setBlockWorld(rp.cx + 5, rp.baseY + dy, rp.cz, B.PURPUR_PILLAR, true);
+            } else if (dy === 9) {
+              setBlockWorld(rp.cx - 5, rp.baseY + 9, rp.cz, B.GLOW_CRYSTAL, true);
+              setBlockWorld(rp.cx + 5, rp.baseY + 9, rp.cz, B.GLOW_CRYSTAL, true);
+            }
+            for (let dx = -3; dx <= 3; dx++) setBlockWorld(rp.cx + dx, rp.baseY + dy, rp.cz, B.DREAM_PORTAL, true);
           }
-        } else if (dy >= 2 && dy <= 10) {
-          setBlockWorld(rp.cx - 4, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
-          setBlockWorld(rp.cx + 4, rp.baseY + dy, rp.cz, B.DREAM_PORTAL_FRAME, true);
-          if (dy <= 8) {
-            setBlockWorld(rp.cx - 5, rp.baseY + dy, rp.cz, B.PURPUR_PILLAR, true);
-            setBlockWorld(rp.cx + 5, rp.baseY + dy, rp.cz, B.PURPUR_PILLAR, true);
-          } else if (dy === 9) {
-            setBlockWorld(rp.cx - 5, rp.baseY + 9, rp.cz, B.GLOW_CRYSTAL, true);
-            setBlockWorld(rp.cx + 5, rp.baseY + 9, rp.cz, B.GLOW_CRYSTAL, true);
-          }
-          for (let dx = -3; dx <= 3; dx++) setBlockWorld(rp.cx + dx, rp.baseY + dy, rp.cz, B.DREAM_PORTAL, true);
-        }
+        });
         spawnParticles(rp.cx + 0.5, rp.baseY + dy + 0.5, rp.cz + 0.5, 0x67e8f9, 14, true);
         spawnParticles(rp.cx + 0.5, rp.baseY + dy + 0.5, rp.cz + 0.5, 0xf472b6, 14, true);
         playSfx('equip');
@@ -10346,16 +10376,33 @@
       }
     }
 
-    // Trigger Abandoned Ruin guardian encounter in Overworld
+    // Trigger Abandoned Ruin guardian encounter in Overworld (authority only)
     if (currentDimension !== 'overworld') return;
+    if (typeof isDimSimAuthority === 'function' && !isDimSimAuthority('overworld')) return;
     const ruins = getDreamRuinLocations();
     for (const rn of ruins) {
       if (_awakenedRuins.has(rn.id)) continue;
-      const dist = Math.hypot(player.x - rn.x, player.z - rn.z);
-      if (dist < 36 && !rn._stamped) { stampDreamRuinAltar(rn); rn._stamped = true; }
+      let dist = Math.hypot(player.x - rn.x, player.z - rn.z);
+      if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof remotePlayers !== 'undefined' && remotePlayers) {
+        for (const rp of remotePlayers.values()) {
+          if (rp && !rp.isBuddy && (rp.dim || 'overworld') === 'overworld') {
+            const rd = Math.hypot(rp.x - rn.x, rp.z - rn.z);
+            if (rd < dist) dist = rd;
+          }
+        }
+      }
+      if (dist >= 36) continue;
+      const rcx = rn.x >> 4, rcz = rn.z >> 4;
+      if (!chunks.has(chunkKey(rcx, rcz))) generateChunk(rcx, rcz);
+      const baseY = Math.max(WATER_LEVEL + 1, getTerrainHeight(rn.x, rn.z, getBiomeAt(rn.x, rn.z)));
+      rn.y = baseY;
+      if (_findBlockInBox(rn.x, baseY + 3, rn.z, 4, 2, 5, 2, B.DREAM_PORTAL)) {
+        _awakenedRuins.add(rn.id);
+        rn._stamped = true;
+        continue;
+      }
+      if (!rn._stamped) { stampDreamRuinAltar(rn); rn._stamped = true; }
       if (!_activeRuinEncounters.has(rn.id) && dist < 24) {
-        const baseY = Math.max(WATER_LEVEL + 1, getTerrainHeight(rn.x, rn.z, getBiomeAt(rn.x, rn.z)));
-        rn.y = baseY;
         const gTypes = ['ruin_stalker', 'gargoyle', 'skeleton', 'pillager'];
         const spawned = [];
         for (let k = 0; k < gTypes.length; k++) {
@@ -10910,11 +10957,13 @@
       if (!valid) continue;
 
       // Ignite! Fill inner rectangle with B.NETHER_PORTAL
-      for (let u = 0; u < w; u++) {
-        for (let v = 0; v < h; v++) {
-          setBlockWorld(lx + dx * u, by + v, lz + dz * u, B.NETHER_PORTAL, true);
+      _runBatchedBlocks(() => {
+        for (let u = 0; u < w; u++) {
+          for (let v = 0; v < h; v++) {
+            setBlockWorld(lx + dx * u, by + v, lz + dz * u, B.NETHER_PORTAL, true);
+          }
         }
-      }
+      });
       if (typeof _recordPortalPos === 'function' && (currentDimension === 'overworld' || currentDimension === 'nether')) {
         _recordPortalPos(currentDimension, lx, by, lz);
       }
@@ -10963,9 +11012,11 @@
           if (getBlockWorld(lx + dx * w, by + v, lz + dz * w) !== B.REINFORCED_DEEPSLATE) valid = false;
         }
         if (!valid) continue;
-        for (let u = 0; u < w; u++) for (let v = 0; v < h; v++) {
-          setBlockWorld(lx + dx * u, by + v, lz + dz * u, B.WARDEN_PORTAL, true);
-        }
+        _runBatchedBlocks(() => {
+          for (let u = 0; u < w; u++) for (let v = 0; v < h; v++) {
+            setBlockWorld(lx + dx * u, by + v, lz + dz * u, B.WARDEN_PORTAL, true);
+          }
+        });
         _recordPortalPos(currentDimension, lx, by, lz);
         spawnParticles(lx + dx * (w * 0.5) + 0.5, by + h * 0.5, lz + dz * (w * 0.5) + 0.5, 0x22d3ee, 32, true);
         playSfx('roar');
@@ -10977,21 +11028,23 @@
   }
 
   function buildArrivalWardenPortal(cx, baseY, cz) {
-    for (let dx = -4; dx <= 4; dx++) {
-      setBlockWorld(cx + dx, baseY + 1, cz, B.REINFORCED_DEEPSLATE, true);
-      setBlockWorld(cx + dx, baseY + 9, cz, B.REINFORCED_DEEPSLATE, true);
-    }
-    for (let dy = 2; dy <= 8; dy++) {
-      setBlockWorld(cx - 4, baseY + dy, cz, B.REINFORCED_DEEPSLATE, true);
-      setBlockWorld(cx + 4, baseY + dy, cz, B.REINFORCED_DEEPSLATE, true);
-      for (let dx = -3; dx <= 3; dx++) setBlockWorld(cx + dx, baseY + dy, cz, B.WARDEN_PORTAL, true);
-    }
-    setBlockWorld(cx - 5, baseY + 1, cz, B.SOUL_SAND, true);
-    setBlockWorld(cx - 5, baseY + 2, cz, B.SOUL_FIRE, true);
-    setBlockWorld(cx + 5, baseY + 1, cz, B.SOUL_SAND, true);
-    setBlockWorld(cx + 5, baseY + 2, cz, B.SOUL_FIRE, true);
-    setBlockWorld(cx - 4, baseY + 10, cz, B.SOUL_LANTERN, true);
-    setBlockWorld(cx + 4, baseY + 10, cz, B.SOUL_LANTERN, true);
+    _runBatchedBlocks(() => {
+      for (let dx = -4; dx <= 4; dx++) {
+        setBlockWorld(cx + dx, baseY + 1, cz, B.REINFORCED_DEEPSLATE, true);
+        setBlockWorld(cx + dx, baseY + 9, cz, B.REINFORCED_DEEPSLATE, true);
+      }
+      for (let dy = 2; dy <= 8; dy++) {
+        setBlockWorld(cx - 4, baseY + dy, cz, B.REINFORCED_DEEPSLATE, true);
+        setBlockWorld(cx + 4, baseY + dy, cz, B.REINFORCED_DEEPSLATE, true);
+        for (let dx = -3; dx <= 3; dx++) setBlockWorld(cx + dx, baseY + dy, cz, B.WARDEN_PORTAL, true);
+      }
+      setBlockWorld(cx - 5, baseY + 1, cz, B.SOUL_SAND, true);
+      setBlockWorld(cx - 5, baseY + 2, cz, B.SOUL_FIRE, true);
+      setBlockWorld(cx + 5, baseY + 1, cz, B.SOUL_SAND, true);
+      setBlockWorld(cx + 5, baseY + 2, cz, B.SOUL_FIRE, true);
+      setBlockWorld(cx - 4, baseY + 10, cz, B.SOUL_LANTERN, true);
+      setBlockWorld(cx + 4, baseY + 10, cz, B.SOUL_LANTERN, true);
+    });
   }
 
   function extinguishConnectedNetherPortal(sx, sy, sz) {
@@ -11039,23 +11092,25 @@
 
   function buildArrivalNetherPortal(px, py, pz) {
     // Build a 4x5 Obsidian frame (2x3 lit Nether Portal) with 5x5 solid safety platform even over lava/void
-    for (let dx = -2; dx <= 3; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
-        setBlockWorld(px + dx, py - 2, pz + dz, B.NETHERRACK, true);
-        setBlockWorld(px + dx, py - 1, pz + dz, B.OBSIDIAN, true);
-        for (let dy = 0; dy <= 4; dy++) setBlockWorld(px + dx, py + dy, pz + dz, B.AIR, true);
+    _runBatchedBlocks(() => {
+      for (let dx = -2; dx <= 3; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          setBlockWorld(px + dx, py - 2, pz + dz, B.NETHERRACK, true);
+          setBlockWorld(px + dx, py - 1, pz + dz, B.OBSIDIAN, true);
+          for (let dy = 0; dy <= 4; dy++) setBlockWorld(px + dx, py + dy, pz + dz, B.AIR, true);
+        }
       }
-    }
-    for (let dx = -1; dx <= 2; dx++) {
-      setBlockWorld(px + dx, py - 1, pz, B.OBSIDIAN, true);
-      setBlockWorld(px + dx, py + 3, pz, B.OBSIDIAN, true);
-    }
-    for (let dy = 0; dy <= 2; dy++) {
-      setBlockWorld(px - 1, py + dy, pz, B.OBSIDIAN, true);
-      setBlockWorld(px + 2, py + dy, pz, B.OBSIDIAN, true);
-      setBlockWorld(px,     py + dy, pz, B.NETHER_PORTAL, true);
-      setBlockWorld(px + 1, py + dy, pz, B.NETHER_PORTAL, true);
-    }
+      for (let dx = -1; dx <= 2; dx++) {
+        setBlockWorld(px + dx, py - 1, pz, B.OBSIDIAN, true);
+        setBlockWorld(px + dx, py + 3, pz, B.OBSIDIAN, true);
+      }
+      for (let dy = 0; dy <= 2; dy++) {
+        setBlockWorld(px - 1, py + dy, pz, B.OBSIDIAN, true);
+        setBlockWorld(px + 2, py + dy, pz, B.OBSIDIAN, true);
+        setBlockWorld(px,     py + dy, pz, B.NETHER_PORTAL, true);
+        setBlockWorld(px + 1, py + dy, pz, B.NETHER_PORTAL, true);
+      }
+    });
   }
 
   function buildEndReturnPortal(px, py, pz) {
@@ -11063,22 +11118,24 @@
       for (let cx = (px - 5) >> 4; cx <= (px + 5) >> 4; cx++) if (!chunks.has(chunkKey(cx, cz))) generateChunk(cx, cz);
     }
     // Classic Bedrock Exit Fountain: Bedrock rim + 3x3 B.END_PORTAL pool + central Bedrock column topped with ENDER_DRAGON_EGG!
-    for (let dx = -4; dx <= 4; dx++) {
-      for (let dz = -4; dz <= 4; dz++) {
-        const d = Math.hypot(dx, dz);
-        if (d > 4.2) continue;
-        setBlockWorld(px + dx, py - 1, pz + dz, B.BEDROCK, true, true);
-        for (let hy = 0; hy <= 5; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
-        if (d >= 2.6 && d <= 4.0) setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
-        else if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && !(dx === 0 && dz === 0)) setBlockWorld(px + dx, py, pz + dz, B.END_PORTAL, true, true);
+    _runBatchedBlocks(() => {
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -4; dz <= 4; dz++) {
+          const d = Math.hypot(dx, dz);
+          if (d > 4.2) continue;
+          setBlockWorld(px + dx, py - 1, pz + dz, B.BEDROCK, true, true);
+          for (let hy = 0; hy <= 5; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
+          if (d >= 2.6 && d <= 4.0) setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
+          else if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && !(dx === 0 && dz === 0)) setBlockWorld(px + dx, py, pz + dz, B.END_PORTAL, true, true);
+        }
       }
-    }
-    for (let dy = 0; dy <= 3; dy++) setBlockWorld(px, py + dy, pz, B.BEDROCK, true, true);
-    setBlockWorld(px + 1, py + 2, pz, B.TORCH_BLOCK, true, true);
-    setBlockWorld(px - 1, py + 2, pz, B.TORCH_BLOCK, true, true);
-    setBlockWorld(px, py + 2, pz + 1, B.TORCH_BLOCK, true, true);
-    setBlockWorld(px, py + 2, pz - 1, B.TORCH_BLOCK, true, true);
-    setBlockWorld(px, py + 4, pz, B.ENDER_DRAGON_EGG, true, true);
+      for (let dy = 0; dy <= 3; dy++) setBlockWorld(px, py + dy, pz, B.BEDROCK, true, true);
+      setBlockWorld(px + 1, py + 2, pz, B.TORCH_BLOCK, true, true);
+      setBlockWorld(px - 1, py + 2, pz, B.TORCH_BLOCK, true, true);
+      setBlockWorld(px, py + 2, pz + 1, B.TORCH_BLOCK, true, true);
+      setBlockWorld(px, py + 2, pz - 1, B.TORCH_BLOCK, true, true);
+      setBlockWorld(px, py + 4, pz, B.ENDER_DRAGON_EGG, true, true);
+    });
   }
 
   function buildEndGatewayPortal(px, py, pz) {
@@ -11086,27 +11143,29 @@
       for (let cx = (px - 5) >> 4; cx <= (px + 5) >> 4; cx++) if (!chunks.has(chunkKey(cx, cz))) generateChunk(cx, cz);
     }
     // Ceremonial End Gateway Shrine + stepping Purpur stairs opening path to Outer End Cities & End Ships!
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
-        const gd = Math.abs(dx) + Math.abs(dz);
-        if (gd <= 2) {
-          for (let hy = 0; hy <= 5; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
-          setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
-          setBlockWorld(px + dx, py + 4, pz + dz, B.BEDROCK, true, true);
-          if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && gd <= 1) {
-            for (let gy = 1; gy <= 3; gy++) setBlockWorld(px + dx, py + gy, pz + dz, B.END_GATEWAY, true, true);
+    const groundY = Math.max(7, getTerrainHeight(px - 5, pz, BIOMES.THE_END));
+    _runBatchedBlocks(() => {
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          const gd = Math.abs(dx) + Math.abs(dz);
+          if (gd <= 2) {
+            for (let hy = 0; hy <= 5; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
+            setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
+            setBlockWorld(px + dx, py + 4, pz + dz, B.BEDROCK, true, true);
+            if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 && gd <= 1) {
+              for (let gy = 1; gy <= 3; gy++) setBlockWorld(px + dx, py + gy, pz + dz, B.END_GATEWAY, true, true);
+            }
+            if (gd === 2) setBlockWorld(px + dx, py + 5, pz + dz, B.END_ROD, true, true);
           }
-          if (gd === 2) setBlockWorld(px + dx, py + 5, pz + dz, B.END_ROD, true, true);
         }
       }
-    }
-    const groundY = Math.max(7, getTerrainHeight(px - 5, pz, BIOMES.THE_END));
-    for (let s = 1; s <= 5; s++) {
-      const sy = Math.min(py, Math.max(groundY, py - (5 - s)));
-      for (let gz = -1; gz <= 1; gz++) setBlockWorld(px - s, sy, pz + gz, s === 2 ? B.END_STONE_BRICKS : B.PURPUR_BLOCK, true, true);
-    }
-    setBlockWorld(px - 2, py + 1, pz - 1, B.END_ROD, true, true);
-    setBlockWorld(px - 2, py + 1, pz + 1, B.END_ROD, true, true);
+      for (let s = 1; s <= 5; s++) {
+        const sy = Math.min(py, Math.max(groundY, py - (5 - s)));
+        for (let gz = -1; gz <= 1; gz++) setBlockWorld(px - s, sy, pz + gz, s === 2 ? B.END_STONE_BRICKS : B.PURPUR_BLOCK, true, true);
+      }
+      setBlockWorld(px - 2, py + 1, pz - 1, B.END_ROD, true, true);
+      setBlockWorld(px - 2, py + 1, pz + 1, B.END_ROD, true, true);
+    });
   }
 
   function teleportViaEndGateway(toOuter = true) {
@@ -11141,19 +11200,21 @@
       for (let cx = (px - 5) >> 4; cx <= (px + 5) >> 4; cx++) if (!chunks.has(chunkKey(cx, cz))) generateChunk(cx, cz);
     }
     // Unbreakable Bedrock base & portal frame with End-Portal cosmic void interior
-    for (let dx = -3; dx <= 3; dx++) for (let dz = -2; dz <= 2; dz++) {
-      setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
-      for (let hy = 1; hy <= 7; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
-    }
-    for (let dy = 1; dy <= 5; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const isFrame = (dx === -2 || dx === 2 || dy === 5);
-        setBlockWorld(px + dx, py + dy, pz, isFrame ? B.BEDROCK : B.DRAGON_REALM_PORTAL, true, true);
+    _runBatchedBlocks(() => {
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -2; dz <= 2; dz++) {
+        setBlockWorld(px + dx, py, pz + dz, B.BEDROCK, true, true);
+        for (let hy = 1; hy <= 7; hy++) setBlockWorld(px + dx, py + hy, pz + dz, B.AIR, true, true);
       }
-    }
-    setBlockWorld(px - 2, py + 6, pz, B.END_ROD, true, true);
-    setBlockWorld(px + 2, py + 6, pz, B.END_ROD, true, true);
-    setBlockWorld(px, py + 6, pz, B.END_CRYSTAL_BLOCK, true, true);
+      for (let dy = 1; dy <= 5; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const isFrame = (dx === -2 || dx === 2 || dy === 5);
+          setBlockWorld(px + dx, py + dy, pz, isFrame ? B.BEDROCK : B.DRAGON_REALM_PORTAL, true, true);
+        }
+      }
+      setBlockWorld(px - 2, py + 6, pz, B.END_ROD, true, true);
+      setBlockWorld(px + 2, py + 6, pz, B.END_ROD, true, true);
+      setBlockWorld(px, py + 6, pz, B.END_CRYSTAL_BLOCK, true, true);
+    });
   }
 
   function tryActivateEndPortalAround(fx, fy, fz) {
@@ -11174,11 +11235,13 @@
         if (getBlockWorld(cx + i, fy, cz + 2) !== B.END_PORTAL_FRAME_EYE) all12 = false;
       }
       if (!all12) continue;
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          setBlockWorld(cx + dx, fy, cz + dz, B.END_PORTAL, true);
+      _runBatchedBlocks(() => {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            setBlockWorld(cx + dx, fy, cz + dz, B.END_PORTAL, true);
+          }
         }
-      }
+      });
       spawnParticles(cx + 0.5, fy + 0.8, cz + 0.5, 0x34d399, 36, true);
       spawnParticles(cx + 0.5, fy + 1.0, cz + 0.5, 0x818cf8, 28, true);
       playSfx('roar');
@@ -11408,14 +11471,18 @@
     }
     currentDimension = targetDim;
     depthOffset = 0;
+    player.inBoat = false;
     chunkWorkerPool.clear();
     window._worldWarmupUntil = performance.now() + 5500;
     window._rtVolDirty = true;
     _clearWorldInteractiveCaches(true, false);
     if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
+    if (typeof _restoreDimRoomDrops === 'function') _restoreDimRoomDrops();
     if (portalOpts && portalOpts.skipSpawnMove) return;
 
+    const dimAuth = (typeof isDimSimAuthority === 'function') ? isDimSimAuthority(targetDim) : true;
     const _spawnArrivalMob = (tag, type, x, y, z, opts = null) => {
+      if (typeof activeRoomId !== 'undefined' && activeRoomId && !dimAuth) return null;
       if (typeof isMobDefeatedTag === 'function' && isMobDefeatedTag(tag)) return null;
       if (mobs.some(mb => mb && !mb._dead && mb.spawnTag === tag)) return null;
       return spawnMobOfType(type, x, y, z, Object.assign({ spawnTag: tag }, opts || {}));
@@ -11445,27 +11512,34 @@
       const ly = isSubBiomeTp ? Math.max(WATER_LEVEL + 2, rawLy) : Math.max(WATER_LEVEL + 5, rawLy + 2);
       if (!isSubBiomeTp) {
         // Signature Landmark: Giant glowing Dream Portal on grand stone steps in the middle of The Sift canyon (Refs 1, 2, 7)
-        for (let dz = -15; dz <= 6; dz++) for (let dx = -8; dx <= 8; dx++) {
-          const edgeRim = (Math.abs(dx) === 8 || dz === 6 || dz === -15);
-          const stepTier = (dz <= -8 && Math.abs(dx) <= 5) ? 2 : ((dz <= -5 && Math.abs(dx) <= 6) ? 1 : 0);
-          const topY = ly + stepTier;
-          for (let by = ly - 5; by <= topY; by++) {
-            const bid = by === topY
-              ? (edgeRim ? B.SIFT_GRASS : (stepTier > 0 && Math.abs(dx) <= 4 ? B.HUSK_SOIL : B.SIFT_GRASS))
-              : (((by & 3) === 0) ? B.TERRACOTTA_RED : B.TERRACOTTA);
-            setBlockWorld(sx0 + dx, by, sz0 + dz, bid, true);
-          }
-          for (let hy = 1; hy <= 15; hy++) setBlockWorld(sx0 + dx, topY + hy, sz0 + dz, B.AIR, true);
+        const hasSiftPortal = !!_findBlockInBox(sx0, ly + 4, sz0 - 10, 4, 3, 4, 2, B.DREAM_PORTAL);
+        if (!hasSiftPortal) {
+          _runBatchedBlocks(() => {
+            for (let dz = -15; dz <= 6; dz++) for (let dx = -8; dx <= 8; dx++) {
+              const edgeRim = (Math.abs(dx) === 8 || dz === 6 || dz === -15);
+              const stepTier = (dz <= -8 && Math.abs(dx) <= 5) ? 2 : ((dz <= -5 && Math.abs(dx) <= 6) ? 1 : 0);
+              const topY = ly + stepTier;
+              for (let by = ly - 5; by <= topY; by++) {
+                const bid = by === topY
+                  ? (edgeRim ? B.SIFT_GRASS : (stepTier > 0 && Math.abs(dx) <= 4 ? B.HUSK_SOIL : B.SIFT_GRASS))
+                  : (((by & 3) === 0) ? B.TERRACOTTA_RED : B.TERRACOTTA);
+                setBlockWorld(sx0 + dx, by, sz0 + dz, bid, true);
+              }
+              for (let hy = 1; hy <= 15; hy++) setBlockWorld(sx0 + dx, topY + hy, sz0 + dz, B.AIR, true);
+            }
+            startRisingDreamPortal(sx0, ly + 2, sz0 - 10, true);
+          });
         }
-        startRisingDreamPortal(sx0, ly + 2, sz0 - 10, true);
       } else {
         // Sub-biome teleport: preserve natural biome terrain/pillars/lakes; only ensure dry 5x5 footing!
         const pal = getSiftStructPalette(targetBio);
-        for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
-          const curH = getTerrainHeight(sx0 + dx, sz0 + dz, getBiomeAt(sx0 + dx, sz0 + dz));
-          if (curH < WATER_LEVEL + 1) setBlockWorld(sx0 + dx, ly, sz0 + dz, pal.grass, true);
-          for (let hy = 1; hy <= 5; hy++) setBlockWorld(sx0 + dx, ly + hy, sz0 + dz, B.AIR, true);
-        }
+        _runBatchedBlocks(() => {
+          for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+            const curH = getTerrainHeight(sx0 + dx, sz0 + dz, getBiomeAt(sx0 + dx, sz0 + dz));
+            if (curH < WATER_LEVEL + 1) setBlockWorld(sx0 + dx, ly, sz0 + dz, pal.grass, true);
+            for (let hy = 1; hy <= 5; hy++) setBlockWorld(sx0 + dx, ly + hy, sz0 + dz, B.AIR, true);
+          }
+        });
       }
       const pcz = (sz0 - 10) >> 4;
       _portalCooldown = 4.5;
@@ -11548,21 +11622,34 @@
       }
       const scx = sx >> 4, scz = sz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      const lx = Math.floor(sx), lz = Math.floor(sz), ly = Math.max(WATER_LEVEL + 2, Math.floor(sy) - 1);
-      if (portalOpts && portalOpts.portalCoords) {
+      let lx = Math.floor(sx), lz = Math.floor(sz), ly = Math.max(WATER_LEVEL + 2, Math.floor(sy) - 1);
+      const existingNP = _findBlockInBox(lx, ly + 1, lz, 8, 5, 7, 8, B.NETHER_PORTAL);
+      if (existingNP) {
+        while (existingNP.y > MIN_Y + 3 && getBlockWorld(existingNP.x, existingNP.y - 1, existingNP.z) === B.NETHER_PORTAL) existingNP.y--;
+        lx = existingNP.x; lz = existingNP.z; ly = existingNP.y - 1;
+        _runBatchedBlocks(() => {
+          if (!isSolidAt(lx, ly, lz + 1)) setBlockWorld(lx, ly, lz + 1, B.OBSIDIAN, true);
+          setBlockWorld(lx, ly + 1, lz + 1, B.AIR, true);
+          setBlockWorld(lx, ly + 2, lz + 1, B.AIR, true);
+        });
+        _recordPortalPos('nether', lx, ly + 1, lz);
+        _portalCooldown = 4.5;
+      } else if (portalOpts && portalOpts.portalCoords) {
         buildArrivalNetherPortal(lx, ly + 1, lz);
         _recordPortalPos('nether', lx, ly + 1, lz);
         _portalCooldown = 4.5;
       } else {
-        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-          setBlockWorld(lx + dx, ly, lz + dz, B.CRIMSON_NYLIUM, true);
-          for (let hy = 1; hy <= 4; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
-        }
-        buildArrivalNetherPortal(lx, ly + 1, lz - 6);
+        _runBatchedBlocks(() => {
+          for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+            setBlockWorld(lx + dx, ly, lz + dz, B.CRIMSON_NYLIUM, true);
+            for (let hy = 1; hy <= 4; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
+          }
+          buildArrivalNetherPortal(lx, ly + 1, lz - 6);
+        });
         _recordPortalPos('nether', lx, ly + 1, lz - 6);
       }
       _rebuildStandingOnly(scx, scz);
-      player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + (portalOpts && portalOpts.portalCoords ? 1.55 : 0.5); player.yaw = 0.0; player.pitch = -0.05;
+      player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + ((portalOpts && portalOpts.portalCoords || existingNP) ? 1.55 : 0.5); player.yaw = 0.0; player.pitch = -0.05;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       const restoredNeth = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('nether') : false;
       if (!restoredNeth && (typeof hasDimVisited !== 'function' || !hasDimVisited('nether'))) {
@@ -11577,25 +11664,30 @@
     } else if (targetDim === 'end') {
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(dx, dz);
       const landY = Math.max(8, getTerrainHeight(0, 18, BIOMES.THE_END));
-      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-        setBlockWorld(dx, landY, 18 + dz, B.END_STONE, true);
-        for (let hy = 1; hy <= 4; hy++) setBlockWorld(dx, landY + hy, 18 + dz, B.AIR, true);
-      }
+      _runBatchedBlocks(() => {
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+          setBlockWorld(dx, landY, 18 + dz, B.END_STONE, true);
+          for (let hy = 1; hy <= 4; hy++) setBlockWorld(dx, landY + hy, 18 + dz, B.AIR, true);
+        }
+      });
       _rebuildStandingOnly(0, 1, 0, 0);
       player.x = 0.5; player.y = landY + 1.2; player.z = 18.5; player.yaw = 0.0; player.pitch = 0.14;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       _endCrystalScanT = 0;
+      const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
+      const endReturnExists = (getBlockWorld(0, endBaseY + 1, 0) === B.END_PORTAL);
       const restoredEnd = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('end') : false;
       if (!restoredEnd && (typeof hasDimVisited !== 'function' || !hasDimVisited('end'))) {
         // Spawn the Upgraded Boss Ender Dragon + End City Mobs only on first visit (or after crystal ritual)!
-        const _ed = _spawnArrivalMob('end:ender_dragon', 'ender_dragon', 0.5, landY + 15.0, -10.0, { homeX: 0.5, homeY: landY + 15.0, homeZ: 0.5, homeRadius: 34 });
-        if (_ed) { _ed.homeX = 0.5; _ed.homeY = landY + 15.0; _ed.homeZ = 0.5; _ed.homeRadius = 34; }
+        if (!endReturnExists) {
+          const _ed = _spawnArrivalMob('end:ender_dragon', 'ender_dragon', 0.5, landY + 15.0, -10.0, { homeX: 0.5, homeY: landY + 15.0, homeZ: 0.5, homeRadius: 34 });
+          if (_ed) { _ed.homeX = 0.5; _ed.homeY = landY + 15.0; _ed.homeZ = 0.5; _ed.homeRadius = 34; }
+        }
         _spawnArrivalMob('end:void_golem', 'void_golem', 9.5, getTerrainHeight(9, 2, BIOMES.THE_END) + 1.1, 2.5);
         _spawnArrivalMob('end:chorus_crawler', 'chorus_crawler', -8.5, getTerrainHeight(-8, 4, BIOMES.THE_END) + 1.1, 4.5);
       }
-      if (typeof isMobDefeatedTag === 'function' && isMobDefeatedTag('end:ender_dragon') && typeof buildEndReturnPortal === 'function') {
-        const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
-        if (getBlockWorld(0, endBaseY + 1, 0) !== B.END_PORTAL) buildEndReturnPortal(0, endBaseY + 1, 0);
+      if (typeof isMobDefeatedTag === 'function' && isMobDefeatedTag('end:ender_dragon') && typeof buildEndReturnPortal === 'function' && !endReturnExists) {
+        buildEndReturnPortal(0, endBaseY + 1, 0);
       }
       if (typeof markDimVisited === 'function') markDimVisited('end');
       mobSpawnTimer = restoredEnd ? 5.5 : 1.5;
@@ -11604,13 +11696,17 @@
     } else if (targetDim === 'warden') {
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(dx, dz);
       const ly = Math.max(WATER_LEVEL + 3, getTerrainHeight(0, 0, BIOMES.WARDEN_CITADEL));
-      for (let dz = -15; dz <= 7; dz++) for (let dx = -7; dx <= 7; dx++) {
-        const isStep = (dz <= -8 && Math.abs(dx) <= 5);
-        const topY = isStep ? ly + 1 : ly;
-        for (let by = ly - 2; by <= topY; by++) setBlockWorld(dx, by, dz, by === topY ? (isStep ? B.DEEPSLATE_TILES : B.SCULK) : B.WARDEN_SCULK_STONE, true);
-        for (let hy = 1; hy <= 13; hy++) setBlockWorld(dx, topY + hy, dz, B.AIR, true);
+      if (!_findBlockInBox(0, ly + 3, -10, 4, 3, 4, 2, B.WARDEN_PORTAL)) {
+        _runBatchedBlocks(() => {
+          for (let dz = -15; dz <= 7; dz++) for (let dx = -7; dx <= 7; dx++) {
+            const isStep = (dz <= -8 && Math.abs(dx) <= 5);
+            const topY = isStep ? ly + 1 : ly;
+            for (let by = ly - 2; by <= topY; by++) setBlockWorld(dx, by, dz, by === topY ? (isStep ? B.DEEPSLATE_TILES : B.SCULK) : B.WARDEN_SCULK_STONE, true);
+            for (let hy = 1; hy <= 13; hy++) setBlockWorld(dx, topY + hy, dz, B.AIR, true);
+          }
+          buildArrivalWardenPortal(0, ly, -10);
+        });
       }
-      buildArrivalWardenPortal(0, ly, -10);
       _recordPortalPos('warden', 0, ly, -10);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(0, 0, 0, -1);
@@ -11632,7 +11728,9 @@
       generateChunk(1, 3);
       for (let dz = 7; dz <= 10; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(dx, dz);
       const ly = Math.max(16, getTerrainHeight(0, 0, BIOMES.DR_PLAINS));
-      buildDragonRealmPortal(0, ly, -10);
+      if (!_findBlockInBox(0, ly + 2, -10, 3, 2, 4, 2, B.DRAGON_REALM_PORTAL)) {
+        buildDragonRealmPortal(0, ly, -10);
+      }
       _recordPortalPos('dragon_realm', 0, ly, -10);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(0, 0, 0, -1);
@@ -11653,22 +11751,23 @@
       playSfx('roar');
       showToast(reasonToast || '🌌 CHÀO MỪNG TỚI THẾ GIỚI RỒNG THE END! Hạ Boss Tối Thượng 50 Skill tại (0, 136)!');
     } else if (portalOpts && portalOpts.returnFromWarden) {
-      const wp = window.lastWardenOverworldPos;
-      const lx = wp ? Math.floor(wp.x) : 0;
-      const lz = wp ? Math.floor(wp.z) : 0;
+      const wp = window.lastWardenOverworldPos || window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
+      const wpDepth = Number(wp && wp.depthOffset) || 0;
+      depthOffset = wpDepth;
+      const lx = Math.floor(wp.x || 0);
+      const lz = Math.floor(wp.z || 0);
       const scx = lx >> 4, scz = lz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      const ly = wp && typeof wp.y === 'number' ? wp.y : Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
-      let hasNearby = false;
-      for (let oy = -5; oy <= 6 && !hasNearby; oy++) for (let oz = -14; oz <= 14 && !hasNearby; oz++) for (let ox = -14; ox <= 14 && !hasNearby; ox++) {
-        if (getBlockWorld(lx + ox, ly + oy, lz + oz) === B.WARDEN_PORTAL) hasNearby = true;
-      }
+      const ly = (wp && typeof wp.y === 'number') ? (wp.y + wpDepth) : Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
+      const hasNearby = !!_findBlockInBox(lx, ly + 2, lz, 14, 7, 8, 14, B.WARDEN_PORTAL);
       if (!hasNearby) {
-        for (let dz = -4; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) {
-          setBlockWorld(lx + dx, ly - 1, lz + dz, B.DEEPSLATE_BRICKS, true);
-          for (let hy = 0; hy <= 10; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
-        }
-        buildArrivalWardenPortal(lx, ly - 1, lz - 2);
+        _runBatchedBlocks(() => {
+          for (let dz = -4; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) {
+            setBlockWorld(lx + dx, ly - 1, lz + dz, B.DEEPSLATE_BRICKS, true);
+            for (let hy = 0; hy <= 10; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
+          }
+          buildArrivalWardenPortal(lx, ly - 1, lz - 2);
+        });
       }
       _portalCooldown = 4.5;
       _rebuildStandingOnly(scx, scz);
@@ -11678,29 +11777,58 @@
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (portalOpts && portalOpts.returnFromSift) {
-      const lx = Math.floor((portalOpts.portalCoords && portalOpts.portalCoords.x) || 0);
-      const lz = Math.floor((portalOpts.portalCoords && portalOpts.portalCoords.z) || 0);
+      const spFb = window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
+      const lx = Math.floor((portalOpts.portalCoords && typeof portalOpts.portalCoords.x === 'number') ? portalOpts.portalCoords.x : (spFb.x || 0));
+      const lz = Math.floor((portalOpts.portalCoords && typeof portalOpts.portalCoords.z === 'number') ? portalOpts.portalCoords.z : (spFb.z || 0));
       const scx = lx >> 4, scz = lz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
       const ly = Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
-      for (let dz = -6; dz <= 7; dz++) for (let dx = -6; dx <= 6; dx++) {
-        setBlockWorld(lx + dx, ly, lz + dz, B.STONE_BRICK, true);
-        for (let hy = 1; hy <= 13; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
+      const existingSiftOW = _findBlockInBox(lx, ly + 3, lz, 16, 6, 8, 16, B.DREAM_PORTAL);
+      let sxOut = lx + 0.5, syOut = ly + 1.3, szOut = lz + 4.5;
+      if (!existingSiftOW) {
+        _runBatchedBlocks(() => {
+          for (let dz = -6; dz <= 7; dz++) for (let dx = -6; dx <= 6; dx++) {
+            setBlockWorld(lx + dx, ly, lz + dz, B.STONE_BRICK, true);
+            for (let hy = 1; hy <= 13; hy++) setBlockWorld(lx + dx, ly + hy, lz + dz, B.AIR, true);
+          }
+          startRisingDreamPortal(lx, ly - 1, lz, true);
+        });
+      } else {
+        sxOut = existingSiftOW.x + 0.5;
+        szOut = existingSiftOW.z + 3.5;
+        const groundY = colGroundY(existingSiftOW.x, Math.floor(szOut));
+        syOut = Math.max(existingSiftOW.y, groundY + 1.15);
+        _runBatchedBlocks(() => {
+          const ix = Math.floor(sxOut), iy = Math.floor(syOut), iz = Math.floor(szOut);
+          if (!isSolidAt(ix, iy - 1, iz)) setBlockWorld(ix, iy - 1, iz, B.STONE_BRICK, true);
+          setBlockWorld(ix, iy, iz, B.AIR, true);
+          setBlockWorld(ix, iy + 1, iz, B.AIR, true);
+        });
       }
-      startRisingDreamPortal(lx, ly - 1, lz, true);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(scx, scz);
-      player.x = lx + 0.5; player.y = ly + 1.3; player.z = lz + 4.5; player.yaw = 0.0; player.pitch = 0.02;
+      player.x = sxOut; player.y = syOut; player.z = szOut; player.yaw = 0.0; player.pitch = 0.02;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (portalOpts && portalOpts.portalCoords) {
-      const lx = Math.floor(portalOpts.portalCoords.x), lz = Math.floor(portalOpts.portalCoords.z);
+      let lx = Math.floor(portalOpts.portalCoords.x), lz = Math.floor(portalOpts.portalCoords.z);
       const scx = lx >> 4, scz = lz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      const ly = Math.max(WATER_LEVEL + 1, (typeof portalOpts.portalCoords.y === 'number') ? (portalOpts.portalCoords.y - 1) : getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
-      buildArrivalNetherPortal(lx, ly + 1, lz);
+      let ly = Math.max(WATER_LEVEL + 1, (typeof portalOpts.portalCoords.y === 'number') ? (portalOpts.portalCoords.y - 1) : getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
+      const existingOP = _findBlockInBox(lx, ly + 1, lz, 10, 6, 8, 10, B.NETHER_PORTAL);
+      if (existingOP) {
+        while (existingOP.y > MIN_Y + 3 && getBlockWorld(existingOP.x, existingOP.y - 1, existingOP.z) === B.NETHER_PORTAL) existingOP.y--;
+        lx = existingOP.x; lz = existingOP.z; ly = existingOP.y - 1;
+        _runBatchedBlocks(() => {
+          if (!isSolidAt(lx, ly, lz + 1)) setBlockWorld(lx, ly, lz + 1, B.OBSIDIAN, true);
+          setBlockWorld(lx, ly + 1, lz + 1, B.AIR, true);
+          setBlockWorld(lx, ly + 2, lz + 1, B.AIR, true);
+        });
+      } else {
+        buildArrivalNetherPortal(lx, ly + 1, lz);
+      }
       _recordPortalPos('overworld', lx, ly + 1, lz);
       _portalCooldown = 4.5;
       _rebuildStandingOnly(scx, scz);
@@ -11710,9 +11838,17 @@
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else {
-      const rawSp = findSafeSpawnPoint(8, 8, true);
-      const sp = landPlayerScenic(rawSp.x, rawSp.z, rawSp.yaw);
-      ensureScenicSakuraAcrossLake(sp);
+      let sp = null;
+      const wsPos = window._worldSpawnPos;
+      if (wsPos && Number.isFinite(wsPos.x) && Number.isFinite(wsPos.z)) {
+        const scx = Math.floor(wsPos.x) >> 4, scz = Math.floor(wsPos.z) >> 4;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
+        sp = { x: wsPos.x, y: Number.isFinite(wsPos.y) ? wsPos.y : (colGroundY(Math.floor(wsPos.x), Math.floor(wsPos.z)) + 1.1), z: wsPos.z, yaw: wsPos.yaw || 0 };
+      } else {
+        const rawSp = findSafeSpawnPoint(8, 8, true);
+        sp = landPlayerScenic(rawSp.x, rawSp.z, rawSp.yaw);
+        ensureScenicSakuraAcrossLake(sp);
+      }
       player.x = sp.x; player.y = sp.y; player.z = sp.z; player.yaw = sp.yaw; player.pitch = 0.0;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = sp.y;
       if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');

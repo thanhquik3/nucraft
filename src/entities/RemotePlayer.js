@@ -2,7 +2,17 @@
 
   function applyRemotePeerState(rp, st, equip) {
     if (!rp || !st) return;
-    rp.dim = st.dim || rp.dim || 'overworld';
+    const prevDim = rp.dim || 'overworld';
+    const nextDim = st.dim || prevDim;
+    rp.dim = nextDim;
+    if (nextDim !== prevDim) {
+      rp._netBuf = null;
+      rp._hasNetState = false;
+      rp._wasmSmoothed = false;
+      if (nextDim === currentDimension && typeof isDimSimAuthority === 'function' && isDimSimAuthority(currentDimension) && typeof resetMobNetSyncCache === 'function') {
+        resetMobNetSyncCache();
+      }
+    }
     rp.depthOffset = typeof st.depthOffset === 'number' ? st.depthOffset : (rp.depthOffset || 0);
     const localOff = depthOffset || 0;
     const hasTy = (typeof st.trueY === 'number' && Number.isFinite(st.trueY));
@@ -864,6 +874,7 @@
         const _burnSoulNow = _burnNow && !!player._burnSoul;
         const rotChanged = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.008 || Math.abs(qPitch - _lastSentNet.pitch) > 0.008;
         const discreteEdge = (_isMovingNet !== _wasMovingNet)
+          || (currentDimension !== _lastSentNet.dim)
           || (!!player.onGround !== _wasOnGroundNet)
           || swingEdge
           || (heldId !== _lastSentNet.held)
@@ -895,6 +906,7 @@
             _lastSentNet._burnSoul = _burnSoulNow;
             _lastSentNet.idleAt = nowPerf;
             _lastSentNet.name = localPlayerName;
+            _lastSentNet.dim = currentDimension;
             _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
             _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
             _lastSentNet.bowStage = player.bowStage || 0;

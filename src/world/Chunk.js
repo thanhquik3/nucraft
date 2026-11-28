@@ -1854,7 +1854,7 @@
     activeFires.set(k, { x: wx, y: wy, z: wz, age: 0, maxAge: 4.5 + Math.random() * 4.0 });
   }
   function tickActiveFires(dt) {
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) return;
     fireSimAccum += dt;
     if (fireSimAccum < 0.30 || activeFires.size === 0) return;
     const stepDt = fireSimAccum;

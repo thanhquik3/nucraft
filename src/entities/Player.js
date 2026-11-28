@@ -5129,7 +5129,7 @@
       const isSoulSteel = (slot.id === B.SOUL_FLINT_AND_STEEL);
       player.swingT = 0.22;
       if (hit.id === B.TNT) {
-        if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+        if (activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
           if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_tnt', hit.x, hit.y, hit.z);
         } else {
           setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
@@ -5238,7 +5238,7 @@
         const eggK = modKey(hit.x, hit.y, hit.z);
         const eggDef = BLOCK_DEF[hit.id];
         if (incubatingEggs.has(eggK) && !player.sneaking) {
-          if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+          if (activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
             if (typeof broadcastWorldAction === 'function') broadcastWorldAction('hatch_egg', hit.x, hit.y, hit.z);
             incubatingEggs.delete(eggK);
           } else {
@@ -5287,7 +5287,7 @@
       }
       if (BLOCK_DEF[hit.id] && BLOCK_DEF[hit.id].bed) {
         if (currentDimension === 'nether' || currentDimension === 'end') {
-          if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+          if (activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
             if (typeof broadcastWorldAction === 'function') broadcastWorldAction('bed_explode', hit.x, hit.y, hit.z);
             return;
           }
@@ -5339,7 +5339,7 @@
         return;
       }
       if (hit.id === B.TNT) {
-        if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+        if (activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
           if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_tnt', hit.x, hit.y, hit.z);
         } else {
           setBlockWorld(hit.x, hit.y, hit.z, B.AIR, true);
@@ -6347,7 +6347,7 @@
           { badge: 'OVERWORLD' }
         );
       } else {
-        window.lastWardenOverworldPos = { x: Math.floor(player.x), y: Math.floor(player.y), z: Math.floor(player.z) };
+        window.lastWardenOverworldPos = { x: Math.floor(player.x), y: Math.floor(player.y - (depthOffset || 0)), z: Math.floor(player.z), depthOffset: depthOffset || 0 };
         showWorldLoadingOverlay(
           'Đang tải thế giới',
           'Đang tiến vào Thế Giới Cổ Thành Warden...',

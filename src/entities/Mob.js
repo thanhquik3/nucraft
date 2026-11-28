@@ -4917,7 +4917,7 @@
   }
 
   function tickIncubatingEggs(dt) {
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) return;
     if (incubatingEggs.size <= 0) return;
     for (const [k, eg] of Array.from(incubatingEggs.entries())) {
       const curB = getBlockWorld(eg.x, eg.y, eg.z);
@@ -5427,7 +5427,7 @@
   }
 
   function spawnMobNearPlayer() {
-    if (activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) return;
+    if (activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) return;
     const coopTrim = Math.min(6, (typeof remotePlayers !== 'undefined' ? remotePlayers.size : 0) * 2);
     const isSiftDim = (currentDimension === 'sift');
     const maxCap = Math.max(8, (isSiftDim ? (_isWeakDevice ? 18 : 28) : (_isWeakDevice ? 12 : 18)) - coopTrim);
@@ -6034,7 +6034,7 @@
   }
 
   function triggerExplosion(wx, wy, wz, radius = 3.2, baseDmg = 14, reason = 'Bạn bị nổ tung!', opt = null) {
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(opt && opt._fromAuth)) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority() && !(opt && opt._fromAuth)) {
       return;
     }
     _playExplosionFxAndLocalDamage(wx, wy, wz, radius, baseDmg, reason, opt);
@@ -6090,7 +6090,7 @@
 
   function detonateEndCrystalAt(bx, by, bz, fromChain = false) {
     if (getBlockWorld(bx, by, bz) !== B.END_CRYSTAL_BLOCK) return false;
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
       if (typeof broadcastWorldAction === 'function') broadcastWorldAction('detonate_crystal', bx, by, bz);
       return true;
     }
@@ -6199,12 +6199,12 @@
     scene.add(mesh);
     primedTnts.push({ x, y, z, vy: 3.5, fuse, mesh, _remoteVisual: isRemote });
     playSfx('hiss');
-    if (activeRoomId && !isRemote && typeof isSimAuthority === 'function' && isSimAuthority() && typeof broadcastTntSpawn === 'function') {
+    if (activeRoomId && !isRemote && typeof isDimSimAuthority === 'function' && isDimSimAuthority() && typeof broadcastTntSpawn === 'function') {
       broadcastTntSpawn(x, y, z, fuse);
     }
   }
   function igniteAdjacentTnt(wx, wy, wz) {
-    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority()) {
+    if (typeof activeRoomId !== 'undefined' && activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority()) {
       if (typeof broadcastWorldAction === 'function') broadcastWorldAction('ignite_adj_tnt', wx, wy, wz);
       return 0;
     }
@@ -6232,7 +6232,7 @@
   function hurtMob(mob, dmg, kx, kz, ky = 4.2, isFire = false, fromPlayer = true, opts = null) {
     if (!mob || mob._dead) return false;
     if (fromPlayer && mob.tamed && mob.elemDragon) return false;
-    if (activeRoomId && fromPlayer && typeof isSimAuthority === 'function' && !isSimAuthority() && !(opts && opts._fromAuth)) {
+    if (activeRoomId && fromPlayer && typeof isDimSimAuthority === 'function' && !isDimSimAuthority() && !(opts && opts._fromAuth)) {
       mob.hurtFlash = 0.24; mob.hpBarTimer = 4.5;
       playMobSfx(mob.type, 'hurt');
       spawnPixelFx('slash_arc', mob.x, mob.y + mob.hitboxH * 0.55, mob.z, { count: 1, scale: 1.05, life: 0.24, spread: 0.15 });
@@ -6301,15 +6301,20 @@
         spawnParticles(mob.x, mob.y + 1.8, mob.z, 0xd946ef, 36, true);
         spawnXpOrbs(mob.x, mob.y + 1.4, mob.z, 80);
         if (currentDimension === 'end' && typeof buildEndReturnPortal === 'function') {
-          const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
-          buildEndReturnPortal(0, endBaseY + 1, 0);
-          if (typeof buildEndGatewayPortal === 'function') {
-            const gwBaseY = Math.max(7, getTerrainHeight(32, 0, BIOMES.THE_END));
-            buildEndGatewayPortal(32, gwBaseY + 4, 0);
-          }
-          if (typeof buildDragonRealmPortal === 'function') {
-            const drBaseY = Math.max(7, getTerrainHeight(12, 0, BIOMES.THE_END));
-            buildDragonRealmPortal(12, drBaseY + 1, 0);
+          if (typeof beginBlockBatch === 'function') beginBlockBatch();
+          try {
+            const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
+            buildEndReturnPortal(0, endBaseY + 1, 0);
+            if (typeof buildEndGatewayPortal === 'function') {
+              const gwBaseY = Math.max(7, getTerrainHeight(32, 0, BIOMES.THE_END));
+              buildEndGatewayPortal(32, gwBaseY + 4, 0);
+            }
+            if (typeof buildDragonRealmPortal === 'function') {
+              const drBaseY = Math.max(7, getTerrainHeight(12, 0, BIOMES.THE_END));
+              buildDragonRealmPortal(12, drBaseY + 1, 0);
+            }
+          } finally {
+            if (typeof endBlockBatch === 'function') endBlockBatch();
           }
           flushUrgentChunks(48, true);
         }
@@ -6443,7 +6448,7 @@
       markMobDefeated(mob, currentDimension);
       if (mob.uid) {
         _mobNetLastSent.delete(mob.uid);
-        if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && _mobNetRemQueue.length < 64) _mobNetRemQueue.push(mob.uid);
+        if (activeRoomId && typeof isDimSimAuthority === 'function' && isDimSimAuthority() && _mobNetRemQueue.length < 64) _mobNetRemQueue.push(mob.uid);
       }
       if (activeRoomId && typeof broadcastMobRemove === 'function') broadcastMobRemove(mob.uid);
       disposeMobInstance(mob);
@@ -6464,7 +6469,7 @@
   }
 
   let _mobNetSyncAccum = 0;
-  let _mobNetSeq = 0, _mobNetLastSyncMs = 0, _mobNetKeyframeMs = 0;
+  let _mobNetSeq = 0, _mobNetLastSyncMs = 0, _mobNetKeyframeMs = 0, _mobNetFollowupFullAt = 0;
   let _mobNetLastDim = '', _mobNetLastRoom = '';
   const _mobNetLastSent = new Map();
   const _mobNetRemQueue = [];
@@ -6474,6 +6479,7 @@
   function resetMobNetSyncCache() {
     _mobNetLastSent.clear();
     _mobNetKeyframeMs = 0;
+    _mobNetFollowupFullAt = performance.now() + 700;
     _mobNetRemQueue.length = 0;
     _pendingRemoteMobSpawns.clear();
     _lastGuestMobSeq = -1;
@@ -6633,7 +6639,23 @@
 
   function applyRemoteMobSync(list, dim = currentDimension, fullReset = false, meta = null) {
     if (!Array.isArray(list)) return;
-    if (dim && dim !== currentDimension) { _pendingRemoteMobSpawns.clear(); return; }
+    if (dim && dim !== currentDimension) {
+      if (fullReset) {
+        dimSavedMobs[dim] = list.filter(it => it && it.uid && it.t).slice(0, 80);
+        if (dim !== 'overworld' && dimSavedMobs[dim].length > 0) dimVisitedSpawned.add(dim);
+      } else {
+        const cur = Array.isArray(dimSavedMobs[dim]) ? dimSavedMobs[dim] : [];
+        const byUid = new Map();
+        for (let i = 0; i < cur.length; i++) if (cur[i] && cur[i].uid) byUid.set(cur[i].uid, cur[i]);
+        if (meta && Array.isArray(meta.rm)) for (let ri = 0; ri < meta.rm.length; ri++) byUid.delete(meta.rm[ri]);
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i];
+          if (it && it.uid && it.t) byUid.set(it.uid, it);
+        }
+        dimSavedMobs[dim] = Array.from(byUid.values()).slice(-80);
+      }
+      return;
+    }
     if (meta && typeof meta.seq === 'number' && !fullReset) {
       if (_lastGuestMobSeq >= 0 && meta.seq <= _lastGuestMobSeq && (_lastGuestMobSeq - meta.seq) < 1000) return;
       _lastGuestMobSeq = meta.seq;
@@ -6668,6 +6690,15 @@
       const yawIn = it.yw || 0;
       const fpIn = typeof it.fp === 'number' ? it.fp : 0;
       let m = _mobNetByUidScratch.get(it.uid);
+      if (!m && (it.t === 'ender_dragon' || it.t === 'sovereign_end_dragon')) {
+        const dupBoss = mobs.find(mb => mb && !mb._dead && !mb.tamed && mb.type === it.t && mb.uid !== it.uid && (!seen || !seen.has(mb.uid)));
+        if (dupBoss) {
+          if (dupBoss.uid) _mobNetByUidScratch.delete(dupBoss.uid);
+          dupBoss.uid = it.uid;
+          _mobNetByUidScratch.set(it.uid, dupBoss);
+          m = dupBoss;
+        }
+      }
       if (!m) {
         if (spawnedNow < spawnBudget) {
           _pendingRemoteMobSpawns.delete(it.uid);
@@ -6906,7 +6937,7 @@
   }
 
   function applyRemoteMobHit(msg) {
-    if (!msg || !msg.uid || (typeof isSimAuthority === 'function' && !isSimAuthority())) return;
+    if (!msg || !msg.uid || (typeof isDimSimAuthority === 'function' && !isDimSimAuthority(msg.dim || currentDimension))) return;
     const m = mobs.find(mb => mb && !mb._dead && mb.uid === msg.uid);
     if (!m) return;
     hurtMob(m, Number(msg.dmg) || 1, Number(msg.kx) || 0, Number(msg.kz) || 0, Number(msg.ky) || 4.2, !!msg.isFire, true, { _fromAuth: true });
@@ -6952,6 +6983,10 @@
   function applyRemoteMobRemove(uid) {
     if (!uid) return;
     _pendingRemoteMobSpawns.delete(uid);
+    for (const dk of Object.keys(dimSavedMobs)) {
+      const arr = dimSavedMobs[dk];
+      if (Array.isArray(arr) && arr.length) dimSavedMobs[dk] = arr.filter(it => it && it.uid !== uid);
+    }
     for (let i = mobs.length - 1; i >= 0; i--) {
       const m = mobs[i];
       if (m && m.uid === uid) {
@@ -7948,7 +7983,12 @@
       resetMobNetSyncCache();
     }
     _culledEntitiesCount = 0;
-    const _mobSimAuth = (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority());
+    const _mobSimAuth = (!activeRoomId || typeof isDimSimAuthority !== 'function' || isDimSimAuthority());
+    if (_mobSimAuth !== updateMobs._prevSimAuth) {
+      resetMobNetSyncCache();
+      if (_mobSimAuth && mobs.length === 0 && typeof spawnFallbackDimMobs === 'function') spawnFallbackDimMobs();
+    }
+    updateMobs._prevSimAuth = _mobSimAuth;
     if (_mobSimAuth) {
       mobSpawnTimer -= dt;
       if (mobSpawnTimer <= 0) {
@@ -8217,7 +8257,7 @@
         m.voiceT -= dt;
         if (m.voiceT <= 0) { m.voiceT = 6.5 + Math.random() * 10.5; if (Math.hypot(m.x - player.x, m.z - player.z) < 26) playMobSfx(m.type, 'idle'); }
       }
-      const _isGuestMobClient = !!(activeRoomId && typeof isSimAuthority === 'function' && !isSimAuthority() && !(m.tamed && player.ridingDragon === m));
+      const _isGuestMobClient = !!(activeRoomId && typeof isDimSimAuthority === 'function' && !isDimSimAuthority() && !(m.tamed && player.ridingDragon === m));
 
       if (!_isGuestMobClient) {
       // Mob Lava & Fire Burn Damage (Nether fire-immune mobs are immune; all others burn & take burn damage!)
@@ -10552,9 +10592,10 @@
         const syncIntMs = hasNetPeer ? (hasMqttPeer ? 130 : (peerCntM >= 4 ? 95 : 75)) : 2500;
         if ((_mobNowMs - _mobNetLastSyncMs) >= syncIntMs) {
           _mobNetLastSyncMs = _mobNowMs;
-          const needFull = (_mobNetKeyframeMs === 0 || (_mobNowMs - _mobNetKeyframeMs) >= 12000);
+          const needFollowupFull = (_mobNetFollowupFullAt > 0 && _mobNowMs >= _mobNetFollowupFullAt);
+          const needFull = (_mobNetKeyframeMs === 0 || needFollowupFull || (_mobNowMs - _mobNetKeyframeMs) >= 12000);
           const list = serializeMobsForNet(currentDimension, { delta: !needFull });
-          if (needFull) _mobNetKeyframeMs = _mobNowMs;
+          if (needFull) { _mobNetKeyframeMs = _mobNowMs; if (needFollowupFull) _mobNetFollowupFullAt = 0; }
           if (needFull || list.length > 0 || _mobNetRemQueue.length > 0) {
             const rm = _mobNetRemQueue.splice(0, _mobNetRemQueue.length);
             broadcastMobSync(currentDimension, list, { seq: ++_mobNetSeq, ts: Math.round(_mobNowMs), full: needFull, rm });
@@ -10769,7 +10810,7 @@
           }
           hitMobOrP = true;
         } else {
-            if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && typeof remotePlayers !== 'undefined' && remotePlayers) {
+            if (activeRoomId && typeof isDimSimAuthority === 'function' && isDimSimAuthority() && typeof remotePlayers !== 'undefined' && remotePlayers) {
               for (const [rpid, rp] of remotePlayers.entries()) {
                 if (!rp || rp.isBuddy || (rp.dim || 'overworld') !== currentDimension) continue;
                 if (Math.hypot(rp.x - p.x, rp.z - p.z) < pHitR && p.y >= rp.y - 0.3 && p.y <= rp.y + PLAYER_HEIGHT + 0.5) {
@@ -10818,7 +10859,7 @@
       t.mesh.scale.setScalar(sc);
       if (t.fuse <= 0) {
         scene.remove(t.mesh); primedTnts.splice(i, 1);
-        if (!t._remoteVisual && (!activeRoomId || typeof isSimAuthority !== 'function' || isSimAuthority())) {
+        if (!t._remoteVisual && (!activeRoomId || typeof isDimSimAuthority !== 'function' || isDimSimAuthority())) {
           triggerExplosion(t.x, t.y, t.z, 3.6, 18, 'Bạn bị Thuốc Nổ TNT thổi bay!');
         }
       }
