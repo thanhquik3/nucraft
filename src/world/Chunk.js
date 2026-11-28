@@ -388,20 +388,25 @@
     return Math.max(-700, Math.min(-2, floorY));
   }
   function getNetherCastleAnchor(wx, wz) {
+    // Twin Hero Medieval Nether Castles near Nether Spawn + frequent Medieval Fortresses across the lava seas!
     if (Math.hypot(wx - 64, wz + 72) < 56) {
-      return { x: 64, z: -72, baseY: 7, hero: true };
+      return { x: 64, z: -72, baseY: 7, hero: true, style: 0 };
     }
-    const GRID = 256;
+    if (Math.hypot(wx + 56, wz - 52) < 52) {
+      return { x: -56, z: 52, baseY: 8, hero: true, style: 1 };
+    }
+    const GRID = 168;
     const gx0 = Math.floor(wx / GRID), gz0 = Math.floor(wz / GRID);
     for (let dzg = -1; dzg <= 1; dzg++) {
       for (let dxg = -1; dxg <= 1; dxg++) {
         const rgx = gx0 + dxg, rgz = gz0 + dzg;
         if (rgx === 0 && (rgz === 0 || rgz === -1)) continue;
-        if (hash2i(rgx, rgz, worldSeed + 8821) > 0.56) continue;
-        const ax = Math.round((rgx + 0.28 + hash2i(rgx, rgz, worldSeed + 8837) * 0.44) * GRID);
-        const az = Math.round((rgz + 0.28 + hash2i(rgx, rgz, worldSeed + 8861) * 0.44) * GRID);
+        if (hash2i(rgx, rgz, worldSeed + 8821) > 0.78) continue;
+        const ax = Math.round((rgx + 0.25 + hash2i(rgx, rgz, worldSeed + 8837) * 0.50) * GRID);
+        const az = Math.round((rgz + 0.25 + hash2i(rgx, rgz, worldSeed + 8861) * 0.50) * GRID);
         if (Math.abs(wx - ax) <= 44 && Math.abs(wz - az) <= 50) {
-          return { x: ax, z: az, baseY: 7, hero: false };
+          const style = (hash2i(rgx, rgz, worldSeed + 8887) > 0.48) ? 1 : 0;
+          return { x: ax, z: az, baseY: 7, hero: false, style };
         }
       }
     }
@@ -1013,24 +1018,25 @@
         }
         if (Math.hypot(dx, dz) < 38) return WATER_LEVEL - 4;
       }
-      const cont = fbm2D(wx * 0.017, wz * 0.017, 2, 0.5, 2.0, worldSeed + 505);
+      const cont = fbm2D(wx * 0.015, wz * 0.015, 3, 0.52, 2.05, worldSeed + 505);
       const det = valueNoise2D(wx * 0.06, wz * 0.06, worldSeed + 606);
-      // Continuous meandering Nether lava river channel + sea basins so Nether ALWAYS has flowing lava rivers!
-      const riverN = Math.abs(fbm2D(wx * 0.011, wz * 0.011, 2, 0.5, 2.0, worldSeed + 577) - 0.5);
+      // Continuous meandering Nether lava river channel + broad terraced canyon basins (Images 1, 2, 3!)
+      const riverN = Math.abs(fbm2D(wx * 0.0095, wz * 0.0095, 2, 0.5, 2.0, worldSeed + 577) - 0.5);
       let nh;
       if (biome === BIOMES.NETHER_BASALT_DELTAS) {
-        nh = -4.5 + cont * 16.5 + Math.round(det * 4.5);
+        nh = -5.5 + cont * 21.0 + Math.round(det * 4.5);
       } else if (biome === BIOMES.NETHER_SOUL_VALLEY) {
-        nh = -2.5 + cont * 12.5 + det * 2.2;
+        nh = -3.5 + cont * 15.5 + det * 2.4;
       } else if (biome === BIOMES.NETHER_CRIMSON || biome === BIOMES.NETHER_WARPED) {
-        const rawH = -4.2 + cont * 17.2 + det * 2.4;
-        nh = rawH * 0.58 + Math.round(rawH / 3) * 3 * 0.42;
+        const rawH = -5.5 + cont * 22.0 + det * 2.6;
+        nh = rawH * 0.54 + Math.round(rawH / 3) * 3 * 0.46;
       } else {
-        nh = -8.5 + cont * 17.5 + det * 2.6;
+        const rawW = -9.5 + cont * 23.0 + det * 2.8;
+        nh = rawW * 0.62 + Math.round(rawW / 2) * 2 * 0.38;
       }
-      if (riverN < 0.095) {
-        const t = 1.0 - riverN / 0.095;
-        nh = Math.min(nh, WATER_LEVEL - 1.5 - t * 6.0);
+      if (riverN < 0.12) {
+        const t = 1.0 - riverN / 0.12;
+        nh = Math.min(nh, WATER_LEVEL - 1.5 - t * 7.5);
       }
       return Math.max(MIN_Y + 6, Math.floor(nh));
     }

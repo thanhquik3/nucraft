@@ -2602,6 +2602,9 @@
     };
     const tealSpire = (wx, wy, wz) => {
       const h = hash3i(wx, wy, wz, worldSeed + 8917);
+      if (castle && castle.style === 1) {
+        return h > 0.48 ? B.NETHER_WART_BLOCK : B.NETHER_BRICK;
+      }
       return h > 0.58 ? B.COPPER_ROOF : (h > 0.25 ? B.WARPED_WART_BLOCK : B.WARPED_PLANKS);
     };
     const turrets = [
@@ -2735,9 +2738,12 @@
         const ci = (lz << 4) | lx; colHeights[ci] = h; colBiomes[ci] = biome.id;
         const locCastle = getNetherCastleAnchor(wx, wz);
         if (locCastle && !nearCastle) nearCastle = locCastle;
-        // Raise Nether cavern roof cleanly around castles so gothic turquoise spires stand out dramatically!
-        const castleBoost = locCastle ? Math.max(0, Math.round((1 - Math.hypot(wx - locCastle.x, wz - locCastle.z) / 48) * 10)) : 0;
-        const ceilY = Math.min(MAX_Y - 10, Math.floor(25 + castleBoost + valueNoise2D(wx * 0.05, wz * 0.05, worldSeed + 811) * 5));
+        // Dramatic multi-tier carved vaulted Nether cavern ceiling (sweeps y=20..68 w/ stepped ledges, stalactite ribs & 3D overhangs — NEVER flat!)
+        const castleBoost = locCastle ? Math.max(0, Math.round((1 - Math.hypot(wx - locCastle.x, wz - locCastle.z) / 52) * 16)) : 0;
+        const vaultMacro = fbm2D(wx * 0.011, wz * 0.011, 3, 0.54, 2.05, worldSeed + 811);
+        const terraceStep = Math.floor(fbm2D(wx * 0.032, wz * 0.032, 2, 0.5, 2.0, worldSeed + 823) * 5.0) * 2.5;
+        const stalRib = Math.max(0, 0.40 - Math.abs(valueNoise2D(wx * 0.048, wz * 0.048, worldSeed + 829) - 0.5)) * 18.0;
+        const ceilY = Math.max(20, Math.min(MAX_Y - 12, Math.floor(24 + vaultMacro * 30 + terraceStep - stalRib + castleBoost)));
         for (let ly = 0; ly < WORLD_H; ly++) {
           const wy = MIN_Y + ly; let id = B.AIR;
           const trueY = wy - (depthOffset || 0);
@@ -2745,14 +2751,15 @@
           else if (trueY < -1010) id = B.AIR;
           else if (wy <= h) {
             if (wy === h && h > WATER_LEVEL) {
-              if (biome === BIOMES.NETHER_CRIMSON) id = B.CRIMSON_NYLIUM;
+              if (h <= WATER_LEVEL + 2 && hash2i(wx, wz, worldSeed + 439) > 0.62) id = B.MAGMA_BLOCK;
+              else if (biome === BIOMES.NETHER_CRIMSON) id = B.CRIMSON_NYLIUM;
               else if (biome === BIOMES.NETHER_WARPED) id = B.WARPED_NYLIUM;
               else if (biome === BIOMES.NETHER_BASALT_DELTAS) id = (hash2i(wx, wz, worldSeed + 419) > 0.56 ? B.BLACKSTONE : B.BASALT);
               else if (biome === BIOMES.NETHER_SOUL_VALLEY) id = (hash2i(wx, wz, worldSeed + 421) > 0.25 ? B.SOUL_SAND : B.BASALT);
-              else id = (hash2i(wx, wz, worldSeed + 413) > 0.68 ? B.SOUL_SAND : B.NETHERRACK);
-            } else if (wy >= h - 1 && biome === BIOMES.NETHER_BASALT_DELTAS && h <= WATER_LEVEL + 1 && hash2i(wx, wz, worldSeed + 433) > 0.62) {
+              else id = (hash2i(wx, wz, worldSeed + 413) > 0.72 ? B.SOUL_SAND : B.NETHERRACK);
+            } else if (wy >= h - 1 && h <= WATER_LEVEL + 2 && hash2i(wx, wz, worldSeed + 433) > 0.68) {
               id = B.MAGMA_BLOCK;
-            } else if (h > WATER_LEVEL + 2 && wy < h - 5 && wy > MIN_Y + 4 && sampleCaveFast(lx, ly, lz) > 0.78) {
+            } else if (h > WATER_LEVEL + 2 && wy < h - 4 && wy > MIN_Y + 4 && sampleCaveFast(lx, ly, lz) > 0.75) {
               id = (wy <= MIN_Y + 6) ? B.LAVA : B.AIR;
             } else {
               const oh = hash3i(wx, wy, wz, worldSeed + 777);
@@ -2761,13 +2768,30 @@
           } else if (wy <= WATER_LEVEL) {
             id = B.LAVA;
           } else if (wy >= ceilY) {
-            if (wy === ceilY && hash2i(wx, wz, worldSeed + 515) > 0.955) id = B.SHROOMLIGHT;
-            else {
+            // 3D Carved Upper Cavern Hollows & Layered Overhangs inside Nether Ceiling (authentic multi-tier volcanic roof!)
+            const inUpperPocket = (wy < ceilY + 18 && wy < MAX_Y - 10 && sampleCaveFast(lx, ly, lz) > 0.65);
+            if (inUpperPocket) {
+              id = B.AIR;
+            } else if (wy === ceilY && hash2i(wx, wz, worldSeed + 515) > 0.952) {
+              id = B.SHROOMLIGHT;
+            } else {
               const rh = hash3i(wx, wy, wz, worldSeed + 853);
-              id = rh > 0.9996 ? B.ANCIENT_DEBRIS : (rh > 0.9940 ? B.GOLD_ORE : (rh > 0.9830 ? B.QUARTZ_ORE : (rh > 0.72 ? B.BASALT : B.NETHERRACK)));
+              id = rh > 0.9996 ? B.ANCIENT_DEBRIS : (rh > 0.9940 ? B.GOLD_ORE : (rh > 0.9830 ? B.QUARTZ_ORE : (rh > 0.78 ? B.BLACKSTONE : (rh > 0.64 ? B.BASALT : B.NETHERRACK))));
             }
           }
           data[(ly << 8) | (lz << 4) | lx] = id;
+        }
+        // Hanging Glowing Chandelier Stalactite Clusters dangling from the vaulted Nether ceiling (like Images 2 & 3!)
+        if (lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13 && ceilY - h > 12 && hash2i(wx, wz, worldSeed + 523) > 0.988) {
+          const cLen = 2 + ((hash2i(wx, wz, worldSeed + 541) * 4) | 0);
+          for (let cy = 0; cy <= cLen; cy++) {
+            setLocalSafe(data, lx, ceilY - cy, lz, B.SHROOMLIGHT, true);
+            if (cy >= 1 && cy <= cLen - 1) {
+              if (((wx + cy) & 1) === 0) setLocalSafe(data, lx + 1, ceilY - cy, lz, B.SHROOMLIGHT, true);
+              if (((wz + cy) & 1) === 0) setLocalSafe(data, lx, ceilY - cy, lz + 1, B.SHROOMLIGHT, true);
+              if (cy === 1) setLocalSafe(data, lx - 1, ceilY - cy, lz, B.SHROOMLIGHT, true);
+            }
+          }
         }
         // Basalt Delta vertical volcanic pillars & Soul Sand Valley soul flames
         if (biome === BIOMES.NETHER_BASALT_DELTAS && h >= WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 449) > 0.942) {
@@ -2776,22 +2800,64 @@
         } else if (biome === BIOMES.NETHER_SOUL_VALLEY && h > WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 463) > 0.972) {
           setLocalSafe(data, lx, h + 1, lz, B.SOUL_FIRE, false);
         }
-        // Hanging ceiling Weeping Vines in Crimson canyons (matching Image 7)
+        // Hanging ceiling Weeping Vines in Crimson canyons
         if (biome === BIOMES.NETHER_CRIMSON && ceilY - h > 8 && hash2i(wx, wz, worldSeed + 479) > 0.935) {
           const vLen = 2 + Math.floor(hash2i(wx, wz, worldSeed + 487) * 4);
           for (let vy = 1; vy <= vLen; vy++) setLocalSafe(data, lx, ceilY - vy, lz, B.WEEPING_VINES, false);
         }
-        if (!locCastle && hash2i(wx, wz, worldSeed + 997) > 0.9974) {
+        // Dramatic single-column Lava Falls cascading from high vaulted Nether ceiling down into lava seas (Images 1, 2, 3!)
+        if (!locCastle && ceilY - h > 14 && hash2i(wx, wz, worldSeed + 997) > 0.9945) {
           for (let wy = Math.max(WATER_LEVEL + 1, h + 1); wy <= ceilY; wy++) setLocalSafe(data, lx, wy, lz, B.LAVA, true);
         }
-        if (wz >= -18 && wz <= -14) {
+        // Monumental Medieval Gothic Arched Nether Viaduct Bridges & Fortified Gatehouse Towers over Lava Seas (Image 1!)
+        const onEWBridge = (wz >= -19 && wz <= -13);
+        const onNSBridge = (!onEWBridge && ((wx >= 61 && wx <= 67) || (wx >= -59 && wx <= -53)));
+        if ((onEWBridge || onNSBridge) && !locCastle) {
           const bridgeY = 12;
-          const isRail = (wz === -18 || wz === -14);
-          setLocalSafe(data, lx, bridgeY, lz, B.NETHER_BRICK, true);
-          if (isRail) setLocalSafe(data, lx, bridgeY + 1, lz, B.NETHER_BRICK, true);
-          if ((wx & 7) === 0 && isRail) {
-            for (let wy = Math.max(MIN_Y + 2, h); wy < bridgeY; wy++) setLocalSafe(data, lx, wy, lz, B.NETHER_BRICK, true);
-            setLocalSafe(data, lx, bridgeY + 2, lz, B.SHROOMLIGHT, true);
+          const bPerp = onEWBridge ? Math.abs(wz + 16) : Math.abs(wx - (wx >= 0 ? 64 : -56));
+          const bAlong = onEWBridge ? wx : wz;
+          const spanMod = ((bAlong % 10) + 10) % 10;
+          const towerMod = ((bAlong % 40) + 40) % 40;
+          const inGateTower = (towerMod <= 3 || towerMod >= 37);
+          const isRail = (bPerp === 3);
+          // Clear bridge walkway headroom
+          for (let wy = bridgeY + 1; wy <= bridgeY + 7; wy++) setLocalSafe(data, lx, wy, lz, B.AIR, true);
+          // Stone/Blackstone medieval deck + vaulted brick arches underneath!
+          setLocalSafe(data, lx, bridgeY, lz, bPerp === 0 ? B.DEEPSLATE_TILES : (isRail ? B.BLACKSTONE_BRICKS : B.NETHER_BRICK), true);
+          const archDrop = (spanMod === 0 || spanMod === 9) ? 4 : ((spanMod === 1 || spanMod === 8) ? 3 : ((spanMod === 2 || spanMod === 7) ? 2 : 1));
+          for (let ay = 1; ay <= archDrop; ay++) {
+            setLocalSafe(data, lx, bridgeY - ay, lz, isRail ? B.BLACKSTONE_BRICKS : B.NETHER_BRICK, true);
+          }
+          // Deep medieval bridge support piers plunging down into the glowing lava sea every 10 blocks
+          if ((spanMod === 0 || spanMod === 9) && bPerp >= 2) {
+            for (let wy = Math.max(MIN_Y + 2, Math.min(WATER_LEVEL - 4, h)); wy < bridgeY - archDrop; wy++) {
+              setLocalSafe(data, lx, wy, lz, isRail ? B.BLACKSTONE_BRICKS : B.NETHER_BRICK, true);
+            }
+          }
+          // Crenellated medieval battlements & lanterns along both parapets
+          if (isRail) {
+            setLocalSafe(data, lx, bridgeY + 1, lz, B.BLACKSTONE_BRICKS, true);
+            if ((bAlong & 1) === 0) setLocalSafe(data, lx, bridgeY + 2, lz, B.BLACKSTONE_BRICKS, true);
+            if (spanMod === 0) setLocalSafe(data, lx, bridgeY + 3, lz, B.LANTERN, true);
+          }
+          // Periodic Medieval Gothic Gatehouse Watchtowers (Image 1 silhouette!) every 40 blocks
+          if (inGateTower) {
+            const tEdge = (towerMod === 3 || towerMod === 37);
+            const tSide = (bPerp >= 2);
+            if (tSide) {
+              for (let wy = bridgeY + 1; wy <= bridgeY + 10; wy++) {
+                const isCrimsonPanel = (bPerp === 2 && !tEdge && wy >= bridgeY + 3 && wy <= bridgeY + 8);
+                setLocalSafe(data, lx, wy, lz, isCrimsonPanel ? B.NETHER_WART_BLOCK : B.BLACKSTONE_BRICKS, true);
+              }
+              if ((bAlong + bPerp) % 2 === 0) setLocalSafe(data, lx, bridgeY + 11, lz, B.BLACKSTONE_BRICKS, true);
+              if (tEdge && bPerp === 3) setLocalSafe(data, lx, bridgeY + 12, lz, B.LANTERN, true);
+            } else {
+              // High medieval archway lintel & crimson spire crown above the bridge road
+              for (let wy = bridgeY + 7; wy <= bridgeY + 11; wy++) {
+                setLocalSafe(data, lx, wy, lz, wy >= bridgeY + 10 ? B.NETHER_WART_BLOCK : B.BLACKSTONE_BRICKS, true);
+              }
+              if (towerMod === 0 && bPerp === 0) setLocalSafe(data, lx, bridgeY + 6, lz, B.LANTERN, true);
+            }
           }
         }
       }
@@ -3891,7 +3957,7 @@
         } else {
           const isOuterWallR = (edgeDist < 4);
           if (onCauseway) {
-            // Monumental 16-wide Grand Stone Causeways spanning all 1000x1000!
+            // Monumental 16-wide Grand Stone Causeways spanning all 1000x1000 w/ abundant warm Lantern posts & overgrown mossy rails!
             const alongX = (az <= 8);
             const perp = alongX ? az : ax;
             const alongCoord = alongX ? rx : rz;
@@ -3900,16 +3966,21 @@
               else if (perp === 7 && wy === plazaY) put(lx, wy, lz, B.STONE_BRICK_WALL);
               else put(lx, wy, lz, (perp <= 1 && (alongCoord & 1)) ? B.DEEPSLATE_TILES : ruinStone(wx, wy, wz));
             }
-            if ((Math.abs(alongCoord) % 24) === 0 && perp >= 7) {
+            if ((Math.abs(alongCoord) % 12) === 0 && perp === 7) {
+              for (let wy = 15; wy <= 18; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
+              put(lx, 19, lz, B.LANTERN);
+            } else if ((Math.abs(alongCoord) % 24) === 6 && perp === 8) {
+              put(lx, 15, lz, B.BARREL);
+            }
+            if ((Math.abs(alongCoord) % 24) === 0 && perp === 8) {
               for (let wy = 15; wy <= 22; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
               put(lx, 23, lz, B.CAMPFIRE);
             }
-            if (perp >= 7 && (Math.abs(alongCoord) % 24) === 0) put(lx, 15, lz, B.LANTERN);
           } else {
-            // Repeating 48x48 Modular Architectural Ruin Districts across full 1000x1000 span
+            // Repeating 48x48 Modular Architectural Ruin Districts across full 1000x1000 span (6 rich rooms/houses + corner treasure huts + lanterns!)
             const bx = ((wx % 48) + 48) % 48, bz = ((wz % 48) + 48) % 48;
             const dgx = Math.floor(wx / 48), dgz = Math.floor(wz / 48);
-            const distKind = Math.floor(hash2i(dgx, dgz, worldSeed + 9547) * 5);
+            const distKind = Math.floor(hash2i(dgx, dgz, worldSeed + 9547) * 6);
             const bCx = bx - 24, bCz = bz - 24;
             const badx = Math.abs(bCx), badz = Math.abs(bCz);
             const surfR = hash2i(wx, wz, worldSeed + 9551);
@@ -3919,8 +3990,34 @@
             }
             colHeights[ci] = baseElev;
             if (!isOuterWallR && edgeDist >= 12) {
-              if (distKind === 0 && badx <= 11 && badz <= 11) {
-                // Module 1: Ruined Citadel Tower + Emerald Moss Pool + Overgrown Leaf Vines
+              // Corner Ruined Treasure Huts & Furnished Outpost Rooms in every 48x48 district (bCx in [14..21], bCz in [14..21])
+              const inCornerHut = (bCx >= 14 && bCx <= 21 && bCz >= 14 && bCz <= 21);
+              if (inCornerHut) {
+                const hx = bCx - 14, hz = bCz - 14;
+                const hWall = (hx === 0 || hx === 7 || hz === 0 || hz === 7);
+                const hDoor = (hx === 0 && hz >= 3 && hz <= 4);
+                put(lx, baseElev, lz, B.SPRUCE_PLANKS);
+                if (hWall) {
+                  for (let wy = baseElev + 1; wy <= baseElev + 5; wy++) {
+                    if (hDoor && wy <= baseElev + 3) continue;
+                    const isWin = (wy === baseElev + 3 && ((hx === 7 && hz === 3) || ((hz === 0 || hz === 7) && hx === 4)));
+                    put(lx, wy, lz, isWin ? B.IRON_BARS : ((hx === 0 || hx === 7) && (hz === 0 || hz === 7) ? B.DARK_OAK_LOG : ruinStone(wx, wy, wz)));
+                  }
+                  if ((hx === 0 || hx === 7) && (hz === 0 || hz === 7)) put(lx, baseElev + 6, lz, B.LANTERN);
+                } else {
+                  // Pitched/ruined timber roof + furnished chest room interior
+                  const rH = baseElev + 5 + Math.min(hx, 7 - hx, hz, 7 - hz, 2);
+                  if (hash2i(wx, wz, worldSeed + 9559) > 0.14) put(lx, rH, lz, B.SPRUCE_PLANKS);
+                  if (hx === 5 && hz === 5) put(lx, baseElev + 1, lz, B.GOLD_CHEST);
+                  else if (hx === 5 && hz === 2) put(lx, baseElev + 1, lz, B.CHEST);
+                  else if (hx === 2 && hz === 5) put(lx, baseElev + 1, lz, B.CRAFT_TABLE);
+                  else if (hx === 2 && hz === 6) put(lx, baseElev + 1, lz, B.FURNACE);
+                  else if (hx === 6 && hz === 2) { put(lx, baseElev + 1, lz, B.BARREL); put(lx, baseElev + 2, lz, B.LANTERN); }
+                  else if (hx === 6 && hz === 5) { put(lx, baseElev + 1, lz, B.BOOKSHELF); put(lx, baseElev + 2, lz, B.BOOKSHELF); }
+                  else if (hx === 3 && hz === 1) put(lx, baseElev + 1, lz, B.ANVIL);
+                }
+              } else if (distKind === 0 && badx <= 11 && badz <= 11) {
+                // Module 1: Ruined Citadel Tower + Emerald Moss Pool + Overgrown Leaf Vines + Lantern Posts
                 if (badx <= 5 && badz <= 5) {
                   put(lx, baseElev - 2, lz, B.PRISMARINE);
                   put(lx, baseElev - 1, lz, B.WATER);
@@ -3933,24 +4030,31 @@
                   }
                 } else if (bCx === -7 && bCz === -7) {
                   put(lx, baseElev + 1, lz, B.GOLD_CHEST);
-                } else if ((badx === 8 && badz === 8)) {
+                } else if (bCx === 7 && bCz === -7) {
+                  put(lx, baseElev + 1, lz, B.CHEST);
+                } else if (badx === 8 && badz === 8) {
                   for (let wy = baseElev + 1; wy <= baseElev + 4; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
                   put(lx, baseElev + 5, lz, B.LANTERN);
                 }
               } else if (distKind === 1 && badx <= 13 && badz <= 13) {
-                // Module 2: Terracotta & Sunken Dark Canal Hall + Ruined Library Nooks
+                // Module 2: Terracotta & Sunken Dark Canal Hall + Ruined Library Nooks + Lanterns
                 if (bCx >= 4 && bCx <= 9) {
                   put(lx, baseElev - 2, lz, B.DEEPSLATE_TILES);
                   put(lx, baseElev - 1, lz, B.WATER);
                   put(lx, baseElev, lz, B.WATER);
                 } else if (badx === 12 || badz === 12) {
-                  if ((bx & 3) === 0) for (let wy = baseElev + 1; wy <= baseElev + 9; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                  if ((bx & 3) === 0) {
+                    for (let wy = baseElev + 1; wy <= baseElev + 9; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                    put(lx, baseElev + 5, lz, B.LANTERN);
+                  }
                 } else if (bCx <= -7 && bCx >= -10 && badz <= 6 && (bz & 1) === 0) {
                   put(lx, baseElev + 1, lz, B.BOOKSHELF);
                   if (badz <= 4) put(lx, baseElev + 2, lz, B.BOOKSHELF);
+                  if (badz === 0 && bCx === -8) put(lx, baseElev + 3, lz, B.LANTERN);
                 } else {
                   put(lx, baseElev, lz, (bCx & 3) === 0 ? B.MOSSY_STONE_BRICK : B.TERRACOTTA_ORANGE);
                   if (bCx === 0 && bCz === 0) { put(lx, baseElev + 1, lz, B.DEEPSLATE_BRICKS); put(lx, baseElev + 2, lz, B.CAMPFIRE); }
+                  else if (bCx === -4 && bCz === 0) put(lx, baseElev + 1, lz, B.CHEST);
                 }
               } else if (distKind === 2 && badx <= 12 && badz <= 12) {
                 // Module 3: Oxidized Copper Colonnade & Glowing Crystal Monolith Shrine
@@ -3959,57 +4063,106 @@
                     if ((wy - baseElev) === 4 || (wy - baseElev) === 8) put(lx, wy, lz, oxTrim(wx, wy, wz));
                     else if ((badx > 2 || badz > 2) && ((bx + bz) & 1) === 0) put(lx, wy, lz, ruinStone(wx, wy, wz));
                   }
+                  if (badx === 11 && badz === 11) put(lx, baseElev + 9, lz, B.LANTERN);
                 } else if (badx <= 2 && badz <= 2) {
                   const mh = baseElev + (badx === 0 && badz === 0 ? 7 : 4);
                   for (let wy = baseElev + 1; wy <= mh; wy++) put(lx, wy, lz, (wy === mh - 1) ? B.GLOW_CRYSTAL : B.DEEPSLATE_BRICKS);
                 } else if (badx === 6 && badz === 6) {
                   put(lx, baseElev - 1, lz, B.LAVA);
                   put(lx, baseElev, lz, B.IRON_GRATE);
+                } else if (bCx === 0 && bCz === 7) {
+                  put(lx, baseElev + 1, lz, B.GOLD_CHEST);
                 }
               } else if (distKind === 3 && badx <= 8 && badz <= 8) {
-                // Module 4: Overgrown Aqueduct Arches, Dungeon Iron Bars & Treasure Courtyard
-                if (badx === 3 || badz === 3) {
-                  const ah = baseElev + ((bx + bz) % 6 === 0 ? 7 : 3);
-                  for (let wy = baseElev + 1; wy <= ah; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
-                } else if (bCx === 0 && bCz === 0) {
-                  put(lx, baseElev + 1, lz, B.CHEST);
-                } else if (badx === 7 && badz <= 3) {
-                  for (let wy = baseElev + 1; wy <= baseElev + 3; wy++) put(lx, wy, lz, B.IRON_BARS);
+                // Module 4: Ruined Medieval Treasure House (Full Furnished Stone & Timber House w/ Chests, Barrels & Lanterns!)
+                const mWall = (badx === 7 || badz === 7);
+                const mDoor = (bCz === 7 && badx <= 1) || (bCz === -7 && badx <= 1);
+                if (badx <= 7 && badz <= 7) {
+                  put(lx, baseElev, lz, ((bx + bz) & 1) ? B.SPRUCE_PLANKS : B.DEEPSLATE_TILES);
+                  if (mWall) {
+                    const isCorner = (badx === 7 && badz === 7);
+                    for (let wy = baseElev + 1; wy <= baseElev + 6; wy++) {
+                      if (mDoor && wy <= baseElev + 3) continue;
+                      const isWin = (wy >= baseElev + 3 && wy <= baseElev + 4 && (badx === 3 || badz === 3));
+                      put(lx, wy, lz, isCorner ? B.DARK_OAK_LOG : (isWin ? B.IRON_BARS : ruinStone(wx, wy, wz)));
+                    }
+                    if (isCorner) put(lx, baseElev + 7, lz, B.LANTERN);
+                  } else {
+                    const roofY = baseElev + 7 + Math.max(0, 3 - Math.floor(badx * 0.5));
+                    if (hash2i(wx, wz, worldSeed + 9593) > 0.12) put(lx, roofY, lz, badx === 0 ? B.DEEPSLATE_BRICKS : B.SPRUCE_PLANKS);
+                    if (bCx === 0 && bCz === 0) { put(lx, baseElev + 6, lz, B.IRON_BARS); put(lx, baseElev + 5, lz, B.LANTERN); }
+                    if (bCx === -5 && bCz === -5) put(lx, baseElev + 1, lz, B.GOLD_CHEST);
+                    else if (bCx === 5 && bCz === -5) put(lx, baseElev + 1, lz, B.CHEST);
+                    else if (bCx === -5 && bCz === 5) { put(lx, baseElev + 1, lz, B.BARREL); put(lx, baseElev + 2, lz, B.LANTERN); }
+                    else if (bCx === 5 && bCz === 5) { put(lx, baseElev + 1, lz, B.CRAFT_TABLE); put(lx, baseElev + 2, lz, B.LANTERN); }
+                    else if (bCx === 0 && bCz === -5) put(lx, baseElev + 1, lz, B.FURNACE);
+                    else if (badx === 6 && badz <= 3) { put(lx, baseElev + 1, lz, B.BOOKSHELF); put(lx, baseElev + 2, lz, B.BOOKSHELF); }
+                  }
+                }
+              } else if (distKind === 4 && badx <= 9 && badz <= 9) {
+                // Module 5: Ancient Stronghold Library & Enchanting Chamber w/ Glowing Lanterns & Secret Chests!
+                const lWall = (badx === 8 || badz === 8);
+                const lDoor = (badx <= 1 || badz <= 1);
+                if (badx <= 8 && badz <= 8) {
+                  put(lx, baseElev, lz, (badx <= 2 && badz <= 2) ? B.DEEPSLATE_TILES : B.MOSSY_STONE_BRICK);
+                  if (lWall && !lDoor) {
+                    for (let wy = baseElev + 1; wy <= baseElev + 7; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                    if (badx === 8 && badz === 8) put(lx, baseElev + 8, lz, B.LANTERN);
+                  } else if (!lWall) {
+                    if (badx === 6 && badz >= 2 && badz <= 6) {
+                      for (let wy = baseElev + 1; wy <= baseElev + 4; wy++) put(lx, wy, lz, B.BOOKSHELF);
+                    } else if (bCx === 0 && bCz === 0) {
+                      put(lx, baseElev + 1, lz, B.ENCHANT_TABLE);
+                    } else if (badx === 3 && badz === 3) {
+                      for (let wy = baseElev + 1; wy <= baseElev + 3; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
+                      put(lx, baseElev + 4, lz, B.LANTERN);
+                    } else if (bCx === -4 && bCz === -4) {
+                      put(lx, baseElev + 1, lz, B.GOLD_CHEST);
+                    } else if (bCx === 4 && bCz === 4) {
+                      put(lx, baseElev + 1, lz, B.CHEST);
+                    }
+                  }
                 }
               } else if (bCx === 0 && bCz === 0) {
-                // Module 5: Overgrown Ancient Woods & Ruin Plaza
+                // Module 6: Overgrown Ancient Woods, Campfire Clearing & Ruin Plaza
                 pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
               }
-              // Wild Overgrown Subterranean Ruin Floor Decor (breaks up flat stone with moss shrubs, leaf clusters, fallen pillars, rubble & glowing fissures!)
+              // Wild Overgrown Subterranean Ruin Floor Decor (moss shrubs, leaf clusters, fallen pillars, barrels, chests & bright lanterns!)
               const curAbove = data[((baseElev + 1 + yShift - MIN_Y) << 8) | ci];
-              if (curAbove === B.AIR) {
+              if (curAbove === B.AIR && !inCornerHut) {
                 const bushNoise = valueNoise2D(wx * 0.21, wz * 0.21, worldSeed + 9617);
                 const decH = hash2i(wx, wz, worldSeed + 9623);
                 const pillarGrid = ((wx & 15) === 5 && (wz & 15) === 5);
-                if (pillarGrid && decH > 0.32) {
-                  // Broken ancient mossy ruin pillar + hanging vine/leaf crown
+                const lampGrid = ((wx & 15) === 12 && (wz & 15) === 12);
+                if (lampGrid && decH > 0.28) {
+                  // Standing Medieval Ruin Lantern Post lighting up the cavern corridors!
+                  put(lx, baseElev + 1, lz, B.DEEPSLATE_BRICKS);
+                  put(lx, baseElev + 2, lz, B.STONE_BRICK_WALL);
+                  put(lx, baseElev + 3, lz, B.STONE_BRICK_WALL);
+                  put(lx, baseElev + 4, lz, B.LANTERN);
+                } else if (pillarGrid && decH > 0.30) {
+                  // Broken ancient mossy ruin pillar + lantern or leaf crown
                   const pH = 3 + ((decH * 5) | 0);
                   for (let py = 1; py <= pH; py++) put(lx, baseElev + py, lz, py === pH ? B.STONE_BRICK_WALL : ruinStone(wx, baseElev + py, wz));
-                  if (decH > 0.66) put(lx, baseElev + pH + 1, lz, B.LANTERN);
-                  else put(lx, baseElev + pH + 1, lz, B.OAK_LEAVES);
-                } else if (bushNoise > 0.74 && decH > 0.42) {
-                  // Overgrown wild leaf shrub / mossy thicket (1-2 blocks tall) for untamed ancient ruin atmosphere!
-                  put(lx, baseElev + 1, lz, decH > 0.80 ? B.MOSS_BLOCK : B.OAK_LEAVES);
-                  if (bushNoise > 0.83 && decH > 0.62) put(lx, baseElev + 2, lz, B.OAK_LEAVES);
-                } else if (decH > 0.972) {
-                  // Weathered fallen stone rubble & glowing magma crack
-                  put(lx, baseElev + 1, lz, decH > 0.988 ? B.STONE_BRICK_WALL : B.MOSSY_STONE_BRICK);
-                  if (decH > 0.992) put(lx, baseElev + 2, lz, B.TORCH_BLOCK);
-                } else if (decH > 0.955 && decH <= 0.972) {
+                  put(lx, baseElev + pH + 1, lz, decH > 0.52 ? B.LANTERN : B.OAK_LEAVES);
+                } else if (bushNoise > 0.72 && decH > 0.40) {
+                  // Overgrown wild leaf shrub / mossy thicket (1-2 blocks tall)
+                  put(lx, baseElev + 1, lz, decH > 0.78 ? B.MOSS_BLOCK : B.OAK_LEAVES);
+                  if (bushNoise > 0.81 && decH > 0.58) put(lx, baseElev + 2, lz, B.OAK_LEAVES);
+                } else if (decH > 0.978) {
+                  // Scattered supply crate / ruin barrel / mossy rubble + lantern
+                  put(lx, baseElev + 1, lz, decH > 0.990 ? B.BARREL : B.MOSSY_STONE_BRICK);
+                  if (decH > 0.986) put(lx, baseElev + 2, lz, B.LANTERN);
+                } else if (decH > 0.960 && decH <= 0.978) {
                   // Ancient lava/magma fissure under iron grate
                   put(lx, baseElev - 1, lz, B.LAVA);
                   put(lx, baseElev, lz, B.IRON_GRATE);
-                } else if (decH > 0.82 && decH <= 0.94) {
-                  // Wild cave ferns, tall grass & moss tufts scattered across the stone floor
-                  put(lx, baseElev + 1, lz, decH > 0.89 ? B.FERN : B.TALL_GRASS);
+                } else if (decH > 0.81 && decH <= 0.94) {
+                  // Wild cave ferns, tall grass & moss tufts
+                  put(lx, baseElev + 1, lz, decH > 0.88 ? B.FERN : B.TALL_GRASS);
                 }
               }
-              if (lx >= 4 && lx <= 11 && lz >= 4 && lz <= 11 && hash2i(wx, wz, worldSeed + 9601) > 0.985) {
+              if (lx >= 4 && lx <= 11 && lz >= 4 && lz <= 11 && !inCornerHut && hash2i(wx, wz, worldSeed + 9601) > 0.985) {
                 pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
               }
             }

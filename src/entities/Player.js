@@ -7520,27 +7520,6 @@
       }
     }
 
-    // Crisp 2D PixelFX Dragon Armor Aura (patch-gg/pixelfx style — zero blocky 3D cubes!)
-    if ((player.sovereignKnightPieces > 0 || player.dragonArmorSet) && (frameCounter % 7) === 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false) && typeof spawnPixelFx === 'function') {
-      const ang = elapsed * 2.4;
-      const rA = 0.62;
-      const dSet = player.sovereignKnightPieces > 0 ? 'sovereign_knight' : player.dragonArmorSet;
-      const fxMap = {
-        sovereign_knight: 'dragon_sovereign_aura',
-        end_dragon: 'dragon_end_aura',
-        ender: 'dragon_end_aura',
-        fire: 'dragon_fire_aura',
-        ice: 'dragon_frost_aura',
-        water: 'dragon_frost_aura',
-        electric: 'dragon_storm_aura',
-        leaf: 'dragon_leaf_aura',
-        earth: 'dragon_fire_aura'
-      };
-      const auraFx = fxMap[dSet] || 'dragon_sovereign_aura';
-      spawnPixelFx(auraFx, player.x + Math.cos(ang) * rA, player.y + 0.85 + Math.sin(elapsed * 2.9) * 0.42, player.z + Math.sin(ang) * rA, {
-        count: 1, scale: 0.66, life: 0.56, riseV: 0.68, randV: 0.22, spread: 0.14
-      });
-    }
     tickFishingRod(dt);
   }
 

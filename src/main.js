@@ -708,7 +708,7 @@
       const _steamStep = (_isWeakDevice || shaderQuality === 'low') ? 0.28 : 0.19;
       if (_sulfurSteamAcc >= _steamStep) {
         _sulfurSteamAcc = 0;
-        // Lightweight ambient Dream Water surface sparkle particles when in The Sift (Refs 9 & 12)
+        // Lightweight ambient Dream Water sparkles (The Sift) & subtle rising lava-heat mist (The Nether)
         if (currentDimension === 'sift') {
           const dwCfg = (window.NUCRAFT_REALM_CONFIG && window.NUCRAFT_REALM_CONFIG.dreamWater) || { sparkleRadius: 14 };
           const sRad = Math.max(6, Number(dwCfg.sparkleRadius) || 14);
@@ -718,6 +718,13 @@
             if (getBlockWorld(sx, WATER_LEVEL, sz) === B.WATER && getBlockWorld(sx, WATER_LEVEL + 1, sz) === B.AIR) {
               spawnPixelFx('magic_dream', sx + Math.random(), WATER_LEVEL + 0.96, sz + Math.random(), { count: 1, scale: 0.52, life: 0.65, riseV: 0.42, randV: 0.14, spread: 0.22 });
             }
+          }
+        } else if (currentDimension === 'nether' && Math.random() < 0.45) {
+          // Gentle warm lava heat-mist wisps rising off nearby lava pools (atmospheric & light!)
+          const lx = Math.floor(player.x + (Math.random() - 0.5) * 26);
+          const lz = Math.floor(player.z + (Math.random() - 0.5) * 26);
+          if (Math.hypot(lx - player.x, lz - player.z) > 4.5 && getBlockWorld(lx, WATER_LEVEL, lz) === B.LAVA && getBlockWorld(lx, WATER_LEVEL + 1, lz) === B.AIR) {
+            spawn2DPixelPlume('smoke_puff', lx + 0.5, WATER_LEVEL + 1.05, lz + 0.5, { count: 1, scale: 0.72, grow: 0.85, vy: 0.58, randV: 0.12, spread: 0.35, life: 3.4 });
           }
         }
         _smokePlumeTick = (_smokePlumeTick + 1) % 3;
@@ -1054,27 +1061,29 @@
       const isWarped = (curB === BIOMES.NETHER_WARPED);
       const isBasalt = (curB === BIOMES.NETHER_BASALT_DELTAS);
       const isSoulV  = (curB === BIOMES.NETHER_SOUL_VALLEY);
-      _tmpTop.setHex(isBasalt ? 0x241d2e : (isSoulV ? 0x0b1c24 : (isWarped ? 0x0e1c28 : (_isNcr2 ? 0x320d0e : 0x26080b))));
-      _tmpHor.setHex(isBasalt ? 0x4b4057 : (isSoulV ? 0x163644 : (isWarped ? 0x163844 : (_isNcr2 ? 0x581b18 : 0x451216))));
+      // Warm smoky lava-heat rising haze + softer balanced Nether lighting (reduced harsh contrast, clear medieval castles & carved roof!)
+      _tmpTop.setHex(isBasalt ? 0x332b3d : (isSoulV ? 0x162e3a : (isWarped ? 0x162f3b : 0x451b15)));
+      _tmpHor.setHex(isBasalt ? 0x5c5068 : (isSoulV ? 0x244959 : (isWarped ? 0x244c57 : 0x7a3423)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
-      const _nEnd = Math.min(loadedEdge, isBasalt ? renderDistance * 14.0 : loadedEdge);
-      envUniforms.uFogStart.value = Math.min(isBasalt ? 11.0 : (_isNcr2 ? 18.0 : 14.0), _nEnd * 0.52);
+      const _nEnd = Math.min(loadedEdge, isBasalt ? Math.min(loadedEdge, 58.0) : Math.min(loadedEdge, 68.0));
+      envUniforms.uFogStart.value = Math.min(isBasalt ? 8.5 : 10.5, _nEnd * 0.36);
       envUniforms.uFogEnd.value = _nEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
-      envUniforms.uSunColor.value.setHex(isBasalt ? 0xd8c4e8 : (isSoulV ? 0x67e8f9 : (isWarped ? 0x5eead4 : (_isNcr2 ? 0xffab64 : 0xff9b54))));
+      envUniforms.uSunColor.value.setHex(isBasalt ? 0xdfd0eb : (isSoulV ? 0x8be9fd : (isWarped ? 0x7eead8 : 0xffba7d)));
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 16, snapY + 34, snapZ + 14);
-      sunLight.color.setHex(isBasalt ? 0xd6c7e3 : (isSoulV ? 0x7dd3fc : (isWarped ? 0x99f6e4 : (_isNcr2 ? 0xffb370 : 0xffa66b))));
-      sunLight.intensity = (isBasalt ? 0.64 : 0.68) * (_isNcr2 ? 1.12 : 1.0);
-      hemiLight.color.setHex(isBasalt ? 0x7c6f8a : (isSoulV ? 0x38bdf8 : (isWarped ? 0x2dd4bf : (_isNcr2 ? 0xd95838 : 0xc2412d))));
-      hemiLight.groundColor.setHex(isBasalt ? 0x221b2b : (isSoulV ? 0x132732 : (_isNcr2 ? 0x471711 : 0x3a110d)));
-      hemiLight.intensity = _isNcr2 ? 0.72 : 0.62;
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.0;
+      sunLight.color.setHex(isBasalt ? 0xdfd3ea : (isSoulV ? 0x99e0fc : (isWarped ? 0xa7f3e4 : 0xffc48c)));
+      sunLight.intensity = isBasalt ? 0.68 : 0.72;
+      hemiLight.color.setHex(isBasalt ? 0x9487a3 : (isSoulV ? 0x56c7f0 : (isWarped ? 0x4fd1c5 : 0xd97352)));
+      hemiLight.groundColor.setHex(isBasalt ? 0x3a2f45 : (isSoulV ? 0x223b47 : 0x6e311d));
+      hemiLight.intensity = 0.82;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.14;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;
+      if (typeof skyDome !== 'undefined') skyDome.visible = true;
       updateShootingStars(dt, 1, false);
       updateAirMotesBatch(dt, shaderQuality !== 'low', (isWarped || isSoulV) ? 'nether_warped' : 'nether_crimson');
       applyLavaAtmo();

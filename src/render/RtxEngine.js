@@ -2747,7 +2747,14 @@
           float ecWarmMask = smoothstep(0.20, 0.78, ecLum) * (1.0 - uUnderwater * 0.85) * (1.0 - uMoonBoost * 0.85);
           col = mix(col, col * ecWarmHi, ecWarmMask);
           vec3 ecCurve = col * col * (3.0 - 2.0 * col);
-          col = mix(col, ecCurve, uContrast * (1.0 - uUnderwater * 0.45));
+          float _isNethDim = step(0.5, uDimension) * step(uDimension, 1.5);
+          col = mix(col, ecCurve, uContrast * (1.0 - uUnderwater * 0.45) * (1.0 - _isNethDim * 0.55));
+          if (_isNethDim > 0.5) {
+            float nLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+            col += vec3(0.036, 0.020, 0.014) * (1.0 - smoothstep(0.0, 0.34, nLum));
+            float heatBand = (1.0 - smoothstep(0.08, 0.78, vUv.y)) * (0.048 + 0.016 * sin(vUv.x * 9.0 + uTime * 1.4));
+            col = mix(col, vec3(0.74, 0.36, 0.20), heatBand);
+          }
           float maxEc = max(col.r, max(col.g, col.b)), minEc = min(col.r, min(col.g, col.b));
           float lumEc = dot(col, vec3(0.2126, 0.7152, 0.0722));
           col = mix(vec3(lumEc), col, 1.0 + uVibrance * (1.0 - (maxEc - minEc) * 0.70));
@@ -2784,7 +2791,14 @@
             float warmMask = smoothstep(0.24, 0.82, lum) * (1.0 - smoothstep(0.84, 0.98, lum) * mix(0.55, 0.78, uNcr2Mode));
             col = mix(col, col * warmHigh, warmMask * (1.0 - uUnderwater * 0.88));
             vec3 sCurve = col * col * (3.0 - 2.0 * col);
-            col = mix(col, sCurve, uContrast * (1.0 - uUnderwater * 0.45));
+            float _isNethDim2 = step(0.5, uDimension) * step(uDimension, 1.5);
+            col = mix(col, sCurve, uContrast * (1.0 - uUnderwater * 0.45) * (1.0 - _isNethDim2 * 0.55));
+            if (_isNethDim2 > 0.5) {
+              float nLum2 = dot(col, vec3(0.2126, 0.7152, 0.0722));
+              col += vec3(0.036, 0.020, 0.014) * (1.0 - smoothstep(0.0, 0.34, nLum2));
+              float heatBand2 = (1.0 - smoothstep(0.08, 0.78, vUv.y)) * (0.048 + 0.016 * sin(vUv.x * 9.0 + uTime * 1.4));
+              col = mix(col, vec3(0.74, 0.36, 0.20), heatBand2);
+            }
             float maxCh = max(col.r, max(col.g, col.b));
             float minCh = min(col.r, min(col.g, col.b));
             float satBoost = uVibrance * (1.0 - (maxCh - minCh) * 0.70);
@@ -4613,8 +4627,8 @@
   function updateAirMotesBatch(dt, show, mode) {
     _motePoints.visible = show;
     if (!show) return;
-    _moteMat.opacity = mode === 'underwater' ? 0.50 : ((mode === 'sift' || mode === 'golden') ? 0.62 : 0.52);
-    _moteMat.size = mode === 'underwater' ? 0.06 : ((mode === 'golden' || mode === 'night') ? 0.095 : 0.075);
+    _moteMat.opacity = mode === 'underwater' ? 0.50 : ((mode === 'nether_crimson' || mode === 'nether_warped') ? 0.38 : ((mode === 'sift' || mode === 'golden') ? 0.62 : 0.52));
+    _moteMat.size = mode === 'underwater' ? 0.06 : ((mode === 'nether_crimson' || mode === 'nether_warped') ? 0.072 : ((mode === 'golden' || mode === 'night') ? 0.095 : 0.075));
     const needCol = (mode !== _lastMoteMode || mode === 'night' || mode === 'golden');
     const px = player.x, py = player.y, pz = player.z;
     for (let i = 0; i < _moteCount; i++) {
@@ -4637,10 +4651,16 @@
           else { _moteColArr[b] = 1.0; _moteColArr[b + 1] = 0.92; _moteColArr[b + 2] = 0.60; }
         }
       } else if (mode === 'nether_warped' || mode === 'nether_crimson') {
-        m.wy += dt * 0.48 * m.sp;
+        m.wy += dt * 0.36 * m.sp;
         if (needCol) {
-          if (mode === 'nether_warped') { _moteColArr[b] = 0.18; _moteColArr[b + 1] = 0.83; _moteColArr[b + 2] = 0.75; }
-          else { _moteColArr[b] = 1.0; _moteColArr[b + 1] = 0.48; _moteColArr[b + 2] = 0.16; }
+          if (mode === 'nether_warped') {
+            if ((i & 3) === 0) { _moteColArr[b] = 0.72; _moteColArr[b + 1] = 0.80; _moteColArr[b + 2] = 0.84; }
+            else { _moteColArr[b] = 0.24; _moteColArr[b + 1] = 0.82; _moteColArr[b + 2] = 0.76; }
+          } else {
+            // Subtle mix of light volcanic dust motes + warm rising lava-heat embers
+            if ((i & 1) === 0) { _moteColArr[b] = 0.84; _moteColArr[b + 1] = 0.68; _moteColArr[b + 2] = 0.58; }
+            else { _moteColArr[b] = 1.0; _moteColArr[b + 1] = 0.56; _moteColArr[b + 2] = 0.22; }
+          }
         }
       } else if (mode === 'dragon') {
         m.wy += Math.sin(m.ph) * dt * 0.24;
