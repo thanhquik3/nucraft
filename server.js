@@ -139,6 +139,60 @@ function sanitizePlayerKey(k) {
   return String(k || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
 }
 
+function _initPortalLinks(seed) {
+  const out = { portals: { overworld: [], nether: [], sift: [], warden: [], dragon_realm: [] }, siftReturn: null, wardenReturn: null, dragonRealmReturn: null };
+  if (!seed || typeof seed !== 'object') return out;
+  if (seed.portals && typeof seed.portals === 'object') {
+    for (const d of Object.keys(out.portals)) {
+      if (!Array.isArray(seed.portals[d])) continue;
+      for (const p of seed.portals[d]) {
+        if (p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y)) && Number.isFinite(Number(p.z))) {
+          out.portals[d].push({ x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z), b: Number(p.b) || 0 });
+        }
+      }
+      if (out.portals[d].length > 32) out.portals[d] = out.portals[d].slice(-32);
+    }
+  }
+  if (seed.siftReturn && Number.isFinite(Number(seed.siftReturn.x)) && Number.isFinite(Number(seed.siftReturn.z))) {
+    out.siftReturn = { x: Math.floor(seed.siftReturn.x), y: Math.floor(seed.siftReturn.y || 0), z: Math.floor(seed.siftReturn.z) };
+  }
+  if (seed.wardenReturn && Number.isFinite(Number(seed.wardenReturn.x)) && Number.isFinite(Number(seed.wardenReturn.z))) {
+    out.wardenReturn = { x: Math.floor(seed.wardenReturn.x), y: Math.floor(seed.wardenReturn.y || 0), z: Math.floor(seed.wardenReturn.z), depthOffset: Number(seed.wardenReturn.depthOffset) || 0 };
+  }
+  if (seed.dragonRealmReturn && Number.isFinite(Number(seed.dragonRealmReturn.x)) && Number.isFinite(Number(seed.dragonRealmReturn.z))) {
+    out.dragonRealmReturn = { dim: String(seed.dragonRealmReturn.dim || 'end'), x: Math.floor(seed.dragonRealmReturn.x), y: Math.floor(seed.dragonRealmReturn.y || 0), z: Math.floor(seed.dragonRealmReturn.z), depthOffset: Number(seed.dragonRealmReturn.depthOffset) || 0 };
+  }
+  return out;
+}
+
+function _mergeServerPortalLink(room, link) {
+  if (!room) return;
+  if (!room.portalLinks) room.portalLinks = _initPortalLinks();
+  if (!link || typeof link !== 'object') return;
+  const pl = room.portalLinks;
+  if (link.kind === 'portal') {
+    const d = String(link.dim || '');
+    if (!pl.portals[d]) return;
+    const fx = Math.floor(Number(link.x)), fy = Math.floor(Number(link.y)), fz = Math.floor(Number(link.z)), fb = Number(link.b) || 0;
+    if (!Number.isFinite(fx) || !Number.isFinite(fy) || !Number.isFinite(fz)) return;
+    const arr = pl.portals[d];
+    for (let i = 0; i < arr.length; i++) {
+      if (Math.hypot(arr[i].x - fx, arr[i].z - fz) < 6 && (!arr[i].b || !fb || arr[i].b === fb)) {
+        arr[i] = { x: fx, y: fy, z: fz, b: fb || arr[i].b || 0 };
+        return;
+      }
+    }
+    arr.push({ x: fx, y: fy, z: fz, b: fb });
+    if (arr.length > 32) arr.shift();
+  } else if (link.kind === 'sift_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+    pl.siftReturn = { x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z) };
+  } else if (link.kind === 'warden_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+    pl.wardenReturn = { x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z), depthOffset: Number(link.depthOffset) || 0 };
+  } else if (link.kind === 'dragon_realm_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+    pl.dragonRealmReturn = { dim: String(link.dim || 'end'), x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z), depthOffset: Number(link.depthOffset) || 0 };
+  }
+}
+
 function serializeRoomsSnapshot() {
   const out = [];
   for (const r of rooms.values()) {
@@ -154,6 +208,8 @@ function serializeRoomsSnapshot() {
       activeWeatherKind: r.activeWeatherKind || 'clear',
       ruinOriginX: r.ruinOriginX || 0,
       ruinOriginZ: r.ruinOriginZ || 0,
+      spawnPos: r.spawnPos || null,
+      portalLinks: r.portalLinks || null,
       modVer: r.modVer || 0,
       mods: Array.from(r.mods.entries()).slice(-120000),
       chests: Array.from(r.chests.entries()),
@@ -203,6 +259,8 @@ function scheduleRoomsSave() {
         activeWeatherKind: s.activeWeatherKind || 'clear',
         ruinOriginX: Number(s.ruinOriginX) || 0,
         ruinOriginZ: Number(s.ruinOriginZ) || 0,
+        spawnPos: (s.spawnPos && Number.isFinite(Number(s.spawnPos.x))) ? s.spawnPos : null,
+        portalLinks: _initPortalLinks(s.portalLinks),
         modVer: Number(s.modVer) || 0,
         modLog: [],
         mods: new Map(Array.isArray(s.mods) ? s.mods.map(e => [String(e[0]), Number(e[1]) || 0]) : []),
@@ -366,6 +424,10 @@ function handleMessage(peer, msg) {
       activeWeatherKind: msg.activeWeatherKind || 'clear',
       ruinOriginX: Number(msg.ruinOriginX) || 0,
       ruinOriginZ: Number(msg.ruinOriginZ) || 0,
+      spawnPos: (msg.spawnPos && Number.isFinite(Number(msg.spawnPos.x)) && Number.isFinite(Number(msg.spawnPos.z)))
+        ? { x: Number(msg.spawnPos.x), y: Number(msg.spawnPos.y) || 14, z: Number(msg.spawnPos.z), yaw: Number(msg.spawnPos.yaw) || 0 }
+        : null,
+      portalLinks: (!reusePrev && msg.portalLinks) ? _initPortalLinks(msg.portalLinks) : _initPortalLinks(),
       modVer: 0,
       modLog: [],
       mods: new Map(),
@@ -382,6 +444,10 @@ function handleMessage(peer, msg) {
     if (!room.furnaces) room.furnaces = new Map();
     if (!room.doors) room.doors = new Map();
     if (!room.modLog) room.modLog = [];
+    if (!room.portalLinks) room.portalLinks = _initPortalLinks(msg.portalLinks);
+    if (!room.spawnPos && msg.spawnPos && Number.isFinite(Number(msg.spawnPos.x)) && Number.isFinite(Number(msg.spawnPos.z))) {
+      room.spawnPos = { x: Number(msg.spawnPos.x), y: Number(msg.spawnPos.y) || 14, z: Number(msg.spawnPos.z), yaw: Number(msg.spawnPos.yaw) || 0 };
+    }
     const hasServerState = !!(reusePrev && (room.peers.size > 0 || room.mods.size > 0 || room.chests.size > 0 || room.consumedChests.size > 0 || room.furnaces.size > 0));
     peer._skipInitModsPush = hasServerState;
     const hasLiveHost = !!(reusePrev && room.hostId && room.hostId !== peer.id && room.peers.has(room.hostId));
@@ -430,7 +496,8 @@ function handleMessage(peer, msg) {
       reusePrev: hasServerState,
       modVer: room.modVer || 0,
       hostId: room.hostId,
-      world: { seed: room.seed, worldName: room.worldName, mode: room.mode, biome: room.biome, preset: room.preset, dayTime: room.dayTime, weatherMode: room.weatherMode, activeWeatherKind: room.activeWeatherKind, ruinOriginX: room.ruinOriginX, ruinOriginZ: room.ruinOriginZ },
+      world: { seed: room.seed, worldName: room.worldName, mode: room.mode, biome: room.biome, preset: room.preset, dayTime: room.dayTime, weatherMode: room.weatherMode, activeWeatherKind: room.activeWeatherKind, ruinOriginX: room.ruinOriginX, ruinOriginZ: room.ruinOriginZ, spawnPos: room.spawnPos || null },
+      portalLinks: room.portalLinks || null,
       mods: inlineMods,
       modsTotal: allMods.length,
       chests: Array.from(room.chests.entries()),
@@ -493,7 +560,8 @@ function handleMessage(peer, msg) {
       rejoin: isRejoin,
       modVer: room.modVer || 0,
       hostId: room.hostId,
-      world: { seed: room.seed, worldName: room.worldName, mode: room.mode, biome: room.biome, preset: room.preset, dayTime: room.dayTime, weatherMode: room.weatherMode, activeWeatherKind: room.activeWeatherKind, ruinOriginX: room.ruinOriginX, ruinOriginZ: room.ruinOriginZ },
+      world: { seed: room.seed, worldName: room.worldName, mode: room.mode, biome: room.biome, preset: room.preset, dayTime: room.dayTime, weatherMode: room.weatherMode, activeWeatherKind: room.activeWeatherKind, ruinOriginX: room.ruinOriginX, ruinOriginZ: room.ruinOriginZ, spawnPos: room.spawnPos || null },
+      portalLinks: room.portalLinks || null,
       mods: inlineMods,
       modsTotal: allMods.length,
       chests: Array.from(room.chests.entries()),
@@ -728,9 +796,15 @@ function handleMessage(peer, msg) {
     if (room.furnaces) room.furnaces.delete(fk);
     broadcastRoom(room, { type: 'furnace_break', peerId: peer.id, key: fk }, peer.id);
     scheduleRoomsSave();
-  } else if ((msg.type === 'door_toggle' || msg.type === 'weather_sync' || msg.type === 'explosion' || msg.type === 'tnt_spawn' || msg.type === 'projectile_spawn' || msg.type === 'lightning_fx' || msg.type === 'time_sync' || msg.type === 'world_action' || msg.type === 'ruin_origin') && peer.roomId) {
+  } else if ((msg.type === 'door_toggle' || msg.type === 'weather_sync' || msg.type === 'explosion' || msg.type === 'tnt_spawn' || msg.type === 'projectile_spawn' || msg.type === 'lightning_fx' || msg.type === 'time_sync' || msg.type === 'world_action' || msg.type === 'ruin_origin' || msg.type === 'portal_link') && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
+    if (msg.type === 'portal_link') {
+      _mergeServerPortalLink(room, msg.link || msg);
+      broadcastRoom(room, { ...msg, peerId: peer.id, ver: room.modVer }, peer.id);
+      scheduleRoomsSave();
+      return;
+    }
     if (msg.type === 'world_action') {
       if (msg.action === 'sleep_dawn') {
         room.dayTime = 0.28;

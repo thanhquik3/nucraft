@@ -1276,7 +1276,8 @@
       ...extraFields,
       roomId: activeRoomId,
       hostId: localPeerId,
-      world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
+      world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, spawnPos: (typeof window !== 'undefined' && window._worldSpawnPos) || null, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
+      portalLinks: (typeof exportPortalLinksState === 'function') ? exportPortalLinksState() : null,
       dayTime,
       chests: cData.chests || [],
       consumedChests: cData.consumedLoot || [],
@@ -1577,6 +1578,10 @@
       _playExplosionFxAndLocalDamage(m.x, wy, m.z, m.radius || 3.2, m.baseDmg || 14, m.reason || 'Bạn bị nổ tung!', m.opt || null);
     }
   }
+  function broadcastPortalLink(link) {
+    if (!activeRoomId || !link || typeof link !== 'object') return;
+    sendCoopMsg({ type: 'portal_link', link });
+  }
   function _dispatchWorldSyncPacket(m, fromId = null) {
     if (!m || typeof m !== 'object') return false;
     if (m.type === 'block') {
@@ -1607,10 +1612,11 @@
       return true;
     }
     if (m.type === 'world_action') { _handleWorldAction(m, m.fromPeerId || fromId || m._from); return true; }
+    if (m.type === 'portal_link') { if (typeof applyRemotePortalLink === 'function') applyRemotePortalLink(m.link || m); return true; }
     return false;
   }
   function _getP2PRoomRelays(m) {
-    return (m.type === 'state' || m.type === 'block' || m.type === 'block_batch' || m.type === 'explosion' || m.type === 'tnt_spawn' || m.type === 'projectile_spawn' || m.type === 'lightning_fx' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'furnace_sync' || m.type === 'furnace_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'time_sync' || m.type === 'weather_sync' || m.type === 'mob_sync' || m.type === 'mob_hit' || m.type === 'mob_action' || m.type === 'mob_remove' || m.type === 'mob_player_hit' || m.type === 'world_action' || m.type === 'leave' || m.type === 'peer_leave');
+    return (m.type === 'state' || m.type === 'block' || m.type === 'block_batch' || m.type === 'explosion' || m.type === 'tnt_spawn' || m.type === 'projectile_spawn' || m.type === 'lightning_fx' || m.type === 'chat' || m.type === 'chest_sync' || m.type === 'chest_break' || m.type === 'furnace_sync' || m.type === 'furnace_break' || m.type === 'drop_batch' || m.type === 'drop_remove' || m.type === 'door_toggle' || m.type === 'time_sync' || m.type === 'weather_sync' || m.type === 'mob_sync' || m.type === 'mob_hit' || m.type === 'mob_action' || m.type === 'mob_remove' || m.type === 'mob_player_hit' || m.type === 'world_action' || m.type === 'portal_link' || m.type === 'leave' || m.type === 'peer_leave');
   }
   function handleIncomingP2PData(senderId, m, senderConn, viaTransport = 'p2p') {
     if (!m || typeof m !== 'object') return;
@@ -1717,7 +1723,7 @@
     if (m._to && m._to !== localPeerId) return;
     if (m.type === 'p2p_welcome') {
       if (!pendingJoinCb && activeRoomId && activeRoomId === (m.roomId || activeRoomId)) return;
-      const extra = { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer };
+      const extra = { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer, portalLinks: m.portalLinks };
       if (pendingJoinCb) {
         pendingJoinCb(viaTransport, m.roomId || activeRoomId, m.world, m.mods || [], m.peers || [], m.dayTime, extra);
       } else {
@@ -1863,7 +1869,8 @@
         const sp = m.playerKey ? (_hostSavedPlayers.get(String(m.playerKey)) || null) : null;
         bcChannel.postMessage({
           type: 'bc_join_ack', _from: localPeerId, _room: activeRoomId, target: m._from,
-          world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
+          world: { ...currentWorldMeta, ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ, spawnPos: (typeof window !== 'undefined' && window._worldSpawnPos) || null, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear' },
+          portalLinks: (typeof exportPortalLinksState === 'function') ? exportPortalLinksState() : null,
           dayTime, mods: modsArr, hostName: localPlayerName,
           hostSkinId: selectedSkinId,
           hostState: { dim: currentDimension, depthOffset: depthOffset || 0, x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z },
@@ -1879,7 +1886,7 @@
       } else if (m.type === 'bc_join_ack' && m.target === localPeerId) {
         if (!pendingJoinCb && activeRoomId === m._room) return;
         const peers = [{ peerId: m._from, name: m.hostName, color: '#38bdf8', skinId: m.hostSkinId, state: m.hostState }];
-        const extra = { hostId: m._from, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer };
+        const extra = { hostId: m._from, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer, portalLinks: m.portalLinks };
         if (pendingJoinCb) {
           pendingJoinCb('bc', m._room, m.world, m.mods || [], peers, m.dayTime, extra);
         } else {
@@ -1918,6 +1925,11 @@
           _ruinOriginX = w.ruinOriginX; _ruinOriginZ = w.ruinOriginZ;
           _ruinLocSeed = -1; _shLocSeed = -1; _acLocSeed = -1;
         }
+        if (w.spawnPos && Number.isFinite(Number(w.spawnPos.x)) && Number.isFinite(Number(w.spawnPos.z))) {
+          window._worldSpawnPos = { x: Number(w.spawnPos.x), y: Number.isFinite(Number(w.spawnPos.y)) ? Number(w.spawnPos.y) : undefined, z: Number(w.spawnPos.z), yaw: Number(w.spawnPos.yaw) || 0 };
+        } else if (typeof w.ruinOriginX === 'number' && typeof w.ruinOriginZ === 'number') {
+          window._worldSpawnPos = { x: w.ruinOriginX + 0.5, z: w.ruinOriginZ + 0.5, yaw: 0 };
+        }
         if (typeof w.weatherMode === 'string') weatherMode = w.weatherMode;
         if (typeof applyRemoteWeatherSync === 'function' && (w.weatherMode || w.activeWeatherKind)) applyRemoteWeatherSync(w);
         _clearWorldInteractiveCaches(false, false);
@@ -1926,6 +1938,7 @@
         } finally { window._awaitingJoinReset = false; }
         for (const [k, v] of allIncomingMods) { worldMods.set(k, v); indexWorldModKey(k, v); }
         if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
+        if (extra.portalLinks && typeof applyPortalLinksState === 'function') applyPortalLinksState(extra.portalLinks);
         if (typeof restoreChestData === 'function') {
           restoreChestData({ chests: extra.chests || [], consumedLoot: extra.consumedChests || [] });
         }
@@ -2059,6 +2072,8 @@
                 seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
                 preset: shaderPreset, dayTime, weatherMode,
                 ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ,
+                spawnPos: (typeof window !== 'undefined' && window._worldSpawnPos) || null,
+                portalLinks: (typeof exportPortalLinksState === 'function') ? exportPortalLinksState() : null,
                 chests: cData.chests || [], consumedChests: cData.consumedLoot || [], furnaces: fData, doors: _serializeDoorsForWelcome(),
                 mods: allMods.slice(0, 2500)
               }));
@@ -2098,7 +2113,7 @@
           _wsJoinedRoomId = msg.roomId || '';
           _wsRoomHostId = msg.hostId || (msg.isHost ? msg.peerId : '');
           if (typeof msg.modVer === 'number') _lastWsModVer = msg.modVer;
-          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, rejoin: !!msg.rejoin, reusePrev: !!msg.reusePrev, modVer: msg.modVer, chests: msg.chests, consumedChests: msg.consumedChests, furnaces: msg.furnaces, doors: msg.doors, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer };
+          const joinExtra = { hostId: _wsRoomHostId, isHost: !!msg.isHost, rejoin: !!msg.rejoin, reusePrev: !!msg.reusePrev, modVer: msg.modVer, chests: msg.chests, consumedChests: msg.consumedChests, furnaces: msg.furnaces, doors: msg.doors, drops: msg.drops, mobsByDim: msg.mobsByDim, savedPlayer: msg.savedPlayer, portalLinks: msg.portalLinks };
           if (pendingJoinCb) {
             pendingJoinCb('ws', msg.roomId, msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
           } else if (!msg.isHost || msg.reusePrev) {
@@ -2109,6 +2124,10 @@
               applyJoinedWorld(msg.world, msg.mods, msg.peers, msg.world && msg.world.dayTime, joinExtra);
             } else {
               if (msg.world && typeof msg.world.dayTime === 'number') dayTime = msg.world.dayTime;
+              if (msg.world && msg.world.spawnPos && Number.isFinite(Number(msg.world.spawnPos.x)) && Number.isFinite(Number(msg.world.spawnPos.z))) {
+                window._worldSpawnPos = { x: Number(msg.world.spawnPos.x), y: Number.isFinite(Number(msg.world.spawnPos.y)) ? Number(msg.world.spawnPos.y) : (window._worldSpawnPos && window._worldSpawnPos.y), z: Number(msg.world.spawnPos.z), yaw: Number(msg.world.spawnPos.yaw) || 0 };
+              }
+              if (msg.portalLinks && typeof applyPortalLinksState === 'function') applyPortalLinksState(msg.portalLinks);
               if (msg.world && typeof applyRemoteWeatherSync === 'function' && (msg.world.weatherMode || msg.world.activeWeatherKind)) applyRemoteWeatherSync(msg.world);
               if (Array.isArray(msg.mods) && msg.mods.length && (msg.reusePrev || worldMods.size === 0 || msg.rejoin)) applyModsChunkList(msg.mods);
               if (typeof restoreChestData === 'function' && msg.reusePrev) restoreChestData({ chests: msg.chests || [], consumedLoot: msg.consumedChests || [] });
@@ -2219,7 +2238,7 @@
               }
             }
           }
-        } else if (msg.type === 'block' || msg.type === 'block_batch' || msg.type === 'explosion' || msg.type === 'tnt_spawn' || msg.type === 'projectile_spawn' || msg.type === 'lightning_fx' || msg.type === 'chest_sync' || msg.type === 'chest_break' || msg.type === 'furnace_sync' || msg.type === 'furnace_break' || msg.type === 'door_toggle' || msg.type === 'time_sync' || msg.type === 'weather_sync' || msg.type === 'world_action') {
+        } else if (msg.type === 'block' || msg.type === 'block_batch' || msg.type === 'explosion' || msg.type === 'tnt_spawn' || msg.type === 'projectile_spawn' || msg.type === 'lightning_fx' || msg.type === 'chest_sync' || msg.type === 'chest_break' || msg.type === 'furnace_sync' || msg.type === 'furnace_break' || msg.type === 'door_toggle' || msg.type === 'time_sync' || msg.type === 'weather_sync' || msg.type === 'world_action' || msg.type === 'portal_link') {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId && (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId)) return;
           _dispatchWorldSyncPacket(msg, msg.peerId || msg.fromPeerId || _wsRoomHostId);
@@ -2389,6 +2408,8 @@
           seed: worldSeed, worldName: currentWorldMeta.name, mode: gameMode, biome: currentWorldMeta.biome,
           preset: shaderPreset, dayTime, weatherMode, activeWeatherKind: typeof activeWeatherKind === 'string' ? activeWeatherKind : 'clear',
           ruinOriginX: _ruinOriginX, ruinOriginZ: _ruinOriginZ,
+          spawnPos: (typeof window !== 'undefined' && window._worldSpawnPos) || null,
+          portalLinks: (typeof exportPortalLinksState === 'function') ? exportPortalLinksState() : null,
           chests: cData.chests || [], consumedChests: cData.consumedLoot || [],
           furnaces: fData, doors: _serializeDoorsForWelcome(),
           state: { dim: currentDimension, depthOffset: depthOffset || 0, x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z, yaw: player.yaw, pitch: player.pitch },
@@ -2529,7 +2550,7 @@
         if (m._to && m._to !== localPeerId) return;
         if (m._exclude && m._exclude === localPeerId) return;
         if (m.type === 'p2p_welcome') {
-          completeJoinOnce('mqtt', m.roomId || roomId, m.world, m.mods || [], m.peers || [], m.dayTime, { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer });
+          completeJoinOnce('mqtt', m.roomId || roomId, m.world, m.mods || [], m.peers || [], m.dayTime, { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, furnaces: m.furnaces, doors: m.doors, drops: m.drops, mobsDim: m.mobsDim, mobs: m.mobs, savedPlayer: m.savedPlayer, portalLinks: m.portalLinks });
           return;
         }
         if (joinedOk && activeCoopTransport === 'mqtt') handleIncomingP2PData(m._from, m, null, 'mqtt');

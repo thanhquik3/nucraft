@@ -6321,15 +6321,20 @@
     if (inDragonRealmPortal && _portalCooldown <= 0 && !isWorldLoading) {
       _portalCooldown = 4.5;
       if (currentDimension === 'dragon_realm') {
-        const retDim = window.lastDragonRealmPrevDim || 'end';
+        const retPos = window.lastDragonRealmReturnPos || null;
+        const retDim = (retPos && retPos.dim) || window.lastDragonRealmPrevDim || 'end';
         showWorldLoadingOverlay(
           'Đang tải thế giới',
           'Đang rời Thế Giới Rồng The End...',
-          () => switchDimension(retDim, '🌌 Đã quay về qua Cổng Thế Giới Rồng!'),
+          () => switchDimension(retDim, '🌌 Đã quay về qua Cổng Thế Giới Rồng!', (retDim === 'overworld' && retPos) ? { returnFromDragonRealm: true, portalCoords: retPos } : null),
           { badge: retDim.toUpperCase() }
         );
       } else {
+        const ancDR = (typeof _getCanonicalPortalAnchor === 'function') ? _getCanonicalPortalAnchor(player.x, player.y, player.z, B.DRAGON_REALM_PORTAL) : { x: Math.floor(player.x), y: Math.floor(player.y), z: Math.floor(player.z) };
         window.lastDragonRealmPrevDim = currentDimension;
+        window.lastDragonRealmReturnPos = { dim: currentDimension, x: ancDR.x, y: Math.floor(ancDR.y - (depthOffset || 0)), z: ancDR.z, depthOffset: depthOffset || 0 };
+        if (typeof _recordPortalPos === 'function') _recordPortalPos(currentDimension, ancDR.x, ancDR.y, ancDR.z, B.DRAGON_REALM_PORTAL, true);
+        if (typeof broadcastPortalLink === 'function') broadcastPortalLink({ kind: 'dragon_realm_return', ...window.lastDragonRealmReturnPos });
         showWorldLoadingOverlay(
           'Đang tải Thế Giới Rồng The End',
           'Đang bước qua Cổng Rồng vào chiều không gian Rồng The End...',
@@ -6347,7 +6352,10 @@
           { badge: 'OVERWORLD' }
         );
       } else {
-        window.lastWardenOverworldPos = { x: Math.floor(player.x), y: Math.floor(player.y - (depthOffset || 0)), z: Math.floor(player.z), depthOffset: depthOffset || 0 };
+        const ancW = (typeof _getCanonicalPortalAnchor === 'function') ? _getCanonicalPortalAnchor(player.x, player.y, player.z, B.WARDEN_PORTAL) : { x: Math.floor(player.x), y: Math.floor(player.y), z: Math.floor(player.z) };
+        window.lastWardenOverworldPos = { x: ancW.x, y: Math.floor(ancW.y - (depthOffset || 0)), z: ancW.z, depthOffset: depthOffset || 0 };
+        if (typeof _recordPortalPos === 'function') _recordPortalPos(currentDimension, ancW.x, ancW.y, ancW.z, B.WARDEN_PORTAL, true);
+        if (typeof broadcastPortalLink === 'function') broadcastPortalLink({ kind: 'warden_return', dim: 'overworld', ...window.lastWardenOverworldPos });
         showWorldLoadingOverlay(
           'Đang tải thế giới',
           'Đang tiến vào Thế Giới Cổ Thành Warden...',
@@ -6368,7 +6376,10 @@
           { badge: 'OVERWORLD' }
         );
       } else {
-        lastSiftOverworldPos = { x: Math.floor(player.x), z: Math.floor(player.z) };
+        const ancS = (typeof _getCanonicalPortalAnchor === 'function') ? _getCanonicalPortalAnchor(player.x, player.y, player.z, B.DREAM_PORTAL) : { x: Math.floor(player.x), y: Math.floor(player.y), z: Math.floor(player.z) };
+        lastSiftOverworldPos = { x: ancS.x, y: ancS.y, z: ancS.z };
+        if (typeof _recordPortalPos === 'function') _recordPortalPos(currentDimension, ancS.x, ancS.y, ancS.z, B.DREAM_PORTAL, true);
+        if (typeof broadcastPortalLink === 'function') broadcastPortalLink({ kind: 'sift_return', dim: 'overworld', x: ancS.x, y: ancS.y, z: ancS.z });
         showWorldLoadingOverlay(
           'Đang tải thế giới',
           'Đang bước vào Khu Giấc Mơ (The Sift)...',
@@ -6948,10 +6959,12 @@
       }
       if (curTrueY < -1010.5) {
         if (currentDimension === 'overworld') {
+          const rawX = Math.round(player.x / 8), rawZ = Math.round(player.z / 8);
+          const linked = (typeof _findNearestPortal === 'function') ? _findNearestPortal('nether', rawX, rawZ, 16, B.NETHER_PORTAL) : null;
           showWorldLoadingOverlay(
             'Đang tải thế giới',
             'Đào sâu đủ -1000m — Đang dựng địa hình Địa Ngục (The Nether)...',
-            () => switchDimension('nether', '🔥 ĐÀO SÂU ĐỦ -1000 BLOCK! Bạn đã xuyên thủng xuống ĐỊA NGỤC (THE NETHER)!'),
+            () => switchDimension('nether', '🔥 ĐÀO SÂU ĐỦ -1000 BLOCK! Bạn đã xuyên thủng xuống ĐỊA NGỤC (THE NETHER)!', { portalCoords: { x: linked ? linked.x : rawX, z: linked ? linked.z : rawZ, y: linked ? linked.y : null } }),
             { badge: 'THE NETHER' }
           );
           return;

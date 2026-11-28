@@ -10965,7 +10965,7 @@
         }
       });
       if (typeof _recordPortalPos === 'function' && (currentDimension === 'overworld' || currentDimension === 'nether')) {
-        _recordPortalPos(currentDimension, lx, by, lz);
+        _recordPortalPos(currentDimension, lx, by, lz, B.NETHER_PORTAL, true);
       }
       spawnParticles(lx + dx * (w * 0.5) + 0.5, by + h * 0.5, lz + dz * (w * 0.5) + 0.5, 0xc084fc, 28, true);
       playSfx('roar');
@@ -11017,7 +11017,7 @@
             setBlockWorld(lx + dx * u, by + v, lz + dz * u, B.WARDEN_PORTAL, true);
           }
         });
-        _recordPortalPos(currentDimension, lx, by, lz);
+        _recordPortalPos(currentDimension, lx, by, lz, B.WARDEN_PORTAL, true);
         spawnParticles(lx + dx * (w * 0.5) + 0.5, by + h * 0.5, lz + dz * (w * 0.5) + 0.5, 0x22d3ee, 32, true);
         playSfx('roar');
         showToast('🩵 CỔNG WARDEN CỔ ĐẠI ĐÃ MỞ! Bước vào để tiến tới Thế Giới Warden!');
@@ -11070,24 +11070,157 @@
     }
   }
 
-  let dimensionPortals = { overworld: [], nether: [], sift: [], warden: [] };
+  let dimensionPortals = { overworld: [], nether: [], sift: [], warden: [], dragon_realm: [] };
   let lastSiftOverworldPos = null;
-  function _recordPortalPos(dim, x, y, z) {
-    const arr = dimensionPortals[dim]; if (!arr) return;
-    const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
-    for (let i = 0; i < arr.length; i++) {
-      if (Math.hypot(arr[i].x - fx, arr[i].z - fz) < 8) { arr[i].y = fy; return; }
+  let _portalReturnLinks = { siftReturn: null, wardenReturn: null, dragonRealmReturn: null };
+  function _getCanonicalPortalAnchor(sx, sy, sz, portalBlockId) {
+    const ix = Math.floor(sx), iy = Math.floor(sy), iz = Math.floor(sz);
+    let seed = null;
+    const dirs = [[0,0,0],[0,1,0],[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];
+    for (let i = 0; i < dirs.length; i++) {
+      const tx = ix + dirs[i][0], ty = iy + dirs[i][1], tz = iz + dirs[i][2];
+      if (getBlockWorld(tx, ty, tz) === portalBlockId) { seed = [tx, ty, tz]; break; }
     }
-    arr.push({ x: fx, y: fy, z: fz });
+    if (!seed) {
+      const hit = _findBlockInBox(ix, iy, iz, 1, 1, 2, 1, portalBlockId);
+      if (hit) seed = [hit.x, hit.y, hit.z];
+    }
+    if (!seed) return { x: ix, y: iy, z: iz, found: false };
+    const seen = new Set([`${seed[0]},${seed[1]},${seed[2]}`]);
+    const queue = [seed];
+    let best = { x: seed[0], y: seed[1], z: seed[2] };
+    while (queue.length > 0 && seen.size < 96) {
+      const [cx, cy, cz] = queue.shift();
+      if (cy < best.y || (cy === best.y && (cx < best.x || (cx === best.x && cz < best.z)))) {
+        best = { x: cx, y: cy, z: cz };
+      }
+      for (let i = 1; i < dirs.length; i++) {
+        const nx = cx + dirs[i][0], ny = cy + dirs[i][1], nz = cz + dirs[i][2];
+        const k = `${nx},${ny},${nz}`;
+        if (!seen.has(k) && getBlockWorld(nx, ny, nz) === portalBlockId) {
+          seen.add(k);
+          queue.push([nx, ny, nz]);
+        }
+      }
+    }
+    return { x: best.x, y: best.y, z: best.z, found: true };
   }
-  function _findNearestPortal(dim, tx, tz, maxR) {
-    const arr = dimensionPortals[dim] || [];
-    let best = null, bestD = maxR + 0.001;
+  function _recordPortalPos(dim, x, y, z, blockId = B.NETHER_PORTAL, broadcast = false) {
+    const d = dim || 'overworld';
+    const arr = dimensionPortals[d] || (dimensionPortals[d] = []);
+    const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z), fb = Number(blockId) || 0;
+    let matched = false;
     for (let i = 0; i < arr.length; i++) {
-      const d = Math.hypot(arr[i].x - tx, arr[i].z - tz);
-      if (d <= bestD) { bestD = d; best = arr[i]; }
+      if (Math.hypot(arr[i].x - fx, arr[i].z - fz) < 6 && (!arr[i].b || !fb || arr[i].b === fb)) {
+        arr[i].x = fx; arr[i].y = fy; arr[i].z = fz;
+        if (fb) arr[i].b = fb;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      arr.push({ x: fx, y: fy, z: fz, b: fb });
+      if (arr.length > 32) arr.shift();
+    }
+    if (broadcast && typeof broadcastPortalLink === 'function') {
+      broadcastPortalLink({ kind: 'portal', dim: d, x: fx, y: fy, z: fz, b: fb });
+    }
+  }
+  function _findNearestPortal(dim, tx, tz, maxR, portalBlockId = B.NETHER_PORTAL) {
+    const d = dim || 'overworld';
+    const cands = [];
+    const arr = dimensionPortals[d] || [];
+    for (let i = 0; i < arr.length; i++) {
+      const p = arr[i];
+      if (!p || (p.b && p.b !== portalBlockId)) continue;
+      if (d === currentDimension && chunks.has(chunkKey(p.x >> 4, p.z >> 4))) {
+        if (!_findBlockInBox(p.x, p.y, p.z, 2, 2, 2, 2, portalBlockId)) continue;
+      }
+      cands.push({ x: p.x, y: p.y, z: p.z });
+    }
+    if (typeof worldMods !== 'undefined' && worldMods && worldMods.size > 0) {
+      const pref = (d === 'overworld') ? '' : (d + ':');
+      const clusters = [];
+      for (const [k, v] of worldMods.entries()) {
+        if (v !== portalBlockId) continue;
+        if (d === 'overworld') { if (k.indexOf(':') !== -1) continue; }
+        else if (!k.startsWith(pref)) continue;
+        const raw = pref ? k.slice(pref.length) : k;
+        const parts = raw.split(',');
+        if (parts.length !== 3) continue;
+        const px = Number(parts[0]), py = Number(parts[1]), pz = Number(parts[2]);
+        if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) continue;
+        if (Math.hypot(px - tx, pz - tz) > maxR) continue;
+        let cl = null;
+        for (let ci = 0; ci < clusters.length; ci++) {
+          const c = clusters[ci];
+          if (Math.abs(c.x - px) <= 4 && Math.abs(c.z - pz) <= 4 && Math.abs(c.y - py) <= 8) { cl = c; break; }
+        }
+        if (!cl) clusters.push({ x: px, y: py, z: pz });
+        else if (py < cl.y || (py === cl.y && (px < cl.x || (px === cl.x && pz < cl.z)))) { cl.x = px; cl.y = py; cl.z = pz; }
+      }
+      for (let ci = 0; ci < clusters.length; ci++) {
+        const cl = clusters[ci];
+        if (!cands.some(c => Math.hypot(c.x - cl.x, c.z - cl.z) < 6 && Math.abs(c.y - cl.y) <= 8)) cands.push(cl);
+      }
+    }
+    let best = null, bestD = maxR + 0.001;
+    for (let i = 0; i < cands.length; i++) {
+      const c = cands[i];
+      const dist = Math.hypot(c.x - tx, c.z - tz);
+      if (dist <= maxR && (dist < bestD - 1e-6 || (Math.abs(dist - bestD) <= 1e-6 && best && (c.y < best.y || (c.y === best.y && (c.x < best.x || (c.x === best.x && c.z < best.z))))))) {
+        bestD = dist;
+        best = c;
+      }
     }
     return best;
+  }
+  function exportPortalLinksState() {
+    const portalsOut = {};
+    for (const d of Object.keys(dimensionPortals)) portalsOut[d] = dimensionPortals[d].slice(-32);
+    return {
+      portals: portalsOut,
+      siftReturn: lastSiftOverworldPos || _portalReturnLinks.siftReturn || null,
+      wardenReturn: (typeof window !== 'undefined' && window.lastWardenOverworldPos) || _portalReturnLinks.wardenReturn || null,
+      dragonRealmReturn: (typeof window !== 'undefined' && window.lastDragonRealmReturnPos) || _portalReturnLinks.dragonRealmReturn || null
+    };
+  }
+  function applyRemotePortalLink(link) {
+    if (!link || typeof link !== 'object') return;
+    if (link.kind === 'portal') {
+      if (Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.y)) && Number.isFinite(Number(link.z))) {
+        _recordPortalPos(link.dim || 'overworld', link.x, link.y, link.z, link.b || B.NETHER_PORTAL, false);
+      }
+    } else if (link.kind === 'sift_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+      const p = { x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z) };
+      _portalReturnLinks.siftReturn = p;
+      lastSiftOverworldPos = { ...p };
+    } else if (link.kind === 'warden_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+      const p = { x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z), depthOffset: Number(link.depthOffset) || 0 };
+      _portalReturnLinks.wardenReturn = p;
+      window.lastWardenOverworldPos = { ...p };
+    } else if (link.kind === 'dragon_realm_return' && Number.isFinite(Number(link.x)) && Number.isFinite(Number(link.z))) {
+      const p = { dim: String(link.dim || 'end'), x: Math.floor(link.x), y: Math.floor(link.y || 0), z: Math.floor(link.z), depthOffset: Number(link.depthOffset) || 0 };
+      _portalReturnLinks.dragonRealmReturn = p;
+      window.lastDragonRealmReturnPos = { ...p };
+      window.lastDragonRealmPrevDim = p.dim;
+    }
+  }
+  function applyPortalLinksState(pl) {
+    if (!pl || typeof pl !== 'object') return;
+    if (pl.portals && typeof pl.portals === 'object') {
+      for (const d of Object.keys(pl.portals)) {
+        if (!Array.isArray(pl.portals[d])) continue;
+        for (const p of pl.portals[d]) {
+          if (p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y)) && Number.isFinite(Number(p.z))) {
+            _recordPortalPos(d, p.x, p.y, p.z, p.b || B.NETHER_PORTAL, false);
+          }
+        }
+      }
+    }
+    if (pl.siftReturn) applyRemotePortalLink({ kind: 'sift_return', ...pl.siftReturn });
+    if (pl.wardenReturn) applyRemotePortalLink({ kind: 'warden_return', ...pl.wardenReturn });
+    if (pl.dragonRealmReturn) applyRemotePortalLink({ kind: 'dragon_realm_return', ...pl.dragonRealmReturn });
   }
 
   function buildArrivalNetherPortal(px, py, pz) {
@@ -11409,10 +11542,11 @@
   function teleportViaNetherPortal() {
     const fromOverworld = (currentDimension === 'overworld');
     const targetDim = fromOverworld ? 'nether' : 'overworld';
-    _recordPortalPos(currentDimension, player.x, player.y, player.z);
-    const rawX = fromOverworld ? Math.round(player.x / 8) : Math.round(player.x * 8);
-    const rawZ = fromOverworld ? Math.round(player.z / 8) : Math.round(player.z * 8);
-    const linked = _findNearestPortal(targetDim, rawX, rawZ, fromOverworld ? 16 : 128);
+    const srcA = _getCanonicalPortalAnchor(player.x, player.y, player.z, B.NETHER_PORTAL);
+    _recordPortalPos(currentDimension, srcA.x, srcA.y, srcA.z, B.NETHER_PORTAL, true);
+    const rawX = fromOverworld ? Math.round(srcA.x / 8) : Math.round(srcA.x * 8);
+    const rawZ = fromOverworld ? Math.round(srcA.z / 8) : Math.round(srcA.z * 8);
+    const linked = _findNearestPortal(targetDim, rawX, rawZ, fromOverworld ? 16 : 128, B.NETHER_PORTAL);
     const destX = linked ? linked.x : rawX;
     const destZ = linked ? linked.z : rawZ;
     const msg = fromOverworld
@@ -11604,39 +11738,51 @@
         cameraShake = 0.45;
         return;
       }
-      let sx = 0, sz = 0, sy = 10;
+      let sx = 0, sz = 0, sy = 10, hasTargetCoords = false;
       if (portalOpts && portalOpts.portalCoords) {
+        hasTargetCoords = true;
         sx = portalOpts.portalCoords.x;
         sz = portalOpts.portalCoords.z;
-        sy = Math.max(WATER_LEVEL + 3, Math.min(20, getTerrainHeight(sx, sz, getBiomeAt(sx, sz)) + 1));
+        sy = (typeof portalOpts.portalCoords.y === 'number' && Number.isFinite(portalOpts.portalCoords.y))
+          ? portalOpts.portalCoords.y
+          : Math.max(WATER_LEVEL + 3, Math.min(20, getTerrainHeight(sx, sz, getBiomeAt(sx, sz)) + 1));
       } else {
-        for (let r = 0; r <= 96; r += 4) {
-          let found = false;
-          for (let dz = -r; dz <= r && !found; dz += 4) for (let dx = -r; dx <= r && !found; dx += 4) {
-            const b = getBiomeAt(dx, dz);
-            const h = getTerrainHeight(dx, dz, b);
-            if ((b === BIOMES.NETHER_CRIMSON || b === BIOMES.NETHER_WARPED) && h >= 4 && h <= 16) { sx = dx; sz = dz; sy = h + 1.5; found = true; }
+        const sharedNeth = _findNearestPortal('nether', 0, 0, 100000, B.NETHER_PORTAL);
+        if (sharedNeth) {
+          hasTargetCoords = true;
+          sx = sharedNeth.x; sz = sharedNeth.z; sy = sharedNeth.y;
+        } else {
+          for (let r = 0; r <= 96; r += 4) {
+            let found = false;
+            for (let dz = -r; dz <= r && !found; dz += 4) for (let dx = -r; dx <= r && !found; dx += 4) {
+              const b = getBiomeAt(dx, dz);
+              const h = getTerrainHeight(dx, dz, b);
+              if ((b === BIOMES.NETHER_CRIMSON || b === BIOMES.NETHER_WARPED) && h >= 4 && h <= 16) { sx = dx; sz = dz; sy = h + 1.5; found = true; }
+            }
+            if (found) break;
           }
-          if (found) break;
         }
       }
       const scx = sx >> 4, scz = sz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      let lx = Math.floor(sx), lz = Math.floor(sz), ly = Math.max(WATER_LEVEL + 2, Math.floor(sy) - 1);
-      const existingNP = _findBlockInBox(lx, ly + 1, lz, 8, 5, 7, 8, B.NETHER_PORTAL);
+      let lx = Math.floor(sx), lz = Math.floor(sz);
+      let ly = (hasTargetCoords && portalOpts && portalOpts.portalCoords && typeof portalOpts.portalCoords.y === 'number' && Number.isFinite(portalOpts.portalCoords.y))
+        ? (Math.floor(portalOpts.portalCoords.y) - 1)
+        : Math.max(WATER_LEVEL + 2, Math.floor(sy) - 1);
+      const existingNP = _findBlockInBox(lx, ly + 1, lz, 10, 6, 8, 10, B.NETHER_PORTAL);
       if (existingNP) {
-        while (existingNP.y > MIN_Y + 3 && getBlockWorld(existingNP.x, existingNP.y - 1, existingNP.z) === B.NETHER_PORTAL) existingNP.y--;
-        lx = existingNP.x; lz = existingNP.z; ly = existingNP.y - 1;
+        const anc = _getCanonicalPortalAnchor(existingNP.x, existingNP.y, existingNP.z, B.NETHER_PORTAL);
+        lx = anc.x; lz = anc.z; ly = anc.y - 1;
         _runBatchedBlocks(() => {
           if (!isSolidAt(lx, ly, lz + 1)) setBlockWorld(lx, ly, lz + 1, B.OBSIDIAN, true);
           setBlockWorld(lx, ly + 1, lz + 1, B.AIR, true);
           setBlockWorld(lx, ly + 2, lz + 1, B.AIR, true);
         });
-        _recordPortalPos('nether', lx, ly + 1, lz);
+        _recordPortalPos('nether', lx, ly + 1, lz, B.NETHER_PORTAL, true);
         _portalCooldown = 4.5;
-      } else if (portalOpts && portalOpts.portalCoords) {
+      } else if (hasTargetCoords) {
         buildArrivalNetherPortal(lx, ly + 1, lz);
-        _recordPortalPos('nether', lx, ly + 1, lz);
+        _recordPortalPos('nether', lx, ly + 1, lz, B.NETHER_PORTAL, true);
         _portalCooldown = 4.5;
       } else {
         _runBatchedBlocks(() => {
@@ -11646,10 +11792,12 @@
           }
           buildArrivalNetherPortal(lx, ly + 1, lz - 6);
         });
-        _recordPortalPos('nether', lx, ly + 1, lz - 6);
+        lz = lz - 6;
+        _recordPortalPos('nether', lx, ly + 1, lz, B.NETHER_PORTAL, true);
+        _portalCooldown = 4.5;
       }
-      _rebuildStandingOnly(scx, scz);
-      player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + ((portalOpts && portalOpts.portalCoords || existingNP) ? 1.55 : 0.5); player.yaw = 0.0; player.pitch = -0.05;
+      _rebuildStandingOnly(lx >> 4, lz >> 4);
+      player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + 1.55; player.yaw = 0.0; player.pitch = -0.05;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       const restoredNeth = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('nether') : false;
       if (!restoredNeth && (typeof hasDimVisited !== 'function' || !hasDimVisited('nether'))) {
@@ -11750,17 +11898,44 @@
       mobSpawnTimer = restoredDrg ? 5.5 : 2.0;
       playSfx('roar');
       showToast(reasonToast || '🌌 CHÀO MỪNG TỚI THẾ GIỚI RỒNG THE END! Hạ Boss Tối Thượng 50 Skill tại (0, 136)!');
-    } else if (portalOpts && portalOpts.returnFromWarden) {
-      const wp = window.lastWardenOverworldPos || window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
-      const wpDepth = Number(wp && wp.depthOffset) || 0;
-      depthOffset = wpDepth;
-      const lx = Math.floor(wp.x || 0);
-      const lz = Math.floor(wp.z || 0);
+    } else if (portalOpts && portalOpts.returnFromDragonRealm) {
+      const dp = portalOpts.portalCoords || window.lastDragonRealmReturnPos || (_portalReturnLinks && _portalReturnLinks.dragonRealmReturn) || _findNearestPortal(targetDim, 0, 0, 100000, B.DRAGON_REALM_PORTAL) || window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
+      const dpDepth = Number(dp && dp.depthOffset) || 0;
+      depthOffset = dpDepth;
+      let lx = Math.floor(dp.x || 0), lz = Math.floor(dp.z || 0);
       const scx = lx >> 4, scz = lz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
-      const ly = (wp && typeof wp.y === 'number') ? (wp.y + wpDepth) : Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
-      const hasNearby = !!_findBlockInBox(lx, ly + 2, lz, 14, 7, 8, 14, B.WARDEN_PORTAL);
-      if (!hasNearby) {
+      let ly = (dp && typeof dp.y === 'number') ? (dp.y + dpDepth) : Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
+      let drP = _findBlockInBox(lx, ly + 2, lz, 14, 6, 8, 14, B.DRAGON_REALM_PORTAL);
+      if (!drP) {
+        buildDragonRealmPortal(lx, Math.max(MIN_Y + 2, ly - 1), lz);
+        drP = _findBlockInBox(lx, ly + 2, lz, 6, 4, 6, 6, B.DRAGON_REALM_PORTAL);
+      }
+      const anc = drP ? _getCanonicalPortalAnchor(drP.x, drP.y, drP.z, B.DRAGON_REALM_PORTAL) : { x: lx, y: ly, z: lz };
+      lx = anc.x; ly = anc.y; lz = anc.z;
+      _runBatchedBlocks(() => {
+        if (!isSolidAt(lx, ly - 1, lz + 3)) setBlockWorld(lx, ly - 1, lz + 3, B.OBSIDIAN, true);
+        setBlockWorld(lx, ly, lz + 3, B.AIR, true);
+        setBlockWorld(lx, ly + 1, lz + 3, B.AIR, true);
+      });
+      _recordPortalPos(targetDim, lx, ly, lz, B.DRAGON_REALM_PORTAL, true);
+      _portalCooldown = 4.5;
+      _rebuildStandingOnly(lx >> 4, (lz + 3) >> 4);
+      player.x = lx + 0.5; player.y = ly + 0.2; player.z = lz + 3.5; player.yaw = 0.0; player.pitch = 0.02;
+      player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+      if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs(targetDim);
+      playSfx('roar');
+      if (reasonToast) showToast(reasonToast);
+    } else if (portalOpts && portalOpts.returnFromWarden) {
+      const wp = (portalOpts && portalOpts.portalCoords) || window.lastWardenOverworldPos || (_portalReturnLinks && _portalReturnLinks.wardenReturn) || _findNearestPortal('overworld', _ruinOriginX || 0, _ruinOriginZ || 0, 100000, B.WARDEN_PORTAL) || window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
+      const wpDepth = Number(wp && wp.depthOffset) || 0;
+      depthOffset = wpDepth;
+      let lx = Math.floor(wp.x || 0), lz = Math.floor(wp.z || 0);
+      const scx = lx >> 4, scz = lz >> 4;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
+      let ly = (wp && typeof wp.y === 'number') ? (wp.y + wpDepth) : Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
+      let wpHit = _findBlockInBox(lx, ly + 2, lz, 14, 7, 8, 14, B.WARDEN_PORTAL);
+      if (!wpHit) {
         _runBatchedBlocks(() => {
           for (let dz = -4; dz <= 5; dz++) for (let dx = -5; dx <= 5; dx++) {
             setBlockWorld(lx + dx, ly - 1, lz + dz, B.DEEPSLATE_BRICKS, true);
@@ -11768,23 +11943,30 @@
           }
           buildArrivalWardenPortal(lx, ly - 1, lz - 2);
         });
+        wpHit = _findBlockInBox(lx, ly + 2, lz - 2, 6, 4, 6, 4, B.WARDEN_PORTAL);
       }
+      const anc = wpHit ? _getCanonicalPortalAnchor(wpHit.x, wpHit.y, wpHit.z, B.WARDEN_PORTAL) : { x: lx, y: ly, z: lz };
+      lx = anc.x; ly = anc.y; lz = anc.z;
+      _runBatchedBlocks(() => {
+        if (!isSolidAt(lx, ly - 1, lz + 3)) setBlockWorld(lx, ly - 1, lz + 3, B.DEEPSLATE_BRICKS, true);
+        setBlockWorld(lx, ly, lz + 3, B.AIR, true);
+        setBlockWorld(lx, ly + 1, lz + 3, B.AIR, true);
+      });
+      _recordPortalPos('overworld', lx, ly, lz, B.WARDEN_PORTAL, true);
       _portalCooldown = 4.5;
-      _rebuildStandingOnly(scx, scz);
-      player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + 3.5; player.yaw = 0.0; player.pitch = 0.02;
+      _rebuildStandingOnly(lx >> 4, (lz + 3) >> 4);
+      player.x = lx + 0.5; player.y = ly + 0.2; player.z = lz + 3.5; player.yaw = 0.0; player.pitch = 0.02;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (portalOpts && portalOpts.returnFromSift) {
-      const spFb = window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
-      const lx = Math.floor((portalOpts.portalCoords && typeof portalOpts.portalCoords.x === 'number') ? portalOpts.portalCoords.x : (spFb.x || 0));
-      const lz = Math.floor((portalOpts.portalCoords && typeof portalOpts.portalCoords.z === 'number') ? portalOpts.portalCoords.z : (spFb.z || 0));
+      const fbSift = (portalOpts && portalOpts.portalCoords) || lastSiftOverworldPos || (_portalReturnLinks && _portalReturnLinks.siftReturn) || _findNearestPortal('overworld', _ruinOriginX || 0, _ruinOriginZ || 0, 100000, B.DREAM_PORTAL) || window._worldSpawnPos || { x: _ruinOriginX || 0, z: _ruinOriginZ || 0 };
+      const lx = Math.floor(fbSift.x || 0), lz = Math.floor(fbSift.z || 0);
       const scx = lx >> 4, scz = lz >> 4;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(scx + dx, scz + dz);
       const ly = Math.max(WATER_LEVEL + 2, getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
-      const existingSiftOW = _findBlockInBox(lx, ly + 3, lz, 16, 6, 8, 16, B.DREAM_PORTAL);
-      let sxOut = lx + 0.5, syOut = ly + 1.3, szOut = lz + 4.5;
+      let existingSiftOW = _findBlockInBox(lx, ly + 3, lz, 16, 6, 8, 16, B.DREAM_PORTAL);
       if (!existingSiftOW) {
         _runBatchedBlocks(() => {
           for (let dz = -6; dz <= 7; dz++) for (let dx = -6; dx <= 6; dx++) {
@@ -11793,20 +11975,20 @@
           }
           startRisingDreamPortal(lx, ly - 1, lz, true);
         });
-      } else {
-        sxOut = existingSiftOW.x + 0.5;
-        szOut = existingSiftOW.z + 3.5;
-        const groundY = colGroundY(existingSiftOW.x, Math.floor(szOut));
-        syOut = Math.max(existingSiftOW.y, groundY + 1.15);
-        _runBatchedBlocks(() => {
-          const ix = Math.floor(sxOut), iy = Math.floor(syOut), iz = Math.floor(szOut);
-          if (!isSolidAt(ix, iy - 1, iz)) setBlockWorld(ix, iy - 1, iz, B.STONE_BRICK, true);
-          setBlockWorld(ix, iy, iz, B.AIR, true);
-          setBlockWorld(ix, iy + 1, iz, B.AIR, true);
-        });
+        existingSiftOW = _findBlockInBox(lx, ly + 3, lz, 6, 4, 6, 4, B.DREAM_PORTAL);
       }
+      const anc = existingSiftOW ? _getCanonicalPortalAnchor(existingSiftOW.x, existingSiftOW.y, existingSiftOW.z, B.DREAM_PORTAL) : { x: lx, y: ly + 1, z: lz };
+      const sxOut = anc.x + 0.5, szOut = anc.z + 3.5;
+      const syOut = Math.max(anc.y, colGroundY(anc.x, Math.floor(szOut)) + 1.15);
+      _runBatchedBlocks(() => {
+        const ix = Math.floor(sxOut), iy = Math.floor(syOut), iz = Math.floor(szOut);
+        if (!isSolidAt(ix, iy - 1, iz)) setBlockWorld(ix, iy - 1, iz, B.STONE_BRICK, true);
+        setBlockWorld(ix, iy, iz, B.AIR, true);
+        setBlockWorld(ix, iy + 1, iz, B.AIR, true);
+      });
+      _recordPortalPos('overworld', anc.x, anc.y, anc.z, B.DREAM_PORTAL, true);
       _portalCooldown = 4.5;
-      _rebuildStandingOnly(scx, scz);
+      _rebuildStandingOnly(anc.x >> 4, Math.floor(szOut) >> 4);
       player.x = sxOut; player.y = syOut; player.z = szOut; player.yaw = 0.0; player.pitch = 0.02;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
@@ -11819,8 +12001,8 @@
       let ly = Math.max(WATER_LEVEL + 1, (typeof portalOpts.portalCoords.y === 'number') ? (portalOpts.portalCoords.y - 1) : getTerrainHeight(lx, lz, getBiomeAt(lx, lz)));
       const existingOP = _findBlockInBox(lx, ly + 1, lz, 10, 6, 8, 10, B.NETHER_PORTAL);
       if (existingOP) {
-        while (existingOP.y > MIN_Y + 3 && getBlockWorld(existingOP.x, existingOP.y - 1, existingOP.z) === B.NETHER_PORTAL) existingOP.y--;
-        lx = existingOP.x; lz = existingOP.z; ly = existingOP.y - 1;
+        const anc = _getCanonicalPortalAnchor(existingOP.x, existingOP.y, existingOP.z, B.NETHER_PORTAL);
+        lx = anc.x; lz = anc.z; ly = anc.y - 1;
         _runBatchedBlocks(() => {
           if (!isSolidAt(lx, ly, lz + 1)) setBlockWorld(lx, ly, lz + 1, B.OBSIDIAN, true);
           setBlockWorld(lx, ly + 1, lz + 1, B.AIR, true);
@@ -11829,9 +12011,9 @@
       } else {
         buildArrivalNetherPortal(lx, ly + 1, lz);
       }
-      _recordPortalPos('overworld', lx, ly + 1, lz);
+      _recordPortalPos('overworld', lx, ly + 1, lz, B.NETHER_PORTAL, true);
       _portalCooldown = 4.5;
-      _rebuildStandingOnly(scx, scz);
+      _rebuildStandingOnly(lx >> 4, lz >> 4);
       player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + 1.55; player.yaw = 0.0; player.pitch = -0.05;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
@@ -11864,8 +12046,12 @@
     window._worldWarmupUntil = performance.now() + 5500;
     window._rtVolDirty = true;
     currentDimension = 'overworld'; depthOffset = 0;
-    dimensionPortals = { overworld: [], nether: [], sift: [], warden: [] };
+    dimensionPortals = { overworld: [], nether: [], sift: [], warden: [], dragon_realm: [] };
     lastSiftOverworldPos = null;
+    _portalReturnLinks = { siftReturn: null, wardenReturn: null, dragonRealmReturn: null };
+    window.lastWardenOverworldPos = null;
+    window.lastDragonRealmReturnPos = null;
+    window.lastDragonRealmPrevDim = null;
     _awakenedRuins.clear(); _activeRuinEncounters.clear(); _risingDreamPortals.length = 0; _ruinLocSeed = -1;
     resetPersistentChestState();
     _clearWorldInteractiveCaches(true, true);
