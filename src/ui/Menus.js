@@ -81,6 +81,7 @@
     if (btn) { btn.classList.toggle('active', bumpEnabled); btn.textContent = bumpEnabled ? tr('✨ Bump: BẬT', '✨ Bump: ON') : tr('🧱 Phẳng', '🧱 Flat'); }
   }
 
+  const UNIFIED_DEFAULT_DAY_TIME = 0.34;
   function teleportToScenicBiome(targetKey, opts = null) {
     if ((targetKey === 'dim_sift' || String(targetKey).startsWith('sift_')) && !isAdminUnlocked) {
       showToast('🔒 Khu Giấc Mơ chỉ mở khi bạn đánh bại hết quái tại Khu Tàn Tích!');
@@ -156,7 +157,6 @@
         _dirtyChunkSet.clear(); _urgentChunkSet.clear(); _borderChunkSet.clear(); endCrystalVisuals.clear();
         for (let i = mobs.length - 1; i >= 0; i--) disposeMobInstance(mobs[i]);
         mobs.length = 0;
-        spawnedDragonNests.clear();
         player.x = nr.x + 0.5; player.y = nr.y + 3.0; player.z = nr.z + 11.5;
         player.yaw = 0.0; player.pitch = 0.10;
         player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
@@ -166,12 +166,15 @@
           for (const ch of chunks.values()) if (ch.dirty) rebuildChunkMesh(ch);
           _teleportWarmupFrames = 24;
         }
-        if (typeof MOB_STATS[nr.el + '_dragon'] !== 'undefined') {
+        const _nestDefeated = (typeof isMobDefeatedTag === 'function') && isMobDefeatedTag('nest:' + nr.idx);
+        if (typeof MOB_STATS[nr.el + '_dragon'] !== 'undefined' && !_nestDefeated) {
           spawnedDragonNests.add(nr.idx);
-          spawnMobOfType(nr.el + '_dragon', nr.x + 0.5, nr.y + 8.5, nr.z - 4.0);
+          spawnMobOfType(nr.el + '_dragon', nr.x + 0.5, nr.y + 8.5, nr.z - 4.0, { nestIdx: nr.idx });
         }
         if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
-        dayTime = 0.34;
+        if (opts && opts.isInitialSpawn) dayTime = UNIFIED_DEFAULT_DAY_TIME;
+        if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
+        if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
         if (!isWorldLoading) startPlaying();
         showToast('🌋 Đã tới Tổ Rồng Nguyên Tố! Khai thác Quặng Tinh Thể Rồng bằng Cúp Sắt+ & nhặt Trứng Rồng!');
       };
@@ -199,7 +202,9 @@
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = _grSpawnY;
       lastPlayerCx = 99999; lastPlayerCz = 99999;
       if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
-      dayTime = 0.30;
+      if (opts && opts.isInitialSpawn) dayTime = UNIFIED_DEFAULT_DAY_TIME;
+      if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
+      if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
       // Populate underground 1000m End Portal Ruins perimeter with tough guardian monsters + an Iron Golem defender!
       if (typeof spawnMobOfType === 'function') {
         const pyG = _grSpawnY + 0.1;
@@ -235,55 +240,56 @@
       spawnMobOfType('ruin_stalker', tx + 5.5, 3.2, tz - 10.5);
       spawnMobOfType('gargoyle', tx - 4.0, 14.5, tz - 14.0);
       if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
-      dayTime = 0.31;
+      if (opts && opts.isInitialSpawn) dayTime = UNIFIED_DEFAULT_DAY_TIME;
+      if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
+      if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
       if (!isWorldLoading) startPlaying();
       return;
     }
     const sunYawAt = (t) => { const a = t * Math.PI * 2 - Math.PI * 0.5; return Math.atan2(-Math.cos(a) * 0.85, -0.42); };
-    const moonYawAt = (t) => { const a = t * Math.PI * 2 - Math.PI * 0.5; return Math.atan2(Math.cos(a) * 0.85, 0.42); };
     const mapCfg = {
-      ancient_ruins:{ biome: BIOMES.FOREST,          needWater: false, time: 0.72,  preset: 'moonlit', pitch: 0.02, msg: '🏛️ Tàn Tích Bí Ẩn Cổ Đại (Đầy Quái Vật & Kho Báu Hiếm!)' },
-      castle_city: { biome: BIOMES.PLAINS,           needWater: false, time: 0.35,  preset: 'bsl',     pitch: 0.04, msg: '🏰 Đại Thành & Lâu Đài Hoàng Gia' },
-      seaport:     { biome: BIOMES.BEACH_PALM,       needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.0,  msg: '⚓ Cảng Biển, Ngọn Hải Đăng & Thuyền Buồm' },
-      ocean_ruins: { biome: BIOMES.DEEP_OCEAN,       needWater: false, time: 0.44,  preset: 'bliss',   pitch: -0.22,msg: '🚢 Đáy Biển: Thuyền Đắm, Đền Đại Dương & Rạn San Hô' },
-      abyss_trench:{ biome: BIOMES.ABYSS_TRENCH,     needWater: false, time: 0.46,  preset: 'bsl',     pitch: -0.24,msg: '🌊 Vực Biển Siêu Sâu (Abyss Trench) — Càng lặn sâu càng tối xanh đen đậm!' },
-      bamboo:      { biome: BIOMES.BAMBOO_JUNGLE,    needWater: false, time: 0.34,  preset: 'bliss',   pitch: 0.02, msg: '🎋 Rừng Trúc Xanh Cổ Đại' },
-      mushroom:    { biome: BIOMES.MUSHROOM_ISLAND,  needWater: false, time: 0.36,  preset: 'bliss',   pitch: 0.02, msg: '🍄 Đảo Nấm Đỏ Khổng Lồ' },
-      lavender:    { biome: BIOMES.LAVENDER_MEADOW,  needWater: false, time: 0.33,  preset: 'bliss',   pitch: -0.02,msg: '🪻 Thảo Nguyên Hoa Oải Hương' },
-      volcanic:    { biome: BIOMES.VOLCANIC_BASALT,  needWater: false, time: 0.70,  preset: 'bsl',     pitch: 0.02, msg: '🌋 Đồng Tro Bazan Núi Lửa' },
-      beach_palm:  { biome: BIOMES.BEACH_PALM,       needWater: true,  time: 0.36,  preset: 'bsl',     pitch: 0.0,  msg: '🏝️ Bờ Biển Dừa Nhiệt Đới' },
-      mangrove:    { biome: BIOMES.MANGROVE_SWAMP,   needWater: false, time: 0.33,  preset: 'bliss',   pitch: -0.02,msg: '🐊 Đầm Lầy Rừng Ngập Mặn' },
-      alpine:      { biome: BIOMES.ALPINE_PEAKS,     needWater: false, time: 0.36,  preset: 'bsl',     pitch: 0.04, msg: '🏔️ Dãy Núi Tuyết Cao & Băng Nén' },
-      plateau:     { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.0,  msg: '🦅 Cao Nguyên Hùng Vĩ' },
-      sakura:      { biome: BIOMES.SAKURA,           needWater: true,  time: 0.31,  preset: 'bsl',     pitch: 0.0,  msg: '🌸 Hồ Anh Đào NUCRAFT' },
-      village:     { biome: BIOMES.PLAINS,           needWater: false, time: 0.36,  preset: 'bsl',     pitch: -0.02,msg: '🏘️ Làng Builder Cổ Đại & Golem Sắt' },
-      lush_cave:   { biome: BIOMES.LUSH_GROVE,       needWater: false, time: 0.34,  preset: 'bliss',   pitch: -0.04,msg: '💎 Hang Động Tươi Tốt & Warden' },
-      autumn:      { biome: BIOMES.AUTUMN,           needWater: false, time: 0.33,  preset: 'bsl',     pitch: 0.0,  msg: '🍁 Rừng Mùa Thu Lá Đỏ' },
-      autumn_camp: { biome: BIOMES.AUTUMN_DEEP,      needWater: false, time: 0.32,  preset: 'bsl',     pitch: 0.0,  msg: '⛺ Khu Trại Bỏ Hoang Rừng Thu Sâu' },
-      autumn_golden:{ biome: BIOMES.AUTUMN_GOLDEN,   needWater: false, time: 0.34,  preset: 'bliss',   pitch: 0.0,  msg: '🍂 Rừng Thu Vàng Óng & Lá Rơi' },
-      lush:        { biome: BIOMES.LUSH_GROVE,       needWater: true,  time: 0.38,  preset: 'bliss',   pitch: -0.01,msg: '🌿 Rừng Rêu Cổ Đại & Tàn Tích' },
-      meadow:      { biome: BIOMES.FLOWER_MEADOW,    needWater: false, time: 0.35,  preset: 'bliss',   pitch: -0.02,msg: '🌼 Thảo Nguyên Hoa Rực Rỡ' },
-      forest:      { biome: BIOMES.FOREST,           needWater: false, time: 0.29,  preset: 'bliss',   pitch: 0.01, msg: '🌲 Rừng Nắng & Tia Nắng' },
-      redwood:     { biome: BIOMES.REDWOOD_ANCIENT,  needWater: false, time: 0.27,  preset: 'eclipse', pitch: -0.02,msg: '🌲 Rừng Hồng Tùng Cổ Thụ (Redwood Cathedral)' },
-      desert:      { biome: BIOMES.DESERT,           needWater: false, time: 0.28,  preset: 'bsl',     pitch: 0.0,  msg: '🏜️ Sa Mạc Vàng & Đền Tháp Đôi' },
-      snow:        { biome: BIOMES.SNOW,             needWater: false, time: 0.205, preset: 'moonlit', pitch: 0.03, msg: '❄️ Biệt Thự Tuyết 2 Tầng & Trăng Tròn' },
-      tudor_estate:{ biome: BIOMES.PLAINS,           needWater: false, time: 0.30,  preset: 'bsl',     pitch: 0.0,  msg: '🏡 Biệt Thự Tudor Gạch Đỏ & Vườn Hoa' },
-      manor_estate:{ biome: BIOMES.FOREST,           needWater: false, time: 0.33,  preset: 'bliss',   pitch: 0.02, msg: '🏰 Trang Viên Tudor Cổ Kính & Mê Cung Hàng Rào' },
-      winter_cabin:{ biome: BIOMES.SNOW,             needWater: false, time: 0.205, preset: 'moonlit', pitch: 0.03, msg: '❄️ Tuyết Xá Gỗ Thông & Ống Khói' },
-      starter_house:{ biome: BIOMES.FLOWER_MEADOW,   needWater: false, time: 0.32,  preset: 'bliss',   pitch: 0.0,  msg: '🌼 Nhà Khởi Đầu Giữa Đồng Hoa' },
-      forest_cabin:{ biome: BIOMES.FOREST,           needWater: false, time: 0.31,  preset: 'bliss',   pitch: 0.01, msg: '🌲 Nhà Gỗ Trong Rừng & Vườn Lúa' },
-      blue_forest: { biome: BIOMES.BLUE_FOREST,      needWater: false, time: 0.33,  preset: 'bsl',     pitch: 0.02, msg: '💙 Rừng Xanh Lam Huyền Ảo & Nấm Đỏ Khổng Lồ' },
-      wheat_valley:{ biome: BIOMES.WHEAT_VALLEY,     needWater: false, time: 0.746, preset: 'chill_sunset', pitch: -0.02, msg: '🌾 Cánh Đồng Lúa' },
-      pine_valley: { biome: BIOMES.PINE_VALLEY,      needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.03, msg: '🏡 Thung Lũng Thông & Lò Rèn Cổ Điển' },
-      giant_jungle:{ biome: BIOMES.GIANT_JUNGLE,     needWater: true,  time: 0.35,  preset: 'bsl',     pitch: 0.03, msg: '🌴 Rừng Nhiệt Đới Đại Thụ & Dây Leo Rủ' },
-      highland:    { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: 0.34,  preset: 'bsl',     pitch: 0.01, msg: '⛰️ Cao Nguyên Đá Dựng & Mây Trời' },
-      lush_steppe: { biome: BIOMES.LUSH_STEPPE,      needWater: false, time: 0.32,  preset: 'bliss',   pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Mênh Mông' },
-      green_plains:{ biome: BIOMES.GREEN_PLAINS,     needWater: false, time: 0.32,  preset: 'bsl',     pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Tươi Mát' },
-      snowy_plains:{ biome: BIOMES.SNOWY_PLAINS,     needWater: true,  time: 0.31,  preset: 'bsl',     pitch: -0.02,msg: '❄️ Đồng Bằng Tuyết Trắng Bất Tận' },
-      dark_forest: { biome: BIOMES.DARK_FOREST,      needWater: false, time: 0.36,  preset: 'moonlit', pitch: 0.01, msg: '🌑 Rừng Tối Cây Cổ Thụ Rậm Rạp' },
-      pale_garden: { biome: BIOMES.PALE_GARDEN,      needWater: false, time: 0.38,  preset: 'moonlit', pitch: 0.01, msg: '🤍 Khu Rừng Nhợt Nhạt & Sương Mù Lạnh' },
-      nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: 0.76, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' },
-      sulfur_springs:{ biome: BIOMES.SULFUR_SPRINGS, needWater: true, time: 0.33, preset: 'bsl', pitch: 0.01, msg: '🧪 Suối Lưu Huỳnh — Bậc Thềm Khoáng Vàng Ngọc Lam & Slime Lưu Huỳnh!' }
+      ancient_ruins:{ biome: BIOMES.FOREST,          needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.02, msg: '🏛️ Tàn Tích Bí Ẩn Cổ Đại (Đầy Quái Vật & Kho Báu Hiếm!)' },
+      castle_city: { biome: BIOMES.PLAINS,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.04, msg: '🏰 Đại Thành & Lâu Đài Hoàng Gia' },
+      seaport:     { biome: BIOMES.BEACH_PALM,       needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '⚓ Cảng Biển, Ngọn Hải Đăng & Thuyền Buồm' },
+      ocean_ruins: { biome: BIOMES.DEEP_OCEAN,       needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.22,msg: '🚢 Đáy Biển: Thuyền Đắm, Đền Đại Dương & Rạn San Hô' },
+      abyss_trench:{ biome: BIOMES.ABYSS_TRENCH,     needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: -0.24,msg: '🌊 Vực Biển Siêu Sâu (Abyss Trench) — Càng lặn sâu càng tối xanh đen đậm!' },
+      bamboo:      { biome: BIOMES.BAMBOO_JUNGLE,    needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.02, msg: '🎋 Rừng Trúc Xanh Cổ Đại' },
+      mushroom:    { biome: BIOMES.MUSHROOM_ISLAND,  needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.02, msg: '🍄 Đảo Nấm Đỏ Khổng Lồ' },
+      lavender:    { biome: BIOMES.LAVENDER_MEADOW,  needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.02,msg: '🪻 Thảo Nguyên Hoa Oải Hương' },
+      volcanic:    { biome: BIOMES.VOLCANIC_BASALT,  needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.02, msg: '🌋 Đồng Tro Bazan Núi Lửa' },
+      beach_palm:  { biome: BIOMES.BEACH_PALM,       needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🏝️ Bờ Biển Dừa Nhiệt Đới' },
+      mangrove:    { biome: BIOMES.MANGROVE_SWAMP,   needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.02,msg: '🐊 Đầm Lầy Rừng Ngập Mặn' },
+      alpine:      { biome: BIOMES.ALPINE_PEAKS,     needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.04, msg: '🏔️ Dãy Núi Tuyết Cao & Băng Nén' },
+      plateau:     { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🦅 Cao Nguyên Hùng Vĩ' },
+      sakura:      { biome: BIOMES.SAKURA,           needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🌸 Hồ Anh Đào NUCRAFT' },
+      village:     { biome: BIOMES.PLAINS,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: -0.02,msg: '🏘️ Làng Builder Cổ Đại & Golem Sắt' },
+      lush_cave:   { biome: BIOMES.LUSH_GROVE,       needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.04,msg: '💎 Hang Động Tươi Tốt & Warden' },
+      autumn:      { biome: BIOMES.AUTUMN,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🍁 Rừng Mùa Thu Lá Đỏ' },
+      autumn_camp: { biome: BIOMES.AUTUMN_DEEP,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '⛺ Khu Trại Bỏ Hoang Rừng Thu Sâu' },
+      autumn_golden:{ biome: BIOMES.AUTUMN_GOLDEN,   needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.0,  msg: '🍂 Rừng Thu Vàng Óng & Lá Rơi' },
+      lush:        { biome: BIOMES.LUSH_GROVE,       needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.01,msg: '🌿 Rừng Rêu Cổ Đại & Tàn Tích' },
+      meadow:      { biome: BIOMES.FLOWER_MEADOW,    needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.02,msg: '🌼 Thảo Nguyên Hoa Rực Rỡ' },
+      forest:      { biome: BIOMES.FOREST,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.01, msg: '🌲 Rừng Nắng & Tia Nắng' },
+      redwood:     { biome: BIOMES.REDWOOD_ANCIENT,  needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'eclipse', pitch: -0.02,msg: '🌲 Rừng Hồng Tùng Cổ Thụ (Redwood Cathedral)' },
+      desert:      { biome: BIOMES.DESERT,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🏜️ Sa Mạc Vàng & Đền Tháp Đôi' },
+      snow:        { biome: BIOMES.SNOW,             needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.03, msg: '❄️ Biệt Thự Tuyết 2 Tầng & Trăng Tròn' },
+      tudor_estate:{ biome: BIOMES.PLAINS,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.0,  msg: '🏡 Biệt Thự Tudor Gạch Đỏ & Vườn Hoa' },
+      manor_estate:{ biome: BIOMES.FOREST,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.02, msg: '🏰 Trang Viên Tudor Cổ Kính & Mê Cung Hàng Rào' },
+      winter_cabin:{ biome: BIOMES.SNOW,             needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.03, msg: '❄️ Tuyết Xá Gỗ Thông & Ống Khói' },
+      starter_house:{ biome: BIOMES.FLOWER_MEADOW,   needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.0,  msg: '🌼 Nhà Khởi Đầu Giữa Đồng Hoa' },
+      forest_cabin:{ biome: BIOMES.FOREST,           needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: 0.01, msg: '🌲 Nhà Gỗ Trong Rừng & Vườn Lúa' },
+      blue_forest: { biome: BIOMES.BLUE_FOREST,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.02, msg: '💙 Rừng Xanh Lam Huyền Ảo & Nấm Đỏ Khổng Lồ' },
+      wheat_valley:{ biome: BIOMES.WHEAT_VALLEY,     needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: -0.02,msg: '🌾 Cánh Đồng Lúa' },
+      pine_valley: { biome: BIOMES.PINE_VALLEY,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.03, msg: '🏡 Thung Lũng Thông & Lò Rèn Cổ Điển' },
+      giant_jungle:{ biome: BIOMES.GIANT_JUNGLE,     needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.03, msg: '🌴 Rừng Nhiệt Đới Đại Thụ & Dây Leo Rủ' },
+      highland:    { biome: BIOMES.HIGHLAND_PLATEAU, needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.01, msg: '⛰️ Cao Nguyên Đá Dựng & Mây Trời' },
+      lush_steppe: { biome: BIOMES.LUSH_STEPPE,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bliss',   pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Mênh Mông' },
+      green_plains:{ biome: BIOMES.GREEN_PLAINS,     needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: -0.01,msg: '🌿 Đồng Bằng Cỏ Xanh Tươi Mát' },
+      snowy_plains:{ biome: BIOMES.SNOWY_PLAINS,     needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: -0.02,msg: '❄️ Đồng Bằng Tuyết Trắng Bất Tận' },
+      dark_forest: { biome: BIOMES.DARK_FOREST,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.01, msg: '🌑 Rừng Tối Cây Cổ Thụ Rậm Rạp' },
+      pale_garden: { biome: BIOMES.PALE_GARDEN,      needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.01, msg: '🤍 Khu Rừng Nhợt Nhạt & Sương Mù Lạnh' },
+      nightmare_woods:{ biome: BIOMES.NIGHTMARE_WOODS, needWater: false, time: UNIFIED_DEFAULT_DAY_TIME, preset: 'moonlit', pitch: 0.02, msg: '🕸️ Khu Rừng Ác Mộng — Sương Mù Hạn Chế Tầm Nhìn!' },
+      sulfur_springs:{ biome: BIOMES.SULFUR_SPRINGS, needWater: true,  time: UNIFIED_DEFAULT_DAY_TIME, preset: 'bsl',     pitch: 0.01, msg: '🧪 Suối Lưu Huỳnh — Bậc Thềm Khoáng Vàng Ngọc Lam & Slime Lưu Huỳnh!' }
     };
     const cfg = mapCfg[targetKey]; if (!cfg) return;
     let found = null;
@@ -295,7 +301,7 @@
     if (targetKey === 'wheat_valley' && typeof WHEAT_PLAIN_CX === 'number') {
       found = { x: WHEAT_PLAIN_CX + 0.5, z: WHEAT_PLAIN_CZ + 0.5, yaw: 0.0 };
     } else if (targetKey === 'castle_city') {
-      found = { x: 12000.5, z: -11940.5, yaw: 0.0 };
+      found = { x: 12000.5, z: -11979.5, yaw: 0.0 };
     }
     if (targetKey === 'abyss_trench') {
       for (let r = 256; r <= 28000 && !found; r += 192) {
@@ -360,7 +366,9 @@
             }
           }
         } else {
-          const prefY = (targetKey === 'snow' || targetKey === 'winter_cabin') ? moonYawAt(cfg.time) : ((targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'ocean_ruins' || targetKey === 'abyss_trench' || targetKey === 'pine_valley' || targetKey === 'wheat_valley') ? 0.0 : sunYawAt(cfg.time));
+          const prefY = (targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'ocean_ruins' || targetKey === 'abyss_trench' || targetKey === 'pine_valley' || targetKey === 'wheat_valley')
+            ? 0.0
+            : sunYawAt(typeof dayTime === 'number' ? dayTime : UNIFIED_DEFAULT_DAY_TIME);
           const fx = -Math.sin(prefY), fz = -Math.cos(prefY);
           if (targetKey === 'snow' || targetKey === 'winter_cabin' || targetKey === 'snowy_plains') {
             const wantB = (targetKey === 'snowy_plains') ? BIOMES.SNOWY_PLAINS : BIOMES.SNOW;
@@ -396,8 +404,9 @@
       }
     }
     if (!found && targetKey !== 'abyss_trench' && targetKey !== 'ocean_ruins' && targetKey !== 'mushroom') {
-      const prefY = (targetKey === 'snow' || targetKey === 'winter_cabin') ? moonYawAt(cfg.time)
-        : ((targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'pine_valley' || targetKey === 'wheat_valley') ? 0.0 : sunYawAt(cfg.time));
+      const prefY = (targetKey === 'village' || targetKey === 'castle_city' || targetKey === 'seaport' || targetKey === 'pine_valley' || targetKey === 'wheat_valley')
+        ? 0.0
+        : sunYawAt(typeof dayTime === 'number' ? dayTime : UNIFIED_DEFAULT_DAY_TIME);
       for (let r = 64; r <= 6400 && !found; r += 48) {
         for (let dz = -r; dz <= r && !found; dz += 48) for (let dx = -r; dx <= r && !found; dx += 48) {
           if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
@@ -468,13 +477,13 @@
       _flushDirtyIfDirect();
     }
     if (targetKey === 'castle_city') {
-      const cx0 = Math.round(clean.x), cz0 = Math.round(clean.z - 14);
+      const cx0 = 12000, cz0 = -12000;
       const cy0 = buildGrandCastleCity(cx0, cz0);
-      // Spawn safely ON TOP of the grand stone castle courtyard facing the Royal Castle Keep!
-      clean.x = cx0 + 0.5; clean.z = cz0 + 15.5; clean.y = cy0 + 1.2; clean.yaw = 0.0;
+      // Spawn safely on the grand south citadel boulevard facing the Royal Castle Keep and surrounding medieval quarter!
+      clean.x = cx0 + 0.5; clean.z = cz0 + 21.5; clean.y = cy0 + 1.2; clean.yaw = 0.0;
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
-        setBlockWorld(cx0 + dx, cy0, cz0 + 15 + dz, B.STONE_BRICK, true);
-        for (let hy = 1; hy <= 5; hy++) setBlockWorld(cx0 + dx, cy0 + hy, cz0 + 15 + dz, B.AIR, true);
+        setBlockWorld(cx0 + dx, cy0, cz0 + 21 + dz, B.STONE_BRICK, true);
+        for (let hy = 1; hy <= 5; hy++) setBlockWorld(cx0 + dx, cy0 + hy, cz0 + 21 + dz, B.AIR, true);
       }
       _flushDirtyIfDirect();
     }
@@ -609,8 +618,9 @@
     player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = clean.y;
     lastPlayerCx = 99999; lastPlayerCz = 99999;
     if (shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset(cfg.preset);
-    dayTime = cfg.time;
-    document.querySelectorAll('#timeSeg .seg-btn').forEach(b => b.classList.toggle('active', Math.abs(parseFloat(b.dataset.time) - cfg.time) < 0.03));
+    if (opts && opts.isInitialSpawn) dayTime = UNIFIED_DEFAULT_DAY_TIME;
+    if (typeof updateAtmosphere === 'function') updateAtmosphere(0.016);
+    if (typeof syncLiveTimeAndWeatherUi === 'function') syncLiveTimeAndWeatherUi(true);
     if (!isWorldLoading) startPlaying();
     // (không thông báo khi vào map)
     });
@@ -1373,7 +1383,7 @@
     bamboo:         { label: '🎋 Bamboo Forest',    desc: 'Towering green bamboo groves catching warm dappled sunlight beside tranquil brooks.' },
     beach_palm:     { label: '🏝️ Coconut Beach',    desc: 'Crystal turquoise bay, soft white sandy beaches, vibrant coral reefs, and leaning palm trees.' },
     autumn:         { label: '🍁 Autumn Forest',    desc: 'Crimson and amber maple trees glowing along calm rocky riverside slopes.' },
-    castle_city:    { label: '🏰 Castle City',      desc: 'Majestic royal castle surrounded by reflective moats, copper-roofed watchtowers, and stone bridges.' },
+    castle_city:    { label: '🏰 Castle City',      desc: 'Sprawling medieval citadel filled with royal keeps, half-timber houses, blacksmiths, taverns, stone walls, gardens, and lush trees.' },
     abandoned_city: { label: '🏙️ Abandoned City',   desc: 'An overgrown modern boulevard of moss-covered glass skyscrapers standing in quiet twilight.' },
     grand_ruins:    { label: '🏛️ Grand End Ruins',  desc: 'Massive 1000×1000 subterranean ancient ruins buried beneath dry hills, housing the underground End Portal Citadel, vaulted halls, and lava chasm.' },
     seaport:        { label: '⚓ Seaport Harbor',   desc: 'Bustling oak timber docks reaching into blue waters beneath a glowing coastal lighthouse.' },
@@ -1637,7 +1647,7 @@ const ORE_BIOME_PREVIEWS = {
   bamboo:         { label: '🎋 Rừng Trúc',        desc: 'Rừng trúc xanh cao vút đón những tia nắng xuyên tán lá vàng ấm áp bên dòng suối nhỏ.',                                sky1: '#4c9cf2', sky2: '#d1fae5', grass: '#45a13d', dirt: '#2d6a30', water: '#0d9488', tree: '#84cc16', trunk: '#4d7c0f', accent: '#bef264', kind: 'bamboo' },
   beach_palm:     { label: '🏝️ Biển Dừa',         desc: 'Vịnh biển nhiệt đới nước xanh trong vắt, bãi cát trắng mịn, rạn san hô rực rỡ và rặng dừa nghiêng bóng.',             sky1: '#2196f3', sky2: '#c5eeff', grass: '#facc15', dirt: '#eab308', water: '#0284c7', tree: '#22c55e', trunk: '#8a5d3b', accent: '#fef9c3', kind: 'beach' },
   autumn:         { label: '🍁 Rừng Mùa Thu',     desc: 'Rừng phong lá đỏ cam rực rỡ hòa cùng sắc vàng cuối chiều trên triền sông đá êm đềm.',                                 sky1: '#3b82f6', sky2: '#fed7aa', grass: '#c27a2c', dirt: '#7c4e38', water: '#2563eb', tree: '#ea580c', trunk: '#6d4c2f', accent: '#facc15', kind: 'trees' },
-  castle_city:    { label: '🏰 Đại Thành',        desc: 'Tòa lâu đài hoàng gia uy nghiêm với hào nước phản chiếu ánh nắng, tháp canh mái đồng và cầu gỗ cổ kính.',             sky1: '#2f7df0', sky2: '#fde68a', grass: '#4d9b34', dirt: '#367023', water: '#2563eb', tree: '#9ca3af', trunk: '#4b5563', accent: '#dc2626', kind: 'castle' },
+  castle_city:    { label: '🏰 Đại Thành',        desc: 'Đại thành trung cổ sầm uất với lâu đài hoàng gia, nhiều dãy nhà gỗ đá Minecraft, tường thành, thảm cỏ hoa lá và rừng cây xanh mát.', sky1: '#2f7df0', sky2: '#fde68a', grass: '#4d9b34', dirt: '#367023', water: '#2563eb', tree: '#9ca3af', trunk: '#4b5563', accent: '#dc2626', kind: 'castle' },
   abandoned_city: { label: '🏙️ Đô Thị Hoang',     desc: 'Đại lộ thành phố hiện đại bị bỏ hoang với những tòa cao ốc kính vỡ phủ rêu xanh dưới ánh hoàng hôn.',                 sky1: '#3b4d63', sky2: '#cbd5e1', grass: '#526052', dirt: '#3f3f46', water: '#334155', tree: '#64748b', trunk: '#27272a', accent: '#84cc16', kind: 'city' },
   grand_ruins:    { label: '🏛️ Tàn Tích Cổng End', desc: 'Khu tàn tích ngầm 1000×1000 nằm sâu dưới lòng đất liền với Đền Cổng The End, vòm hang đá rêu, thác nước, tượng cổ và vực dung nham.',      sky1: '#235a78', sky2: '#c8ead8', grass: '#4f8c3c', dirt: '#5c6266', water: '#2563eb', tree: '#3b7d31', trunk: '#4b5563', accent: '#34d399', kind: 'castle' },
   seaport:        { label: '⚓ Cảng Biển',        desc: 'Bến cảng gỗ sồi sầm uất vươn ra vịnh biển xanh biếc cùng ngọn hải đăng phát sáng rực.',                              sky1: '#2589e8', sky2: '#d8f0ff', grass: '#52a33a', dirt: '#785130', water: '#1d4ed8', tree: '#ef4444', trunk: '#f8fafc', accent: '#fde047', kind: 'seaport' },
@@ -1842,6 +1852,7 @@ function syncTitleAvatarFace() {
         player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, depthOffset, currentDimension, hasIdbMods: true, modsCount: worldMods.size, mods: modsArr.slice(-1500),
         savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
+        dimMobState: (typeof serializeDimMobPersistence === 'function') ? serializeDimMobPersistence() : null,
         ...serializeChestData()
       });
       localStorage.setItem(WORLDS_KEY, JSON.stringify(list.slice(0, 8)));
@@ -1957,6 +1968,7 @@ function renderSavedWorldsList() {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) generateChunk(pcx + dx, pcz + dz);
     if (currentDimension === 'dragon_realm') generateChunk(1, 3);
     restoreChestData(w);
+    if (w.dimMobState && typeof restoreDimMobPersistence === 'function') restoreDimMobPersistence(w.dimMobState);
     if (Array.isArray(w.savedMobs)) {
       if (typeof restoreMobsFromSave === 'function') restoreMobsFromSave(w.savedMobs);
     } else if (typeof spawnFallbackDimMobs === 'function') {
@@ -2028,7 +2040,7 @@ function launchWorldFromLobby(opts, hostCoop = false) {
     document.getElementById('lobbyScreen').classList.add('hidden');
     document.body.classList.remove('in-lobby');
     applyShaderPreset(window._cartoonAddonActive ? 'cartoon_barebones' : (currentWorldMeta.preset || shaderPreset || 'eclipse'));
-    try { teleportToScenicBiome(chosenBiome, { preserveShader: true }); } catch (err) { console.error('Biome teleport error:', err); }
+    try { teleportToScenicBiome(chosenBiome, { preserveShader: true, isInitialSpawn: true }); } catch (err) { console.error('Biome teleport error:', err); }
     window._worldSpawnPos = { x: player.x, y: player.y, z: player.z, yaw: player.yaw };
     if (currentDimension === 'overworld') {
       _ruinOriginX = Math.round(player.x);

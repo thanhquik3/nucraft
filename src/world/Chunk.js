@@ -289,6 +289,12 @@
   const GRAND_RUINS_Y_SHIFT = -34;
   const GRAND_RUINS_PLAZA_Y = 14 + GRAND_RUINS_Y_SHIFT;   // -20 (deep underground!)
   const GRAND_RUINS_PORTAL_Y = 16 + GRAND_RUINS_Y_SHIFT;  // -18 (deep underground!)
+  const GRAND_CITADEL_CX = 12000, GRAND_CITADEL_CZ = -12000, GRAND_CITADEL_R = 500;
+  function isGrandCitadel(wx, wz) {
+    return currentDimension === 'overworld' &&
+      Math.abs(wx - GRAND_CITADEL_CX) <= GRAND_CITADEL_R &&
+      Math.abs(wz - GRAND_CITADEL_CZ) <= GRAND_CITADEL_R;
+  }
   function isGrandRuins(wx, wz) {
     return currentDimension === 'overworld' && wx >= GRAND_RUINS_MIN_X && wx <= GRAND_RUINS_MAX_X && wz >= GRAND_RUINS_MIN_Z && wz <= GRAND_RUINS_MAX_Z;
   }
@@ -469,6 +475,7 @@
     if (isWheatMegaPlain(wx, wz)) return BIOMES.WHEAT_VALLEY;
     if (isAbandonedCity(wx, wz)) return BIOMES.ABANDONED_CITY;
     if (isGrandRuins(wx, wz)) return BIOMES.GRAND_RUINS;
+    if (isGrandCitadel(wx, wz)) return BIOMES.PLAINS;
     const _oMac = getOceanMacro(wx, wz);
     if (_oMac.isOcean) {
       const _isl = getOceanIslandInfo(wx, wz, _oMac.openness);
@@ -538,6 +545,7 @@
   function getRawBiomeHeight(wx, wz, biome) {
     if (biome === BIOMES.ABANDONED_CITY) return 2;
     if (biome === BIOMES.GRAND_RUINS) return getGrandRuinsSurfaceY(wx, wz);
+    if (isGrandCitadel(wx, wz)) return 6;
     if (isWheatMegaPlain(wx, wz)) {
       const hill = fbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, worldSeed + 881);
       const wave = valueNoise2D(wx * 0.018, wz * 0.018, worldSeed + 883);
@@ -1043,6 +1051,7 @@
     }
     if (biome === BIOMES.ABANDONED_CITY) return 2;
     if (biome === BIOMES.GRAND_RUINS) return getGrandRuinsSurfaceY(wx, wz);
+    if (isGrandCitadel(wx, wz)) return 6;
     const bC = biome || getBiomeAt(wx, wz);
     const b1 = getBiomeAt(wx + 8, wz), b2 = getBiomeAt(wx - 8, wz);
     const b3 = getBiomeAt(wx, wz + 8), b4 = getBiomeAt(wx, wz - 8);

@@ -4493,10 +4493,11 @@
     if (currentDimension === 'overworld' && isAbandonedCity(wx0 + 8, wz0 + 8)) return _genCityChunk(cx, cz, wx0, wz0, data);
     if (currentDimension === 'overworld' && isGrandRuins(wx0 + 8, wz0 + 8)) return _genGrandRuinsChunk(cx, cz, wx0, wz0, data);
     let maxLy = 0, _isUniformBiome = false, _bC0 = BIOMES.PLAINS, _baseDone = false;
+    const _inCitadelChunk = (currentDimension === 'overworld' && (depthOffset || 0) === 0 && wx0 + 15 >= 11500 && wx0 <= 12500 && wz0 + 15 >= -12500 && wz0 <= -11500);
 
     // ===================== DIMENSION 1: OVERWORLD (Worker / Rust WASM Base Terrain Fast-Path) =====================
     const wPre = (typeof chunkWorkerPool !== 'undefined' && chunkWorkerPool.takeOverworld) ? chunkWorkerPool.takeOverworld(cx, cz) : null;
-    if (wPre && wPre.data) {
+    if (!_inCitadelChunk && wPre && wPre.data) {
       data.set(wPre.data);
       if (wPre.isOceanChunk) {
         maxLy = applyChunkMods(cx, cz, data, wPre.maxLy | 0);
@@ -4512,7 +4513,7 @@
       _isUniformBiome = (wPre.uniformBiome !== 255);
       if (_isUniformBiome && BIOME_LIST[wPre.uniformBiome]) _bC0 = BIOME_LIST[wPre.uniformBiome];
       _baseDone = true;
-    } else if (_nwExports && _nwExports.generate_overworld_base_chunk && _syncMainWasmLuts(false)) {
+    } else if (!_inCitadelChunk && _nwExports && _nwExports.generate_overworld_base_chunk && _syncMainWasmLuts(false)) {
       _syncWasmViews();
       const acList = getAncientCityLocations();
       for (let ai = 0; ai < 4 && ai < acList.length; ai++) {
@@ -5052,7 +5053,7 @@
           else if ((biome === BIOMES.ALPINE_PEAKS || biome === BIOMES.CLOUD_PEAKS) && h <= 22 && surfTopId === B.GRASS && rTree > 0.968) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'pine'); placed = true; }
           else if (biome === BIOMES.HIGHLAND_PLATEAU && rTree > 0.978) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, hash2i(wx, wz, worldSeed + 913) > 0.5 ? 'baobab' : 'sculpted_birch'); placed = true; }
           else if (biome === BIOMES.FOREST && rTree > 0.956) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, (inGiantSafe && rTree > 0.988) ? 'broadleaf' : (hash2i(wx, wz, worldSeed + 911) > 0.72 ? 'canopy_jungle' : (hash2i(wx, wz, worldSeed + 912) > 0.44 ? 'sculpted_birch' : 'apple'))); placed = true; }
-          else if (biome === BIOMES.PLAINS && surfTopId === B.GRASS && rTree > 0.9997) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
+          else if (biome === BIOMES.PLAINS && surfTopId === B.GRASS && !isGrandCitadel(wx, wz) && rTree > 0.9997) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
           else if (biome === BIOMES.GREEN_PLAINS && surfTopId === B.GRASS && rTree > 0.9998) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'apple'); placed = true; }
           else if (biome === BIOMES.SAKURA && rTree > 0.946) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'sakura'); placed = true; }
           else if ((biome === BIOMES.AUTUMN || biome === BIOMES.AUTUMN_GOLDEN || biome === BIOMES.AUTUMN_DEEP) && rTree > 0.950) { placeLuantiTree(data, lx, h + 1, lz, wx, wz, biome === BIOMES.AUTUMN_GOLDEN ? 'acacia' : (hash2i(wx, wz, worldSeed + 917) > 0.30 ? 'autumn_maple' : 'acacia')); placed = true; }
@@ -5150,7 +5151,7 @@
     }
 
     // Open-World Starter Meadow/Forest Cottage w/ Working Oak Door & Warm Porch Lantern (significantly rarer!)
-    if ((midB === BIOMES.PLAINS || midB === BIOMES.FOREST || midB === BIOMES.FLOWER_MEADOW || midB === BIOMES.SAKURA) && midH > WATER_LEVEL + 1 && midH < 14 && (Math.abs(cx) > 2 || Math.abs(cz) > 2) && hash2i(cx, cz, worldSeed + 2477) > 0.9955) {
+    if (!_inCitadelChunk && (midB === BIOMES.PLAINS || midB === BIOMES.FOREST || midB === BIOMES.FLOWER_MEADOW || midB === BIOMES.SAKURA) && midH > WATER_LEVEL + 1 && midH < 14 && (Math.abs(cx) > 2 || Math.abs(cz) > 2) && hash2i(cx, cz, worldSeed + 2477) > 0.9955) {
       const cy = midH;
       for (let dz = 3; dz <= 12; dz++) for (let dx = 3; dx <= 12; dx++) {
         // Móng bám theo địa hình thật của từng cột: đắp đá xuống tới mặt đất, không tạo sân phẳng lơ lửng
@@ -7316,6 +7317,7 @@
         player: { x: player.x, y: player.y, trueY: player.y - (depthOffset || 0), z: player.z, yaw: player.yaw, pitch: player.pitch, dim: currentDimension, depthOffset: depthOffset || 0, hp: player.hp, armor: player.armor, equip: player.equip, equipMeta: player.equipMeta, offhandDur: player.offhandDur || 336, offhandMaxDur: player.offhandMaxDur || 336, hunger: player.hunger, xp: player.xp, level: player.level, daysPlayed: player.daysPlayed, swiftSneak: player.swiftSneak || 0, bedSpawn: player.bedSpawn || null },
         inventory, dayTime, weatherMode, hasIdbMods: true, modsCount: worldMods.size, mods: modsArr.slice(-1500),
         savedMobs: (typeof serializeMobsForSave === 'function') ? serializeMobsForSave() : [],
+        dimMobState: (typeof serializeDimMobPersistence === 'function') ? serializeDimMobPersistence() : null,
         ...serializeChestData()
       }));
       showToast('Đã lưu thế giới v17 thành công!');
@@ -7973,6 +7975,313 @@
     return baseY;
   }
 
+  // ============ HOUSE 6 (medium): MEDIEVAL TIMBER TOWNHOUSE — Nhà Phố Trung Cổ Khung Gỗ Đá ============
+  function buildMedievalTimberHouse(hx, hz, fz) {
+    const halfX = 6, halfZ = 5, zE = 6, eaveY = 10;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    const FR = B.SPRUCE_LOG, STONE = B.STONE_BRICK, WALL = B.MARBLE_BRICK;
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      const edge = (Math.abs(dx) === halfX || Math.abs(dz) === halfZ);
+      put(dx, 0, dz, edge ? STONE : B.PLANKS);
+    }
+    // Tầng 1: Tường đá gạch cổ + cửa gỗ sồi + cửa kính + bồn hoa lá
+    for (let wy = 1; wy <= 4; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      if (Math.abs(dx) !== halfX && Math.abs(dz) !== halfZ) continue;
+      const onX = Math.abs(dx) === halfX, isFront = dz === halfZ;
+      if (isFront && dx === 0 && wy <= 2) continue;
+      const isPost = (onX && (isFront || dz === -halfZ)) || (isFront && Math.abs(dx) === 3) || (onX && dz === 0);
+      const isWin = (wy === 2 || wy === 3) && ((isFront && (Math.abs(dx) === 4 || Math.abs(dx) === 2)) || (onX && Math.abs(dz) === 2));
+      if (isWin) {
+        put(dx, wy, dz, B.GLASS);
+        if (isFront && wy === 2) put(dx, 1, halfZ + 1, B.OAK_LEAVES);
+        continue;
+      }
+      put(dx, wy, dz, isPost || wy === 4 ? FR : ((wy === 1 || ((dx + dz + wy) & 3) === 0) ? B.DEEPSLATE_BRICKS : STONE));
+    }
+    vSlab(put, halfX, halfZ, 1);
+    // Tầng 2 nhô ra 1 block phía trước kiểu trung cổ + khung gỗ đậm & tường vôi trắng
+    for (let wy = 6; wy <= 9; wy++) for (let dz = -halfZ; dz <= halfZ + 1; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      const onX = Math.abs(dx) === halfX, isFront = dz === halfZ + 1;
+      if (!onX && !isFront && dz !== -halfZ) continue;
+      const isPost = (onX && (isFront || dz === -halfZ)) || (isFront && (Math.abs(dx) === 2 || Math.abs(dx) === 5)) || (onX && dz === 0) || wy === 6 || wy === 9;
+      const isWin = (wy === 7 || wy === 8) && ((isFront && (Math.abs(dx) === 1 || Math.abs(dx) === 4)) || (onX && Math.abs(dz) === 2));
+      if (isWin) {
+        put(dx, wy, dz, B.GLASS);
+        if (isFront && wy === 7) put(dx, 6, halfZ + 2, B.OAK_LEAVES);
+        continue;
+      }
+      put(dx, wy, dz, isPost ? FR : WALL);
+    }
+    vRoof(put, halfX, zE, eaveY, B.DEEPSLATE, FR, B.DEEPSLATE_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, ((y + zz) % 3 === 0) ? FR : WALL));
+    vDormer(put, 0, 2, halfZ + 1, 6, eaveY, WALL, FR, B.DEEPSLATE_STAIRS_N, B.DEEPSLATE);
+    vCeil(put, halfX, halfZ, eaveY - 1, FR);
+    vSeal(put, hx, hz, fz, baseY, halfX, halfZ, eaveY - 1, eaveY, zE, WALL);
+    // Ống khói đá cao + tường rào đá bao sân + cây bụi lá
+    const chX = -halfX + 1, chZ = -halfZ + 1;
+    for (let wy = 1; wy <= eaveY + zE + 1; wy++) put(chX, wy, chZ, STONE);
+    put(chX, eaveY + zE + 2, chZ, B.CAMPFIRE);
+    vVines(put, halfX, zE, eaveY, hx, hz, fz, B.OAK_LEAVES, 9401, halfZ + 1);
+    vDoors(put, halfZ, B.SPRUCE_DOOR, colGroundY(hx, hz - (halfZ + 1) * fz) <= baseY + 2, true);
+    vStairs(put, halfX, halfZ);
+    vFurn1(put, halfX, halfZ, true, false);
+    vFurn2(put, halfX, halfZ, true, eaveY - 1);
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ, baseY, 7);
+    return baseY;
+  }
+
+  // ============ HOUSE 7 (medium): MEDIEVAL BLACKSMITH FORGE — Lò Rèn Trung Cổ Minecraft ============
+  function buildMedievalBlacksmith(hx, hz, fz) {
+    const halfX = 7, halfZ = 4, zE = 5, eaveY = 6;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    const STONE = B.STONE_BRICK, FR = B.OAK_LOG;
+    // Nền đá gạch toàn khu (bên trái = hiên lò rèn mở, bên phải = xưởng & phòng nghỉ)
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      put(dx, 0, dz, dx >= 0 && Math.abs(dx) < halfX && Math.abs(dz) < halfZ ? B.PLANKS : STONE);
+    }
+    // Phần phải (dx = 0..halfX): phòng ở & kho đồ khép kín
+    for (let wy = 1; wy <= 4; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = 0; dx <= halfX; dx++) {
+      const onX = (dx === 0 || dx === halfX), onZ = (Math.abs(dz) === halfZ);
+      if (!onX && !onZ) continue;
+      if (dz === halfZ && dx === 3 && wy <= 2) continue;
+      const isCorner = (onX && onZ) || wy === 4;
+      const isWin = (wy === 2 || wy === 3) && ((dz === halfZ && dx === 5) || (dx === halfX && Math.abs(dz) <= 1));
+      if (isWin) { put(dx, wy, dz, B.GLASS); continue; }
+      put(dx, wy, dz, isCorner ? FR : (wy === 1 ? STONE : B.PLANKS));
+    }
+    // Phần trái (dx = -halfX..-1): hiên lò rèn lộ thiên có mái che + cột rào + bể dung nham an toàn
+    for (const [cx2, cz2] of [[-halfX, -halfZ], [-halfX, halfZ], [-1, -halfZ], [-1, halfZ]]) {
+      for (let wy = 1; wy <= 4; wy++) put(cx2, wy, cz2, wy <= 2 ? B.OAK_FENCE : FR);
+    }
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= -1; dx++) {
+      if (dx === -halfX || dz === -halfZ) for (let wy = 1; wy <= 4; wy++) put(dx, wy, dz, STONE);
+    }
+    // Lò dung nham an toàn + đe + 2 lò luyện kim + rương vũ khí
+    for (let dz = -2; dz <= 0; dz++) for (let dx = -5; dx <= -3; dx++) {
+      put(dx, 1, dz, (dx === -4 && dz === -1) ? B.LAVA : STONE);
+    }
+    put(-4, 0, -1, STONE);
+    put(-5, 1, -2, B.BLAST_FURNACE); put(-3, 1, -2, B.FURNACE);
+    put(-2, 1, 2, B.ANVIL); put(-5, 1, 2, B.CHEST);
+    put(-2, 2, 2, B.LANTERN);
+    // Mái ngói đá dốc cho cả xưởng & hiên lò rèn + ống khói đá cao
+    vRoof(put, halfX, zE, eaveY, STONE, B.DEEPSLATE, B.STONE_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, ((y + zz) & 1) ? FR : STONE));
+    vCeil(put, halfX, halfZ, eaveY - 1, FR);
+    for (let wy = 1; wy <= eaveY + zE + 3; wy++) {
+      put(-5, wy, -3, STONE); put(-4, wy, -3, B.DEEPSLATE_BRICKS);
+    }
+    put(-5, eaveY + zE + 4, -3, B.CAMPFIRE);
+    // Cửa xưởng bên phải + nội thất cơ bản + tường đá & lá trang trí quanh nhà
+    put(3, 1, halfZ, B.SPRUCE_DOOR); put(3, 2, halfZ, B.AIR); put(3, 3, halfZ, FR);
+    put(2, 2, halfZ + 1, B.LANTERN); put(4, 2, halfZ + 1, B.LANTERN);
+    put(5, 1, -2, B.BED); put(6, 1, -2, B.BED_FOOT);
+    put(2, 1, -2, B.CRAFT_TABLE); put(6, 1, 2, B.IRON_CHEST); put(3, 4, 0, B.LANTERN);
+    for (let dx = -halfX - 1; dx <= halfX + 1; dx++) {
+      if (Math.abs(dx - 3) <= 1) continue;
+      const wz2 = hz + (halfZ + 2) * fz, gy2 = colGroundY(hx + dx, wz2);
+      if (gy2 >= baseY - 1 && gy2 <= baseY + 2) {
+        setBlockWorld(hx + dx, gy2 + 1, wz2, ((dx & 3) === 0) ? B.OAK_LEAVES : B.STONE_BRICK_WALL, true);
+      }
+    }
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ, baseY, 7);
+    return baseY;
+  }
+
+  // ============ HOUSE 8 (large): MEDIEVAL TAVERN & INN — Quán Trọ Trung Cổ 2 Tầng ============
+  function buildMedievalTavern(hx, hz, fz) {
+    const halfX = 8, halfZ = 5, zE = 7, eaveY = 10;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    const FR = B.SPRUCE_LOG, STONE = B.STONE_BRICK, CREAM = B.MARBLE_BRICK;
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      put(dx, 0, dz, (Math.abs(dx) === halfX || Math.abs(dz) === halfZ) ? STONE : B.PLANKS);
+    }
+    for (let wy = 1; wy <= 4; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      if (Math.abs(dx) !== halfX && Math.abs(dz) !== halfZ) continue;
+      const onX = Math.abs(dx) === halfX, isFront = dz === halfZ;
+      if (isFront && dx === 0 && wy <= 2) continue;
+      const isPost = (onX && (isFront || dz === -halfZ)) || (isFront && (Math.abs(dx) === 3 || Math.abs(dx) === 6)) || (onX && dz === 0) || wy === 4;
+      const isWin = (wy === 2 || wy === 3) && ((isFront && (Math.abs(dx) === 4 || Math.abs(dx) === 5 || Math.abs(dx) === 7)) || (onX && Math.abs(dz) === 2));
+      if (isWin) { put(dx, wy, dz, B.GLASS); continue; }
+      put(dx, wy, dz, isPost ? FR : STONE);
+    }
+    vSlab(put, halfX, halfZ, 2);
+    // Ban công gỗ phía trước + cột đèn treo biển quán trọ
+    for (const px of [-6, -2, 2, 6]) {
+      for (let wy = 1; wy <= 5; wy++) put(px, wy, halfZ + 2, wy <= 4 ? B.OAK_FENCE : FR);
+      put(px, 4, halfZ + 2, B.LANTERN);
+    }
+    for (let dx = -6; dx <= 6; dx++) put(dx, 6, halfZ + 2, B.OAK_FENCE);
+    for (let wy = 6; wy <= 9; wy++) for (let dz = -halfZ; dz <= halfZ + 1; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      const onX = Math.abs(dx) === halfX, isFront = dz === halfZ + 1;
+      if (!onX && !isFront && dz !== -halfZ) continue;
+      const isPost = (onX && (isFront || dz === -halfZ)) || (isFront && (Math.abs(dx) === 2 || Math.abs(dx) === 5)) || (onX && dz === 0) || wy === 6 || wy === 9;
+      const isWin = (wy === 7 || wy === 8) && ((isFront && (Math.abs(dx) === 3 || Math.abs(dx) === 4 || Math.abs(dx) === 6)) || (onX && Math.abs(dz) === 2));
+      if (isWin) { put(dx, wy, dz, B.GLASS); continue; }
+      put(dx, wy, dz, isPost ? FR : CREAM);
+    }
+    vRoof(put, halfX, zE, eaveY, B.TERRACOTTA, FR, B.TERRACOTTA_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, ((y + zz) % 3 === 0) ? FR : CREAM));
+    vDormer(put, -4, 2, halfZ + 1, 6, eaveY, CREAM, FR, B.TERRACOTTA_STAIRS_N, FR);
+    vDormer(put, 4, 2, halfZ + 1, 6, eaveY, CREAM, FR, B.TERRACOTTA_STAIRS_N, FR);
+    vCeil(put, halfX, halfZ, eaveY - 1, FR);
+    vSeal(put, hx, hz, fz, baseY, halfX, halfZ, eaveY - 1, eaveY, zE, CREAM);
+    const chX = halfX - 1, chZ = -halfZ + 1;
+    for (let wy = 1; wy <= eaveY + zE + 1; wy++) put(chX, wy, chZ, STONE);
+    put(chX, eaveY + zE + 2, chZ, B.CAMPFIRE);
+    // Bàn ăn ngoài hiên + đống cỏ khô
+    put(-4, 1, halfZ + 3, B.OAK_FENCE); put(-4, 2, halfZ + 3, B.OAK_TRAPDOOR);
+    put(4, 1, halfZ + 3, B.OAK_FENCE); put(4, 2, halfZ + 3, B.OAK_TRAPDOOR);
+    put(-7, 1, halfZ + 2, B.HAY_BALE); put(-7, 2, halfZ + 2, B.HAY_BALE);
+    vVines(put, halfX, zE, eaveY, hx, hz, fz, B.OAK_LEAVES, 9403, halfZ + 1);
+    vDoors(put, halfZ, B.OAK_DOOR, colGroundY(hx, hz - (halfZ + 1) * fz) <= baseY + 2, true);
+    vStairs(put, halfX, halfZ);
+    vFurn1(put, halfX, halfZ, true, false);
+    vFurn2(put, halfX, halfZ, true, eaveY - 1);
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ, baseY, 8);
+    return baseY;
+  }
+
+  // ============ HOUSE 9 (large): MEDIEVAL CHAPEL & BELL TOWER — Thánh Đường Tháp Chuông Đá Cổ ============
+  function buildMedievalChapelTower(hx, hz, fz) {
+    const halfX = 5, halfZ = 6, zE = 6, eaveY = 8;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    const STONE = B.STONE_BRICK, MARBLE = B.MARBLE_BRICK;
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      put(dx, 0, dz, ((dx + dz) & 1) === 0 ? STONE : MARBLE);
+    }
+    for (let wy = 1; wy <= eaveY - 1; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      const onX = Math.abs(dx) === halfX, onZ = Math.abs(dz) === halfZ;
+      if (!onX && !onZ) continue;
+      if (dz === halfZ && dx === 0 && wy <= 3) continue;
+      const isPillar = (onX && onZ) || (onX && (dz % 3 === 0)) || (onZ && (dx % 2 === 0));
+      const isWin = (wy >= 3 && wy <= 5) && !isPillar && ((onX && Math.abs(dz) % 3 !== 0) || (dz === -halfZ && Math.abs(dx) <= 2));
+      put(dx, wy, dz, isWin ? B.GLASS : (isPillar ? B.DEEPSLATE_BRICKS : STONE));
+    }
+    vRoof(put, halfX, zE, eaveY, B.DEEPSLATE, STONE, B.DEEPSLATE_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, MARBLE));
+    // Tháp chuông cao phía trước-giữa với chóp đồng xanh cổ
+    for (let wy = 1; wy <= 14; wy++) for (let dz = halfZ - 2; dz <= halfZ + 1; dz++) for (let dx = -2; dx <= 2; dx++) {
+      const edge = (Math.abs(dx) === 2 || dz === halfZ - 2 || dz === halfZ + 1);
+      if (!edge) continue;
+      if (wy <= 3 && dx === 0 && dz === halfZ + 1) continue;
+      const bellOpen = (wy >= 11 && wy <= 13) && (dx === 0 || dz === halfZ - 1);
+      put(dx, wy, dz, bellOpen ? B.AIR : ((Math.abs(dx) === 2 && (dz === halfZ - 2 || dz === halfZ + 1)) ? MARBLE : STONE));
+    }
+    put(0, 12, halfZ - 1, B.LANTERN);
+    for (let s = 0; s <= 3; s++) {
+      const r = 2 - Math.floor(s * 0.7);
+      for (let dz = halfZ - 2 + (2 - r); dz <= halfZ + 1 - (2 - r); dz++) {
+        for (let dx = -r; dx <= r; dx++) put(dx, 15 + s, dz, B.COPPER_ROOF);
+      }
+    }
+    put(0, 19, halfZ, B.LANTERN);
+    // Nội thất bên trong thánh đường + tường rào đá & bụi lá trang trí xung quanh
+    put(0, 1, halfZ + 1, B.OAK_DOOR); put(0, 2, halfZ + 1, B.AIR);
+    put(0, 1, -halfZ + 2, B.ENCHANT_TABLE);
+    put(-2, 1, -halfZ + 1, B.BOOKSHELF); put(2, 1, -halfZ + 1, B.BOOKSHELF);
+    put(-3, 1, 0, B.OAK_STAIRS_N); put(-2, 1, 0, B.OAK_STAIRS_N);
+    put(2, 1, 0, B.OAK_STAIRS_N); put(3, 1, 0, B.OAK_STAIRS_N);
+    put(0, 6, 0, B.LANTERN); put(0, 6, -3, B.LANTERN);
+    for (const sx of [-halfX - 2, halfX + 2]) for (let dz = -halfZ; dz <= halfZ; dz++) {
+      const wx = hx + sx, wz = hz + dz * fz, gy = colGroundY(wx, wz);
+      if (gy >= baseY - 1 && gy <= baseY + 2) {
+        setBlockWorld(wx, gy + 1, wz, (dz & 1) ? B.STONE_BRICK_WALL : B.OAK_LEAVES, true);
+      }
+    }
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ + 1, baseY, 7);
+    return baseY;
+  }
+
+  // ============ HOUSE 10 (small): CLASSIC MINECRAFT OAK & COBBLESTONE VILLAGE HOUSE — Nhà Gỗ Sồi Minecraft Cổ Điển ============
+  function buildClassicOakVillageHouse(hx, hz, fz) {
+    const halfX = 5, halfZ = 4, zE = 5, eaveY = 6;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      put(dx, 0, dz, (Math.abs(dx) === halfX || Math.abs(dz) === halfZ) ? B.STONE_BRICK : B.PLANKS);
+    }
+    for (let wy = 1; wy <= 4; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      if (Math.abs(dx) !== halfX && Math.abs(dz) !== halfZ) continue;
+      if (dz === halfZ && dx === 0 && wy <= 2) continue;
+      const isCorner = (Math.abs(dx) === halfX && Math.abs(dz) === halfZ);
+      const isWin = (wy === 2 || wy === 3) && ((dz === halfZ && Math.abs(dx) === 3) || (Math.abs(dx) === halfX && Math.abs(dz) <= 1));
+      if (isWin) { put(dx, wy, dz, B.GLASS); continue; }
+      put(dx, wy, dz, isCorner ? B.OAK_LOG : (wy === 1 ? B.STONE_BRICK : B.PLANKS));
+    }
+    vRoof(put, halfX, zE, eaveY, B.SPRUCE_LOG, B.OAK_LOG, B.OAK_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, B.PLANKS));
+    vCeil(put, halfX, halfZ, eaveY - 1, B.OAK_LOG);
+    vSeal(put, hx, hz, fz, baseY, halfX, halfZ, eaveY - 1, eaveY, zE, B.PLANKS);
+    vDoors(put, halfZ, B.OAK_DOOR, false, true);
+    put(-3, 1, -2, B.BED); put(-2, 1, -2, B.BED_FOOT);
+    put(3, 1, -2, B.FURNACE); put(3, 1, -1, B.CRAFT_TABLE); put(3, 1, 1, B.CHEST);
+    put(0, 4, 0, B.LANTERN);
+    vWheat(hx, hz, fz, halfX, halfZ, baseY, -1);
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ, baseY, 6);
+    return baseY;
+  }
+
+  // ============ HOUSE 11 (medium): MEDIEVAL BAKERY & MARKET HOUSE — Tiệm Bánh & Chợ Trung Cổ ============
+  function buildMedievalBakeryWindmill(hx, hz, fz) {
+    const halfX = 6, halfZ = 5, zE = 6, eaveY = 9;
+    const baseY = vBase(hx, hz, halfX, halfZ, fz);
+    const put = vP(hx, hz, fz, baseY);
+    const FR = B.OAK_LOG, WALL = B.END_STONE;
+    for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      put(dx, 0, dz, (Math.abs(dx) === halfX || Math.abs(dz) === halfZ) ? B.STONE_BRICK : B.PLANKS);
+    }
+    for (let wy = 1; wy <= 4; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      if (Math.abs(dx) !== halfX && Math.abs(dz) !== halfZ) continue;
+      if (dz === halfZ && dx === 0 && wy <= 2) continue;
+      const isPost = (Math.abs(dx) === halfX && Math.abs(dz) === halfZ) || (dz === halfZ && Math.abs(dx) === 3) || wy === 4;
+      const isWin = (wy === 2 || wy === 3) && ((dz === halfZ && (Math.abs(dx) === 4 || Math.abs(dx) === 2)) || (Math.abs(dx) === halfX && Math.abs(dz) === 2));
+      put(dx, wy, dz, isWin ? B.GLASS : (isPost ? FR : (wy === 1 ? B.STONE_BRICK : B.PLANKS)));
+    }
+    vSlab(put, halfX, halfZ, 1);
+    for (let wy = 6; wy <= 8; wy++) for (let dz = -halfZ; dz <= halfZ; dz++) for (let dx = -halfX; dx <= halfX; dx++) {
+      const onX = Math.abs(dx) === halfX, isFront = dz === halfZ;
+      if (!onX && !isFront && dz !== -halfZ) continue;
+      const isPost = (onX && (isFront || dz === -halfZ)) || (isFront && Math.abs(dx) === 3) || wy === 6 || wy === 8;
+      const isWin = wy === 7 && ((isFront && Math.abs(dx) === 2) || (onX && Math.abs(dz) === 2));
+      put(dx, wy, dz, isWin ? B.GLASS : (isPost ? FR : WALL));
+    }
+    vRoof(put, halfX, zE, eaveY, B.COPPER_ROOF, FR, B.TERRACOTTA_STAIRS_N,
+      (gx, y, zz) => put(gx, y, zz, ((y + zz) & 1) ? FR : WALL));
+    vCeil(put, halfX, halfZ, eaveY - 1, FR);
+    vSeal(put, hx, hz, fz, baseY, halfX, halfZ, eaveY - 1, eaveY, zE, WALL);
+    // Mái hiên sạp bánh sọc đỏ-trắng phía trước + đống rơm & lò nướng
+    for (let dx = -5; dx <= -2; dx++) {
+      put(dx, 3, halfZ + 1, (dx & 1) ? B.RED_WOOL : B.WHITE_WOOL);
+      put(dx, 3, halfZ + 2, (dx & 1) ? B.RED_WOOL : B.WHITE_WOOL);
+    }
+    put(-5, 1, halfZ + 2, B.OAK_FENCE); put(-5, 2, halfZ + 2, B.OAK_FENCE);
+    put(-2, 1, halfZ + 2, B.OAK_FENCE); put(-2, 2, halfZ + 2, B.OAK_FENCE);
+    put(-4, 1, halfZ + 1, B.CHEST); put(-3, 1, halfZ + 1, B.SMOKER);
+    put(4, 1, halfZ + 2, B.HAY_BALE); put(5, 1, halfZ + 2, B.HAY_BALE); put(4, 2, halfZ + 2, B.HAY_BALE);
+    const chX = halfX - 1, chZ = -halfZ + 1;
+    for (let wy = 1; wy <= eaveY + zE + 1; wy++) put(chX, wy, chZ, B.TERRACOTTA);
+    put(chX, eaveY + zE + 2, chZ, B.CAMPFIRE);
+    vVines(put, halfX, zE, eaveY, hx, hz, fz, B.OAK_LEAVES, 9407, halfZ + 1);
+    vDoors(put, halfZ, B.BIRCH_DOOR, true, true);
+    vStairs(put, halfX, halfZ);
+    vFurn1(put, halfX, halfZ, true, false);
+    vFurn2(put, halfX, halfZ, false, eaveY - 1);
+    vWheat(hx, hz, fz, halfX, halfZ, baseY, 1);
+    vFlowers(hx, hz, fz, halfX, halfZ, baseY);
+    vPath(hx, hz, fz, halfZ, baseY, 7);
+    return baseY;
+  }
+
   // --- Handcrafted Landmark Builders for New Reference Biomes (Nordic Smithy Cottage & Golden Wheat Windmill) ---
   function buildNordicSmithyCottage(hx, hz) {
     const rcx = hx >> 4, rcz = hz >> 4;
@@ -8094,45 +8403,335 @@
       data[(ly << 8) | (lz << 4) | lx] = id;
       if (ly > maxLy) maxLy = ly;
     };
-    // 1) 1000x1000 Grand Walled Royal Citadel centered at (12000, -12000)
+    const stampCitadelTree = (tx, tz, baseY, kind = 0) => {
+      if (tx + 3 < wx0 || tx - 3 >= wx0 + 16 || tz + 3 < wz0 || tz - 3 >= wz0 + 16) return;
+      const logB = (kind === 1) ? B.SPRUCE_LOG : ((kind === 2) ? B.BIRCH_LOG : ((kind === 3) ? B.SAKURA_LOG : B.OAK_LOG));
+      const leafB = (kind === 1) ? B.SPRUCE_LEAVES : ((kind === 2) ? B.BIRCH_LEAVES : ((kind === 3) ? B.SAKURA_LEAVES : B.OAK_LEAVES));
+      const th = (kind === 1) ? 7 : 5;
+      for (let y = 1; y <= th; y++) putL(tx, baseY + y, tz, logB);
+      if (kind === 1) {
+        for (let dy = 2; dy <= th + 2; dy++) {
+          const r = dy >= th + 1 ? 1 : (dy >= th - 1 ? 2 : (dy === 2 ? 1 : 2));
+          for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+            if (Math.abs(dx) === r && Math.abs(dz) === r && (dy & 1) === 0) continue;
+            if (dx === 0 && dz === 0 && dy <= th) continue;
+            putL(tx + dx, baseY + dy, tz + dz, leafB);
+          }
+        }
+        putL(tx, baseY + th + 3, tz, leafB);
+      } else {
+        for (let dy = th - 1; dy <= th + 2; dy++) {
+          const r = (dy === th + 2) ? 1 : 2;
+          for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+            if (r === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2 && dy !== th) continue;
+            if (dx === 0 && dz === 0 && dy <= th) continue;
+            putL(tx + dx, baseY + dy, tz + dz, leafB);
+          }
+        }
+      }
+    };
+    const stampMiniMedievalBuilding = (ox, oz, baseY, w, d, style = 0) => {
+      // style: 0=half-timber slate, 1=terracotta tavern/cottage, 2=classic oak, 3=stone blacksmith, 4=chapel tower, 5=watchtower
+      if (ox + w + 1 < wx0 || ox - 1 >= wx0 + 16 || oz + d + 1 < wz0 || oz - 1 >= wz0 + 16) return;
+      const xMin = Math.max(wx0, ox), xMax = Math.min(wx0 + 15, ox + w - 1);
+      const zMin = Math.max(wz0, oz), zMax = Math.min(wz0 + 15, oz + d - 1);
+      const frameB = (style === 2) ? B.OAK_LOG : B.SPRUCE_LOG;
+      const lowerB = (style === 0 || style === 3 || style === 4 || style === 5) ? B.STONE_BRICK : B.PLANKS;
+      const upperB = (style === 0) ? B.MARBLE_BRICK : ((style === 1) ? B.END_STONE : ((style === 4) ? B.MARBLE_BRICK : B.PLANKS));
+      const roofStair = (style === 1) ? B.TERRACOTTA_STAIRS_N : ((style === 2) ? B.OAK_STAIRS_N : ((style === 3) ? B.STONE_STAIRS_N : B.DEEPSLATE_STAIRS_N));
+      const ridgeB = (style === 1) ? B.TERRACOTTA : ((style === 2) ? B.SPRUCE_LOG : ((style === 3) ? B.STONE_BRICK : B.DEEPSLATE));
+      const twoStory = (style === 0 || style === 1);
+      const hWall = (style === 5) ? 11 : ((style === 4) ? 7 : (twoStory ? 8 : 4));
+      const doorX = ox + (w >> 1), doorZ = oz + d - 1;
+
+      for (let wz = zMin; wz <= zMax; wz++) {
+        const lz = wz - oz;
+        for (let wx = xMin; wx <= xMax; wx++) {
+          const lx = wx - ox;
+          const onX = (lx === 0 || lx === w - 1), onZ = (lz === 0 || lz === d - 1);
+          const onPerim = onX || onZ;
+          putL(wx, baseY, wz, onPerim ? B.STONE_BRICK : B.PLANKS);
+          for (let wy = 1; wy <= hWall; wy++) {
+            if (!onPerim) {
+              if (twoStory && wy === 4) putL(wx, baseY + wy, wz, B.PLANKS);
+              continue;
+            }
+            if (style === 5) {
+              const isWin = (wy === 4 || wy === 8) && ((lx === (w >> 1)) || (lz === (d >> 1)));
+              if (wx === doorX && wz === doorZ && wy <= 2) {
+                putL(wx, baseY + wy, wz, wy === 1 ? B.SPRUCE_DOOR : B.AIR);
+              } else {
+                putL(wx, baseY + wy, wz, isWin ? B.GLASS : ((onX && onZ) ? B.MARBLE_BRICK : B.STONE_BRICK));
+              }
+              continue;
+            }
+            if (wx === doorX && wz === doorZ && wy <= 2) {
+              putL(wx, baseY + wy, wz, wy === 1 ? B.OAK_DOOR : B.AIR);
+              continue;
+            }
+            const isCorner = (onX && onZ);
+            const isBeam = (twoStory && wy === 4) || wy === hWall;
+            const isWin = ((wy === 2 || (twoStory && wy === 6)) && !isCorner && ((onZ && (lx === 2 || lx === w - 3)) || (onX && (lz === 2 || lz === d - 3))));
+            if (isWin) { putL(wx, baseY + wy, wz, B.GLASS); continue; }
+            if (isCorner || isBeam) { putL(wx, baseY + wy, wz, (style === 4 || style === 3) ? B.DEEPSLATE_BRICKS : frameB); continue; }
+            putL(wx, baseY + wy, wz, (wy <= 3) ? lowerB : upperB);
+          }
+        }
+      }
+      // Steep pitched roof (with 1-block overhang) or copper watchtower spire
+      if (style === 5) {
+        const rxMin = Math.max(wx0, ox - 1), rxMax = Math.min(wx0 + 15, ox + w);
+        const rzMin = Math.max(wz0, oz - 1), rzMax = Math.min(wz0 + 15, oz + d);
+        for (let wz = rzMin; wz <= rzMax; wz++) for (let wx = rxMin; wx <= rxMax; wx++) {
+          const edge = (wx === ox - 1 || wx === ox + w || wz === oz - 1 || wz === oz + d);
+          putL(wx, baseY + hWall + 1, wz, edge ? B.MARBLE_BRICK : B.STONE_BRICK);
+          if (edge && ((wx + wz) & 1) === 0) putL(wx, baseY + hWall + 2, wz, B.STONE_BRICK_WALL);
+        }
+        const cxT = ox + (w >> 1), czT = oz + (d >> 1);
+        for (let s = 0; s <= 4; s++) {
+          const sr = Math.max(0, 2 - Math.floor(s * 0.6));
+          for (let dz = -sr; dz <= sr; dz++) for (let dx = -sr; dx <= sr; dx++) {
+            putL(cxT + dx, baseY + hWall + 2 + s, czT + dz, B.COPPER_ROOF);
+          }
+        }
+        putL(cxT, baseY + hWall + 7, czT, B.LANTERN);
+      } else {
+        const halfZ = (d - 1) >> 1;
+        const rxMin = Math.max(wx0, ox - 1), rxMax = Math.min(wx0 + 15, ox + w);
+        for (let s = 0; s <= halfZ + 1; s++) {
+          const ry = baseY + hWall + 1 + s;
+          const zA = oz - 1 + s, zB = oz + d - s;
+          for (let wx = rxMin; wx <= rxMax; wx++) {
+            const isGableTrim = (wx === ox - 1 || wx === ox + w);
+            if (zA >= zB) {
+              if (zA === zB) putL(wx, ry, zA, ridgeB);
+            } else {
+              putL(wx, ry, zA, isGableTrim ? frameB : roofStair);
+              putL(wx, ry, zB, isGableTrim ? frameB : (roofStair + 1));
+            }
+          }
+          if (zA + 1 < zB) {
+            for (let wz = Math.max(wz0, zA + 1); wz <= Math.min(wz0 + 15, zB - 1); wz++) {
+              putL(ox, ry, wz, upperB);
+              putL(ox + w - 1, ry, wz, upperB);
+            }
+          }
+        }
+      }
+      // Warm interior & porch details + leaf planter boxes + vines
+      putL(doorX, baseY + 3, doorZ + 1, B.LANTERN);
+      putL(ox + 1, baseY + 1, oz + 1, B.BED); putL(ox + 2, baseY + 1, oz + 1, B.BED_FOOT);
+      putL(ox + w - 2, baseY + 1, oz + 1, style === 3 ? B.ANVIL : B.CHEST);
+      putL(ox + w - 2, baseY + 1, oz + 2, style === 3 ? B.BLAST_FURNACE : B.CRAFT_TABLE);
+      if (style === 3) { putL(ox + 2, baseY + 1, oz + d - 2, B.FURNACE); }
+      putL(doorX, baseY + 3, oz + (d >> 1), B.LANTERN);
+      // Leaf window boxes & hanging wall vines
+      if (w >= 7) {
+        putL(ox + 2, baseY + 1, doorZ + 1, B.OAK_LEAVES);
+        putL(ox + w - 3, baseY + 1, doorZ + 1, B.OAK_LEAVES);
+      }
+      if (hWall >= 7) {
+        putL(ox - 1, baseY + 4, oz + 1, B.VINE);
+        putL(ox - 1, baseY + 3, oz + 1, B.VINE);
+        putL(ox + w, baseY + 5, oz + d - 2, B.VINE);
+      }
+    };
+
+    // 1) 1000x1000 Grand Walled Medieval Citadel centered at (12000, -12000)
     const CIT_X = 12000, CIT_Z = -12000, CIT_R = 500;
     if (wx0 + 15 >= CIT_X - CIT_R && wx0 <= CIT_X + CIT_R && wz0 + 15 >= CIT_Z - CIT_R && wz0 <= CIT_Z + CIT_R) {
       const baseY = 6;
+      const FLW_CIT = [B.FLOWER_RED, B.FLOWER_YELLOW, B.FLOWER_LAVENDER, B.OXEYE_DAISY];
       for (let lz = 0; lz < CHUNK_W; lz++) for (let lx = 0; lx < CHUNK_W; lx++) {
         const wx = wx0 + lx, wz = wz0 + lz;
         const dx = wx - CIT_X, dz = wz - CIT_Z, adx = Math.abs(dx), adz = Math.abs(dz);
         if (adx > CIT_R || adz > CIT_R) continue;
         colHeights[(lz << 4) | lx] = baseY;
         const onOuterWall = (adx >= CIT_R - 2 || adz >= CIT_R - 2);
-        const isGate = (adx <= 4 && adz >= CIT_R - 2) || (adz <= 4 && adx >= CIT_R - 2);
-        const onAve = (adx <= 4 || adz <= 4 || (adx % 64) <= 2 || (adz % 64) <= 2);
-        for (let wy = baseY - 2; wy <= baseY + 14; wy++) {
-          putL(wx, wy, wz, wy <= baseY ? (onAve ? B.MARBLE_BRICK : B.STONE_BRICK) : B.AIR);
+        const onInnerRingWall = (adx === 128 || adz === 128) && (adx <= 128 && adz <= 128);
+        const isOuterGate = (adx <= 4 && adz >= CIT_R - 2) || (adz <= 4 && adx >= CIT_R - 2);
+        const isMainAve = (adx <= 4 || adz <= 4);
+        const bx = ((dx % 32) + 32) % 32, bz = ((dz % 32) + 32) % 32;
+        const isStreet = !isMainAve && (bx <= 2 || bx >= 30 || bz <= 2 || bz >= 30);
+        const hGround = hash2i(wx, wz, worldSeed + 9103);
+
+        let topSurf = B.GRASS;
+        if (onOuterWall || onInnerRingWall) {
+          topSurf = B.STONE_BRICK;
+        } else if (isMainAve) {
+          if (adx <= 1 || adz <= 1) topSurf = B.MARBLE_BRICK;
+          else if (adx <= 3 || adz <= 3) topSurf = (hGround > 0.72) ? B.SMOOTH_STONE : B.STONE_BRICK;
+          else topSurf = (hGround > 0.32) ? B.GRASS : B.DIRT;
+        } else if (adx <= 24 && adz <= 24) {
+          topSurf = (adx <= 10 && adz <= 9) ? B.MARBLE_BRICK : ((adx <= 2 || adz <= 2) ? B.STONE_BRICK : (hGround > 0.28 ? B.GRASS : B.DIRT));
+        } else if (isStreet) {
+          topSurf = (hGround > 0.78) ? B.GRAVEL : ((hGround > 0.58) ? B.DIRT : B.STONE_BRICK);
+        } else {
+          // Lush grass & dirt ground inside city blocks
+          const patchN = fbm2D(wx * 0.14, wz * 0.14, 2, 0.5, 2.0, worldSeed + 9109);
+          topSurf = (patchN > 0.66) ? B.DIRT : ((hGround > 0.90) ? B.MOSS_BLOCK : B.GRASS);
         }
-        if (onOuterWall && !isGate) {
-          for (let wy = 1; wy <= 10; wy++) putL(wx, baseY + wy, wz, (wy === 10 && ((wx + wz) & 1)) ? B.MARBLE_BRICK : B.STONE_BRICK);
-        } else if (isGate && (adx === 4 || adz === 4)) {
-          for (let wy = 1; wy <= 12; wy++) putL(wx, baseY + wy, wz, wy === 12 ? B.COPPER_ROOF : B.MARBLE_BRICK);
-        } else if (!onAve) {
-          // District Watchtowers & Houses inside 64x64 city blocks
-          const bx = ((dx % 64) + 64) % 64, bz = ((dz % 64) + 64) % 64;
-          const bSeed = hash2i(Math.floor(dx / 64), Math.floor(dz / 64), worldSeed + 9111);
-          if (adx <= 24 && adz <= 24) {
-            const isKeepWall = (adx === 24 || adz === 24 || adx === 10 || adz === 10);
-            if (isKeepWall && !((dx === 0 || dz === 0) && (adx === 24 || adz === 24))) {
-              for (let wy = 1; wy <= (adx <= 10 && adz <= 10 ? 18 : 11); wy++) putL(wx, baseY + wy, wz, wy % 5 === 0 ? B.COPPER_ROOF : B.MARBLE_BRICK);
+
+        for (let wy = baseY - 2; wy <= baseY + 20; wy++) {
+          putL(wx, wy, wz, wy < baseY ? (topSurf === B.GRASS ? B.DIRT : B.STONE_BRICK) : (wy === baseY ? topSurf : B.AIR));
+        }
+
+        if (onOuterWall && !isOuterGate) {
+          for (let wy = 1; wy <= 10; wy++) putL(wx, baseY + wy, wz, (wy === 10 && ((wx + wz) & 1)) ? B.MARBLE_BRICK : ((wy % 4 === 0) ? B.DEEPSLATE_BRICKS : B.STONE_BRICK));
+          if (adx === CIT_R - 2 || adz === CIT_R - 2) {
+            if (((wx + wz) & 7) === 0) putL(wx, baseY + 11, wz, B.TORCH_BLOCK);
+            if (hGround > 0.74) { putL(wx, baseY + 1, wz + (dz < 0 ? 1 : -1), B.OAK_LEAVES); }
+          }
+        } else if (isOuterGate && (adx === 4 || adz === 4)) {
+          for (let wy = 1; wy <= 13; wy++) putL(wx, baseY + wy, wz, wy >= 12 ? B.COPPER_ROOF : B.MARBLE_BRICK);
+          putL(wx, baseY + 6, wz, B.LANTERN);
+        } else if (onInnerRingWall && adx > 4 && adz > 4 && (bx > 2 && bx < 30) && (bz > 2 && bz < 30)) {
+          for (let wy = 1; wy <= 7; wy++) putL(wx, baseY + wy, wz, (wy === 7 && ((wx + wz) & 1)) ? B.STONE_BRICK_WALL : B.STONE_BRICK);
+          if (((wx + wz) & 9) === 0) putL(wx, baseY + 8, wz, B.LANTERN);
+        } else if (isMainAve && (adx === 4 || adz === 4) && adx > 20 !== adz > 20) {
+          // Grand Boulevard low walls, leaf hedges, flowers & street lamps
+          const along = (adx === 4) ? Math.abs(dz) : Math.abs(dx);
+          if ((along % 12) === 0) {
+            putL(wx, baseY + 1, wz, B.STONE_BRICK_WALL);
+            putL(wx, baseY + 2, wz, B.OAK_FENCE);
+            putL(wx, baseY + 3, wz, B.LANTERN);
+          } else if ((along % 6) === 3) {
+            putL(wx, baseY + 1, wz, B.OAK_LEAVES);
+          } else if ((along % 4) === 1 && hGround > 0.35) {
+            putL(wx, baseY + 1, wz, FLW_CIT[(wx ^ wz) & 3]);
+          } else if ((along % 8) === 2) {
+            putL(wx, baseY + 1, wz, B.STONE_BRICK_WALL);
+          }
+        } else if (!isMainAve && !isStreet && !(adx <= 45 && adz <= 45)) {
+          // City block low perimeter walls, decorative leaves, wildflowers & tall grass
+          const onYardEdge = (bx === 3 || bx === 29 || bz === 3 || bz === 29);
+          const isYardGate = (bx >= 14 && bx <= 17) || (bz >= 14 && bz <= 17);
+          if (onYardEdge && !isYardGate) {
+            putL(wx, baseY + 1, wz, ((bx + bz) % 5 === 0) ? B.OAK_LEAVES : B.STONE_WALL);
+            if ((bx === 3 || bx === 29) && (bz === 3 || bz === 29)) {
+              putL(wx, baseY + 2, wz, B.LANTERN);
             }
-          } else if (bx >= 14 && bx <= 26 && bz >= 14 && bz <= 26 && bSeed > 0.35) {
-            const wall = (bx === 14 || bx === 26 || bz === 14 || bz === 26), hH = bSeed > 0.72 ? 12 : 6;
-            for (let wy = 1; wy <= hH; wy++) {
-              if (wy === hH) putL(wx, baseY + wy, wz, B.COPPER_ROOF);
-              else if (wall && !(bx === 20 && bz === 26 && wy <= 2)) putL(wx, baseY + wy, wz, (wy === 3 && (bx === 20 || bz === 20)) ? B.GLASS : (bSeed > 0.65 ? B.MARBLE_BRICK : B.PLANKS));
-            }
+          } else if (topSurf === B.GRASS) {
+            if (hGround > 0.94) putL(wx, baseY + 1, wz, FLW_CIT[(wx + wz) & 3]);
+            else if (hGround > 0.89) putL(wx, baseY + 1, wz, B.OAK_LEAVES);
+            else if (hGround > 0.82) putL(wx, baseY + 1, wz, B.FERN);
+            else if (hGround > 0.72) putL(wx, baseY + 1, wz, B.TALL_GRASS);
           }
         }
       }
-      if ((Math.floor(wx0 / 64) + Math.floor(wz0 / 64)) % 2 === 0 && hash2i(cx, cz, worldSeed + 9133) > 0.65) {
-        putL(wx0 + 8, baseY + 1, wz0 + 8, B.GOLD_CHEST);
+
+      // Boulevard Trees (planted just outside avenue verges every 24 blocks, avoiding intersections & central plaza)
+      for (let d = 56; d <= CIT_R - 16; d += 24) {
+        const kT = (d / 24) & 3;
+        for (const sgn of [-1, 1]) {
+          stampCitadelTree(CIT_X + sgn * 6, CIT_Z + d, baseY, kT);
+          stampCitadelTree(CIT_X + sgn * 6, CIT_Z - d, baseY, (kT + 1) & 3);
+          stampCitadelTree(CIT_X + d, CIT_Z + sgn * 6, baseY, (kT + 2) & 3);
+          stampCitadelTree(CIT_X - d, CIT_Z + sgn * 6, baseY, (kT + 3) & 3);
+        }
+      }
+
+      // Central Royal Keep fallback (adx <= 24 && adz <= 24) + 4 Corner Cottages at +-50 when walking into Citadel naturally
+      if (wx0 + 15 >= CIT_X - 24 && wx0 <= CIT_X + 24 && wz0 + 15 >= CIT_Z - 24 && wz0 <= CIT_Z + 24) {
+        for (let lz = 0; lz < CHUNK_W; lz++) for (let lx = 0; lx < CHUNK_W; lx++) {
+          const wx = wx0 + lx, wz = wz0 + lz;
+          const dx = wx - CIT_X, dz = wz - CIT_Z, adx = Math.abs(dx), adz = Math.abs(dz);
+          if (adx > 24 || adz > 24) continue;
+          const isKeepWall = (adx === 24 || adz === 24 || adx === 10 || adz === 10);
+          if (isKeepWall && !((adx <= 2 && adz === 24) || (adz <= 2 && adx === 24) || (adx <= 1 && adz === 10) || (adz <= 1 && adx === 10))) {
+            const kH = (adx <= 10 && adz <= 10) ? 16 : 9;
+            for (let wy = 1; wy <= kH; wy++) {
+              putL(wx, baseY + wy, wz, (wy === kH) ? B.COPPER_ROOF : ((wy % 4 === 0) ? B.STONE_BRICK : B.MARBLE_BRICK));
+            }
+          }
+        }
+        for (const [sx, sz] of [[-24, -24], [24, -24], [-24, 24], [24, 24]]) {
+          stampMiniMedievalBuilding(CIT_X + sx - 2, CIT_Z + sz - 2, baseY, 5, 5, 5);
+        }
+      }
+      for (const [cxo, czo, cst] of [[-58, -58, 0], [48, -58, 2], [-58, 48, 1], [48, 48, 3]]) {
+        stampMiniMedievalBuilding(CIT_X + cxo, CIT_Z + czo, baseY, 10, 9, cst);
+      }
+      for (const [txo, tzo, tko] of [[-52, -44, 0], [52, -44, 2], [-52, 44, 1], [52, 44, 3]]) {
+        stampCitadelTree(CIT_X + txo, CIT_Z + tzo, baseY, tko);
+      }
+
+      // Dense 32x32 Medieval City Districts across the entire 1000x1000 Đại Thành
+      const minCellX = Math.floor((wx0 - CIT_X - 4) / 32), maxCellX = Math.floor((wx0 + 19 - CIT_X) / 32);
+      const minCellZ = Math.floor((wz0 - CIT_Z - 4) / 32), maxCellZ = Math.floor((wz0 + 19 - CIT_Z) / 32);
+      for (let czCell = minCellZ; czCell <= maxCellZ; czCell++) {
+        for (let cxCell = minCellX; cxCell <= maxCellX; cxCell++) {
+          if (cxCell >= -2 && cxCell <= 1 && czCell >= -2 && czCell <= 1) continue;
+          const ox = CIT_X + cxCell * 32, oz = CIT_Z + czCell * 32;
+          if (Math.abs(ox + 16 - CIT_X) >= CIT_R - 10 || Math.abs(oz + 16 - CIT_Z) >= CIT_R - 10) continue;
+          const arch = Math.floor(hash2i(cxCell, czCell, worldSeed + 9111) * 6);
+          if (arch === 0) {
+            // 2-3 Medieval Timber Townhouses + courtyard garden & oak tree
+            stampMiniMedievalBuilding(ox + 4, oz + 5, baseY, 10, 9, 0);
+            stampMiniMedievalBuilding(ox + 18, oz + 5, baseY, 10, 9, 2);
+            stampMiniMedievalBuilding(ox + 5, oz + 18, baseY, 10, 9, 1);
+            stampCitadelTree(ox + 22, oz + 22, baseY, 0);
+          } else if (arch === 1) {
+            // Medieval Tavern + Striped Market Stalls + Cottage + Birch Tree
+            stampMiniMedievalBuilding(ox + 4, oz + 4, baseY, 13, 10, 1);
+            stampMiniMedievalBuilding(ox + 4, oz + 18, baseY, 10, 9, 0);
+            for (const [sx, sz, colW] of [[ox + 20, oz + 6, B.RED_WOOL], [ox + 20, oz + 18, B.BLUE_WOOL]]) {
+              for (let lz2 = 0; lz2 < 6; lz2++) for (let lx2 = 0; lx2 < 6; lx2++) {
+                putL(sx + lx2, baseY + 3, sz + lz2, ((lx2 & 1) === 0) ? colW : B.WHITE_WOOL);
+              }
+              for (const [px, pz] of [[0,0],[5,0],[0,5],[5,5]]) {
+                putL(sx + px, baseY + 1, sz + pz, B.OAK_FENCE);
+                putL(sx + px, baseY + 2, sz + pz, B.OAK_FENCE);
+              }
+              putL(sx + 2, baseY + 1, sz + 2, B.CHEST);
+              putL(sx + 3, baseY + 1, sz + 2, B.HAY_BALE);
+              putL(sx + 2, baseY + 2, sz + 5, B.LANTERN);
+            }
+            stampCitadelTree(ox + 23, oz + 15, baseY, 2);
+          } else if (arch === 2) {
+            // Blacksmith Forge + Classic Minecraft Houses + Wheat Plot + Oak Tree
+            stampMiniMedievalBuilding(ox + 4, oz + 5, baseY, 11, 9, 3);
+            stampMiniMedievalBuilding(ox + 18, oz + 5, baseY, 10, 9, 2);
+            stampMiniMedievalBuilding(ox + 17, oz + 18, baseY, 10, 9, 0);
+            for (let lz2 = 18; lz2 <= 25; lz2++) for (let lx2 = 5; lx2 <= 12; lx2++) {
+              putL(ox + lx2, baseY, oz + lz2, lx2 === 8 ? B.WATER : B.FARMLAND);
+              if (lx2 !== 8) putL(ox + lx2, baseY + 1, oz + lz2, B.WHEAT_3);
+            }
+            stampCitadelTree(ox + 14, oz + 22, baseY, 0);
+          } else if (arch === 3) {
+            // Copper-Spire Watchtower + Timber Barracks + Stone House + Spruce Trees
+            stampMiniMedievalBuilding(ox + 5, oz + 5, baseY, 7, 7, 5);
+            stampMiniMedievalBuilding(ox + 15, oz + 5, baseY, 13, 9, 0);
+            stampMiniMedievalBuilding(ox + 15, oz + 18, baseY, 12, 9, 3);
+            putL(ox + 6, baseY + 1, oz + 19, B.HAY_BALE); putL(ox + 7, baseY + 1, oz + 19, B.HAY_BALE);
+            putL(ox + 6, baseY + 2, oz + 19, B.HAY_BALE);
+            stampCitadelTree(ox + 8, oz + 24, baseY, 1);
+            stampCitadelTree(ox + 25, oz + 15, baseY, 0);
+          } else if (arch === 4) {
+            // Gothic Stone Chapel + Cottage + Lush Fountain Park & Sakura Accent Tree
+            stampMiniMedievalBuilding(ox + 4, oz + 4, baseY, 11, 11, 4);
+            stampMiniMedievalBuilding(ox + 18, oz + 4, baseY, 10, 9, 2);
+            const fx = ox + 15, fz = oz + 22;
+            for (let dz2 = -2; dz2 <= 2; dz2++) for (let dx2 = -2; dx2 <= 2; dx2++) {
+              const edge = (Math.abs(dx2) === 2 || Math.abs(dz2) === 2);
+              putL(fx + dx2, baseY, fz + dz2, edge ? B.STONE_BRICK : B.WATER);
+              if (edge) putL(fx + dx2, baseY + 1, fz + dz2, B.STONE_BRICK_WALL);
+            }
+            putL(fx, baseY + 1, fz, B.MARBLE_BRICK); putL(fx, baseY + 2, fz, B.MARBLE_BRICK); putL(fx, baseY + 3, fz, B.LANTERN);
+            stampCitadelTree(ox + 7, oz + 22, baseY, 3);
+            stampCitadelTree(ox + 24, oz + 23, baseY, 0);
+          } else {
+            // Noble Manor + Market House + Lush Multi-Tree Orchard
+            stampMiniMedievalBuilding(ox + 4, oz + 4, baseY, 13, 10, 0);
+            stampMiniMedievalBuilding(ox + 18, oz + 18, baseY, 10, 9, 1);
+            stampCitadelTree(ox + 23, oz + 8, baseY, 0);
+            stampCitadelTree(ox + 7, oz + 21, baseY, 2);
+            stampCitadelTree(ox + 13, oz + 25, baseY, 1);
+          }
+          if (((cxCell + czCell) & 1) === 0 && hash2i(cxCell, czCell, worldSeed + 9133) > 0.65) {
+            putL(ox + 16, baseY + 1, oz + 16, B.GOLD_CHEST);
+          }
+        }
       }
       return maxLy;
     }
@@ -8191,11 +8790,11 @@
       for (let vx = minVx; vx <= maxVx; vx++) {
         const vcx = vx * VSEC + 48 + Math.floor(hash2i(vx, vz, worldSeed + 2553) * 48);
         const vcz = vz * VSEC + 48 + Math.floor(hash2i(vx - 7, vz + 11, worldSeed + 2557) * 48);
-        if (Math.hypot(vcx, vcz) < 42) continue;
-        if (hash2i(vx, vz, worldSeed + 2551) <= 0.64) continue;
+        if (Math.hypot(vcx, vcz) < 42 || isGrandCitadel(vcx, vcz)) continue;
+        if (hash2i(vx, vz, worldSeed + 2551) <= 0.55) continue;
         if (vcx + 22 < wx0 || vcx - 22 >= wx0 + 16 || vcz + 22 < wz0 || vcz - 22 >= wz0 + 16) continue;
         const vBio = getBiomeAt(vcx, vcz);
-        if (vBio !== BIOMES.PLAINS && vBio !== BIOMES.GREEN_PLAINS) continue;
+        if (vBio !== BIOMES.PLAINS && vBio !== BIOMES.GREEN_PLAINS && vBio !== BIOMES.FLOWER_MEADOW && vBio !== BIOMES.LUSH_STEPPE) continue;
         const baseY = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(vcx, vcz, vBio)));
         // Central stone well + gravel cross-roads
         for (let r = -12; r <= 12; r++) {
@@ -8219,34 +8818,65 @@
         putLocal(vcx, baseY + 4, vcz, B.PLANKS); putLocal(vcx + 1, baseY + 4, vcz, B.PLANKS);
         putLocal(vcx, baseY + 4, vcz + 1, B.PLANKS); putLocal(vcx + 1, baseY + 4, vcz + 1, B.PLANKS);
         putLocal(vcx + 3, baseY + 1, vcz + 3, B.OAK_FENCE); putLocal(vcx + 3, baseY + 2, vcz + 3, B.TORCH_BLOCK);
-        // 3 compact plains cottages + community chest
-        const huts = [[vcx - 9, vcz - 8, 1], [vcx + 4, vcz - 8, 1], [vcx - 9, vcz + 4, -1]];
+        // 3 varied pitched-roof medieval/classic Minecraft village houses + community chest + leaf hedges & trees
+        const huts = [[vcx - 9, vcz - 8, 1, 0], [vcx + 4, vcz - 8, 1, 1], [vcx - 9, vcz + 4, -1, 2]];
         for (let hi = 0; hi < huts.length; hi++) {
-          const [hx, hz, doorDir] = huts[hi];
+          const [hx, hz, doorDir, hStyle] = huts[hi];
           const hy = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(hx + 3, hz + 3, vBio)));
+          const rStair = hStyle === 1 ? B.TERRACOTTA_STAIRS_N : (hStyle === 2 ? B.DEEPSLATE_STAIRS_N : B.OAK_STAIRS_N);
+          const ridgeB = hStyle === 1 ? B.TERRACOTTA : (hStyle === 2 ? B.DEEPSLATE : B.SPRUCE_LOG);
+          const wallB = hStyle === 2 ? B.MARBLE_BRICK : B.PLANKS;
+          const postB = hStyle === 0 ? B.OAK_LOG : B.SPRUCE_LOG;
           for (let dz = 0; dz <= 5; dz++) for (let dx = 0; dx <= 5; dx++) {
             for (let fy = hy - 2; fy < hy; fy++) putLocal(hx + dx, fy, hz + dz, B.STONE_BRICK);
             putLocal(hx + dx, hy, hz + dz, B.PLANKS);
-            for (let ay = 1; ay <= 5; ay++) putLocal(hx + dx, hy + ay, hz + dz, B.AIR);
+            for (let ay = 1; ay <= 8; ay++) putLocal(hx + dx, hy + ay, hz + dz, B.AIR);
             const isC = (dx === 0 || dx === 5) && (dz === 0 || dz === 5);
             const isW = (dx === 0 || dx === 5 || dz === 0 || dz === 5);
             if (isW) {
               for (let wy = 1; wy <= 3; wy++) {
-                if (isC) putLocal(hx + dx, hy + wy, hz + dz, B.OAK_LOG);
+                if (isC) putLocal(hx + dx, hy + wy, hz + dz, postB);
                 else if (dx === 2 && ((doorDir === 1 && dz === 5) || (doorDir === -1 && dz === 0)) && wy <= 2) {
                   putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.OAK_DOOR : B.AIR);
                 } else if (wy === 2 && (dx === 2 || dz === 2)) {
                   putLocal(hx + dx, hy + wy, hz + dz, B.GLASS);
-                } else putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.STONE_BRICK : B.PLANKS);
+                } else putLocal(hx + dx, hy + wy, hz + dz, wy === 1 ? B.STONE_BRICK : wallB);
               }
             }
-            putLocal(hx + dx, hy + 4, hz + dz, isW ? B.SPRUCE_LOG : B.PLANKS);
-            if (dx >= 1 && dx <= 4 && dz >= 1 && dz <= 4) putLocal(hx + dx, hy + 5, hz + dz, B.PLANKS);
+          }
+          for (let s = 0; s <= 3; s++) {
+            const zA = s - 1, zB = 6 - s;
+            for (let dx = -1; dx <= 6; dx++) {
+              const isEdge = (dx === -1 || dx === 6);
+              if (zA >= zB) { if (zA === zB) putLocal(hx + dx, hy + 4 + s, hz + zA, ridgeB); }
+              else {
+                putLocal(hx + dx, hy + 4 + s, hz + zA, isEdge ? postB : rStair);
+                putLocal(hx + dx, hy + 4 + s, hz + zB, isEdge ? postB : (rStair + 1));
+              }
+            }
+            if (zA + 1 < zB) for (let iz = zA + 1; iz < zB; iz++) {
+              putLocal(hx, hy + 4 + s, hz + iz, wallB);
+              putLocal(hx + 5, hy + 4 + s, hz + iz, wallB);
+            }
           }
           putLocal(hx + 1, hy + 1, hz + 1, B.BED); putLocal(hx + 2, hy + 1, hz + 1, B.BED_FOOT);
           if (hi === 0) putLocal(hx + 4, hy + 1, hz + 1, B.CHEST);
+          if (hi === 1) { putLocal(hx + 4, hy + 1, hz + 1, B.ANVIL); putLocal(hx + 4, hy + 1, hz + 2, B.BLAST_FURNACE); }
           putLocal(hx + 4, hy + 1, hz + 4, B.CRAFT_TABLE);
-          putLocal(hx + 2, hy + 3, hz + 2, B.TORCH_BLOCK);
+          putLocal(hx + 2, hy + 3, hz + 2, B.LANTERN);
+          putLocal(hx - 1, hy + 1, hz + 5, B.OAK_LEAVES);
+          putLocal(hx + 6, hy + 1, hz + 5, B.FLOWER_RED);
+        }
+        // Decorative village oak tree & stone wall corner
+        const txV = vcx + 7, tzV = vcz + 6;
+        const tyV = Math.max(WATER_LEVEL + 2, Math.min(18, getTerrainHeight(txV, tzV, vBio)));
+        for (let y = 1; y <= 5; y++) putLocal(txV, tyV + y, tzV, B.OAK_LOG);
+        for (let dy = 4; dy <= 6; dy++) {
+          const r = dy === 6 ? 1 : 2;
+          for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+            if (dx === 0 && dz === 0 && dy <= 5) continue;
+            putLocal(txV + dx, tyV + dy, tzV + dz, B.OAK_LEAVES);
+          }
         }
       }
     }
@@ -8402,13 +9032,24 @@
     plantMega(Math.round(spot.x + fx * 11 - rx * 8), Math.round(spot.z + fz * 11 - rz * 8), 4);
   }
 
-  // --- Dispatcher: giữ chữ ký cũ, chọn 5 thiết kế mới theo size + hash tọa độ ---
+  // --- Dispatcher: 11 thiết kế nhà đa dạng (bao gồm 6 mẫu trung cổ & cổ điển Minecraft mới) ---
   function buildTimberManor(hx, hz, facingZ = 1, size = 'medium') {
     const fz = facingZ >= 0 ? 1 : -1;
     const r = hash2i(hx, hz, 8888);
-    if (size === 'large') return (r < 0.5) ? buildTudorManorNew(hx, hz, fz) : buildRedRoofCottage(hx, hz, fz);
-    if (size === 'small') return buildBrickCottage(hx, hz, fz);
-    return (r < 0.5) ? buildTimberCabin(hx, hz, fz) : buildLakesideCottage(hx, hz, fz);
+    if (size === 'large') {
+      if (r < 0.28) return buildTudorManorNew(hx, hz, fz);
+      if (r < 0.56) return buildRedRoofCottage(hx, hz, fz);
+      if (r < 0.80) return buildMedievalTavern(hx, hz, fz);
+      return buildMedievalChapelTower(hx, hz, fz);
+    }
+    if (size === 'small') {
+      return (r < 0.55) ? buildClassicOakVillageHouse(hx, hz, fz) : buildBrickCottage(hx, hz, fz);
+    }
+    if (r < 0.22) return buildMedievalTimberHouse(hx, hz, fz);
+    if (r < 0.42) return buildMedievalBlacksmith(hx, hz, fz);
+    if (r < 0.62) return buildMedievalBakeryWindmill(hx, hz, fz);
+    if (r < 0.82) return buildTimberCabin(hx, hz, fz);
+    return buildLakesideCottage(hx, hz, fz);
   }
   function buildVillageHouse(hx, hz, facingZ = 1, style = 'timber') {
     return buildTimberManor(hx, hz, facingZ, style === 'large' ? 'large' : 'medium');
@@ -8596,33 +9237,69 @@
     return Math.max(baseY, h1, h2, h3);
   }
 
-  // ===================== GRAND CITADEL, CASTLE & SPRAWLING CITY (Inspired by Reference Image 3!) =====================
+  // ===================== GRAND CITADEL, CASTLE & SPRAWLING MEDIEVAL CITY =====================
   function buildGrandCastleCity(cx, cz) {
     const ccx = cx >> 4, ccz = cz >> 4;
     for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
       if (!chunks.has(chunkKey(ccx + dx, ccz + dz))) generateChunk(ccx + dx, ccz + dz);
     }
-    const baseY = Math.max(WATER_LEVEL + 2, colGroundY(cx, cz));
-    // 1) Level Grand Citadel Plateau (35x35) + Golden Hay/Wheat Terraces + Fortified Curtain Walls!
+    const baseY = isGrandCitadel(cx, cz) ? 6 : Math.max(WATER_LEVEL + 2, colGroundY(cx, cz));
+    // 0) Grade & beautify surrounding outer medieval district apron (radius 44) with grass, dirt paths, stone roads & walls!
+    const OA = 44;
+    for (let dz = -OA; dz <= OA; dz++) for (let dx = -OA; dx <= OA; dx++) {
+      const adx = Math.abs(dx), adz = Math.abs(dz);
+      if (adx <= 18 && adz <= 18) continue;
+      const wx = cx + dx, wz = cz + dz, gy = colGroundY(wx, wz);
+      for (let wy = 1; wy <= 22; wy++) setBlockWorld(wx, baseY + wy, wz, B.AIR, true);
+      const isRoad = (adx <= 2 || adz <= 2 || ((adx === 21 || adx === 22) && adz <= 36) || ((adz === 21 || adz === 22) && adx <= 36));
+      const hP = hash2i(wx, wz, worldSeed + 9601);
+      const surfB = isRoad
+        ? ((hP > 0.78) ? B.GRAVEL : ((adx <= 1 || adz <= 1) ? B.MARBLE_BRICK : B.STONE_BRICK))
+        : ((hP > 0.76) ? B.DIRT : ((hP > 0.88) ? B.MOSS_BLOCK : B.GRASS));
+      for (let y = Math.min(gy, baseY - 2); y <= baseY; y++) {
+        setBlockWorld(wx, y, wz, y === baseY ? surfB : (surfB === B.GRASS ? B.DIRT : B.STONE_BRICK), true);
+      }
+      if (!isRoad && (adx === 23 || adz === 23) && (adx <= 36 && adz <= 36) && adx > 4 && adz > 4) {
+        if (((dx + dz) & 3) === 0) setBlockWorld(wx, baseY + 1, wz, B.OAK_LEAVES, true);
+        else if ((dx + dz) % 5 === 0) setBlockWorld(wx, baseY + 1, wz, B.STONE_BRICK_WALL, true);
+      } else if (!isRoad && surfB === B.GRASS && adx > 24 && adz > 24 && hP > 0.93) {
+        setBlockWorld(wx, baseY + 1, wz, hP > 0.965 ? B.FLOWER_RED : (hP > 0.95 ? B.FLOWER_LAVENDER : B.TALL_GRASS), true);
+      }
+    }
+
+    // 1) Level Grand Citadel Courtyard (37x37) + Lush Grass Lawns, Stone Walkways & Fortified Curtain Walls!
     const R = 18;
     for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
       const wx = cx + dx, wz = cz + dz, gy = colGroundY(wx, wz);
       for (let wy = 1; wy <= 28; wy++) setBlockWorld(wx, baseY + wy, wz, B.AIR, true);
-      for (let y = Math.min(gy, baseY - 3); y <= baseY; y++) setBlockWorld(wx, y, wz, y === baseY ? (((Math.abs(dx) <= 2 || Math.abs(dz) <= 2) ? B.STONE_BRICK : (Math.abs(dx) <= 10 && Math.abs(dz) <= 9 ? B.MARBLE_BRICK : B.GRASS))) : B.STONE_BRICK, true);
-      // Outer Fortified City Curtain Wall + Battlements + Gatehouse Arch at south (+Z)
+      const isWalk = (Math.abs(dx) <= 2 || Math.abs(dz) <= 2);
+      const isPlaza = (Math.abs(dx) <= 9 && Math.abs(dz) <= 8);
+      const hC = hash2i(wx, wz, worldSeed + 9619);
+      const cSurf = isWalk ? B.STONE_BRICK : (isPlaza ? B.MARBLE_BRICK : (hC > 0.76 ? B.DIRT : B.GRASS));
+      for (let y = Math.min(gy, baseY - 3); y <= baseY; y++) setBlockWorld(wx, y, wz, y === baseY ? cSurf : B.STONE_BRICK, true);
       const onWall = (Math.abs(dx) === R || Math.abs(dz) === R);
-      const isGate = (dz === R && Math.abs(dx) <= 2);
+      const isGate = ((dz === R || dz === -R) && Math.abs(dx) <= 2) || ((dx === R || dx === -R) && Math.abs(dz) <= 2);
       if (onWall && !isGate) {
         for (let wy = 1; wy <= 6; wy++) setBlockWorld(wx, baseY + wy, wz, (wy === 6 && ((dx + dz) & 1) === 0) ? B.MARBLE_BRICK : B.STONE_BRICK, true);
         if ((dx + dz) % 6 === 0) setBlockWorld(wx, baseY + 7, wz, B.TORCH_BLOCK, true);
         else if (((dx + dz) & 1) === 1) setBlockWorld(wx, baseY + 7, wz, B.STONE_BRICK_WALL, true);
+        if (hC > 0.65) {
+          setBlockWorld(wx, baseY + 4, wz + (dz === R ? -1 : (dz === -R ? 1 : 0)), B.VINE, true);
+          setBlockWorld(wx, baseY + 1, wz + (dz === R ? -1 : (dz === -R ? 1 : 0)), B.OAK_LEAVES, true);
+        }
       } else if (isGate) {
         setBlockWorld(wx, baseY + 5, wz, B.STONE_BRICK, true);
         setBlockWorld(wx, baseY + 6, wz, B.MARBLE_BRICK, true);
-        if (dx === 0) setBlockWorld(wx, baseY + 7, wz, B.LANTERN, true);
+        if (dx === 0 || dz === 0) setBlockWorld(wx, baseY + 7, wz, B.LANTERN, true);
+      } else if (cSurf === B.GRASS && Math.abs(dx) <= R - 2 && Math.abs(dz) <= R - 2) {
+        if (Math.abs(dx) === 3 || Math.abs(dz) === 3) {
+          if (((dx + dz) & 3) === 0) setBlockWorld(wx, baseY + 1, wz, B.OAK_LEAVES, true);
+          else if ((dx + dz) % 5 === 0) setBlockWorld(wx, baseY + 1, wz, B.FLOWER_RED, true);
+        } else if (hC > 0.88) {
+          setBlockWorld(wx, baseY + 1, wz, hC > 0.94 ? B.FLOWER_YELLOW : B.TALL_GRASS, true);
+        }
       }
     }
-    // Ceremonial 5-wide South Gate Grand Staircase connecting castle floor flush down to terrain!
     buildDoorAccessStairs(cx, baseY, cz + R, 0, 1, B.STONE_BRICK, 2);
 
     // 2) 4 Monumental Corner Watchtowers with Steep Oxidized Emerald-Copper Roof Spires!
@@ -8636,7 +9313,6 @@
           setBlockWorld(tx + dx, baseH + wy, tz + dz, isWin ? B.GLASS : (isCorner ? B.STONE_BRICK : B.MARBLE_BRICK), true);
         }
       }
-      // Steep Emerald-Copper Spire Roof!
       for (let s = 0; s <= rad + 4; s++) {
         const sr = Math.max(0, rad + 1 - Math.floor(s * 0.65));
         for (let dz = -sr; dz <= sr; dz++) for (let dx = -sr; dx <= sr; dx++) {
@@ -8656,7 +9332,6 @@
       const isPillar = (Math.abs(dx) === kw && (dz % 3 === 0)) || (Math.abs(dz) === kd && (dx % 3 === 0));
       for (let wy = 1; wy <= kh; wy++) {
         if (dz === kd && Math.abs(dx) <= 1 && wy <= 4) {
-          // Royal Castle Keep Grand Framed Entrance w/ Working Spruce Door + Stone Arch + Lantern Transom!
           if (dx === 0 && wy === 1) setBlockWorld(wx, baseY + wy, wz, B.SPRUCE_DOOR, true);
           else if (dx === 0 && wy === 2) setBlockWorld(wx, baseY + wy, wz, B.AIR, true);
           else if (dx === 0 && wy === 3) setBlockWorld(wx, baseY + wy, wz, B.SPRUCE_LOG, true);
@@ -8676,7 +9351,6 @@
     setBlockWorld(cx, baseY + 3, cz - 2 + kd + 1, B.LANTERN, true);
     setBlockWorld(cx - 2, baseY + 3, cz - 2 + kd + 1, B.LANTERN, true);
     setBlockWorld(cx + 2, baseY + 3, cz - 2 + kd + 1, B.LANTERN, true);
-    // Steep Emerald-Copper Gabled Palace Roof + Tall Central Spire (matches Reference Image 3!)
     for (let step = 0; step <= kd + 1; step++) {
       const zA = cz - 2 - (kd + 1 - step), zB = cz - 2 + (kd + 1 - step), ry = baseY + kh + 1 + step;
       for (let dx = -kw - 1; dx <= kw + 1; dx++) {
@@ -8691,12 +9365,11 @@
         }
       }
     }
-    // Twin Royal Castle Keep Spires!
     buildCastleSpire(cx - kw, cz - 2 - kd, baseY, 17, 2);
     buildCastleSpire(cx + kw, cz - 2 - kd, baseY, 19, 2);
     buildCastleSpire(cx, cz - 2, baseY + kh + kd + 1, 7, 1);
 
-    // Royal Functional Interior (Bookshelves, Enchanting Table, Anvil, Beds, Treasure Chests, Chandeliers!)
+    // Royal Functional Interior
     for (let dx = -4; dx <= -2; dx++) { setBlockWorld(cx + dx, baseY + 1, cz - 6, B.BOOKSHELF, true); setBlockWorld(cx + dx, baseY + 2, cz - 6, B.BOOKSHELF, true); }
     setBlockWorld(cx - 3, baseY + 1, cz - 4, B.ENCHANT_TABLE, true);
     setBlockWorld(cx + 3, baseY + 1, cz - 5, B.ANVIL, true);
@@ -8709,22 +9382,69 @@
     setBlockWorld(cx - 4, baseY + 5, cz - 2, B.TORCH_BLOCK, true);
     setBlockWorld(cx + 4, baseY + 5, cz - 2, B.TORCH_BLOCK, true);
 
-    // 4) Sprawling Outer City District: Golden Hay Bale Farms, Market Campfires & 3 Grand Builder Houses!
-    for (let dz = 8; dz <= 14; dz++) for (let dx = -14; dx <= -6; dx++) {
-      setBlockWorld(cx + dx, baseY + 1, cz + dz, ((dx + dz) % 3 === 0) ? B.HAY_BALE : B.TALL_GRASS, true);
+    // Royal Courtyard Fountain + 4 Courtyard Trees
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+      const edge = (Math.abs(dx) === 2 || Math.abs(dz) === 2);
+      setBlockWorld(cx + dx, baseY, cz + 10 + dz, edge ? B.STONE_BRICK : B.WATER, true);
+      if (edge) setBlockWorld(cx + dx, baseY + 1, cz + 10 + dz, B.STONE_BRICK_WALL, true);
     }
-    setBlockWorld(cx + 8, baseY + 1, cz + 10, B.CAMPFIRE, true);
-    setBlockWorld(cx + 10, baseY + 1, cz + 10, B.CHEST, true);
-    buildVillageHouse(cx - 25, cz + 4, 1, 'timber');
-    buildVillageHouse(cx + 25, cz + 4, 1, 'timber');
-    buildVillageHouse(cx + 12, cz + 27, 1, 'timber');
-    buildVillageWatchtower(cx - 24, cz - 14, baseY);
+    setBlockWorld(cx, baseY + 1, cz + 10, B.MARBLE_BRICK, true);
+    setBlockWorld(cx, baseY + 2, cz + 10, B.LANTERN, true);
+    const plantCityTree = (tx, tz, logB = B.OAK_LOG, leafB = B.OAK_LEAVES) => {
+      const gy = Math.max(baseY, colGroundY(tx, tz));
+      for (let y = 1; y <= 5; y++) setBlockWorld(tx, gy + y, tz, logB, true);
+      for (let dy = 4; dy <= 6; dy++) {
+        const r = dy === 6 ? 1 : 2;
+        for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+          if (r === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2 && dy !== 5) continue;
+          if (dx === 0 && dz === 0 && dy <= 5) continue;
+          setBlockWorld(tx + dx, gy + dy, tz + dz, leafB, true);
+        }
+      }
+    };
+    for (const [tx, tz, lb, fb] of [
+      [-13, 12, B.OAK_LOG, B.OAK_LEAVES], [13, 12, B.BIRCH_LOG, B.BIRCH_LEAVES],
+      [-13, -12, B.SAKURA_LOG, B.SAKURA_LEAVES], [13, -12, B.OAK_LOG, B.OAK_LEAVES]
+    ]) plantCityTree(cx + tx, cz + tz, lb, fb);
+
+    // 4) Surrounding Medieval City Quarter: 8 Handcrafted Houses + Striped Market Stalls + Walls, Hedges & Lush Trees!
+    buildMedievalTimberHouse(cx - 31, cz + 13, 1);
+    buildMedievalBlacksmith(cx + 31, cz + 13, 1);
+    buildMedievalTavern(cx - 19, cz + 34, -1);
+    buildMedievalChapelTower(cx + 18, cz + 34, -1);
+    buildMedievalBakeryWindmill(cx - 33, cz - 11, 1);
+    buildClassicOakVillageHouse(cx + 33, cz - 11, 1);
+    buildRedRoofCottage(cx - 28, cz - 31, 1);
+    buildBrickCottage(cx + 28, cz - 31, 1);
+
+    // Striped South-Gate Market Stalls + Boulevard Lanterns & Trees
+    for (const [mx, mz, colW] of [[cx - 6, cz + 25, B.RED_WOOL], [cx + 6, cz + 25, B.BLUE_WOOL]]) {
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+        setBlockWorld(mx + dx, baseY + 3, mz + dz, (dx & 1) ? colW : B.WHITE_WOOL, true);
+      }
+      for (const [px, pz] of [[-2,-2],[2,-2],[-2,2],[2,2]]) {
+        setBlockWorld(mx + px, baseY + 1, mz + pz, B.OAK_FENCE, true);
+        setBlockWorld(mx + px, baseY + 2, mz + pz, B.OAK_FENCE, true);
+      }
+      setBlockWorld(mx, baseY + 1, mz, B.CHEST, true);
+      setBlockWorld(mx + 1, baseY + 1, mz, B.HAY_BALE, true);
+      setBlockWorld(mx, baseY + 2, mz + 2, B.LANTERN, true);
+    }
+    for (const [tx, tz, lb, fb] of [
+      [-6, 33, B.OAK_LOG, B.OAK_LEAVES], [6, 33, B.BIRCH_LOG, B.BIRCH_LEAVES],
+      [-28, 26, B.OAK_LOG, B.OAK_LEAVES], [28, 26, B.SPRUCE_LOG, B.SPRUCE_LEAVES],
+      [-41, 3, B.OAK_LOG, B.OAK_LEAVES], [41, 3, B.BIRCH_LOG, B.BIRCH_LEAVES],
+      [-40, -25, B.SPRUCE_LOG, B.SPRUCE_LEAVES], [40, -25, B.OAK_LOG, B.OAK_LEAVES],
+      [-10, -26, B.SAKURA_LOG, B.SAKURA_LEAVES], [10, -26, B.OAK_LOG, B.OAK_LEAVES]
+    ]) plantCityTree(cx + tx, cz + tz, lb, fb);
 
     // Populate Castle City with Villagers, Iron Golems, Horses & Peacocks!
-    for (const [vx, vz] of [[-5, 9], [5, 9], [0, 12], [-9, 4], [9, 4], [0, -1]]) spawnMobOfType('villager', cx + vx + 0.5, baseY + 1.2, cz + vz + 0.5);
-    spawnMobOfType('iron_golem', cx - 3.5, baseY + 1.2, cz + 16.5);
-    spawnMobOfType('iron_golem', cx + 3.5, baseY + 1.2, cz + 16.5);
-    spawnMobOfType('wild_horse', cx - 12.5, baseY + 1.2, cz + 12.5);
+    for (const [vx, vz] of [[-5, 9], [5, 9], [0, 14], [-9, 4], [9, 4], [0, 26], [-24, 15], [24, 15]]) {
+      spawnMobOfType('villager', cx + vx + 0.5, baseY + 1.2, cz + vz + 0.5);
+    }
+    spawnMobOfType('iron_golem', cx - 3.5, baseY + 1.2, cz + 17.5);
+    spawnMobOfType('iron_golem', cx + 3.5, baseY + 1.2, cz + 17.5);
+    spawnMobOfType('wild_horse', cx - 12.5, baseY + 1.2, cz + 28.5);
     spawnMobOfType('peacock', cx + 8.5, baseY + 1.2, cz + 13.5);
     return baseY;
   }
@@ -10215,7 +10935,7 @@
 
   let _lastEyesInWater = false, _lastEyesInLava = false;
   function _clearWorldInteractiveCaches(alsoClearChunks = false, wipeWorldState = false) {
-    if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); plantedSaplings.clear(); saplingFertilizeCount.clear(); }
+    if (wipeWorldState) { clearWorldModsAll(); chestStorageMap.clear(); incubatingEggs.clear(); spawnedDragonNests.clear(); plantedSaplings.clear(); saplingFertilizeCount.clear(); if (typeof resetDimMobPersistence === 'function') resetDimMobPersistence(); }
     else { worldModsByChunk.clear(); activeFires.clear(); }
     clearFluidState();
     exploredChunks.clear(); doorOpenState.clear(); torchAttachDir.clear(); dragonHeadYaw.clear(); windmillHubState.clear(); chestPairMap.clear(); furnaceStateMap.clear(); manualCraftGrid.fill(0);
@@ -10252,6 +10972,10 @@
   }
 
   function switchDimension(targetDim, reasonToast = null, portalOpts = null) {
+    const prevDim = currentDimension;
+    if (prevDim && prevDim !== targetDim && typeof snapshotDimensionMobs === 'function') {
+      snapshotDimensionMobs(prevDim);
+    }
     currentDimension = targetDim;
     depthOffset = 0;
     chunkWorkerPool.clear();
@@ -10260,6 +10984,12 @@
     _clearWorldInteractiveCaches(true, false);
     if (typeof rebuildCurrentDimModIndex === 'function') rebuildCurrentDimModIndex();
     if (portalOpts && portalOpts.skipSpawnMove) return;
+
+    const _spawnArrivalMob = (tag, type, x, y, z, opts = null) => {
+      if (typeof isMobDefeatedTag === 'function' && isMobDefeatedTag(tag)) return null;
+      if (mobs.some(mb => mb && !mb._dead && mb.spawnTag === tag)) return null;
+      return spawnMobOfType(type, x, y, z, Object.assign({ spawnTag: tag }, opts || {}));
+    };
 
     const _rebuildStandingOnly = (cx, cz, extraCx, extraCz) => {
       if (isWorldLoading) { _teleportWarmupFrames = 24; return; }
@@ -10273,11 +11003,12 @@
     };
 
     if (targetDim === 'sift') {
-      // v188: Central canyon portal landmark at (0,0) OR clean biome arrival + immediate 10-mob biome-specific pack!
+      // v188: Central canyon portal landmark at (0,0) OR clean biome arrival + persistent per-visit mobs!
       const isSubBiomeTp = !!(portalOpts && typeof portalOpts.spawnX === 'number');
       const sx0 = isSubBiomeTp ? Math.floor(portalOpts.spawnX) : 0;
       const sz0 = isSubBiomeTp ? Math.floor(portalOpts.spawnZ) : 0;
       const targetBio = (portalOpts && portalOpts.targetBio) || BIOMES.SIFT_CANYON;
+      const encKey = isSubBiomeTp ? ('sift:bio:' + targetBio.id) : 'sift:center';
       const scx = sx0 >> 4, scz = sz0 >> 4;
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) generateChunk(scx + dx, scz + dz);
       const rawLy = getTerrainHeight(sx0, sz0, getBiomeAt(sx0, sz0));
@@ -10311,35 +11042,39 @@
       _rebuildStandingOnly(scx, scz, scx, pcz);
       player.x = sx0 + 0.5; player.y = ly + 1.3; player.z = sz0 + (isSubBiomeTp ? 0.5 : 3.5); player.yaw = 0.0; player.pitch = 0.04;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-      // Immediately populate 10 biome-specific Dream Zone mobs on verified solid ground around arrival (fixes post-teleport empty mobs!)
-      const packByBio = (targetBio === BIOMES.SIFT_MEADOW)
-        ? ['blub', 'blub', 'blub', 'blub', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'nuzzle']
-        : (targetBio === BIOMES.SIFT_HUSKLAND)
-        ? ['humbler', 'humbler', 'humbler', 'humbler', 'echo_golem', 'trill', 'wobble', 'ichor_ray', 'ichor_ray', 'blub']
-        : (targetBio === BIOMES.SIFT_SPOREFIELDS)
-        ? ['roamroot', 'roamroot', 'roamroot', 'roamroot', 'harmonizer', 'harmonizer', 'echo_golem', 'blub', 'wobble', 'trill']
-        : (targetBio === BIOMES.SIFT_ICHOR_PONDS)
-        ? ['humbler', 'humbler', 'humbler', 'harmonizer', 'harmonizer', 'nightmare_stalker', 'blub', 'blub', 'wobble', 'echo_golem']
-        : (targetBio === BIOMES.SIFT_LULLABY || targetBio === BIOMES.SIFT_LULLABY_TOP)
-        ? ['nuzzle', 'nuzzle', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'trill', 'sky_manta', 'singer']
-        : ['blub', 'blub', 'wobble', 'humbler', 'echo_golem', 'roamroot', 'singer', 'trill', 'sky_manta', 'harmonizer'];
-      for (let mi = 0; mi < packByBio.length; mi++) {
-        const ang = (mi / packByBio.length) * Math.PI * 2 + 0.3;
-        const rad = 5.5 + (mi % 3) * 4.5;
-        const mx = Math.floor(sx0 + Math.cos(ang) * rad), mz = Math.floor(sz0 + Math.sin(ang) * rad);
-        const mType = packByBio[mi];
-        const isFly = !!(MOB_STATS[mType] && (MOB_STATS[mType].skyBird || MOB_STATS[mType].flying));
-        let my = Math.max(WATER_LEVEL + 1, getTerrainHeight(mx, mz, getBiomeAt(mx, mz))) + 1.25;
-        if (isFly) my = Math.max(my + 3.0, ly + 4.0);
-        else {
-          for (let scanY = Math.min(MAX_Y - 3, ly + 12); scanY >= Math.max(WATER_LEVEL, ly - 10); scanY--) {
-            const bF = getBlockWorld(mx, scanY, mz);
-            if (IS_SOLID[bF] === 1 && getBlockWorld(mx, scanY + 1, mz) === B.AIR && getBlockWorld(mx, scanY + 2, mz) === B.AIR) { my = scanY + 1.15; break; }
+      const restoredSift = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('sift') : false;
+      const needSiftInit = (typeof hasDimVisited === 'function') ? !hasDimVisited(encKey) : !restoredSift;
+      if (needSiftInit) {
+        const packByBio = (targetBio === BIOMES.SIFT_MEADOW)
+          ? ['blub', 'blub', 'blub', 'blub', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'nuzzle']
+          : (targetBio === BIOMES.SIFT_HUSKLAND)
+          ? ['humbler', 'humbler', 'humbler', 'humbler', 'echo_golem', 'trill', 'wobble', 'ichor_ray', 'ichor_ray', 'blub']
+          : (targetBio === BIOMES.SIFT_SPOREFIELDS)
+          ? ['roamroot', 'roamroot', 'roamroot', 'roamroot', 'harmonizer', 'harmonizer', 'echo_golem', 'blub', 'wobble', 'trill']
+          : (targetBio === BIOMES.SIFT_ICHOR_PONDS)
+          ? ['humbler', 'humbler', 'humbler', 'harmonizer', 'harmonizer', 'nightmare_stalker', 'blub', 'blub', 'wobble', 'echo_golem']
+          : (targetBio === BIOMES.SIFT_LULLABY || targetBio === BIOMES.SIFT_LULLABY_TOP)
+          ? ['nuzzle', 'nuzzle', 'blub', 'blub', 'wobble', 'wobble', 'trill', 'trill', 'sky_manta', 'singer']
+          : ['blub', 'blub', 'wobble', 'humbler', 'echo_golem', 'roamroot', 'singer', 'trill', 'sky_manta', 'harmonizer'];
+        for (let mi = 0; mi < packByBio.length; mi++) {
+          const ang = (mi / packByBio.length) * Math.PI * 2 + 0.3;
+          const rad = 5.5 + (mi % 3) * 4.5;
+          const mx = Math.floor(sx0 + Math.cos(ang) * rad), mz = Math.floor(sz0 + Math.sin(ang) * rad);
+          const mType = packByBio[mi];
+          const isFly = !!(MOB_STATS[mType] && (MOB_STATS[mType].skyBird || MOB_STATS[mType].flying));
+          let my = Math.max(WATER_LEVEL + 1, getTerrainHeight(mx, mz, getBiomeAt(mx, mz))) + 1.25;
+          if (isFly) my = Math.max(my + 3.0, ly + 4.0);
+          else {
+            for (let scanY = Math.min(MAX_Y - 3, ly + 12); scanY >= Math.max(WATER_LEVEL, ly - 10); scanY--) {
+              const bF = getBlockWorld(mx, scanY, mz);
+              if (IS_SOLID[bF] === 1 && getBlockWorld(mx, scanY + 1, mz) === B.AIR && getBlockWorld(mx, scanY + 2, mz) === B.AIR) { my = scanY + 1.15; break; }
+            }
           }
+          _spawnArrivalMob(`${encKey}:${mi}`, mType, mx + 0.5, my, mz + 0.5);
         }
-        spawnMobOfType(mType, mx + 0.5, my, mz + 0.5);
       }
-      mobSpawnTimer = 1.0;
+      if (typeof markDimVisited === 'function') { markDimVisited(encKey); markDimVisited('sift'); }
+      mobSpawnTimer = restoredSift ? 4.5 : 1.0;
       playSfx('roar');
       showToast(reasonToast || "🌈 CHÀO MỪNG TỚI THE SIFT (KHU GIẤC MƠ)! Khám phá 6 quần xã, đảo bay & hồ 7 màu!");
     } else if (targetDim === 'nether') {
@@ -10352,9 +11087,14 @@
         }
         player.x = 64.5; player.y = 9.2; player.z = -46.5; player.yaw = 0.0; player.pitch = 0.14;
         player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-        spawnMobOfType('wither_skeleton', 63.5, 9.2, -55.5);
-        spawnMobOfType('blaze', 72.5, 13.0, -64.5);
-        mobSpawnTimer = 1.2;
+        const restoredNeth = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('nether') : false;
+        const heroKey = 'nether:castleHero';
+        if (typeof hasDimVisited !== 'function' || !hasDimVisited(heroKey)) {
+          _spawnArrivalMob(heroKey + ':wither_skeleton', 'wither_skeleton', 63.5, 9.2, -55.5);
+          _spawnArrivalMob(heroKey + ':blaze', 'blaze', 72.5, 13.0, -64.5);
+        }
+        if (typeof markDimVisited === 'function') { markDimVisited(heroKey); markDimVisited('nether'); }
+        mobSpawnTimer = restoredNeth ? 5.0 : 1.2;
         playSfx('roar');
         showToast(reasonToast || '🏰 Đã tới Lâu Đài Địa Ngục! Khám phá tòa thành tháp ngọc lam giữa biển dung nham!');
         cameraShake = 0.45;
@@ -10394,10 +11134,14 @@
       _rebuildStandingOnly(scx, scz);
       player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + (portalOpts && portalOpts.portalCoords ? 1.55 : 0.5); player.yaw = 0.0; player.pitch = -0.05;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-      spawnMobOfType('blaze', lx + 5.5, ly + 3.0, lz - 8.5);
-      spawnMobOfType('strider', lx + 3.5, ly + 1.4, lz - 5.5);
-      spawnMobOfType('magma_cube', lx - 4.5, ly + 1.4, lz - 6.5);
-      mobSpawnTimer = 1.2;
+      const restoredNeth = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('nether') : false;
+      if (!restoredNeth && (typeof hasDimVisited !== 'function' || !hasDimVisited('nether'))) {
+        _spawnArrivalMob('nether:init:blaze', 'blaze', lx + 5.5, ly + 3.0, lz - 8.5);
+        _spawnArrivalMob('nether:init:strider', 'strider', lx + 3.5, ly + 1.4, lz - 5.5);
+        _spawnArrivalMob('nether:init:magma_cube', 'magma_cube', lx - 4.5, ly + 1.4, lz - 6.5);
+      }
+      if (typeof markDimVisited === 'function') markDimVisited('nether');
+      mobSpawnTimer = restoredNeth ? 5.0 : 1.2;
       playSfx('roar');
       showToast(reasonToast || '🔥 ĐÃ XUỐNG ĐỊA NGỤC (THE NETHER)! Tiêu diệt Quỷ Lửa (Blaze) để lấy Que Lửa!');
     } else if (targetDim === 'end') {
@@ -10411,12 +11155,20 @@
       player.x = 0.5; player.y = landY + 1.2; player.z = 18.5; player.yaw = 0.0; player.pitch = 0.14;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
       _endCrystalScanT = 0;
-      // Spawn the Upgraded 600-HP Boss Ender Dragon + End City Mobs
-      const _ed = spawnMobOfType('ender_dragon', 0.5, landY + 15.0, -10.0);
-      if (_ed) { _ed.homeX = 0.5; _ed.homeY = landY + 15.0; _ed.homeZ = 0.5; _ed.homeRadius = 34; }
-      spawnMobOfType('void_golem', 9.5, getTerrainHeight(9, 2, BIOMES.THE_END) + 1.1, 2.5);
-      spawnMobOfType('chorus_crawler', -8.5, getTerrainHeight(-8, 4, BIOMES.THE_END) + 1.1, 4.5);
-      mobSpawnTimer = 1.5;
+      const restoredEnd = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('end') : false;
+      if (!restoredEnd && (typeof hasDimVisited !== 'function' || !hasDimVisited('end'))) {
+        // Spawn the Upgraded Boss Ender Dragon + End City Mobs only on first visit (or after crystal ritual)!
+        const _ed = _spawnArrivalMob('end:ender_dragon', 'ender_dragon', 0.5, landY + 15.0, -10.0, { homeX: 0.5, homeY: landY + 15.0, homeZ: 0.5, homeRadius: 34 });
+        if (_ed) { _ed.homeX = 0.5; _ed.homeY = landY + 15.0; _ed.homeZ = 0.5; _ed.homeRadius = 34; }
+        _spawnArrivalMob('end:void_golem', 'void_golem', 9.5, getTerrainHeight(9, 2, BIOMES.THE_END) + 1.1, 2.5);
+        _spawnArrivalMob('end:chorus_crawler', 'chorus_crawler', -8.5, getTerrainHeight(-8, 4, BIOMES.THE_END) + 1.1, 4.5);
+      }
+      if (typeof isMobDefeatedTag === 'function' && isMobDefeatedTag('end:ender_dragon') && typeof buildEndReturnPortal === 'function') {
+        const endBaseY = Math.max(8, getTerrainHeight(0, 0, BIOMES.THE_END));
+        if (getBlockWorld(0, endBaseY + 1, 0) !== B.END_PORTAL) buildEndReturnPortal(0, endBaseY + 1, 0);
+      }
+      if (typeof markDimVisited === 'function') markDimVisited('end');
+      mobSpawnTimer = restoredEnd ? 5.5 : 1.5;
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (targetDim === 'warden') {
@@ -10434,11 +11186,15 @@
       _rebuildStandingOnly(0, 0, 0, -1);
       player.x = 0.5; player.y = ly + 1.3; player.z = 4.5; player.yaw = 0.0; player.pitch = 0.06;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-      spawnMobOfType('sculk_stalker', -4.5, ly + 1.3, -2.5);
-      spawnMobOfType('sculk_sentinel', 5.5, ly + 1.3, -4.5);
-      spawnMobOfType('sculk_brute', -6.5, ly + 1.3, -7.5);
-      spawnMobOfType('sculk_soul_ravager', 8.5, ly + 1.5, -18.5);
-      mobSpawnTimer = 1.5;
+      const restoredWarden = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('warden') : false;
+      if (!restoredWarden && (typeof hasDimVisited !== 'function' || !hasDimVisited('warden'))) {
+        _spawnArrivalMob('warden:sculk_stalker', 'sculk_stalker', -4.5, ly + 1.3, -2.5);
+        _spawnArrivalMob('warden:sculk_sentinel', 'sculk_sentinel', 5.5, ly + 1.3, -4.5);
+        _spawnArrivalMob('warden:sculk_brute', 'sculk_brute', -6.5, ly + 1.3, -7.5);
+        _spawnArrivalMob('warden:sculk_soul_ravager', 'sculk_soul_ravager', 8.5, ly + 1.5, -18.5);
+      }
+      if (typeof markDimVisited === 'function') markDimVisited('warden');
+      mobSpawnTimer = restoredWarden ? 5.5 : 1.5;
       playSfx('roar');
       showToast(reasonToast || '🩵 CHÀO MỪNG TỚI THẾ GIỚI WARDEN! Săn Quặng Tier 6 & Hạ Boss Sculk 1000HP!');
     } else if (targetDim === 'dragon_realm') {
@@ -10454,14 +11210,16 @@
       if (_drLeftCh) { _drLeftCh.dirty = true; rebuildChunkMesh(_drLeftCh); }
       player.x = 0.5; player.y = ly + 1.3; player.z = 2.5; player.yaw = Math.PI; player.pitch = 0.04;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
-      if (typeof spawnMobOfType === 'function') {
+      const restoredDrg = (typeof restoreDimensionMobs === 'function') ? restoreDimensionMobs('dragon_realm') : false;
+      if (!restoredDrg && (typeof hasDimVisited !== 'function' || !hasDimVisited('dragon_realm')) && typeof spawnMobOfType === 'function') {
         const safeDrgY = (wx, wz, clr = 16) => (typeof _getSafeDragonSkyY === 'function') ? _getSafeDragonSkyY(wx, wz, clr) : Math.max(ly + clr, getTerrainHeight(Math.floor(wx), Math.floor(wz), getBiomeAt(Math.floor(wx), Math.floor(wz))) + clr);
-        spawnMobOfType('void_end_dragon', -28, safeDrgY(-28, 42, 16), 42);
-        spawnMobOfType('amethyst_end_dragon', 30, safeDrgY(30, 54, 16), 54);
+        _spawnArrivalMob('dragon_realm:void_end_dragon', 'void_end_dragon', -28, safeDrgY(-28, 42, 16), 42);
+        _spawnArrivalMob('dragon_realm:amethyst_end_dragon', 'amethyst_end_dragon', 30, safeDrgY(30, 54, 16), 54);
         const sovY = safeDrgY(0.5, 136.5, 16);
-        spawnMobOfType('sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52 });
+        _spawnArrivalMob('dragon_realm:sovereign_end_dragon', 'sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52 });
       }
-      mobSpawnTimer = 2.0;
+      if (typeof markDimVisited === 'function') markDimVisited('dragon_realm');
+      mobSpawnTimer = restoredDrg ? 5.5 : 2.0;
       playSfx('roar');
       showToast(reasonToast || '🌌 CHÀO MỪNG TỚI THẾ GIỚI RỒNG THE END! Hạ Boss Tối Thượng 50 Skill tại (0, 136)!');
     } else if (portalOpts && portalOpts.returnFromWarden) {
@@ -10486,6 +11244,7 @@
       _rebuildStandingOnly(scx, scz);
       player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + 3.5; player.yaw = 0.0; player.pitch = 0.02;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+      if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (portalOpts && portalOpts.returnFromSift) {
@@ -10503,6 +11262,7 @@
       _rebuildStandingOnly(scx, scz);
       player.x = lx + 0.5; player.y = ly + 1.3; player.z = lz + 4.5; player.yaw = 0.0; player.pitch = 0.02;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+      if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else if (portalOpts && portalOpts.portalCoords) {
@@ -10516,6 +11276,7 @@
       _rebuildStandingOnly(scx, scz);
       player.x = lx + 0.5; player.y = ly + 1.2; player.z = lz + 1.55; player.yaw = 0.0; player.pitch = -0.05;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+      if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       playSfx('roar');
       if (reasonToast) showToast(reasonToast);
     } else {
@@ -10524,6 +11285,7 @@
       ensureScenicSakuraAcrossLake(sp);
       player.x = sp.x; player.y = sp.y; player.z = sp.z; player.yaw = sp.yaw; player.pitch = 0.0;
       player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = sp.y;
+      if (typeof restoreDimensionMobs === 'function') restoreDimensionMobs('overworld');
       if (reasonToast) showToast(reasonToast);
     }
     cameraShake = 0.45;

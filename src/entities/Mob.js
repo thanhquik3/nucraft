@@ -4675,6 +4675,8 @@
       tamed: !!(opts && opts.tamed), sitting: !!(opts && opts.sitting),
       hopper: !!st.hopper, ranged: _rvRange || st.ranged || null, noSunBurn: !!st.noSunBurn,
       isBoss: !!st.isBoss, flying: !!st.flying, skyBird: !!st.skyBird, aqua: !!st.aqua,
+      spawnTag: (opts && opts.spawnTag) || null,
+      ruinId: (opts && opts.ruinId) || null,
       elemDragon: st.elementalDragon || null,
       endRealmDragon: !!st.endRealmDragon,
       sovereignBoss: !!st.sovereignBoss,
@@ -5497,7 +5499,7 @@
           pool = ['echo_golem', 'singer', 'blub', 'wobble', 'harmonizer', 'sky_manta', 'roamroot'];
         }
         const nearStruct = (typeof getSiftGroundStructureForChunk === 'function') ? getSiftGroundStructureForChunk(wx >> 4, wz >> 4) : null;
-        const wantMiniBoss = (!hasBoss && (onFloatingIsland || (nearStruct && (nearStruct.kind === 'castle' || nearStruct.kind === 'den'))) && Math.random() < 0.14);
+        const wantMiniBoss = (!hasBoss && !isMobDefeatedTag('sift:boss:dream_warden') && (onFloatingIsland || (nearStruct && (nearStruct.kind === 'castle' || nearStruct.kind === 'den'))) && Math.random() < 0.14);
         const pick = wantMiniBoss ? 'dream_warden' : pool[(Math.random() * pool.length) | 0];
         const stM = MOB_STATS[pick];
         if (!stM) continue;
@@ -5608,7 +5610,7 @@
       }
     } else if (currentDimension === 'warden') {
       if (hostileCnt >= hostileCap) return;
-      if (!hasBoss && r > 0.90) type = 'sculk_soul_ravager';
+      if (!hasBoss && !isMobDefeatedTag('warden:sculk_soul_ravager') && !isMobDefeatedTag('warden:boss:sculk_soul_ravager') && r > 0.90) type = 'sculk_soul_ravager';
       else if (r < 0.36) type = 'sculk_stalker';
       else if (r < 0.70) type = 'sculk_sentinel';
       else type = 'sculk_brute';
@@ -6140,7 +6142,9 @@
     }
     _endCrystalScanT = 0;
     flushUrgentChunks(32, true);
-    const drg = spawnMobOfType('ender_dragon', 0.5, 28, 0.5);
+    defeatedMobTags.delete('end:ender_dragon');
+    defeatedMobTags.delete('end:boss:ender_dragon');
+    const drg = spawnMobOfType('ender_dragon', 0.5, 28, 0.5, { spawnTag: 'end:ender_dragon' });
     if (drg) { drg.hp = drg.maxHp = 600; }
     cameraShake = Math.max(cameraShake, 0.75);
     playSfx('roar');
@@ -6213,7 +6217,7 @@
     if (!mob.hostile && !mob.neutral) mob.fleeT = 4.0;
     if (mob.hpBar) updateMobHpBar(mob, mob.hp / mob.maxHp);
     if (mob.hp <= 0) {
-      if (mob.type === 'ender_dragon' && !mob._dyingT) {
+      if (mob.type === 'ender_dragon' && !mob._dyingT && !mob._deathFinal) {
         mob.hp = 1;
         mob._dyingT = 4.0;
         mob.hostile = false;
@@ -6386,7 +6390,7 @@
       else if ((mob.type === 'zombie' || mob.type === 'husk' || mob.type === 'frozen_zombie' || mob.type === 'mossy_zombie' || mob.type === 'chicken_jockey') && Math.random() < 0.65) spawnDroppedItem(bx, by, bz, Math.random() < 0.25 ? B.CARROT : (Math.random() < 0.35 ? B.POTATO : B.IRON_INGOT));
       else if (mob.aqua) spawnDroppedItem(bx, by, bz, mob.burning ? (Math.random() < 0.45 ? B.COOKED_SALMON : B.COOKED_FISH) : (Math.random() < 0.45 ? B.RAW_SALMON : B.RAW_FISH));
       else if (!mob.hostile && !mob.villager && !mob.guardian) spawnDroppedItem(bx, by, bz, mob.burning ? B.COOKED_PORK : B.RAW_PORK);
-      if (typeof mob.nestIdx === 'number') spawnedDragonNests.delete(mob.nestIdx);
+      markMobDefeated(mob, currentDimension);
       if (mob.uid) {
         _mobNetLastSent.delete(mob.uid);
         if (activeRoomId && typeof isSimAuthority === 'function' && isSimAuthority() && _mobNetRemQueue.length < 64) _mobNetRemQueue.push(mob.uid);
@@ -6623,13 +6627,37 @@
     }
   }
 
-  function serializeMobsForSave(maxCount = 48) {
+  let dimSavedMobs = Object.create(null);
+  const dimVisitedSpawned = new Set();
+  const defeatedMobTags = new Set();
+
+  function markMobDefeated(mob, dim = currentDimension) {
+    if (!mob) return;
+    if (mob.spawnTag) defeatedMobTags.add(mob.spawnTag);
+    if (mob.isBoss) {
+      defeatedMobTags.add(`${dim}:boss:${mob.type}`);
+      if (mob.type === 'ender_dragon') defeatedMobTags.add('end:ender_dragon');
+      else if (mob.type === 'sovereign_end_dragon') defeatedMobTags.add('dragon_realm:sovereign_end_dragon');
+      else if (mob.type === 'sculk_soul_ravager') defeatedMobTags.add('warden:sculk_soul_ravager');
+    }
+    if (typeof mob.nestIdx === 'number') {
+      defeatedMobTags.add('nest:' + mob.nestIdx);
+      spawnedDragonNests.add(mob.nestIdx);
+    }
+  }
+  function isMobDefeatedTag(tag) { return !!(tag && defeatedMobTags.has(tag)); }
+  function hasDimVisited(key) { return !!(key && dimVisitedSpawned.has(key)); }
+  function markDimVisited(key) { if (key) dimVisitedSpawned.add(key); }
+
+  function serializeMobsForSave(maxCount = 48, opts = null) {
     const dOff = depthOffset || 0;
+    const includeTamedDragons = !!(opts && opts.includeTamedDragons);
     const cands = [];
     for (let i = 0; i < mobs.length; i++) {
       const m = mobs[i];
-      if (!m || m._dead || (m.tamed && m.elemDragon)) continue;
-      const prio = (m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : (m.tamed ? 1 : ((m.villager || m.guardian) ? 2 : 3));
+      if (!m || m._dead || m._dyingT > 0 || m._deathFinal) continue;
+      if (!includeTamedDragons && m.tamed && m.elemDragon) continue;
+      const prio = (m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : (m.spawnTag ? 1 : (m.tamed ? 2 : ((m.villager || m.guardian) ? 3 : 4)));
       const d2 = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
       cands.push({ m, prio, d2 });
     }
@@ -6645,12 +6673,20 @@
         yw: +m.yaw.toFixed(3),
         hp: Math.max(1, Math.ceil(m.hp))
       };
+      if (m.uid) item.uid = m.uid;
+      if (m.spawnTag) item.tag = m.spawnTag;
+      if (m.ruinId) item.rid = m.ruinId;
       if (m.maxHp && m.maxHp !== MOB_STATS[m.type]?.hp) item.mh = m.maxHp;
       if (m.tamed) item.tm = 1;
       if (m.sitting) item.st = 1;
       if (m.flying) item.fl = 1;
       if (m.woolColor) item.wc = m.woolColor;
       if (m.villagerProf) item.vp = m.villagerProf.idx;
+      if (m.ownerPeerId) item.ow = String(m.ownerPeerId);
+      if (m.saddled) item.sd = 1;
+      if (typeof m.growth === 'number') item.gr = Math.round(m.growth);
+      if (m.gender) item.gn = m.gender;
+      if (m.dragonArmor) item.da = { ...m.dragonArmor };
       if (typeof m.homeX === 'number') {
         item.hx = +m.homeX.toFixed(2);
         item.hy = +((m.homeY !== undefined ? m.homeY : m.y) - dOff).toFixed(2);
@@ -6671,14 +6707,23 @@
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
       if (!it || !it.t) continue;
+      if (it.tag && defeatedMobTags.has(it.tag)) continue;
+      if (typeof it.ni === 'number' && defeatedMobTags.has('nest:' + it.ni)) continue;
       const known = (typeof ANIMAL_MAP !== 'undefined' && ANIMAL_MAP.has(it.t)) || !!MOB_STATS[it.t];
       if (!known) continue;
       const wx = Number.isFinite(it.x) ? it.x : player.x;
       const wz = Number.isFinite(it.z) ? it.z : player.z;
       const wy = (typeof it.ty === 'number' && Number.isFinite(it.ty)) ? (it.ty + dOff) : (player.y + 1.2);
       const opts = { silent: true, fromSave: true };
+      if (it.uid) opts.uid = it.uid;
+      if (it.tag) opts.spawnTag = it.tag;
+      if (it.rid) opts.ruinId = it.rid;
       if (it.tm) opts.tamed = true;
       if (it.st) opts.sitting = true;
+      if (it.ow) opts.ownerPeerId = String(it.ow);
+      if (it.sd) opts.saddled = true;
+      if (it.gn) opts.gender = it.gn;
+      if (it.da && typeof it.da === 'object') opts.dragonArmor = { ...it.da };
       if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
       if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
       if (typeof it.hx === 'number' && typeof it.hz === 'number') {
@@ -6701,22 +6746,83 @@
       if (typeof it.hp === 'number' && it.hp > 0) m.hp = Math.min(m.maxHp, it.hp);
       if (it.dm) m.dragonMode = it.dm;
       if (it.fl !== undefined) m.flying = !!it.fl;
+      if (typeof it.gr === 'number') m.growth = it.gr;
+      if (m.tamed && m.elemDragon) rebuildDragonStageMesh(m);
+      else if (m.tamed) _attachPetNameTag(m);
       if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
     }
     if (currentDimension === 'end') _endCrystalScanT = 0;
   }
 
+  function snapshotDimensionMobs(dim = currentDimension) {
+    if (!dim) return;
+    if (typeof player !== 'undefined' && player && player.ridingDragon) {
+      if (typeof detachRiderFromDragon === 'function') detachRiderFromDragon();
+      player.ridingDragon = null;
+      player.sitting = false;
+    }
+    dimSavedMobs[dim] = serializeMobsForSave(80, { includeTamedDragons: true });
+    if (dim !== 'overworld') dimVisitedSpawned.add(dim);
+  }
+
+  function restoreDimensionMobs(dim = currentDimension) {
+    if (!dim || !Array.isArray(dimSavedMobs[dim])) return false;
+    restoreMobsFromSave(dimSavedMobs[dim]);
+    return true;
+  }
+
+  function serializeDimMobPersistence() {
+    const dimMobs = {};
+    for (const k of Object.keys(dimSavedMobs)) {
+      if (k === currentDimension) continue;
+      if (Array.isArray(dimSavedMobs[k])) dimMobs[k] = dimSavedMobs[k].slice(0, 40);
+    }
+    return {
+      dimMobs,
+      visitedDims: Array.from(dimVisitedSpawned),
+      defeatedTags: Array.from(defeatedMobTags)
+    };
+  }
+
+  function restoreDimMobPersistence(obj) {
+    dimSavedMobs = Object.create(null);
+    dimVisitedSpawned.clear();
+    defeatedMobTags.clear();
+    if (!obj || typeof obj !== 'object') return;
+    if (obj.dimMobs && typeof obj.dimMobs === 'object') {
+      for (const k of Object.keys(obj.dimMobs)) {
+        if (Array.isArray(obj.dimMobs[k])) dimSavedMobs[k] = obj.dimMobs[k];
+      }
+    }
+    if (Array.isArray(obj.visitedDims)) {
+      for (const v of obj.visitedDims) if (typeof v === 'string') dimVisitedSpawned.add(v);
+    }
+    if (Array.isArray(obj.defeatedTags)) {
+      for (const t of obj.defeatedTags) if (typeof t === 'string') defeatedMobTags.add(t);
+    }
+  }
+
+  function resetDimMobPersistence() {
+    dimSavedMobs = Object.create(null);
+    dimVisitedSpawned.clear();
+    defeatedMobTags.clear();
+  }
+
   function spawnFallbackDimMobs() {
+    if (hasDimVisited(currentDimension)) return;
     if (currentDimension === 'end' && Math.hypot(player.x, player.z) < 180) {
+      if (isMobDefeatedTag('end:ender_dragon') || isMobDefeatedTag('end:boss:ender_dragon')) return;
       const landY = Math.max(8, getTerrainHeight(0, 18, BIOMES.THE_END));
-      const ed = spawnMobOfType('ender_dragon', 0.5, landY + 15.0, -10.0, { silent: true });
+      const ed = spawnMobOfType('ender_dragon', 0.5, landY + 15.0, -10.0, { silent: true, spawnTag: 'end:ender_dragon' });
       if (ed) { ed.homeX = 0.5; ed.homeY = landY + 15.0; ed.homeZ = 0.5; ed.homeRadius = 34; }
     } else if (currentDimension === 'dragon_realm') {
       const safeY = (wx, wz) => (typeof _getSafeDragonSkyY === 'function') ? _getSafeDragonSkyY(wx, wz, 16) : Math.max(24, getTerrainHeight(Math.floor(wx), Math.floor(wz), getBiomeAt(Math.floor(wx), Math.floor(wz))) + 16);
-      spawnMobOfType('void_end_dragon', -28, safeY(-28, 42), 42, { silent: true });
-      spawnMobOfType('amethyst_end_dragon', 30, safeY(30, 54), 54, { silent: true });
-      const sovY = safeY(0.5, 136.5);
-      spawnMobOfType('sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52, silent: true });
+      if (!isMobDefeatedTag('dragon_realm:void_end_dragon')) spawnMobOfType('void_end_dragon', -28, safeY(-28, 42), 42, { silent: true, spawnTag: 'dragon_realm:void_end_dragon' });
+      if (!isMobDefeatedTag('dragon_realm:amethyst_end_dragon')) spawnMobOfType('amethyst_end_dragon', 30, safeY(30, 54), 54, { silent: true, spawnTag: 'dragon_realm:amethyst_end_dragon' });
+      if (!isMobDefeatedTag('dragon_realm:sovereign_end_dragon') && !isMobDefeatedTag('dragon_realm:boss:sovereign_end_dragon')) {
+        const sovY = safeY(0.5, 136.5);
+        spawnMobOfType('sovereign_end_dragon', 0.5, sovY, 136.5, { homeX: 0.5, homeY: sovY, homeZ: 136.5, homeRadius: 52, silent: true, spawnTag: 'dragon_realm:sovereign_end_dragon' });
+      }
     }
   }
 
@@ -7787,7 +7893,7 @@
       const nests = getDragonNestLocations();
       for (let ni = 0; ni < nests.length; ni++) {
         const n = nests[ni];
-        if (spawnedDragonNests.has(n.idx)) continue;
+        if (spawnedDragonNests.has(n.idx) || isMobDefeatedTag('nest:' + n.idx)) continue;
         let nearAnyPeer = Math.hypot(player.x - n.x, player.z - n.z) < 96;
         if (!nearAnyPeer && activeRoomId && typeof remotePlayers !== 'undefined') {
           for (const rp of remotePlayers.values()) {
@@ -7950,6 +8056,7 @@
         if (((frameCounter + i) & 3) === 0) spawnParticles(m.x, m.y + 1.5, m.z, 0xe879f9, 4, true);
         if (m._dyingT <= 0) {
           m._dyingT = 0;
+          m._deathFinal = true;
           _disposeDragonDeathRays(m);
           m.hp = -1;
           hurtMob(m, 999, 0, 0, 0, false, false);

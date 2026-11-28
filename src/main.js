@@ -889,6 +889,9 @@
   const _colFreshTop = new THREE.Color(0x1f63c8), _colFreshHor = new THREE.Color(0x7fb2e6), _colFreshSun = new THREE.Color(0xfff5e0);
   const _colUwShallow = new THREE.Color(0x0b6578), _colUwMid = new THREE.Color(0x04304d), _colUwAbyss = new THREE.Color(0x010612), _colUwNight = new THREE.Color(0x020f24);
   const _colUwSunShallow = new THREE.Color(0x9ee8ff), _colUwSunAbyss = new THREE.Color(0x091c38);
+  const _colSiftNightTop = new THREE.Color(0x0b1f3f), _colSiftNightHor = new THREE.Color(0x1c2f56), _colSiftNightFog = new THREE.Color(0x162646);
+  const _colDrNightTop = new THREE.Color(0x261830), _colDrNightHor = new THREE.Color(0x4a2a46), _colDrNightFog = new THREE.Color(0x3a223b);
+  const _colBiomeFogScaled = new THREE.Color(0x1b0b18);
   const _elLobby = document.getElementById('lobbyScreen'), _elCoords = document.getElementById('coordsText');
   const _elDays = document.getElementById('daysText'), _elDepth = document.getElementById('depthText');
   const _elUnderwater = document.getElementById('underwaterOverlay');
@@ -908,6 +911,13 @@
     envUniforms.uDimension.value = currentDimension === 'warden' ? 4.0 : (currentDimension === 'sift' ? 3.0 : (currentDimension === 'dragon_realm' ? 2.15 : (currentDimension === 'end' ? 2.0 : (currentDimension === 'nether' ? 1.0 : 0.0))));
     // Luanti/Minecraft horizon rule: distance fog MUST reach 100% strictly inside loaded chunks (never past unloaded border)
     const loadedEdge = Math.max(15.0, renderDistance * 16.0 - 2.5);
+    // Unified world clock tick across all dimensions & biomes so time never freezes or desyncs
+    const prevDay = dayTime;
+    dayTime = (dayTime + dt / DAY_LENGTH_SEC) % 1.0;
+    if (dayTime < prevDay) player.daysPlayed++;
+    const ang = dayTime * Math.PI * 2 - Math.PI * 0.5, sunY = Math.sin(ang);
+    const sunsetWeight = Math.max(0, 1 - Math.abs(sunY - 0.16) * 2.65);
+    const dayWeight = Math.max(0, Math.min(1, (sunY + 0.12) * 2.6));
     const applyLavaAtmo = () => {
       const inLv = !!(player && player.eyesInLava);
       envUniforms.uInLava.value = inLv ? 1.0 : 0.0;
@@ -963,11 +973,12 @@
       return;
     }
 
-    // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE (DENSE HAZY PINK FOG — REFS 9, 10, 11) =====================
+    // ===================== DIMENSION 6: DRAGON REALM ATMOSPHERE (TIME-SYNCED HAZY ROSE SKY) =====================
     if (currentDimension === 'dragon_realm') {
-      _tmpTop.setHex(_isNcr2 ? 0xdec0c4 : 0xd6b4b9);
-      _tmpHor.setHex(_isNcr2 ? 0xf2d9d6 : 0xebd1ce);
-      _tmpFog.setHex(_isNcr2 ? 0xebd0ce : 0xe4c6c5);
+      const drNight = 1.0 - dayWeight;
+      _tmpTop.setHex(_isNcr2 ? 0xdec0c4 : 0xd6b4b9).lerp(_colDrNightTop, 0.62 * drNight);
+      _tmpHor.setHex(_isNcr2 ? 0xf2d9d6 : 0xebd1ce).lerp(_colDrNightHor, 0.62 * drNight);
+      _tmpFog.setHex(_isNcr2 ? 0xebd0ce : 0xe4c6c5).lerp(_colDrNightFog, 0.62 * drNight);
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
@@ -977,19 +988,19 @@
       scene.fog.near = _drStart; scene.fog.far = _drEnd;
       envUniforms.uFogStart.value = _drStart; envUniforms.uFogEnd.value = _drEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(_isNcr2 ? 0xffebe0 : 0xffe4d6);
-      sunLight.intensity = _isNcr2 ? 1.06 : 1.00;
-      hemiLight.color.setHex(_isNcr2 ? 0xf6d4d4 : 0xf0c7c8);
+      sunLight.color.setHex(_isNcr2 ? 0xffebe0 : 0xffe4d6).lerp(_colMoonDayTop, 0.35 * drNight);
+      sunLight.intensity = (_isNcr2 ? 1.06 : 1.00) * (0.62 + 0.38 * dayWeight);
+      hemiLight.color.setHex(_isNcr2 ? 0xf6d4d4 : 0xf0c7c8).lerp(_colDrNightHor, 0.45 * drNight);
       hemiLight.groundColor.setHex(_isNcr2 ? 0x99524c : 0x8a4540);
-      hemiLight.intensity = _isNcr2 ? 0.72 : 0.66;
-      envUniforms.uSunColor.value.setHex(_isNcr2 ? 0xffebe0 : 0xffe4d6);
-      envUniforms.uSunDir.value.set(0.36, 0.84, 0.40).normalize();
+      hemiLight.intensity = (_isNcr2 ? 0.72 : 0.66) * (0.68 + 0.32 * dayWeight);
+      envUniforms.uSunColor.value.copy(sunLight.color);
+      envUniforms.uSunDir.value.set(Math.cos(ang) * 0.85, sunY, 0.42).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
-      sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
+      sunLight.position.set(snapX + Math.cos(ang) * 26, snapY + Math.max(18, Math.abs(sunY) * 52), snapZ + 26);
       sunLight.target.updateMatrixWorld();
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.92;
-      envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.56 + 0.36 * dayWeight;
+      envUniforms.uMoonBoost.value = drNight > 0.5 ? (drNight - 0.5) * 0.9 : 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       envUniforms.uUnderwater.value = player.eyesInWater ? 1.0 : 0.0;
       cloudMesh.visible = false;
       updateShootingStars(dt, 0, false);
@@ -998,11 +1009,11 @@
       return;
     }
 
-    // ===================== DIMENSION 4: THE SIFT (6 DISTINCT BIOME SKIES, AURORA, CLOUDS & DREAMY NIGHT!) =====================
+    // ===================== DIMENSION 4: THE SIFT (6 DISTINCT BIOME SKIES SYNCED TO WORLD TIME!) =====================
     if (currentDimension === 'sift') {
       const inDreamUw = !!(player && player.eyesInWater);
       const sBio = getPlayerBiome();
-      const sNight = Math.max(0, Math.min(1, 0.5 - 0.5 * Math.sin(dayTime * Math.PI * 2.0)));
+      const sNight = 1.0 - dayWeight;
       const isSiftMeadow = (sBio === BIOMES.SIFT_MEADOW);
       const isSiftLullaby = (sBio === BIOMES.SIFT_LULLABY || sBio === BIOMES.SIFT_LULLABY_TOP);
       const isSiftBurrows = (sBio === BIOMES.SIFT_ICHOR_PONDS);
@@ -1016,9 +1027,7 @@
         _tmpTop.setHex(0x4cb8f0); _tmpHor.setHex(0x7ef2dc); _tmpFog.setHex(0x8beae2);
       } else if (isSiftLullaby) {
         // Lullaby Hills: crisp cyan-pastel by day, dreamy deep blue at night (Refs 4/6 & 7/3)
-        _tmpTop.setHex(sNight > 0.55 ? 0x0b2a52 : 0x52c4db);
-        _tmpHor.setHex(sNight > 0.55 ? 0x165e84 : 0xe4c6e8);
-        _tmpFog.setHex(sNight > 0.55 ? 0x12496d : 0xc0d8e6);
+        _tmpTop.setHex(0x52c4db); _tmpHor.setHex(0xe4c6e8); _tmpFog.setHex(0xc0d8e6);
       } else if (isSiftBurrows) {
         // Burrows & Ichor: warm dusty rose-pink sky (Refs 5 & 10)
         _tmpTop.setHex(0x98c6e4); _tmpHor.setHex(0xf2b8dc); _tmpFog.setHex(0xdcb4cc);
@@ -1034,6 +1043,12 @@
         _tmpHor.setHex(_isNcr2 ? 0xe0a6cc : 0xd092bc);
         _tmpFog.setHex(_isNcr2 ? 0x968cb2 : 0x847a9e);
       }
+      if (!inDreamUw) {
+        const sNightBlend = isSiftFungal ? 0.40 * sNight : 0.72 * sNight;
+        _tmpTop.lerp(_colSiftNightTop, sNightBlend).lerp(colSunsetTop, sunsetWeight * 0.18);
+        _tmpHor.lerp(_colSiftNightHor, sNightBlend).lerp(colSunsetHor, sunsetWeight * 0.22);
+        _tmpFog.lerp(_colSiftNightFog, sNightBlend).lerp(colSunsetHor, sunsetWeight * 0.16);
+      }
       envUniforms.uSkyTop.value.copy(_tmpTop);
       envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpFog);
@@ -1043,19 +1058,19 @@
       scene.fog.near = _sfStart; scene.fog.far = _sfEnd;
       envUniforms.uFogStart.value = _sfStart; envUniforms.uFogEnd.value = _sfEnd;
       renderer.setClearColor(_tmpFog, 1);
-      sunLight.color.setHex(isSiftFungal ? 0xd4b8ff : (isSiftLullaby && sNight > 0.55 ? 0x67d8f8 : (isSiftHusk ? 0xffe8dc : 0xffe2d6)));
-      sunLight.intensity = isSiftFungal ? 0.72 : (isSiftLullaby && sNight > 0.55 ? 0.64 : (_isNcr2 ? 1.04 : 0.98));
-      hemiLight.color.setHex(isSiftFungal ? 0x9868e8 : (isSiftHusk ? 0xf2d0d4 : (isSiftMeadow ? 0xa4f4f8 : 0x76e2ea)));
+      sunLight.color.setHex(isSiftFungal ? 0xd4b8ff : (isSiftHusk ? 0xffe8dc : 0xffe2d6)).lerp(_colMoonDayTop, 0.42 * sNight);
+      sunLight.intensity = (isSiftFungal ? 0.72 : (_isNcr2 ? 1.04 : 0.98)) * (0.58 + 0.42 * dayWeight);
+      hemiLight.color.setHex(isSiftFungal ? 0x9868e8 : (isSiftHusk ? 0xf2d0d4 : (isSiftMeadow ? 0xa4f4f8 : 0x76e2ea))).lerp(_colSiftNightHor, 0.45 * sNight);
       hemiLight.groundColor.setHex(isSiftFungal ? 0x2a1844 : (isSiftBurrows ? 0x6b2232 : 0x4c3050));
-      hemiLight.intensity = isSiftFungal ? 0.54 : 0.62;
+      hemiLight.intensity = (isSiftFungal ? 0.54 : 0.62) * (0.65 + 0.35 * dayWeight);
       envUniforms.uSunColor.value.copy(sunLight.color);
-      envUniforms.uSunDir.value.set(0.35, 0.82, 0.42).normalize();
+      envUniforms.uSunDir.value.set(Math.cos(ang) * 0.85, sunY, 0.42).normalize();
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
-      sunLight.position.set(snapX + 26, snapY + 52, snapZ + 26);
+      sunLight.position.set(snapX + Math.cos(ang) * 26, snapY + Math.max(18, Math.abs(sunY) * 52), snapZ + 26);
       sunLight.target.updateMatrixWorld();
-      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = isSiftFungal ? 0.65 : 0.92;
-      envUniforms.uMoonBoost.value = (isSiftLullaby && sNight > 0.55) ? 0.55 : 0.0;
+      if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = (isSiftFungal ? 0.65 : 0.92) * (0.58 + 0.42 * dayWeight);
+      envUniforms.uMoonBoost.value = sNight > 0.5 ? (sNight - 0.5) * 1.1 : 0.0;
       envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       envUniforms.uUnderwater.value = inDreamUw ? 1.0 : 0.0;
       // Show crisp white Minecraft clouds in Singer's Meadow (Ref 2/8); keep aurora open in Central Sift!
@@ -1127,14 +1142,7 @@
     }
 
     // ===================== DIMENSION 1: OVERWORLD PHOTOREAL SOFT-BSL ATMOSPHERE =====================
-    const prevDay = dayTime;
-    dayTime = (dayTime + dt / DAY_LENGTH_SEC) % 1.0;
-    if (dayTime < prevDay) player.daysPlayed++;
-    const ang = dayTime * Math.PI * 2 - Math.PI * 0.5, sunY = Math.sin(ang);
     envUniforms.uSunDir.value.set(Math.cos(ang) * 0.85, sunY, 0.42).normalize();
-
-    const sunsetWeight = Math.max(0, 1 - Math.abs(sunY - 0.16) * 2.65);
-    const dayWeight = Math.max(0, Math.min(1, (sunY + 0.12) * 2.6));
     const curBiome = getPlayerBiome();
     const inChillWheatAtmo = (curBiome === BIOMES.WHEAT_VALLEY);
     const stormSkyAmt = rainIntensity * (inChillWheatAtmo ? 0.56 : 0.88);
@@ -1191,14 +1199,18 @@
       _tmpHor.lerp(_colAuroraHor, 0.34);
     }
     if (curBiome === BIOMES.NIGHTMARE_WOODS) {
-      _tmpTop.lerp(_colNightmareFog, 0.78);
-      _tmpHor.lerp(_colNightmareFog, 0.86);
+      _colBiomeFogScaled.copy(_colNightmareFog).multiplyScalar(0.55 + 0.45 * dayWeight);
+      const nmSkyMix = 0.52 + 0.28 * (1.0 - dayWeight);
+      _tmpTop.lerp(_colBiomeFogScaled, nmSkyMix);
+      _tmpHor.lerp(_colBiomeFogScaled, Math.min(0.88, nmSkyMix + 0.08));
     } else if (curBiome === BIOMES.PALE_GARDEN) {
-      _tmpTop.lerp(_colPaleFog, 0.58);
-      _tmpHor.lerp(_colPaleFog, 0.68);
+      _colBiomeFogScaled.copy(_colPaleFog).multiplyScalar(0.26 + 0.74 * dayWeight);
+      _tmpTop.lerp(_colBiomeFogScaled, 0.58);
+      _tmpHor.lerp(_colBiomeFogScaled, 0.68);
     } else if (curBiome === BIOMES.DARK_FOREST) {
-      _tmpTop.lerp(_colDarkForestFog, 0.38);
-      _tmpHor.lerp(_colDarkForestFog, 0.45);
+      _colBiomeFogScaled.copy(_colDarkForestFog).multiplyScalar(0.35 + 0.65 * dayWeight);
+      _tmpTop.lerp(_colBiomeFogScaled, 0.38);
+      _tmpHor.lerp(_colBiomeFogScaled, 0.45);
     }
     if (envUniforms.uSulfurWater) envUniforms.uSulfurWater.value = (typeof BIOMES.SULFUR_SPRINGS !== 'undefined' && curBiome === BIOMES.SULFUR_SPRINGS) ? 1.0 : 0.0;
     if ((envUniforms.uCartoonMode?.value || 0) > 0.5 && dayWeight > 0.05 && rainIntensity < 0.35) {
@@ -1260,15 +1272,18 @@
       envUniforms.uFogStart.value = Math.max(8.0, Math.min(fogEnd * 0.70, fogEnd * fogStartRatio));
       envUniforms.uFogEnd.value   = fogEnd;
       if (curBiome === BIOMES.NIGHTMARE_WOODS) {
-        envUniforms.uFogColor.value.copy(_colNightmareFog);
+        _colBiomeFogScaled.copy(_colNightmareFog).multiplyScalar(0.55 + 0.45 * dayWeight);
+        envUniforms.uFogColor.value.lerp(_colBiomeFogScaled, 0.74 + 0.20 * (1.0 - dayWeight));
         envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 44.0);
         envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.26);
       } else if (curBiome === BIOMES.PALE_GARDEN) {
-        envUniforms.uFogColor.value.lerp(_colPaleFog, 0.78);
+        _colBiomeFogScaled.copy(_colPaleFog).multiplyScalar(0.26 + 0.74 * dayWeight);
+        envUniforms.uFogColor.value.lerp(_colBiomeFogScaled, 0.78);
         envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 34.0);
         envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.24);
       } else if (curBiome === BIOMES.DARK_FOREST) {
-        envUniforms.uFogColor.value.lerp(_colDarkForestFog, 0.55);
+        _colBiomeFogScaled.copy(_colDarkForestFog).multiplyScalar(0.35 + 0.65 * dayWeight);
+        envUniforms.uFogColor.value.lerp(_colBiomeFogScaled, 0.55);
         envUniforms.uFogEnd.value   = Math.min(envUniforms.uFogEnd.value, 42.0);
         envUniforms.uFogStart.value = Math.min(envUniforms.uFogStart.value, envUniforms.uFogEnd.value * 0.30);
       }
@@ -2379,6 +2394,7 @@
     launchWorldFromLobby,
     teleportToScenicBiome,
     getMobs: () => mobs,
+    getDimMobDebug: () => (typeof serializeDimMobPersistence === 'function' ? serializeDimMobPersistence() : null),
     spawnMobOfType,
     hurtMob,
     getActiveSwordSlashesCount: () => activeSwordSlashes.length,
