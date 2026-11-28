@@ -5394,10 +5394,10 @@
         const ty = replaceTarget ? hit.y : hit.py;
         const tz = replaceTarget ? hit.z : hit.pz;
         if (ty <= MIN_Y || ty > MAX_Y) return;
-        setBlockWorld(tx, ty, tz, liqId, true);
         const pk = modKey(tx, ty, tz);
-        fluidLevel.set(pk, 0); // Mark exact poured block as SOURCE (level 0)!
+        fluidLevel.set(pk, 0); // Mark exact poured block as SOURCE (level 0) BEFORE setBlockWorld so neighbor wakes see source immediately
         pouredFluidSources.add(pk);
+        setBlockWorld(tx, ty, tz, liqId, true);
         scheduleFluid(tx, ty, tz, liqId === B.LAVA ? 0.22 : 0.09);
         if (liqId === B.LAVA) igniteAdjacentTnt(tx, ty, tz);
         if (gameMode !== 'creative') slot.id = B.BUCKET;

@@ -85,8 +85,12 @@
   let _localVelX = 0, _localVelY = 0, _localVelZ = 0;
   let _localStateSeq = 0, _lastStateSendMs = 0, _wasMovingNet = false, _wasOnGroundNet = true;
   const _rpSampleOut = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
+  const _wasmNetRps = [];
+  let _cachedLocBarW = 360, _cachedLocBarAt = 0;
+  function _netQ2(v) { return Math.round(v * 100) / 100; }
+  function _netQ3(v) { return Math.round(v * 1000) / 1000; }
   function updateCoopAndLocator(dt, tNow) {
-    // Adaptive 20Hz quantized snapshot broadcast with measured true velocity & edge-triggered flush
+    // Adaptive quantized snapshot broadcast with measured true velocity & edge-triggered flush
     const nowPerf = performance.now();
     const localOff = depthOffset || 0;
     if (activeRoomId) {
@@ -112,9 +116,8 @@
       }
       const measSpd = Math.hypot(_localVelX, _localVelZ);
       const _isMovingNet = measSpd > 0.06 || Math.abs(_localVelY) > 0.08 || (player.curSpeed || 0) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
-      const q2 = v => Math.round(v * 100) / 100, q3 = v => Math.round(v * 1000) / 1000;
-      const qx = q2(player.x), qy = q2(player.y), qz = q2(player.z);
-      const qYaw = q3(player.yaw), qPitch = q3(player.pitch);
+      const qx = _netQ2(player.x), qy = _netQ2(player.y), qz = _netQ2(player.z);
+      const qYaw = _netQ3(player.yaw), qPitch = _netQ3(player.pitch);
       const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
       const swingEdge = ((player.curSwing || 0) > 0.02 && !_lastSentNet._hadSwing) || (!!player.swordAtkActive && !_lastSentNet._hadSwAtk);
       const _burnNow = ((player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
@@ -127,7 +130,10 @@
         || (heldId !== _lastSentNet.held)
         || (_burnNow !== !!_lastSentNet._burning)
         || (_burnSoulNow !== !!_lastSentNet._burnSoul);
-      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? 33 : (rotChanged ? 90 : 1000);
+      // Scale state send rate smoothly with peer count so large multiplayer rooms stay lock-free & high-FPS
+      const peerCnt = remotePlayers.size;
+      const moveIntervalMs = peerCnt >= 8 ? 66 : (peerCnt >= 4 ? 50 : 40);
+      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? moveIntervalMs : (rotChanged ? 90 : 1000);
       if (edgeChanged || (nowPerf - _lastStateSendMs) >= _sendIntervalMs) {
         const eq = player.equip;
         const eqSig = `${eq.helmet||0}_${eq.chest||0}_${eq.legs||0}_${eq.boots||0}_${eq.offhand||0}`;
@@ -156,18 +162,18 @@
               ts: Math.round(nowPerf),
               dim: currentDimension,
               depthOffset: localOff,
-              x: qx, y: qy, trueY: q2(trueYNow), z: qz,
-              vx: q2(_localVelX),
-              vy: q2(_localVelY),
-              vz: q2(_localVelZ),
+              x: qx, y: qy, trueY: _netQ2(trueYNow), z: qz,
+              vx: _netQ2(_localVelX),
+              vy: _netQ2(_localVelY),
+              vz: _netQ2(_localVelZ),
               yaw: qYaw, pitch: qPitch,
-              speed: q2(Math.max(measSpd, player.curSpeed || 0)), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
+              speed: _netQ2(Math.max(measSpd, player.curSpeed || 0)), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
               inWater: !!player.inWater, deepWater: !!player.deepWater,
               swimMoving: (player.curSpeed || 0) > 0.2, sprintSwimming: !!player.sprintSwimming,
               lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying, gliding: !!player.gliding,
-              hurtT: q2(player.hurtAnimT || 0), swing: q2(player.curSwing || 0),
-              swingActive: !!player.swingActive, swingU: q3(player.swingU || 0), actionType: player.actionType || 'mine',
-              bowDrawing: !!player.bowDrawing, bowCharge: q2(player.bowCharge || 0), bowStage: player.bowStage || 0,
+              hurtT: _netQ2(player.hurtAnimT || 0), swing: _netQ2(player.curSwing || 0),
+              swingActive: !!player.swingActive, swingU: _netQ3(player.swingU || 0), actionType: player.actionType || 'mine',
+              bowDrawing: !!player.bowDrawing, bowCharge: _netQ2(player.bowCharge || 0), bowStage: player.bowStage || 0,
               swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
               burning: _burnNow, burnSoul: _burnSoulNow,
               held: heldId
@@ -198,7 +204,7 @@
 
     // Update remote player interpolation, AI Co-op buddy movement & skeletal animation
     const hasPeers = remotePlayers.size > 0;
-    if (hasPeers !== _lastHasPeers) { _lastHasPeers = hasPeers; locatorBarEl.classList.toggle('visible', hasPeers); }
+    if (hasPeers !== _lastHasPeers) { _lastHasPeers = hasPeers; locatorBarEl.classList.toggle('visible', hasPeers); _cachedLocBarAt = 0; }
     if (!hasPeers) {
       if (locatorDotEls.size > 0) {
         for (const e of locatorDotEls.values()) e.el.remove();
@@ -208,10 +214,15 @@
     }
 
     const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
-    const barInnerW = locatorBarEl.clientWidth || 360;
+    // Avoid synchronous DOM layout reflow every frame: refresh clientWidth at most once per second
+    if (nowPerf - _cachedLocBarAt >= 1000) {
+      _cachedLocBarAt = nowPerf;
+      _cachedLocBarW = locatorBarEl.clientWidth || 360;
+    }
+    const barInnerW = _cachedLocBarW;
     const _wCoreNet = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
     const _useWasmNet = !!(_wCoreNet && _wCoreNet.exports && _wCoreNet.exports.interp_net_entities && _wCoreNet.netEntBuf);
-    const _wasmNetRps = [];
+    _wasmNetRps.length = 0;
 
     for (const [pid, rp] of remotePlayers.entries()) {
       const lastActiveAt = rp._lastPktAt || rp._createdAt;
@@ -287,14 +298,22 @@
       if (_wCoreNet.state) _wCoreNet.state.netInterpCalls = (_wCoreNet.state.netInterpCalls || 0) + 1;
     }
 
+    let _rpVisIdx = 0;
     for (const [pid, rp] of remotePlayers.entries()) {
       const sameDim = !!rp.isBuddy || ((rp.dim || 'overworld') === currentDimension);
-      rp.rig.g.visible = sameDim;
-      if (sameDim) {
+      const dx = rp.x - player.x, dz = rp.z - player.z, dy = rp.y - player.y;
+      const distSq = dx * dx + dz * dz;
+      const inVisRange = sameDim && distSq < 12100; // <= 110m
+      rp.rig.g.visible = inVisRange;
+      if (inVisRange) {
         rp.rig.g.position.set(rp.x, rp.y, rp.z);
         rp.rig.g.rotation.y = rp.yaw + Math.PI;
-        animatePlayerRig(rp.rig, rp, dt, tNow);
+        // Distance-LOD skeletal animation: full-rate <=40m, half-rate 40..85m, static pose >85m for high FPS in crowded rooms
+        if (distSq <= 1600 || (distSq <= 7225 && (((frameCounter + _rpVisIdx) & 1) === 0))) {
+          animatePlayerRig(rp.rig, rp, distSq <= 1600 ? dt : dt * 2, tNow);
+        }
       }
+      _rpVisIdx++;
 
       // Update persistent GPU-composited locator dot every frame with zero DOM thrash
       let entry = locatorDotEls.get(pid);
@@ -304,8 +323,7 @@
       } else if (entry && entry.el.style.display === 'none') {
         entry.el.style.display = '';
       }
-      const dx = rp.x - player.x, dz = rp.z - player.z, dy = rp.y - player.y;
-      const dist = Math.hypot(dx, dz);
+      const dist = Math.sqrt(distSq);
       const fwdDot = dx * (-sinY) + dz * (-cosY);
       const rightDot = dx * cosY + dz * (-sinY);
       const relAng = Math.atan2(rightDot, fwdDot); // 0 = ahead, +PI/2 = right, -PI/2 = left

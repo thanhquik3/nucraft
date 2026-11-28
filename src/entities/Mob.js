@@ -6422,44 +6422,49 @@
     _mobNetRemQueue.length = 0;
     _lastGuestMobSeq = -1;
   }
+  const _mobNetPeersScratch = [];
+  const _mobNetCandsScratch = [];
+  const _mobNetSeenScratch = new Set();
+  const _mobNetByUidScratch = new Map();
+  function _mobQ2(v) { return Math.round(v * 100) / 100; }
   function serializeMobsForNet(dim = currentDimension, opts = null) {
     const full = !(opts && opts.delta);
     const dOff = depthOffset || 0;
-    const netPeers = [];
+    _mobNetPeersScratch.length = 0;
     if (typeof remotePlayers !== 'undefined' && remotePlayers) {
       for (const rp of remotePlayers.values()) {
-        if (rp && !rp.isBuddy && (rp.dim || 'overworld') === dim) netPeers.push(rp);
+        if (rp && !rp.isBuddy && (rp.dim || 'overworld') === dim) _mobNetPeersScratch.push(rp);
       }
     }
-    const cands = [];
+    _mobNetCandsScratch.length = 0;
     for (let i = 0; i < mobs.length; i++) {
       const m = mobs[i];
       if (!m || m._dead || !m.uid) continue;
       let minD2 = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
-      for (let pi = 0; pi < netPeers.length; pi++) {
-        const rp = netPeers[pi];
+      for (let pi = 0; pi < _mobNetPeersScratch.length; pi++) {
+        const rp = _mobNetPeersScratch[pi];
         const pd2 = (m.x - rp.x) * (m.x - rp.x) + (m.z - rp.z) * (m.z - rp.z);
         if (pd2 < minD2) minD2 = pd2;
       }
       const prio = (m.tamed || m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : 1;
-      cands.push({ m, prio, minD2 });
+      _mobNetCandsScratch.push({ m, prio, minD2 });
     }
-    if (cands.length > 100) cands.sort((a, b) => (a.prio - b.prio) || (a.minD2 - b.minD2));
-    const lim = Math.min(100, cands.length);
-    const seenNow = full ? new Set() : null;
+    if (_mobNetCandsScratch.length > 100) _mobNetCandsScratch.sort((a, b) => (a.prio - b.prio) || (a.minD2 - b.minD2));
+    const lim = Math.min(100, _mobNetCandsScratch.length);
+    if (full) _mobNetSeenScratch.clear();
     const out = [];
-    const q2 = v => Math.round(v * 100) / 100;
     for (let i = 0; i < lim; i++) {
-      const m = cands[i].m;
-      if (seenNow) seenNow.add(m.uid);
-      const x = q2(m.x), ty = q2(m.y - dOff), z = q2(m.z);
+      const cand = _mobNetCandsScratch[i];
+      const m = cand.m;
+      if (full) _mobNetSeenScratch.add(m.uid);
+      const x = _mobQ2(m.x), ty = _mobQ2(m.y - dOff), z = _mobQ2(m.z);
       const yw = Math.round((m.yaw || 0) * 1000) / 1000;
       const hp = Math.max(0, Math.ceil(m.hp));
-      const vx = q2(m._netVx || 0), vy = q2(m._netVy || 0), vz = q2(m._netVz || 0);
+      const vx = _mobQ2(m._netVx || 0), vy = _mobQ2(m._netVy || 0), vz = _mobQ2(m._netVz || 0);
       const og = m.onGround === false ? 0 : 1;
-      const fp = (m.flying && Math.abs(m._flyPitch || 0) >= 0.02) ? q2(m._flyPitch) : 0;
+      const fp = (m.flying && Math.abs(m._flyPitch || 0) >= 0.02) ? _mobQ2(m._flyPitch) : 0;
       const br = m.burning ? 1 : 0, tm = m.tamed ? 1 : 0, st = m.sitting ? 1 : 0, fl = m.flying ? 1 : 0;
-      const ak = q2(m.atkAnimT || 0), hf = q2(m.hurtFlash || 0);
+      const ak = _mobQ2(m.atkAnimT || 0), hf = _mobQ2(m.hurtFlash || 0);
       const sd = m.saddled ? 1 : 0;
       const ds = (m.elemDragon && m.dragonStage !== undefined && m.dragonStage !== 4) ? m.dragonStage : 4;
       const ow = (m.tamed && m.ownerPeerId) ? String(m.ownerPeerId) : '';
@@ -6470,15 +6475,25 @@
         if (prev) {
           let dYw = ((yw - prev.yw + Math.PI) % (Math.PI * 2)) - Math.PI;
           if (dYw < -Math.PI) dYw += Math.PI * 2;
-          const changed = Math.abs(x - prev.x) > 0.02 || Math.abs(ty - prev.ty) > 0.02 || Math.abs(z - prev.z) > 0.02
-            || Math.abs(dYw) > 0.03 || (prev.moving && !moving) || moving
+          // Far-away mobs (>42 blocks from every player) only send coarse position deltas to keep MP bandwidth & FPS crisp
+          const posEps = cand.minD2 > 1764 ? 0.35 : 0.02;
+          const rotEps = cand.minD2 > 1764 ? 0.14 : 0.03;
+          const changed = Math.abs(x - prev.x) > posEps || Math.abs(ty - prev.ty) > posEps || Math.abs(z - prev.z) > posEps
+            || Math.abs(dYw) > rotEps || (prev.moving && !moving) || (moving && cand.minD2 <= 1764)
             || prev.hp !== hp || prev.br !== br || prev.tm !== tm || prev.st !== st || prev.fl !== fl
             || prev.og !== og || prev.sd !== sd || prev.ds !== ds || prev.ow !== ow
             || (ak > 0 && prev.ak !== ak) || (hf > 0 && prev.hf !== hf) || (prev.ak > 0 && ak === 0) || (prev.hf > 0 && hf === 0);
           if (!changed) continue;
         }
       }
-      _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ow, ak, hf, moving });
+      const prevRec = _mobNetLastSent.get(m.uid);
+      if (prevRec) {
+        prevRec.x = x; prevRec.ty = ty; prevRec.z = z; prevRec.yw = yw; prevRec.hp = hp;
+        prevRec.br = br; prevRec.tm = tm; prevRec.st = st; prevRec.fl = fl; prevRec.og = og;
+        prevRec.sd = sd; prevRec.ds = ds; prevRec.ow = ow; prevRec.ak = ak; prevRec.hf = hf; prevRec.moving = moving;
+      } else {
+        _mobNetLastSent.set(m.uid, { x, ty, z, yw, hp, br, tm, st, fl, og, sd, ds, ow, ak, hf, moving });
+      }
       const item = { uid: m.uid, t: m.type, x, ty, z, yw, hp };
       const baseHp = MOB_STATS[m.type] ? MOB_STATS[m.type].hp : 0;
       if (m.maxHp && m.maxHp !== baseHp) item.mh = m.maxHp;
@@ -6501,8 +6516,8 @@
       if (m.dragonArmor) item.da = m.dragonArmor;
       out.push(item);
     }
-    if (full && seenNow) {
-      for (const k of _mobNetLastSent.keys()) if (!seenNow.has(k)) _mobNetLastSent.delete(k);
+    if (full) {
+      for (const k of _mobNetLastSent.keys()) if (!_mobNetSeenScratch.has(k)) _mobNetLastSent.delete(k);
     }
     return out;
   }
@@ -6522,12 +6537,13 @@
     const nowMs = performance.now();
     const senderTs = (meta && typeof meta.ts === 'number' && Number.isFinite(meta.ts)) ? meta.ts : nowMs;
     const pktSeq = (meta && typeof meta.seq === 'number') ? meta.seq : undefined;
-    const byUid = new Map();
+    _mobNetByUidScratch.clear();
     for (let i = 0; i < mobs.length; i++) {
       const mb = mobs[i];
-      if (mb && !mb._dead && mb.uid) byUid.set(mb.uid, mb);
+      if (mb && !mb._dead && mb.uid) _mobNetByUidScratch.set(mb.uid, mb);
     }
-    const seen = fullReset ? new Set() : null;
+    if (fullReset) _mobNetSeenScratch.clear();
+    const seen = fullReset ? _mobNetSeenScratch : null;
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
       if (!it || !it.uid || !it.t) continue;
@@ -6539,7 +6555,7 @@
       const vzIn = typeof it.vz === 'number' ? it.vz : 0;
       const yawIn = it.yw || 0;
       const fpIn = typeof it.fp === 'number' ? it.fp : 0;
-      let m = byUid.get(it.uid);
+      let m = _mobNetByUidScratch.get(it.uid);
       if (!m) {
         const opts = { uid: it.uid };
         if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
@@ -10321,7 +10337,8 @@
       const hasWs = (typeof wsConn !== 'undefined' && wsConn && wsConn.readyState === 1);
       if (hasNetPeer || hasWs) {
         const hasMqttPeer = (typeof mqttRoomPeers !== 'undefined' && mqttRoomPeers.size > 0);
-        const syncIntMs = hasNetPeer ? (hasMqttPeer ? 100 : 66) : 2500;
+        const peerCntM = (typeof remotePlayers !== 'undefined' && remotePlayers) ? remotePlayers.size : 0;
+        const syncIntMs = hasNetPeer ? (hasMqttPeer ? 110 : (peerCntM >= 4 ? 85 : 66)) : 2500;
         if ((_mobNowMs - _mobNetLastSyncMs) >= syncIntMs) {
           _mobNetLastSyncMs = _mobNowMs;
           const needFull = (_mobNetKeyframeMs === 0 || (_mobNowMs - _mobNetKeyframeMs) >= 2500);

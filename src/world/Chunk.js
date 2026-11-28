@@ -2668,13 +2668,16 @@
       if (_canFluidReplace(nbBelow)) {
         scheduleFluid(wx, wy, wz, 0.08);
       } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.WATER && getFluidLevel(wx, wy - 1, wz, B.WATER) === 0)) {
-        // Authentic Minecraft open-side flow: any supported water block touching an open air side wakes immediately!
-        const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
-        const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
-        const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
-        const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
-        if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
-          scheduleFluid(wx, wy, wz, 0.10);
+        // Only wake supported water touching open air if it still has horizontal spread strength (< maxSpread 7)
+        const curFl = hasFluidLevels ? getFluidLevel(wx, wy, wz, B.WATER) : 0;
+        if (curFl < 7 || curFl === 8) {
+          const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
+          const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
+          const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
+          const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
+          if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
+            scheduleFluid(wx, wy, wz, 0.10);
+          }
         }
       }
     }
@@ -2735,13 +2738,17 @@
       if (_canFluidReplace(nbBelow)) {
         scheduleFluid(wx, wy, wz, 0.14);
       } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.LAVA && getFluidLevel(wx, wy - 1, wz, B.LAVA) === 0)) {
-        // Authentic Minecraft open-side lava flow: any supported lava block touching an open air side wakes immediately!
-        const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
-        const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
-        const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
-        const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
-        if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
-          scheduleFluid(wx, wy, wz, currentDimension === 'nether' ? 0.16 : 0.28);
+        // Only wake supported lava touching open air if it still has horizontal spread strength
+        const lavaMax = (currentDimension === 'nether') ? 7 : 3;
+        const curFl = hasFluidLevels ? getFluidLevel(wx, wy, wz, B.LAVA) : 0;
+        if (curFl < lavaMax || curFl === 8) {
+          const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
+          const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
+          const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
+          const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
+          if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
+            scheduleFluid(wx, wy, wz, currentDimension === 'nether' ? 0.16 : 0.28);
+          }
         }
       }
     }

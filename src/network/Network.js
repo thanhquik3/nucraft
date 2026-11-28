@@ -987,23 +987,30 @@
     if (!activeRoomId) return;
     const isEphemeral = (obj.type === 'state' || (obj.type === 'mob_sync' && obj.full === false));
     if (p2pIsHost) {
+      const hasP2P = p2pClientConns.size > 0;
+      const hasMqtt = !!(mqttRoomTopic && mqttRoomPeers.size > 0);
+      const hasBc = !!(bcChannel && bcRoomPeers.size > 0);
+      const hasWs = !!(wsConn && wsConn.readyState === 1);
+      if (!hasP2P && !hasMqtt && !hasBc && !hasWs) return;
       const pkt = { ...obj, _from: localPeerId };
-      for (const conn of p2pClientConns.values()) {
-        if (_canSendP2P(conn, isEphemeral)) { try { conn.send(pkt); } catch (_) {} }
+      if (hasP2P) {
+        for (const conn of p2pClientConns.values()) {
+          if (_canSendP2P(conn, isEphemeral)) { try { conn.send(pkt); } catch (_) {} }
+        }
       }
-      if (mqttRoomTopic && mqttRoomPeers.size > 0) {
+      if (hasMqtt) {
         const now = performance.now();
         if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
           if (obj.type === 'state') _lastMqttStateAt = now;
           ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
         }
       }
-      if (wsConn && wsConn.readyState === 1 && (obj.type !== 'state' || activeCoopTransport === 'ws' || _countNetRemotePeers() > p2pClientConns.size)) {
+      if (hasWs && (obj.type !== 'state' || activeCoopTransport === 'ws' || _countNetRemotePeers() > p2pClientConns.size)) {
         if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
           try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
         }
       }
-      if (bcChannel && bcRoomPeers.size > 0) {
+      if (hasBc) {
         try { bcChannel.postMessage({ ...pkt, _room: activeRoomId }); } catch (_) {}
       }
       return;

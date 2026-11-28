@@ -3966,18 +3966,18 @@
               else if (perp === 7 && wy === plazaY) put(lx, wy, lz, B.STONE_BRICK_WALL);
               else put(lx, wy, lz, (perp <= 1 && (alongCoord & 1)) ? B.DEEPSLATE_TILES : ruinStone(wx, wy, wz));
             }
-            if ((Math.abs(alongCoord) % 12) === 0 && perp === 7) {
+            if ((Math.abs(alongCoord) % 28) === 0 && perp === 7) {
               for (let wy = 15; wy <= 18; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
               put(lx, 19, lz, B.LANTERN);
             } else if ((Math.abs(alongCoord) % 24) === 6 && perp === 8) {
               put(lx, 15, lz, B.BARREL);
             }
-            if ((Math.abs(alongCoord) % 24) === 0 && perp === 8) {
+            if ((Math.abs(alongCoord) % 32) === 0 && perp === 8) {
               for (let wy = 15; wy <= 22; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
               put(lx, 23, lz, B.CAMPFIRE);
             }
           } else {
-            // Repeating 48x48 Modular Architectural Ruin Districts across full 1000x1000 span (6 rich rooms/houses + corner treasure huts + lanterns!)
+            // Repeating 48x48 Modular Architectural Ruin Districts across full 1000x1000 span (6 rich rooms/houses + corner treasure huts + 1-2 lanterns per room!)
             const bx = ((wx % 48) + 48) % 48, bz = ((wz % 48) + 48) % 48;
             const dgx = Math.floor(wx / 48), dgz = Math.floor(wz / 48);
             const distKind = Math.floor(hash2i(dgx, dgz, worldSeed + 9547) * 6);
@@ -4003,7 +4003,8 @@
                     const isWin = (wy === baseElev + 3 && ((hx === 7 && hz === 3) || ((hz === 0 || hz === 7) && hx === 4)));
                     put(lx, wy, lz, isWin ? B.IRON_BARS : ((hx === 0 || hx === 7) && (hz === 0 || hz === 7) ? B.DARK_OAK_LOG : ruinStone(wx, wy, wz)));
                   }
-                  if ((hx === 0 || hx === 7) && (hz === 0 || hz === 7)) put(lx, baseElev + 6, lz, B.LANTERN);
+                  // Keep 1 exterior doorway lantern (2 total per hut w/ interior lantern)
+                  if (hx === 0 && hz === 2) put(lx, baseElev + 4, lz, B.LANTERN);
                 } else {
                   // Pitched/ruined timber roof + furnished chest room interior
                   const rH = baseElev + 5 + Math.min(hx, 7 - hx, hz, 7 - hz, 2);
@@ -4017,7 +4018,7 @@
                   else if (hx === 3 && hz === 1) put(lx, baseElev + 1, lz, B.ANVIL);
                 }
               } else if (distKind === 0 && badx <= 11 && badz <= 11) {
-                // Module 1: Ruined Citadel Tower + Emerald Moss Pool + Overgrown Leaf Vines + Lantern Posts
+                // Module 1: Ruined Citadel Tower + Emerald Moss Pool + Overgrown Leaf Vines + 2 Diagonal Lantern Posts
                 if (badx <= 5 && badz <= 5) {
                   put(lx, baseElev - 2, lz, B.PRISMARINE);
                   put(lx, baseElev - 1, lz, B.WATER);
@@ -4032,12 +4033,12 @@
                   put(lx, baseElev + 1, lz, B.GOLD_CHEST);
                 } else if (bCx === 7 && bCz === -7) {
                   put(lx, baseElev + 1, lz, B.CHEST);
-                } else if (badx === 8 && badz === 8) {
+                } else if ((bCx === -8 && bCz === -8) || (bCx === 8 && bCz === 8)) {
                   for (let wy = baseElev + 1; wy <= baseElev + 4; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
                   put(lx, baseElev + 5, lz, B.LANTERN);
                 }
               } else if (distKind === 1 && badx <= 13 && badz <= 13) {
-                // Module 2: Terracotta & Sunken Dark Canal Hall + Ruined Library Nooks + Lanterns
+                // Module 2: Terracotta & Sunken Dark Canal Hall + Ruined Library Nooks (1-2 Lanterns)
                 if (bCx >= 4 && bCx <= 9) {
                   put(lx, baseElev - 2, lz, B.DEEPSLATE_TILES);
                   put(lx, baseElev - 1, lz, B.WATER);
@@ -4045,7 +4046,7 @@
                 } else if (badx === 12 || badz === 12) {
                   if ((bx & 3) === 0) {
                     for (let wy = baseElev + 1; wy <= baseElev + 9; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
-                    put(lx, baseElev + 5, lz, B.LANTERN);
+                    if (bCx === 0 && bCz === 12) put(lx, baseElev + 5, lz, B.LANTERN);
                   }
                 } else if (bCx <= -7 && bCx >= -10 && badz <= 6 && (bz & 1) === 0) {
                   put(lx, baseElev + 1, lz, B.BOOKSHELF);
@@ -4057,13 +4058,13 @@
                   else if (bCx === -4 && bCz === 0) put(lx, baseElev + 1, lz, B.CHEST);
                 }
               } else if (distKind === 2 && badx <= 12 && badz <= 12) {
-                // Module 3: Oxidized Copper Colonnade & Glowing Crystal Monolith Shrine
+                // Module 3: Oxidized Copper Colonnade & Glowing Crystal Monolith Shrine (2 Lanterns)
                 if (badx === 11 || badz === 11) {
                   for (let wy = baseElev + 1; wy <= baseElev + 8; wy++) {
                     if ((wy - baseElev) === 4 || (wy - baseElev) === 8) put(lx, wy, lz, oxTrim(wx, wy, wz));
                     else if ((badx > 2 || badz > 2) && ((bx + bz) & 1) === 0) put(lx, wy, lz, ruinStone(wx, wy, wz));
                   }
-                  if (badx === 11 && badz === 11) put(lx, baseElev + 9, lz, B.LANTERN);
+                  if ((bCx === -11 && bCz === -11) || (bCx === 11 && bCz === 11)) put(lx, baseElev + 9, lz, B.LANTERN);
                 } else if (badx <= 2 && badz <= 2) {
                   const mh = baseElev + (badx === 0 && badz === 0 ? 7 : 4);
                   for (let wy = baseElev + 1; wy <= mh; wy++) put(lx, wy, lz, (wy === mh - 1) ? B.GLOW_CRYSTAL : B.DEEPSLATE_BRICKS);
@@ -4074,7 +4075,7 @@
                   put(lx, baseElev + 1, lz, B.GOLD_CHEST);
                 }
               } else if (distKind === 3 && badx <= 8 && badz <= 8) {
-                // Module 4: Ruined Medieval Treasure House (Full Furnished Stone & Timber House w/ Chests, Barrels & Lanterns!)
+                // Module 4: Ruined Medieval Treasure House (Full Furnished Stone & Timber House w/ Chests, Barrels & 2 Lanterns!)
                 const mWall = (badx === 7 || badz === 7);
                 const mDoor = (bCz === 7 && badx <= 1) || (bCz === -7 && badx <= 1);
                 if (badx <= 7 && badz <= 7) {
@@ -4086,7 +4087,6 @@
                       const isWin = (wy >= baseElev + 3 && wy <= baseElev + 4 && (badx === 3 || badz === 3));
                       put(lx, wy, lz, isCorner ? B.DARK_OAK_LOG : (isWin ? B.IRON_BARS : ruinStone(wx, wy, wz)));
                     }
-                    if (isCorner) put(lx, baseElev + 7, lz, B.LANTERN);
                   } else {
                     const roofY = baseElev + 7 + Math.max(0, 3 - Math.floor(badx * 0.5));
                     if (hash2i(wx, wz, worldSeed + 9593) > 0.12) put(lx, roofY, lz, badx === 0 ? B.DEEPSLATE_BRICKS : B.SPRUCE_PLANKS);
@@ -4094,26 +4094,25 @@
                     if (bCx === -5 && bCz === -5) put(lx, baseElev + 1, lz, B.GOLD_CHEST);
                     else if (bCx === 5 && bCz === -5) put(lx, baseElev + 1, lz, B.CHEST);
                     else if (bCx === -5 && bCz === 5) { put(lx, baseElev + 1, lz, B.BARREL); put(lx, baseElev + 2, lz, B.LANTERN); }
-                    else if (bCx === 5 && bCz === 5) { put(lx, baseElev + 1, lz, B.CRAFT_TABLE); put(lx, baseElev + 2, lz, B.LANTERN); }
+                    else if (bCx === 5 && bCz === 5) put(lx, baseElev + 1, lz, B.CRAFT_TABLE);
                     else if (bCx === 0 && bCz === -5) put(lx, baseElev + 1, lz, B.FURNACE);
                     else if (badx === 6 && badz <= 3) { put(lx, baseElev + 1, lz, B.BOOKSHELF); put(lx, baseElev + 2, lz, B.BOOKSHELF); }
                   }
                 }
               } else if (distKind === 4 && badx <= 9 && badz <= 9) {
-                // Module 5: Ancient Stronghold Library & Enchanting Chamber w/ Glowing Lanterns & Secret Chests!
+                // Module 5: Ancient Stronghold Library & Enchanting Chamber (2 Warm Lanterns & Secret Chests!)
                 const lWall = (badx === 8 || badz === 8);
                 const lDoor = (badx <= 1 || badz <= 1);
                 if (badx <= 8 && badz <= 8) {
                   put(lx, baseElev, lz, (badx <= 2 && badz <= 2) ? B.DEEPSLATE_TILES : B.MOSSY_STONE_BRICK);
                   if (lWall && !lDoor) {
                     for (let wy = baseElev + 1; wy <= baseElev + 7; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
-                    if (badx === 8 && badz === 8) put(lx, baseElev + 8, lz, B.LANTERN);
                   } else if (!lWall) {
                     if (badx === 6 && badz >= 2 && badz <= 6) {
                       for (let wy = baseElev + 1; wy <= baseElev + 4; wy++) put(lx, wy, lz, B.BOOKSHELF);
                     } else if (bCx === 0 && bCz === 0) {
                       put(lx, baseElev + 1, lz, B.ENCHANT_TABLE);
-                    } else if (badx === 3 && badz === 3) {
+                    } else if ((bCx === -3 && bCz === -3) || (bCx === 3 && bCz === 3)) {
                       for (let wy = baseElev + 1; wy <= baseElev + 3; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
                       put(lx, baseElev + 4, lz, B.LANTERN);
                     } else if (bCx === -4 && bCz === -4) {
@@ -4127,32 +4126,31 @@
                 // Module 6: Overgrown Ancient Woods, Campfire Clearing & Ruin Plaza
                 pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
               }
-              // Wild Overgrown Subterranean Ruin Floor Decor (moss shrubs, leaf clusters, fallen pillars, barrels, chests & bright lanterns!)
+              // Wild Overgrown Subterranean Ruin Floor Decor (moss shrubs, leaf clusters, fallen pillars, barrels & sparse warm lanterns!)
               const curAbove = data[((baseElev + 1 + yShift - MIN_Y) << 8) | ci];
               if (curAbove === B.AIR && !inCornerHut) {
                 const bushNoise = valueNoise2D(wx * 0.21, wz * 0.21, worldSeed + 9617);
                 const decH = hash2i(wx, wz, worldSeed + 9623);
                 const pillarGrid = ((wx & 15) === 5 && (wz & 15) === 5);
-                const lampGrid = ((wx & 15) === 12 && (wz & 15) === 12);
-                if (lampGrid && decH > 0.28) {
-                  // Standing Medieval Ruin Lantern Post lighting up the cavern corridors!
+                const lampGrid = ((wx & 31) === 12 && (wz & 31) === 12);
+                if (lampGrid && decH > 0.45) {
+                  // Sparse Standing Medieval Ruin Lantern Post (1-2 per plaza/corridor)
                   put(lx, baseElev + 1, lz, B.DEEPSLATE_BRICKS);
                   put(lx, baseElev + 2, lz, B.STONE_BRICK_WALL);
                   put(lx, baseElev + 3, lz, B.STONE_BRICK_WALL);
                   put(lx, baseElev + 4, lz, B.LANTERN);
                 } else if (pillarGrid && decH > 0.30) {
-                  // Broken ancient mossy ruin pillar + lantern or leaf crown
+                  // Broken ancient mossy ruin pillar crowned with overgrown leaves
                   const pH = 3 + ((decH * 5) | 0);
                   for (let py = 1; py <= pH; py++) put(lx, baseElev + py, lz, py === pH ? B.STONE_BRICK_WALL : ruinStone(wx, baseElev + py, wz));
-                  put(lx, baseElev + pH + 1, lz, decH > 0.52 ? B.LANTERN : B.OAK_LEAVES);
+                  put(lx, baseElev + pH + 1, lz, B.OAK_LEAVES);
                 } else if (bushNoise > 0.72 && decH > 0.40) {
                   // Overgrown wild leaf shrub / mossy thicket (1-2 blocks tall)
                   put(lx, baseElev + 1, lz, decH > 0.78 ? B.MOSS_BLOCK : B.OAK_LEAVES);
                   if (bushNoise > 0.81 && decH > 0.58) put(lx, baseElev + 2, lz, B.OAK_LEAVES);
                 } else if (decH > 0.978) {
-                  // Scattered supply crate / ruin barrel / mossy rubble + lantern
+                  // Scattered supply crate / ruin barrel / mossy rubble
                   put(lx, baseElev + 1, lz, decH > 0.990 ? B.BARREL : B.MOSSY_STONE_BRICK);
-                  if (decH > 0.986) put(lx, baseElev + 2, lz, B.LANTERN);
                 } else if (decH > 0.960 && decH <= 0.978) {
                   // Ancient lava/magma fissure under iron grate
                   put(lx, baseElev - 1, lz, B.LAVA);
@@ -5444,6 +5442,14 @@
     return !!(d && (d.cross || bid === B.TORCH_BLOCK) && bid !== B.SEAGRASS && bid !== B.LILY_PAD);
   }
 
+  function _dropReplacedFluidBlock(wx, wy, wz, oldId) {
+    if (oldId === B.AIR || oldId === B.FIRE || oldId === B.WATER || oldId === B.LAVA) return;
+    if (typeof gameMode !== 'undefined' && gameMode === 'creative') return;
+    if (typeof spawnDroppedItem === 'function' && (oldId === B.TORCH_BLOCK || (BLOCK_DEF[oldId] && BLOCK_DEF[oldId].cross))) {
+      spawnDroppedItem(wx + 0.5, wy + 0.35, wz + 0.5, oldId, 1);
+    }
+  }
+
   function scheduleFluid(wx, wy, wz, delay = 0.12) {
     if (wy <= MIN_Y || wy >= MAX_Y) return;
     const id = getBlockWorld(wx, wy, wz);
@@ -5455,7 +5461,7 @@
   }
 
   function wakeAdjacentFluids(wx, wy, wz, speedMul = 1.0) {
-    // Wake direct 6 neighbors + 2-block horizontal ring & y+1 ring so breaking a block or opening a ledge/hole immediately triggers Minecraft flow & slope-seeking!
+    // FIX BUG #3: Breaking/placing ANY block wakes direct 6 neighbors + y+1 ring + 2-block ring so fluid immediately pours into newly opened gaps & cliff pits!
     const dirs = [
       [0,0,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],
       [1,1,0],[-1,1,0],[0,1,1],[0,1,-1],
@@ -5479,33 +5485,32 @@
     wakeAdjacentFluids(startX, startY, startZ, 0.75);
   }
 
-  function _findFluidDropDist(x, y, z, curId, depth, fromIdx) {
+  // Vanilla Minecraft cliff-seeking slope search (pure local state; water/Nether lava maxDist=4, Overworld lava maxDist=2).
+  // Score 0 = hole directly below neighbor; 1..maxDist = steps to nearest hole; maxDist+1 = no hole within range.
+  function _findFluidDropDist(x, y, z, curId, depth, fromIdx, maxDist) {
     const belowId = getBlockWorld(x, y - 1, z);
-    if (_canFluidReplace(belowId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) > 0)) return depth;
-    if (depth >= 4) return 5;
-    let best = 5;
+    if (y - 1 > MIN_Y && (_canFluidReplace(belowId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) > 0))) return depth;
+    if (depth >= maxDist) return maxDist + 1;
+    let best = maxDist + 1;
     for (let d = 0; d < 4; d++) {
       if (d === fromIdx) continue;
       const nx = x + _FLUID_DIRS4[d][0], nz = z + _FLUID_DIRS4[d][1];
       const nid = getBlockWorld(nx, y, nz);
       if (!_canFluidReplace(nid) && nid !== curId) continue;
-      const dist = _findFluidDropDist(nx, y, nz, curId, depth + 1, _FLUID_REV4[d]);
+      const dist = _findFluidDropDist(nx, y, nz, curId, depth + 1, _FLUID_REV4[d], maxDist);
       if (dist < best) best = dist;
     }
     return best;
   }
 
   function tickFluids(dt) {
-    if (fluidQueueHead >= fluidQueue.length) {
-      if (fluidQueue.length > 0) { fluidQueue.length = 0; fluidQueueHead = 0; }
-      return;
-    }
+    if (fluidQueue.length === 0) { fluidQueueHead = 0; return; }
     let processed = 0, changedVisuals = 0;
     const maxOps = 180;
-    const len = fluidQueue.length;
-    let writeIdx = fluidQueueHead;
-    let i = fluidQueueHead;
-    for (; i < len && processed < maxOps; i++) {
+    const startLen = fluidQueue.length;
+    let writeIdx = 0;
+    let i = 0;
+    for (; i < startLen && processed < maxOps; i++) {
       const item = fluidQueue[i];
       item.t -= dt;
       if (item.t > 0) {
@@ -5521,16 +5526,18 @@
       processed++;
 
       const isLava = (curId === B.LAVA);
-      const maxSpread = isLava ? (currentDimension === 'nether' ? 7 : 3) : 7;
-      const delayStep = isLava ? (currentDimension === 'nether' ? 0.16 : 0.28) : 0.11;
+      const isNetherLava = isLava && (currentDimension === 'nether');
+      const maxSpread = isLava ? (isNetherLava ? 7 : 3) : 7;
+      const slopeFindDist = isLava ? (isNetherLava ? 4 : 2) : 4;
+      const delayStep = isLava ? (isNetherLava ? 0.20 : 0.42) : 0.16;
       let curLvl = fluidLevel.has(k) ? fluidLevel.get(k) : 0;
 
-      // PHASE 1: Validate Flowing Blocks (curLvl > 0) + Infinite Water Spring Renewal (2+ source neighbors)
+      // PHASE 1: Recompute own state from neighbors (computeNewState) + Infinite Water Spring Renewal
       if (curLvl > 0) {
         let expectedLvl = 99;
         const aboveId = getBlockWorld(x, y + 1, z);
         if (aboveId === curId) {
-          expectedLvl = 8;
+          expectedLvl = 8; // Falling fluid keeps full strength while fed from directly above
         } else {
           let minNb = 99, srcCount = 0;
           for (let d = 0; d < 4; d++) {
@@ -5541,7 +5548,7 @@
             if (nl === 8) nl = (getBlockWorld(nx, y + 1, nz) === curId) ? 0 : 99;
             if (nl < minNb) minNb = nl;
           }
-          // Authentic Minecraft Infinite Water Spring: >= 2 orthogonal water sources over solid/source water create a full source!
+          // Authentic Minecraft Infinite Water Source: >= 2 orthogonal water sources over solid/source floor
           if (!isLava && srcCount >= 2) {
             const bBelow = getBlockWorld(x, y - 1, z);
             if (IS_SOLID[bBelow] === 1 || (bBelow === B.WATER && getFluidLevel(x, y - 1, z, B.WATER) === 0)) {
@@ -5559,9 +5566,10 @@
 
         if (curLvl > 0) {
           if (expectedLvl > maxSpread && expectedLvl !== 8) {
-            setBlockWorld(x, y, z, B.AIR, false);
+            // Drain cleanly: clear fluidLevel BEFORE setBlockWorld so neighbor wakes see AIR immediately
             fluidLevel.delete(k);
             pouredFluidSources.delete(k);
+            setBlockWorld(x, y, z, B.AIR, false);
             changedVisuals++;
             continue;
           }
@@ -5570,17 +5578,15 @@
             markFluidDirty(x, y, z);
             changedVisuals++;
             wakeAdjacentFluids(x, y, z, 0.72);
-            scheduleFluid(x, y, z, delayStep * 0.72);
+            scheduleFluid(x, y, z, delayStep * 0.75);
             continue;
           }
         }
       }
 
-      // Authentic Minecraft Fluid Interactions:
-      // - Flowing Lava onto Water from above -> STONE
-      // - Flowing Lava into Water horizontally -> COBBLESTONE
-      // - Water touching Lava Source (lvl 0) -> OBSIDIAN
-      // - Water touching Flowing Lava (lvl > 0) -> COBBLESTONE
+      // Authentic Minecraft Fluid Mixing Interactions:
+      // - Falling Lava onto Water -> STONE; Horizontal Lava into Water -> COBBLESTONE (fallback STONE)
+      // - Water touching Lava Source (lvl 0) -> OBSIDIAN; Water touching Flowing Lava (lvl > 0) -> COBBLESTONE
       const reactPair = (tx, ty, tz, targetId) => {
         if (isLava && targetId === B.WATER) {
           const outB = (ty < y) ? B.STONE : (B.COBBLESTONE || B.STONE);
@@ -5590,7 +5596,7 @@
           setBlockWorld(tx, ty, tz, outB, true);
           wakeAdjacentFluids(tx, ty, tz, 0.55);
           if (typeof spawnPixelFx === 'function') spawnPixelFx('smoke_puff', tx + 0.5, ty + 0.95, tz + 0.5, { count: 2, scale: 0.72, life: 1.8 });
-          playSfx('hiss');
+          if (typeof playSfx === 'function') playSfx('hiss');
           changedVisuals++;
           return true;
         }
@@ -5602,57 +5608,64 @@
           setBlockWorld(tx, ty, tz, tLvl === 0 ? B.OBSIDIAN : (B.COBBLESTONE || B.STONE), true);
           wakeAdjacentFluids(tx, ty, tz, 0.55);
           if (typeof spawnPixelFx === 'function') spawnPixelFx('smoke_puff', tx + 0.5, ty + 0.95, tz + 0.5, { count: 2, scale: 0.78, life: 2.0 });
-          playSfx('hiss');
+          if (typeof playSfx === 'function') playSfx('hiss');
           changedVisuals++;
           return true;
         }
         return false;
       };
 
-      // PHASE 2: Gravity Fall Straight Downward (Falling block gets level = 8, NEVER 0)
+      // PHASE 2 (FIX BUG #2): Flow DOWN first! Create a full-strength falling column (level 8) all the way to the pit floor.
+      // Do NOT spread horizontally when the cell below is open/replaceable or non-source same fluid.
       const belowId = getBlockWorld(x, y - 1, z);
       if (y - 1 > MIN_Y) {
         if (reactPair(x, y - 1, z, belowId)) continue;
-        if (_canFluidReplace(belowId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) > 0 && getFluidLevel(x, y - 1, z, curId) !== 8)) {
-          if (belowId === B.FIRE) playSfx('hiss');
-          const bk = modKey(x, y - 1, z);
-          fluidLevel.set(bk, 8); // Set level BEFORE setBlockWorld so dirty mesh & neighbor wakes see level 8 immediately!
-          if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, false);
-          else markFluidDirty(x, y - 1, z);
-          scheduleFluid(x, y - 1, z, delayStep);
-          changedVisuals++;
-          if (curLvl !== 0) continue;
+        const belowLvl = (belowId === curId) ? getFluidLevel(x, y - 1, z, curId) : 99;
+        const canFlowDown = _canFluidReplace(belowId) || (belowId === curId && belowLvl > 0);
+        if (canFlowDown) {
+          if (belowId !== curId || belowLvl !== 8) {
+            if (belowId === B.FIRE && typeof playSfx === 'function') playSfx('hiss');
+            else if (belowId !== B.AIR && belowId !== curId) _dropReplacedFluidBlock(x, y - 1, z, belowId);
+            const bk = modKey(x, y - 1, z);
+            fluidLevel.set(bk, 8); // Set falling level BEFORE setBlockWorld so dirty mesh & wakes see level 8 immediately
+            if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, false);
+            else markFluidDirty(x, y - 1, z);
+            scheduleFluid(x, y - 1, z, delayStep);
+            changedVisuals++;
+          }
+          continue;
         }
       }
 
-      // PHASE 3: Horizontal Flow w/ 4-Block Downhill Slope Seeking (Authentic Minecraft rule!)
-      // Supported if resting on ANY non-replaceable block (solid/slab/stairs/glass/frame), on a source block, OR if this itself is a source block (curLvl === 0)
-      const isSupported = (curLvl === 0) || (!_canFluidReplace(belowId) && belowId !== curId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) === 0);
+      // PHASE 3 (FIX BUG #2): Spread horizontally ONLY when resting on solid/non-replaceable floor or same-type source.
+      // Falling columns (curLvl === 8) landing on solid floor reset to effLvl = 0 and spread out at full horizontal reach!
       const effLvl = (curLvl === 8) ? 0 : curLvl;
-      if (isSupported && effLvl < maxSpread) {
+      if (effLvl < maxSpread) {
         const nextLvl = effLvl + 1;
-        let minDrop = 5;
-        const dropDists = [5, 5, 5, 5];
+        const noDrop = slopeFindDist + 1;
+        let minDrop = noDrop;
+        const dropDists = [999, 999, 999, 999];
         for (let d = 0; d < 4; d++) {
           const nx = x + _FLUID_DIRS4[d][0], nz = z + _FLUID_DIRS4[d][1];
           const nbId = getBlockWorld(nx, y, nz);
           if (reactPair(nx, y, nz, nbId)) continue;
           if (_canFluidReplace(nbId) || nbId === curId) {
-            const dd = _findFluidDropDist(nx, y, nz, curId, 1, _FLUID_REV4[d]);
+            const dd = _findFluidDropDist(nx, y, nz, curId, 0, _FLUID_REV4[d], slopeFindDist);
             dropDists[d] = dd;
             if (dd < minDrop) minDrop = dd;
           }
         }
         for (let d = 0; d < 4; d++) {
-          if (minDrop <= 4 && dropDists[d] > minDrop) continue;
+          if (dropDists[d] > minDrop) continue;
           const nx = x + _FLUID_DIRS4[d][0], nz = z + _FLUID_DIRS4[d][1];
           const nbId = getBlockWorld(nx, y, nz);
           if ((isLava && nbId === B.WATER) || (!isLava && nbId === B.LAVA)) continue;
           const nbLvl = (nbId === curId) ? getFluidLevel(nx, y, nz, curId) : 99;
           if (_canFluidReplace(nbId) || (nbId === curId && nbLvl > nextLvl && nbLvl !== 8)) {
-            if (nbId === B.FIRE) playSfx('hiss');
+            if (nbId === B.FIRE && typeof playSfx === 'function') playSfx('hiss');
+            else if (nbId !== B.AIR && nbId !== curId) _dropReplacedFluidBlock(nx, y, nz, nbId);
             const nk = modKey(nx, y, nz);
-            fluidLevel.set(nk, nextLvl); // Set flow level BEFORE setBlockWorld so mesh & wakes never mistake it for a level-0 source!
+            fluidLevel.set(nk, nextLvl); // Set flow level BEFORE setBlockWorld so mesh & wakes never mistake it for a source
             if (nbId !== curId) setBlockWorld(nx, y, nz, curId, false);
             else markFluidDirty(nx, y, nz);
             scheduleFluid(nx, y, nz, delayStep);
@@ -5661,8 +5674,11 @@
         }
       }
     }
-    if (i > writeIdx) {
-      for (let j = i; j < len; j++) fluidQueue[writeIdx++] = fluidQueue[j];
+    // FIX BUG #1: Compact up to LIVE fluidQueue.length (NOT stale startLen!) so newly scheduled fluid ticks pushed during
+    // this tick are NEVER truncated/deleted and their keys never get permanently stuck inside fluidQueuedSet!
+    const liveLen = fluidQueue.length;
+    if (writeIdx !== i) {
+      for (let j = i; j < liveLen; j++) fluidQueue[writeIdx++] = fluidQueue[j];
       fluidQueue.length = writeIdx;
     }
     fluidQueueHead = 0;
