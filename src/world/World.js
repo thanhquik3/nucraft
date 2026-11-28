@@ -6232,24 +6232,61 @@
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
     return tex;
   }
+  function _makeDreamChestPixelTex() {
+    const cv = document.createElement('canvas'); cv.width = 16; cv.height = 16;
+    const c = cv.getContext('2d');
+    const hasSampler = (typeof sampleDreamWaterRGB === 'function');
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      // Exact 1:1 pixel match with tile 352/353 2D icon: 7-color swirling prism body + darkened 2px rainbow border!
+      const [r, g, b] = hasSampler ? sampleDreamWaterRGB(x / 15, y / 15, 2.2) : [105, 184, 255];
+      if (x <= 1 || x >= 14 || y <= 1 || y >= 14) {
+        c.fillStyle = `rgb(${Math.round(r * 0.62)},${Math.round(g * 0.62)},${Math.round(b * 0.62)})`;
+      } else {
+        c.fillStyle = `rgb(${r},${g},${b})`;
+      }
+      c.fillRect(x, y, 1, 1);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+    return tex;
+  }
   function _getChestMats(tier) {
     let m = _animChestMatCache.get(tier);
     if (m) return m;
     const pal = CHEST_MAT_PAL[tier] || CHEST_MAT_PAL.oak;
     const isWood = (tier === 'oak');
     const isDream = (tier === 'dream');
-    const bodyMap = isDream && typeof getDreamWaterSwatchTex === 'function'
-      ? getDreamWaterSwatchTex(2.2)
-      : _makeChestPixelTex(tier, pal);
+    const bodyMap = isDream ? _makeDreamChestPixelTex() : _makeChestPixelTex(tier, pal);
     const latchMap = isWood ? _makeChestLatchTex(pal) : null;
     m = {
-      body: new THREE.MeshStandardMaterial({ color: isDream ? pal.body : 0xffffff, map: bodyMap, roughness: isWood ? 0.72 : (isDream ? 0.24 : 0.30), metalness: isWood ? 0.08 : 0.58, emissive: isDream ? 0x1e293b : 0x000000, emissiveIntensity: isDream ? 0.35 : 0 }),
-      rim:  new THREE.MeshStandardMaterial({ color: isWood ? 0x2c241b : pal.rim, roughness: 0.48, metalness: isWood ? 0.12 : 0.65 }),
-      latch:new THREE.MeshStandardMaterial({ color: isWood ? 0xffffff : pal.latch, map: latchMap, roughness: 0.25, metalness: 0.78 })
+      body: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: bodyMap,
+        roughness: isWood ? 0.72 : (isDream ? 0.34 : 0.30),
+        metalness: isWood ? 0.08 : (isDream ? 0.06 : 0.58),
+        emissive: isDream ? 0x1e293b : 0x000000,
+        emissiveIntensity: isDream ? 0.10 : 0
+      }),
+      rim: new THREE.MeshStandardMaterial({
+        color: isWood ? 0x2c241b : (isDream ? 0x1e1b4b : pal.rim),
+        roughness: isDream ? 0.42 : 0.48,
+        metalness: isWood ? 0.12 : (isDream ? 0.18 : 0.65),
+        emissive: isDream ? 0x2e2666 : 0x000000,
+        emissiveIntensity: isDream ? 0.22 : 0
+      }),
+      latch: new THREE.MeshStandardMaterial({
+        color: isWood ? 0xffffff : (isDream ? 0xfef9c3 : pal.latch),
+        map: latchMap,
+        roughness: 0.25,
+        metalness: isDream ? 0.20 : 0.78,
+        emissive: isDream ? 0xfef08a : 0x000000,
+        emissiveIntensity: isDream ? 0.22 : 0
+      })
     };
-    if (isDream && typeof applyRainbowToMat === 'function') {
-      applyRainbowToMat(m.body);
-      applyRainbowToMat(m.rim);
+    if (isDream) {
+      m.body.userData.isRainbowItem = true;
+      if (typeof _rainbowMats !== 'undefined' && _rainbowMats) _rainbowMats.add(m.body);
+      if (typeof applyRainbowToMat === 'function') applyRainbowToMat(m.body, typeof _dreamRainbowHue === 'number' ? _dreamRainbowHue : 0);
     }
     _animChestMatCache.set(tier, m);
     return m;

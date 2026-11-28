@@ -643,6 +643,7 @@
   let _dreamRainbowHue = 0, _lastDreamHueDeg = -999;
   function applyRainbowToMat(mat, tPhase) {
     if (!mat || !mat.color) return;
+    if (!Number.isFinite(tPhase)) tPhase = _dreamRainbowHue || 0;
     const ud = mat.userData || {};
     mat.color.setHex(0xffffff);
     if (mat.emissive) {
