@@ -5488,7 +5488,7 @@
         if (typeof showToast === 'function') showToast('🛏️ Giường hồi sinh đã bị phá! Điểm hồi sinh đặt lại.');
       }
     }
-    const _nearLocalEdit = !isApplyingRemoteBlock || (typeof player !== 'undefined' && player && Math.abs(cx - (Math.floor(player.x) >> 4)) <= 3 && Math.abs(cz - (Math.floor(player.z) >> 4)) <= 3);
+    const _nearLocalEdit = !window._bulkRemoteModsApplying && (!isApplyingRemoteBlock || (typeof player !== 'undefined' && player && Math.abs(cx - (Math.floor(player.x) >> 4)) <= 3 && Math.abs(cz - (Math.floor(player.z) >> 4)) <= 3));
     c.dirty = true; c._meshGen = (c._meshGen || 0) + 1; c._meshInFlightGen = -1;
     _dirtyChunkSet.add(c);
     if (_nearLocalEdit) { c.urgentDirty = true; _urgentChunkSet.add(c); }

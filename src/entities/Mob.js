@@ -6418,12 +6418,14 @@
   let _mobNetLastDim = '', _mobNetLastRoom = '';
   const _mobNetLastSent = new Map();
   const _mobNetRemQueue = [];
+  const _pendingRemoteMobSpawns = new Map();
   let _lastGuestMobSeq = -1;
   const _mobSampleOut = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
   function resetMobNetSyncCache() {
     _mobNetLastSent.clear();
     _mobNetKeyframeMs = 0;
     _mobNetRemQueue.length = 0;
+    _pendingRemoteMobSpawns.clear();
     _lastGuestMobSeq = -1;
   }
   const _mobNetPeersScratch = [];
@@ -6453,8 +6455,8 @@
       const prio = (m.tamed || m.isBoss || IS_DRAGON_MOB.has(m.type)) ? 0 : 1;
       _mobNetCandsScratch.push({ m, prio, minD2 });
     }
-    if (_mobNetCandsScratch.length > 100) _mobNetCandsScratch.sort((a, b) => (a.prio - b.prio) || (a.minD2 - b.minD2));
-    const lim = Math.min(100, _mobNetCandsScratch.length);
+    if (_mobNetCandsScratch.length > 64) _mobNetCandsScratch.sort((a, b) => (a.prio - b.prio) || (a.minD2 - b.minD2));
+    const lim = Math.min(64, _mobNetCandsScratch.length);
     if (full) _mobNetSeenScratch.clear();
     const out = [];
     for (let i = 0; i < lim; i++) {
@@ -6526,8 +6528,56 @@
     return out;
   }
 
+  function _applySyncedRemoteMobProps(m, it, fpIn, vyIn) {
+    if (!m) return;
+    if (typeof it.hp === 'number') m.hp = it.hp;
+    if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
+    m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
+    if (m.tamed) m.hostile = false;
+    if (it.ow) m.ownerPeerId = String(it.ow);
+    m.onGround = (it.og !== 0);
+    m._flyPitch = fpIn;
+    m.vy = vyIn;
+    if (m.tamed && !m.elemDragon && !m.petTag && m.group) {
+      const petTag = makeNameTagSprite(`♥ ${m.displayName}`, '#f472b6');
+      petTag.position.set(0, m.hitboxH + 0.65, 0);
+      m.group.add(petTag); m.petTag = petTag;
+    }
+    if (m.elemDragon) {
+      m.saddled = !!it.sd;
+      m.dragonArmor = it.da ? { ...it.da } : null;
+      _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
+    }
+    if ((it.ak || 0) > (m.atkAnimT || 0)) m.atkAnimT = it.ak;
+    if ((it.hf || 0) > (m.hurtFlash || 0)) { m.hurtFlash = it.hf; playMobSfx(m.type, 'hurt'); }
+    if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
+  }
+  function _spawnSyncedRemoteMob(it, wy, vxIn, vyIn, vzIn, yawIn, fpIn, senderTs, pktSeq, nowMs, dOff) {
+    const opts = { uid: it.uid };
+    if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
+    if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
+    if (it.tm) { opts.tamed = true; opts.ownerPeerId = it.ow || ''; opts.dragonStage = it.ds !== undefined ? it.ds : 4; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
+    const m = spawnMobOfType(it.t, it.x, wy, it.z, opts);
+    if (!m) return null;
+    if (m.tamed) _attachPetNameTag(m);
+    m.yaw = yawIn; m.ryaw = yawIn;
+    m.rx = it.x; m.ry = wy; m.rz = it.z;
+    m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
+    m._netBuf = createNetInterp(95);
+    const hasTy = (typeof it.ty === 'number' && Number.isFinite(it.ty));
+    pushNetSnap(m._netBuf, {
+      seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
+      vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
+    }, nowMs, dOff);
+    m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
+    m._netBuf.hasOut = true;
+    _applySyncedRemoteMobProps(m, it, fpIn, vyIn);
+    return m;
+  }
+
   function applyRemoteMobSync(list, dim = currentDimension, fullReset = false, meta = null) {
-    if (!Array.isArray(list) || (dim && dim !== currentDimension)) return;
+    if (!Array.isArray(list)) return;
+    if (dim && dim !== currentDimension) { _pendingRemoteMobSpawns.clear(); return; }
     if (meta && typeof meta.seq === 'number' && !fullReset) {
       if (_lastGuestMobSeq >= 0 && meta.seq <= _lastGuestMobSeq && (_lastGuestMobSeq - meta.seq) < 1000) return;
       _lastGuestMobSeq = meta.seq;
@@ -6548,6 +6598,8 @@
     }
     if (fullReset) _mobNetSeenScratch.clear();
     const seen = fullReset ? _mobNetSeenScratch : null;
+    let spawnedNow = 0;
+    const spawnBudget = (typeof isWorldLoading !== 'undefined' && isWorldLoading) ? 64 : 3;
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
       if (!it || !it.uid || !it.t) continue;
@@ -6561,61 +6613,32 @@
       const fpIn = typeof it.fp === 'number' ? it.fp : 0;
       let m = _mobNetByUidScratch.get(it.uid);
       if (!m) {
-        const opts = { uid: it.uid };
-        if (it.wc && typeof WOOL_COLORS !== 'undefined') opts.woolSpec = WOOL_COLORS.find(w => w.key === it.wc) || null;
-        if (typeof it.vp === 'number' && it.vp >= 0) opts.profIdx = it.vp;
-        if (it.tm) { opts.tamed = true; opts.ownerPeerId = it.ow || ''; opts.dragonStage = it.ds !== undefined ? it.ds : 4; opts.saddled = !!it.sd; opts.dragonArmor = it.da ? { ...it.da } : null; }
-        m = spawnMobOfType(it.t, it.x, wy, it.z, opts);
-        if (m) {
-          if (m.tamed) _attachPetNameTag(m);
-          m.yaw = yawIn; m.ryaw = yawIn;
-          m.rx = it.x; m.ry = wy; m.rz = it.z;
-          m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
-          m._netBuf = createNetInterp(95);
-          pushNetSnap(m._netBuf, {
-            seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
-            vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
-          }, nowMs, dOff);
-          m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
-          m._netBuf.hasOut = true;
+        if (spawnedNow < spawnBudget) {
+          _pendingRemoteMobSpawns.delete(it.uid);
+          _spawnSyncedRemoteMob(it, wy, vxIn, vyIn, vzIn, yawIn, fpIn, senderTs, pktSeq, nowMs, dOff);
+          spawnedNow++;
+        } else {
+          _pendingRemoteMobSpawns.set(it.uid, { it, wy, vxIn, vyIn, vzIn, yawIn, fpIn, senderTs, pktSeq, nowMs });
         }
-      } else {
-        m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
-        if (!m._netBuf) {
-          m._netBuf = createNetInterp(95);
-          m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
-          m._netBuf.hasOut = true;
-        }
-        pushNetSnap(m._netBuf, {
-          seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
-          vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
-        }, nowMs, dOff);
+        continue;
       }
-      if (m) {
-        if (typeof it.hp === 'number') m.hp = it.hp;
-        if (typeof it.mh === 'number' && it.mh > 0) m.maxHp = it.mh;
-        m.burning = !!it.br; m.tamed = !!it.tm; m.sitting = !!it.st; m.flying = !!it.fl;
-        if (m.tamed) m.hostile = false;
-        if (it.ow) m.ownerPeerId = String(it.ow);
-        m.onGround = (it.og !== 0);
-        m._flyPitch = fpIn;
-        m.vy = vyIn;
-        if (m.tamed && !m.elemDragon && !m.petTag && m.group) {
-          const petTag = makeNameTagSprite(`♥ ${m.displayName}`, '#f472b6');
-          petTag.position.set(0, m.hitboxH + 0.65, 0);
-          m.group.add(petTag); m.petTag = petTag;
-        }
-        if (m.elemDragon) {
-          m.saddled = !!it.sd;
-          m.dragonArmor = it.da ? { ...it.da } : null;
-          _applyDragonArmorToAnim(m.anim, m.dragonArmor, !!m.saddled);
-        }
-        if ((it.ak || 0) > (m.atkAnimT || 0)) m.atkAnimT = it.ak;
-        if ((it.hf || 0) > (m.hurtFlash || 0)) { m.hurtFlash = it.hf; playMobSfx(m.type, 'hurt'); }
-        if (m.hp < m.maxHp) { updateMobHpBar(m, m.hp / m.maxHp); m.hpBarTimer = 3.0; }
+      _pendingRemoteMobSpawns.delete(it.uid);
+      m._netTx = it.x; m._netTy = wy; m._netTz = it.z; m._netTyaw = yawIn;
+      if (!m._netBuf) {
+        m._netBuf = createNetInterp(95);
+        m._netBuf.lastOutX = m.x; m._netBuf.lastOutY = m.y; m._netBuf.lastOutZ = m.z;
+        m._netBuf.hasOut = true;
       }
+      pushNetSnap(m._netBuf, {
+        seq: pktSeq, ts: senderTs, x: it.x, y: wy, ty: hasTy ? it.ty : undefined, z: it.z,
+        vx: vxIn, vy: vyIn, vz: vzIn, yaw: yawIn, pitch: fpIn, spd: Math.hypot(vxIn, vzIn)
+      }, nowMs, dOff);
+      _applySyncedRemoteMobProps(m, it, fpIn, vyIn);
     }
     if (fullReset && seen) {
+      for (const pUid of _pendingRemoteMobSpawns.keys()) {
+        if (!seen.has(pUid)) _pendingRemoteMobSpawns.delete(pUid);
+      }
       for (let i = mobs.length - 1; i >= 0; i--) {
         const mb = mobs[i];
         if (!mb || mb._dead || (player.ridingDragon === mb) || mb.tamed) continue;
@@ -6872,6 +6895,7 @@
 
   function applyRemoteMobRemove(uid) {
     if (!uid) return;
+    _pendingRemoteMobSpawns.delete(uid);
     for (let i = mobs.length - 1; i >= 0; i--) {
       const m = mobs[i];
       if (m && m.uid === uid) {
@@ -7954,6 +7978,21 @@
     const lookZ = -Math.cos(player.yaw) * Math.cos(player.pitch);
     const playerEyeY = player.y + (player.sneaking ? EYE_HEIGHT - 0.24 : EYE_HEIGHT);
 
+    if (!_mobSimAuth && activeRoomId && _pendingRemoteMobSpawns.size > 0) {
+      let drainLeft = 2;
+      for (const [pUid, pEnt] of _pendingRemoteMobSpawns.entries()) {
+        _pendingRemoteMobSpawns.delete(pUid);
+        let exists = false;
+        for (let mi = 0; mi < mobs.length; mi++) {
+          if (mobs[mi] && !mobs[mi]._dead && mobs[mi].uid === pUid) { exists = true; break; }
+        }
+        if (!exists) {
+          const wyNow = (typeof pEnt.it.ty === 'number' && Number.isFinite(pEnt.it.ty)) ? (pEnt.it.ty + (depthOffset || 0)) : pEnt.wy;
+          _spawnSyncedRemoteMob(pEnt.it, wyNow, pEnt.vxIn, pEnt.vyIn, pEnt.vzIn, pEnt.yawIn, pEnt.fpIn, pEnt.senderTs, pEnt.pktSeq, _mobNowMs, depthOffset || 0);
+        }
+        if (--drainLeft <= 0) break;
+      }
+    }
     window._hasActiveNearShadowMob = false;
     window._hasActiveFlyingBoss = false;
     _mobSnapBuf.length = 0; _snapHostiles.length = 0; _snapVillagers.length = 0;
@@ -10445,10 +10484,10 @@
       if (hasNetPeer || hasWs) {
         const hasMqttPeer = (typeof mqttRoomPeers !== 'undefined' && mqttRoomPeers.size > 0);
         const peerCntM = (typeof remotePlayers !== 'undefined' && remotePlayers) ? remotePlayers.size : 0;
-        const syncIntMs = hasNetPeer ? (hasMqttPeer ? 110 : (peerCntM >= 4 ? 85 : 66)) : 2500;
+        const syncIntMs = hasNetPeer ? (hasMqttPeer ? 130 : (peerCntM >= 4 ? 95 : 75)) : 2500;
         if ((_mobNowMs - _mobNetLastSyncMs) >= syncIntMs) {
           _mobNetLastSyncMs = _mobNowMs;
-          const needFull = (_mobNetKeyframeMs === 0 || (_mobNowMs - _mobNetKeyframeMs) >= 2500);
+          const needFull = (_mobNetKeyframeMs === 0 || (_mobNowMs - _mobNetKeyframeMs) >= 12000);
           const list = serializeMobsForNet(currentDimension, { delta: !needFull });
           if (needFull) _mobNetKeyframeMs = _mobNowMs;
           if (needFull || list.length > 0 || _mobNetRemQueue.length > 0) {

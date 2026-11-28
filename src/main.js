@@ -2054,6 +2054,7 @@
       if (_runAiSynth) {
         updatePlayer(moveDt);
         _refreshCamFrustum();
+        updateCoopAndLocator(moveDt, elapsed, true);
         _fgMobDtAcc += dt;
       } else {
         const mobDt = Math.min(0.08, dt + _fgMobDtAcc);
@@ -2392,13 +2393,16 @@
   refreshFriendReqBanner();
   renderFriendWorldsList();
   const _elFriendsModal = document.getElementById('friendsModal');
+  let _friendPollTick = 0;
   setInterval(() => {
+    _friendPollTick++;
     ncMqtt.ensureConnected();
     if (getLockedPlayerUid()) initFriendNetworkPeer();
     const inWorldNow = !document.body.classList.contains('in-lobby') && !isWorldLoading;
     const friendsOpen = _elFriendsModal && !_elFriendsModal.classList.contains('hidden');
-    if (!inWorldNow || friendsOpen || loadFriendsList().length > 0) pollAllFriendsStatus();
-    if (inWorldNow && currentWorldMeta && currentWorldMeta.shareWithFriends && activeRoomId) {
+    const allowCoopPoll = !inWorldNow || !activeRoomId || friendsOpen || (_friendPollTick % 3) === 0;
+    if (allowCoopPoll && (!inWorldNow || friendsOpen || loadFriendsList().length > 0)) pollAllFriendsStatus();
+    if (allowCoopPoll && inWorldNow && currentWorldMeta && currentWorldMeta.shareWithFriends && activeRoomId) {
       broadcastFriendWorldPresence();
     }
     if (!inWorldNow) {
@@ -2423,7 +2427,30 @@
     joinCoopRoomById,
     leaveCoopRoom,
     getActiveRoomId: () => activeRoomId,
-    getCoopNetDebug: () => ({ roomId: activeRoomId, transport: activeCoopTransport, isHost: p2pIsHost, simAuth: isSimAuthority(), wsState: wsConn ? wsConn.readyState : -1, wsSelfPeerId, wsRoomHostId: _wsRoomHostId, remotePeers: Array.from(remotePlayers.keys()), bcPeers: Array.from(bcRoomPeers), mqttPeers: Array.from(mqttRoomPeers), p2pConns: p2pClientConns.size }),
+    getCoopNetDebug: () => ({
+      roomId: activeRoomId,
+      transport: activeCoopTransport,
+      isHost: p2pIsHost,
+      simAuth: isSimAuthority(),
+      wsState: wsConn ? wsConn.readyState : -1,
+      wsSelfPeerId,
+      wsRoomHostId: _wsRoomHostId,
+      remotePeers: Array.from(remotePlayers.keys()),
+      bcPeers: Array.from(bcRoomPeers),
+      mqttPeers: Array.from(mqttRoomPeers),
+      p2pConns: p2pClientConns.size,
+      fastOpen: !!(p2pFastConn && p2pFastConn.open),
+      fastConns: p2pFastConns.size,
+      netStats: { ..._netStats },
+      interp: Array.from(remotePlayers.values()).map(rp => ({
+        id: rp.id,
+        delayMs: rp._netBuf ? +rp._netBuf.delayMs.toFixed(1) : 0,
+        jitterMs: rp._netBuf ? +rp._netBuf.jitterMs.toFixed(1) : 0,
+        avgIntMs: rp._netBuf ? +rp._netBuf.avgIntMs.toFixed(1) : 0,
+        coastCount: rp._netBuf ? rp._netBuf.coastCount : 0,
+        snaps: rp._netBuf ? rp._netBuf.snaps.length : 0
+      }))
+    }),
     ncMqtt,
     setAdminUnlocked,
     getDreamRuinLocations,

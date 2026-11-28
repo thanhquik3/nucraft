@@ -12,6 +12,7 @@
     if (!rp._netBuf) rp._netBuf = createNetInterp(85);
     const yawIn = (typeof st.yaw === 'number' && Number.isFinite(st.yaw)) ? st.yaw : (rp.yaw || 0);
     const pitchIn = (typeof st.pitch === 'number' && Number.isFinite(st.pitch)) ? st.pitch : (rp.pitch || 0);
+    const hasSeq = (typeof st.seq === 'number');
     const accepted = pushNetSnap(rp._netBuf, {
       seq: st.seq,
       ts: st.ts,
@@ -19,9 +20,9 @@
       y: worldY,
       ty: rp.trueY,
       z: st.z,
-      vx: st.vx,
-      vy: st.vy,
-      vz: st.vz,
+      vx: (typeof st.vx === 'number') ? st.vx : (hasSeq ? 0 : undefined),
+      vy: (typeof st.vy === 'number') ? st.vy : (hasSeq ? 0 : undefined),
+      vz: (typeof st.vz === 'number') ? st.vz : (hasSeq ? 0 : undefined),
       yaw: yawIn,
       pitch: pitchIn,
       spd: st.speed || 0
@@ -45,7 +46,7 @@
     rp.sprinting = !!st.sprinting; rp.sneaking = !!st.sneaking;
     rp.inWater = !!st.inWater; rp.deepWater = !!st.deepWater; rp.swimMoving = !!st.swimMoving;
     rp.sprintSwimming = !!st.sprintSwimming; rp.lowSprintSwim = !!st.lowSprintSwim;
-    rp.onGround = st.onGround !== false; rp.flying = !!st.flying; rp.gliding = !!st.gliding; rp.swing = st.swing || 0;
+    rp.onGround = (st.onGround !== false && st.onGround !== 0); rp.flying = !!st.flying; rp.gliding = !!st.gliding; rp.swing = st.swing || 0;
     rp.swingActive = !!st.swingActive; rp.swingU = st.swingU || 0;
     rp.bowDrawing = !!st.bowDrawing; rp.bowCharge = st.bowCharge || 0; rp.bowStage = st.bowStage || 0;
     rp.actionType = st.actionType || rp.actionType || 'attack';
@@ -826,117 +827,142 @@
   let _cachedLocBarW = 360, _cachedLocBarAt = 0;
   function _netQ2(v) { return Math.round(v * 100) / 100; }
   function _netQ3(v) { return Math.round(v * 1000) / 1000; }
-  function updateCoopAndLocator(dt, tNow) {
+  function updateCoopAndLocator(dt, tNow, visualOnly = false) {
     // Adaptive quantized snapshot broadcast with measured true velocity & edge-triggered flush
     const nowPerf = performance.now();
     const localOff = depthOffset || 0;
-    if (activeRoomId) {
-      const trueYNow = player.y - localOff;
-      const safeDt = Math.max(0.004, Math.min(0.1, dt || 0.016));
-      if (!_localPrevPos || _localPrevPos.dim !== currentDimension) {
-        _localPrevPos = { x: player.x, y: trueYNow, z: player.z, dim: currentDimension };
-        _localVelX = 0; _localVelY = 0; _localVelZ = 0;
-      } else {
-        const dxL = player.x - _localPrevPos.x;
-        const dyL = trueYNow - _localPrevPos.y;
-        const dzL = player.z - _localPrevPos.z;
-        const stepDist = Math.hypot(dxL, dyL, dzL);
-        if (stepDist > 8.0) {
+    const safeFrameDt = Math.min(0.05, Math.max(0.001, dt || 0.016));
+    if (!visualOnly) {
+      if (activeRoomId) {
+        const trueYNow = player.y - localOff;
+        const safeDt = Math.max(0.004, Math.min(0.1, dt || 0.016));
+        if (!_localPrevPos || _localPrevPos.dim !== currentDimension) {
+          _localPrevPos = { x: player.x, y: trueYNow, z: player.z, dim: currentDimension };
           _localVelX = 0; _localVelY = 0; _localVelZ = 0;
         } else {
-          const vK = 1 - Math.exp(-24.0 * safeDt);
-          _localVelX += ((dxL / safeDt) - _localVelX) * vK;
-          _localVelY += ((dyL / safeDt) - _localVelY) * vK;
-          _localVelZ += ((dzL / safeDt) - _localVelZ) * vK;
+          const dxL = player.x - _localPrevPos.x;
+          const dyL = trueYNow - _localPrevPos.y;
+          const dzL = player.z - _localPrevPos.z;
+          const stepDist = Math.hypot(dxL, dyL, dzL);
+          if (stepDist > 8.0) {
+            _localVelX = 0; _localVelY = 0; _localVelZ = 0;
+          } else {
+            const vK = 1 - Math.exp(-24.0 * safeDt);
+            _localVelX += ((dxL / safeDt) - _localVelX) * vK;
+            _localVelY += ((dyL / safeDt) - _localVelY) * vK;
+            _localVelZ += ((dzL / safeDt) - _localVelZ) * vK;
+          }
+          _localPrevPos.x = player.x; _localPrevPos.y = trueYNow; _localPrevPos.z = player.z;
         }
-        _localPrevPos.x = player.x; _localPrevPos.y = trueYNow; _localPrevPos.z = player.z;
-      }
-      const measSpd = Math.hypot(_localVelX, _localVelZ);
-      const _isMovingNet = measSpd > 0.06 || Math.abs(_localVelY) > 0.08 || (player.curSpeed || 0) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
-      const qx = _netQ2(player.x), qy = _netQ2(player.y), qz = _netQ2(player.z);
-      const qYaw = _netQ3(player.yaw), qPitch = _netQ3(player.pitch);
-      const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
-      const swingEdge = ((player.curSwing || 0) > 0.02 && !_lastSentNet._hadSwing) || (!!player.swordAtkActive && !_lastSentNet._hadSwAtk);
-      const _burnNow = ((player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
-      const _burnSoulNow = _burnNow && !!player._burnSoul;
-      const rotChanged = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.008 || Math.abs(qPitch - _lastSentNet.pitch) > 0.008;
-      const edgeChanged = (_isMovingNet !== _wasMovingNet)
-        || (!!player.onGround !== _wasOnGroundNet)
-        || (Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.35)
-        || swingEdge
-        || (heldId !== _lastSentNet.held)
-        || (_burnNow !== !!_lastSentNet._burning)
-        || (_burnSoulNow !== !!_lastSentNet._burnSoul);
-      // Scale state send rate smoothly with peer count so large multiplayer rooms stay lock-free & high-FPS
-      const peerCnt = remotePlayers.size;
-      const moveIntervalMs = peerCnt >= 8 ? 66 : (peerCnt >= 4 ? 50 : 40);
-      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? moveIntervalMs : (rotChanged ? 90 : 1000);
-      if (edgeChanged || (nowPerf - _lastStateSendMs) >= _sendIntervalMs) {
-        const eq = player.equip;
-        const eqSig = `${eq.helmet||0}_${eq.chest||0}_${eq.legs||0}_${eq.boots||0}_${eq.offhand||0}`;
-        const posChanged = Math.abs(qx - _lastSentNet.x) > 0.01 || Math.abs(qy - _lastSentNet.y) > 0.01 || Math.abs(qz - _lastSentNet.z) > 0.01
-          || rotChanged || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
-          || !!player.bowDrawing || (player.bowStage || 0) !== (_lastSentNet.bowStage || 0);
-        const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || localPlayerName !== _lastSentNet.name || (nowPerf - _lastSentNet.metaAt) >= 4500);
-        if (_isMovingNet || edgeChanged || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
-          _lastStateSendMs = nowPerf;
-          _wasMovingNet = _isMovingNet;
-          _wasOnGroundNet = !!player.onGround;
-          _lastSentNet._hadSwing = (player.curSwing || 0) > 0.02;
-          _lastSentNet._hadSwAtk = !!player.swordAtkActive;
-          _lastSentNet._burning = _burnNow;
-          _lastSentNet._burnSoul = _burnSoulNow;
-          _lastSentNet.idleAt = nowPerf;
-          _lastSentNet.name = localPlayerName;
-          _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
-          _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
-          _lastSentNet.bowStage = player.bowStage || 0;
-          const pkt = {
-            type: 'state',
-            name: localPlayerName,
-            state: {
+        const measSpd = Math.hypot(_localVelX, _localVelZ);
+        const _isMovingNet = measSpd > 0.06 || Math.abs(_localVelY) > 0.08 || (player.curSpeed || 0) > 0.05 || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive || !!player.bowDrawing;
+        const qx = _netQ2(player.x), qy = _netQ2(player.y), qz = _netQ2(player.z);
+        const qYaw = _netQ3(player.yaw), qPitch = _netQ3(player.pitch);
+        const heldId = (inventory[player.selectedSlot]?.count > 0 ? inventory[player.selectedSlot].id : 0);
+        const swingEdge = ((player.curSwing || 0) > 0.02 && !_lastSentNet._hadSwing) || (!!player.swordAtkActive && !_lastSentNet._hadSwAtk);
+        const _burnNow = ((player.burnTime || 0) > 0 && gameMode !== 'creative' && !player.dead);
+        const _burnSoulNow = _burnNow && !!player._burnSoul;
+        const rotChanged = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.008 || Math.abs(qPitch - _lastSentNet.pitch) > 0.008;
+        const discreteEdge = (_isMovingNet !== _wasMovingNet)
+          || (!!player.onGround !== _wasOnGroundNet)
+          || swingEdge
+          || (heldId !== _lastSentNet.held)
+          || (_burnNow !== !!_lastSentNet._burning)
+          || (_burnSoulNow !== !!_lastSentNet._burnSoul);
+        const yawEdge = Math.abs(_wrapNetAng(qYaw - _lastSentNet.yaw)) > 0.35;
+        const sinceSend = nowPerf - _lastStateSendMs;
+        const edgeReady = (discreteEdge && sinceSend >= 18) || (yawEdge && sinceSend >= 28);
+        // Scale state send rate smoothly with transport & peer count
+        const peerCnt = remotePlayers.size;
+        const onlyMqtt = (typeof activeCoopTransport !== 'undefined' && activeCoopTransport === 'mqtt')
+          || (p2pIsHost && p2pClientConns.size === 0 && mqttRoomPeers.size > 0 && !(wsConn && wsConn.readyState === 1));
+        const moveIntervalMs = onlyMqtt ? 60 : (peerCnt >= 8 ? 55 : (peerCnt >= 4 ? 42 : 33));
+        const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? moveIntervalMs : (rotChanged ? 90 : 1000);
+        if (edgeReady || sinceSend >= _sendIntervalMs) {
+          const eq = player.equip;
+          const eqSig = `${eq.helmet||0}_${eq.chest||0}_${eq.legs||0}_${eq.boots||0}_${eq.offhand||0}`;
+          const posChanged = Math.abs(qx - _lastSentNet.x) > 0.01 || Math.abs(qy - _lastSentNet.y) > 0.01 || Math.abs(qz - _lastSentNet.z) > 0.01
+            || rotChanged || heldId !== _lastSentNet.held || (player.curSwing || 0) > 0.02 || !!player.swordAtkActive
+            || !!player.bowDrawing || (player.bowStage || 0) !== (_lastSentNet.bowStage || 0);
+          const needMeta = (eqSig !== _lastSentNet.eqSig || selectedSkinId !== _lastSentNet.skinId || localPlayerName !== _lastSentNet.name || (nowPerf - _lastSentNet.metaAt) >= 15000);
+          if (_isMovingNet || discreteEdge || yawEdge || posChanged || needMeta || (nowPerf - _lastSentNet.idleAt) >= 1000) {
+            _lastStateSendMs = nowPerf;
+            _wasMovingNet = _isMovingNet;
+            _wasOnGroundNet = !!player.onGround;
+            _lastSentNet._hadSwing = (player.curSwing || 0) > 0.02;
+            _lastSentNet._hadSwAtk = !!player.swordAtkActive;
+            _lastSentNet._burning = _burnNow;
+            _lastSentNet._burnSoul = _burnSoulNow;
+            _lastSentNet.idleAt = nowPerf;
+            _lastSentNet.name = localPlayerName;
+            _lastSentNet.x = qx; _lastSentNet.y = qy; _lastSentNet.z = qz;
+            _lastSentNet.yaw = qYaw; _lastSentNet.pitch = qPitch; _lastSentNet.held = heldId;
+            _lastSentNet.bowStage = player.bowStage || 0;
+            const stOut = {
               seq: ++_localStateSeq,
               ts: Math.round(nowPerf),
               dim: currentDimension,
-              depthOffset: localOff,
               x: qx, y: qy, trueY: _netQ2(trueYNow), z: qz,
-              vx: _netQ2(_localVelX),
-              vy: _netQ2(_localVelY),
-              vz: _netQ2(_localVelZ),
               yaw: qYaw, pitch: qPitch,
-              speed: _netQ2(Math.max(measSpd, player.curSpeed || 0)), sprinting: !!player.sprinting, sneaking: !!player.sneaking,
-              inWater: !!player.inWater, deepWater: !!player.deepWater,
-              swimMoving: (player.curSpeed || 0) > 0.2, sprintSwimming: !!player.sprintSwimming,
-              lowSprintSwim: !!player.lowSprintSwim, onGround: !!player.onGround, flying: !!player.flying, gliding: !!player.gliding,
-              hurtT: _netQ2(player.hurtAnimT || 0), swing: _netQ2(player.curSwing || 0),
-              swingActive: !!player.swingActive, swingU: _netQ3(player.swingU || 0), actionType: player.actionType || 'mine',
-              bowDrawing: !!player.bowDrawing, bowCharge: _netQ2(player.bowCharge || 0), bowStage: player.bowStage || 0,
-              swSeq: player.swordAtkActive ? (player.swordAtkSeq || 0) : 0, swHit: player.swordAtkHit || 0,
-              burning: _burnNow, burnSoul: _burnSoulNow,
+              speed: _netQ2(Math.max(measSpd, player.curSpeed || 0)),
               held: heldId
+            };
+            if (localOff) stOut.depthOffset = localOff;
+            const qvx = _netQ2(_localVelX), qvy = _netQ2(_localVelY), qvz = _netQ2(_localVelZ);
+            if (Math.abs(qvx) >= 0.01) stOut.vx = qvx;
+            if (Math.abs(qvy) >= 0.01) stOut.vy = qvy;
+            if (Math.abs(qvz) >= 0.01) stOut.vz = qvz;
+            if (player.sprinting) stOut.sprinting = 1;
+            if (player.sneaking) stOut.sneaking = 1;
+            if (player.inWater) stOut.inWater = 1;
+            if (player.deepWater) stOut.deepWater = 1;
+            if ((player.curSpeed || 0) > 0.2) stOut.swimMoving = 1;
+            if (player.sprintSwimming) stOut.sprintSwimming = 1;
+            if (player.lowSprintSwim) stOut.lowSprintSwim = 1;
+            if (!player.onGround) stOut.onGround = 0;
+            if (player.flying) stOut.flying = 1;
+            if (player.gliding) stOut.gliding = 1;
+            if ((player.hurtAnimT || 0) > 0.01) stOut.hurtT = _netQ2(player.hurtAnimT);
+            if ((player.curSwing || 0) > 0.01) stOut.swing = _netQ2(player.curSwing);
+            if (player.swingActive) stOut.swingActive = 1;
+            if (player.swingActive || (player.curSwing || 0) > 0.01) {
+              stOut.swingU = _netQ3(player.swingU || 0);
+              stOut.actionType = player.actionType || 'mine';
             }
-          };
-          if (needMeta) {
-            _lastSentNet.eqSig = eqSig; _lastSentNet.skinId = selectedSkinId; _lastSentNet.metaAt = nowPerf;
-            pkt.skinId = selectedSkinId; pkt.equip = eq; pkt.dayTime = dayTime;
-            if (typeof getLocalCustomSkinPayload === 'function') {
-              const cs = getLocalCustomSkinPayload();
-              const csSig = cs ? `${cs.slim ? 1 : 0}:${cs.dataUrl.length}:${cs.dataUrl.slice(-16)}` : '';
-              if (cs && csSig !== _lastSentNet.customSkinSig) {
-                _lastSentNet.customSkinSig = csSig;
-                pkt.customSkin = cs;
-              } else if (!cs) {
-                _lastSentNet.customSkinSig = '';
+            if (player.bowDrawing) {
+              stOut.bowDrawing = 1;
+              stOut.bowCharge = _netQ2(player.bowCharge || 0);
+              stOut.bowStage = player.bowStage || 0;
+            }
+            if (player.swordAtkActive) {
+              stOut.swSeq = player.swordAtkSeq || 0;
+              stOut.swHit = player.swordAtkHit || 0;
+            }
+            if (_burnNow) stOut.burning = 1;
+            if (_burnSoulNow) stOut.burnSoul = 1;
+            const pkt = { type: 'state', name: localPlayerName, state: stOut };
+            if (needMeta) {
+              _lastSentNet.eqSig = eqSig; _lastSentNet.skinId = selectedSkinId; _lastSentNet.metaAt = nowPerf;
+              pkt.skinId = selectedSkinId; pkt.equip = eq; pkt.dayTime = dayTime;
+              if (typeof getLocalCustomSkinPayload === 'function') {
+                const cs = getLocalCustomSkinPayload();
+                const csSig = cs ? `${cs.slim ? 1 : 0}:${cs.dataUrl.length}:${cs.dataUrl.slice(-16)}` : '';
+                if (cs && csSig !== _lastSentNet.customSkinSig) {
+                  _lastSentNet.customSkinSig = csSig;
+                  pkt.customSkin = cs;
+                } else if (!cs) {
+                  _lastSentNet.customSkinSig = '';
+                }
               }
             }
+            sendCoopMsg(pkt, discreteEdge ? { mqttEdge: true } : null);
           }
-          sendCoopMsg(pkt);
         }
+      } else {
+        _localPrevPos = null;
+        _lastStateSendMs = 0;
+        _lastSentNet.customSkinSig = '';
       }
-    } else {
-      _localPrevPos = null;
-      _lastStateSendMs = 0;
-      _lastSentNet.customSkinSig = '';
     }
 
     // Update remote player interpolation, AI Co-op buddy movement & skeletal animation
@@ -963,18 +989,18 @@
 
     for (const [pid, rp] of remotePlayers.entries()) {
       const lastActiveAt = rp._lastPktAt || rp._createdAt;
-      if (!rp.isBuddy && activeRoomId && lastActiveAt && typeof worldPaused !== 'undefined' && !worldPaused && (nowPerf - lastActiveAt > 12000)) {
+      if (!rp.isBuddy && activeRoomId && lastActiveAt && typeof worldPaused !== 'undefined' && !worldPaused && (nowPerf - lastActiveAt > 25000)) {
         removeRemotePeer(pid);
         continue;
       }
       if (rp.isBuddy) {
-        _updateCoopBuddyAI(rp, dt, nowPerf * 0.001);
+        if (!visualOnly) _updateCoopBuddyAI(rp, dt, nowPerf * 0.001);
       } else {
         let tgtX = rp.tx, tgtY = (typeof rp.trueY === 'number') ? (rp.trueY + localOff) : rp.ty, tgtZ = rp.tz;
         let tgtYaw = rp.yaw || 0, tgtPitch = rp.pitch || 0, vxN = 0, vzN = 0;
         if (rp._netBuf && rp._netBuf.snaps.length > 0) {
           const maxTp = (rp.gliding || rp.flying) ? 26.0 : 12.0;
-          const s = sampleNetInterp(rp._netBuf, nowPerf, dt, localOff, maxTp, _rpSampleOut);
+          const s = sampleNetInterp(rp._netBuf, nowPerf, safeFrameDt, localOff, maxTp, _rpSampleOut);
           tgtX = s.x; tgtY = s.y; tgtZ = s.z;
           tgtYaw = s.yaw; tgtPitch = s.pitch;
           vxN = s.vx; vzN = s.vz;
@@ -1003,7 +1029,7 @@
       }
     }
     if (_useWasmNet && _wasmNetRps.length > 0) {
-      const nW = _wCoreNet.exports.interp_net_entities(_wasmNetRps.length | 0, Math.min(0.05, Math.max(0.001, dt || 0.016)), 18.0) >>> 0;
+      const nW = _wCoreNet.exports.interp_net_entities(_wasmNetRps.length | 0, safeFrameDt, 18.0) >>> 0;
       const nb = _wCoreNet.netEntBuf;
       for (let wi = 0; wi < nW; wi++) {
         const rpW = _wasmNetRps[wi], o = wi * 12;
@@ -1025,7 +1051,7 @@
         rp.rig.g.rotation.y = rp.yaw + Math.PI;
         // Distance-LOD skeletal animation: full-rate <=40m, half-rate 40..85m, static pose >85m for high FPS in crowded rooms
         if (distSq <= 1600 || (distSq <= 7225 && (((frameCounter + _rpVisIdx) & 1) === 0))) {
-          animatePlayerRig(rp.rig, rp, distSq <= 1600 ? dt : dt * 2, tNow);
+          animatePlayerRig(rp.rig, rp, distSq <= 1600 ? safeFrameDt : safeFrameDt * 2, tNow);
         }
       }
       _rpVisIdx++;

@@ -1,8 +1,11 @@
 // NUCRAFT Module: src/network/Network.js — WebSocket / PeerJS / MQTT / BroadcastChannel co-op & friend system
 
   // Cross-Network Internet P2P Multiplayer (PeerJS WebRTC + MQTT WSS Internet Relay + LAN WebSocket + BroadcastChannel)
-  let p2pPeer = null, p2pIsHost = false, p2pHostConn = null;
+  let p2pPeer = null, p2pIsHost = false, p2pHostConn = null, p2pFastConn = null;
   const p2pClientConns = new Map(); // peerId -> DataConnection
+  const p2pFastConns = new Map(); // peerId -> unreliable fast DataConnection
+  let _p2pUpgradeTimer = null, _lastMqttWasMoving = false;
+  const _netStats = { fastTx: 0, fastRx: 0, relTx: 0, dropCong: 0, upgrades: 0 };
   const P2P_PREFIX = 'luanticraft-v18-room-';
   const P2P_ICE_CFG = {
     iceServers: [
@@ -238,7 +241,7 @@
         : (typeof payloadObjOrEmpty === 'string' ? payloadObjOrEmpty : JSON.stringify(payloadObjOrEmpty));
       ensureConnected();
       if (ready && ws && ws.readyState === 1) {
-        if (dropIfCongested && ws.bufferedAmount > 48000) return false;
+        if (dropIfCongested && ws.bufferedAmount > 8192) { _netStats.dropCong++; return false; }
         try { ws.send(pktPublish(topic, payloadStr, retain)); return true; } catch (_) {}
       }
       if (dropIfCongested) return false;
@@ -330,12 +333,13 @@
   }
   function createNetInterp(baseDelayMs = 85) {
     return {
-      snaps: [], lastSeq: -1, clockOff: null, jitterMs: 0,
-      avgIntMs: baseDelayMs, delayMs: baseDelayMs, renderT: null,
-      wasCoasting: false, _reconcile: false,
+      snaps: [], lastSeq: -1, clockOff: null, lastRawDiff: null, jitterMs: 0,
+      avgIntMs: baseDelayMs, baseDelayMs, delayMs: baseDelayMs, renderT: null,
+      lastSampleMs: null, wasCoasting: false, _reconcile: false,
       lastOutX: 0, lastOutY: 0, lastOutZ: 0, hasOut: false,
       corrX: 0, corrY: 0, corrZ: 0,
-      lastPushNow: 0, lastSenderTs: null
+      lastPushNow: 0, lastSenderTs: null,
+      coastCount: 0, snapResetCount: 0
     };
   }
   function pushNetSnap(buf, snap, nowMs, localDepthOff = 0) {
@@ -349,44 +353,65 @@
     const rawDiff = nowMs - sTs;
     if (buf.clockOff === null) {
       buf.clockOff = rawDiff;
+      buf.lastRawDiff = rawDiff;
       buf.jitterMs = 0;
     } else if (hasTs) {
       const diff = rawDiff - buf.clockOff;
-      if (Math.abs(diff) > 1500) {
+      const isBurstPkt = (buf.lastPushNow > 0 && (nowMs - buf.lastPushNow) < 18);
+      const transitDelta = buf.lastRawDiff !== null ? Math.abs(rawDiff - buf.lastRawDiff) : Math.abs(diff);
+      buf.lastRawDiff = rawDiff;
+      if (Math.abs(diff) > 2500) {
         buf.clockOff = rawDiff;
-        buf.jitterMs = 0;
+        buf.jitterMs = Math.min(buf.jitterMs, 40);
         buf.snaps.length = 0;
         buf.renderT = null;
-        buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
-        buf._reconcile = false;
         buf.wasCoasting = false;
-      } else if (diff < 0) {
-        buf.clockOff += diff * 0.25;
-        buf.jitterMs *= 0.90;
+        buf.snapResetCount++;
+        if (buf.hasOut) buf._reconcile = true;
       } else {
-        buf.clockOff += diff * 0.04;
-        const cj = Math.min(180, diff);
-        buf.jitterMs = Math.max(cj * 0.85, buf.jitterMs * 0.90 + cj * 0.10);
+        // Lower-envelope clock tracking: never drift upward on queued bursts
+        if (diff < 0) {
+          buf.clockOff += diff * (isBurstPkt ? 0.06 : 0.22);
+        } else if (!isBurstPkt) {
+          buf.clockOff += Math.min(18, diff) * 0.015;
+        }
+        const sampleJ = Math.min(240, Math.max(diff > 0 ? diff : 0, transitDelta));
+        buf.jitterMs = (sampleJ > buf.jitterMs)
+          ? (buf.jitterMs * 0.60 + sampleJ * 0.40)
+          : (buf.jitterMs * 0.965 + sampleJ * 0.035);
       }
     }
     if (buf.lastSenderTs !== null) {
       const rawDt = hasTs ? (sTs - buf.lastSenderTs) : (nowMs - buf.lastPushNow);
-      if (rawDt > 15 && rawDt <= 320) {
+      if (rawDt > 15 && rawDt <= 350) {
         buf.avgIntMs = buf.avgIntMs * 0.85 + rawDt * 0.15;
       }
     }
     buf.lastSenderTs = sTs;
-    buf.delayMs = Math.max(70, Math.min(250, buf.avgIntMs * 1.15 + buf.jitterMs * 1.25 + 14));
+    const minDelay = Math.min(buf.baseDelayMs || 70, 70);
+    buf.delayMs = Math.max(minDelay, Math.min(340, buf.avgIntMs * 1.2 + buf.jitterMs * 1.35 + 16));
 
     const snaps = buf.snaps;
     let prev = snaps.length > 0 ? snaps[snaps.length - 1] : null;
     const hadPriorPastRender = !!(buf.hasOut && buf.renderT !== null && prev && buf.renderT > prev.t);
     let t = hasTs ? (sTs + buf.clockOff) : nowMs;
-    if (prev && t <= prev.t) t = prev.t + 1;
-    if (prev && (t - prev.t) > 320) {
-      const anchorT = Math.max(prev.t + 1, t - Math.max(55, Math.min(120, buf.avgIntMs)));
+    if (prev && hasTs && typeof prev.sTs === 'number' && sTs > prev.sTs) {
+      const sDt = sTs - prev.sTs;
+      if (sDt <= 1200) {
+        const minT = prev.t + Math.max(1, sDt * 0.85);
+        const maxT = prev.t + Math.max(2, sDt * 1.15);
+        if (t < minT) t = minT;
+        else if (t > maxT) t = maxT;
+      }
+    }
+    if (prev && t <= prev.t) t = prev.t + Math.max(1, Math.min(40, buf.avgIntMs * 0.5));
+    const prevIdle = prev ? (Math.hypot(prev.vx, prev.vz) < 0.12 && Math.abs(prev.vy) < 0.12 && (prev.spd || 0) < 0.12) : false;
+    if (prev && prevIdle && (t - prev.t) > 420) {
+      const anchorGap = Math.max(55, Math.min(120, buf.avgIntMs));
+      const anchorT = Math.max(prev.t + 1, t - anchorGap);
       snaps.push({
         t: anchorT,
+        sTs: hasTs ? Math.max((prev.sTs || sTs) + 1, sTs - anchorGap) : undefined,
         x: prev.x, y: prev.y, ty: prev.ty, z: prev.z,
         vx: 0, vy: 0, vz: 0,
         yaw: prev.yaw, pitch: prev.pitch, spd: 0
@@ -401,7 +426,7 @@
     let vz = (typeof snap.vz === 'number' && Number.isFinite(snap.vz)) ? snap.vz : null;
     if (vx === null || vy === null || vz === null) {
       const segS = prev ? ((t - prev.t) / 1000) : 0;
-      if (prev && segS > 0.008 && segS <= 0.35) {
+      if (prev && segS > 0.008 && segS <= 0.65) {
         const prevY = prev.ty !== null ? (prev.ty + localDepthOff) : prev.y;
         if (vx === null) vx = (snap.x - prev.x) / segS;
         if (vy === null) vy = (yVal - prevY) / segS;
@@ -414,13 +439,14 @@
     }
     snaps.push({
       t,
+      sTs: hasTs ? sTs : undefined,
       x: snap.x, y: yVal, ty: hasTy ? snap.ty : null, z: snap.z,
       vx, vy, vz,
       yaw: typeof snap.yaw === 'number' ? snap.yaw : (prev ? prev.yaw : 0),
       pitch: typeof snap.pitch === 'number' ? snap.pitch : (prev ? prev.pitch : 0),
       spd: typeof snap.spd === 'number' ? snap.spd : Math.hypot(vx, vz)
     });
-    while (snaps.length > 10) snaps.shift();
+    while (snaps.length > 16) snaps.shift();
     buf.lastPushNow = nowMs;
     if (buf.hasOut && buf.renderT !== null && (buf.wasCoasting || hadPriorPastRender)) buf._reconcile = true;
     return true;
@@ -429,16 +455,20 @@
     const out = outObj || { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0, spd: 0 };
     const snaps = buf && buf.snaps;
     if (!snaps || snaps.length === 0) return out;
-    const safeDt = Math.max(0.001, Math.min(0.1, dt || 0.016));
+    const wallStepMs = (buf.lastSampleMs !== null)
+      ? Math.max(1, Math.min(100, nowMs - buf.lastSampleMs))
+      : Math.max(1, Math.min(100, (dt || 0.016) * 1000));
+    buf.lastSampleMs = nowMs;
+    const safeDt = Math.max(0.001, Math.min(0.1, wallStepMs * 0.001));
     const targetRT = nowMs - buf.delayMs;
-    if (buf.renderT === null || Math.abs(targetRT - buf.renderT) > 420) {
+    if (buf.renderT === null || Math.abs(targetRT - buf.renderT) > 750) {
       if (buf.renderT !== null && buf.hasOut) buf._reconcile = true;
       else { buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0; buf._reconcile = false; }
       buf.renderT = targetRT;
     } else {
       const drift = targetRT - buf.renderT;
-      const rate = 1 + Math.max(-0.08, Math.min(0.08, drift * 0.002));
-      buf.renderT += safeDt * 1000 * rate;
+      const rate = 1 + Math.max(-0.14, Math.min(0.14, drift * 0.0025));
+      buf.renderT += wallStepMs * rate;
     }
     while (snaps.length > 2 && snaps[1].t <= buf.renderT) snaps.shift();
 
@@ -504,31 +534,38 @@
     } else {
       const last = snaps[n - 1];
       const ly = getY(last);
-      const overSec = Math.max(0, Math.min(0.22, (buf.renderT - last.t) / 1000));
-      const damp = Math.exp(-7.5 * overSec);
-      const coastSec = (1 - damp) / 7.5;
-      rawX = last.x + last.vx * coastSec;
-      rawY = ly + last.vy * coastSec * 0.45;
-      rawZ = last.z + last.vz * coastSec;
-      vx = last.vx * damp;
-      vy = last.vy * damp * 0.45;
-      vz = last.vz * damp;
+      const overSec = Math.max(0, Math.min(0.45, (buf.renderT - last.t) / 1000));
+      const dampH = Math.exp(-3.2 * overSec);
+      const coastH = (1 - dampH) / 3.2;
+      const dampV = Math.exp(-6.5 * overSec);
+      const coastV = (1 - dampV) / 6.5;
+      rawX = last.x + last.vx * coastH;
+      rawY = ly + last.vy * coastV * 0.5;
+      rawZ = last.z + last.vz * coastH;
+      vx = last.vx * dampH;
+      vy = last.vy * dampV * 0.5;
+      vz = last.vz * dampH;
       yaw = last.yaw;
       pitch = last.pitch;
-      spd = last.spd * damp;
-      buf.wasCoasting = (overSec > 0.004);
+      spd = Math.max(last.spd * dampH, Math.hypot(vx, vz));
+      const coastNow = (overSec > 0.004);
+      if (coastNow && !buf.wasCoasting) buf.coastCount++;
+      buf.wasCoasting = coastNow;
     }
 
+    let _justReconciled = false;
     if (buf._reconcile && buf.hasOut) {
       buf._reconcile = false;
       const ex = buf.lastOutX - rawX, ey = buf.lastOutY - rawY, ez = buf.lastOutZ - rawZ;
       if (Math.hypot(ex, ey, ez) < teleportDist) {
         buf.corrX = ex; buf.corrY = ey; buf.corrZ = ez;
+        _justReconciled = true;
       } else {
         buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
       }
     }
-    const cDecay = Math.exp(-12.0 * safeDt);
+    const decayDt = _justReconciled ? Math.min(0.025, safeDt) : safeDt;
+    const cDecay = Math.exp(-8.5 * decayDt);
     buf.corrX *= cDecay; buf.corrY *= cDecay; buf.corrZ *= cDecay;
     if (Math.abs(buf.corrX) < 0.001) buf.corrX = 0;
     if (Math.abs(buf.corrY) < 0.001) buf.corrY = 0;
@@ -729,7 +766,12 @@
       _playerRoomSaveTimer = null;
       if (!activeRoomId || isWorldLoading) return;
       const st = serializeLocalPlayerRoomState();
-      const sig = JSON.stringify(st);
+      const sigObj = {
+        dim: st.dim, x: Math.round(st.x * 2), y: Math.round(st.y * 2), z: Math.round(st.z * 2),
+        hp: st.hp, hunger: st.hunger, xp: st.xp, level: st.level,
+        bedSpawn: st.bedSpawn, equip: st.equip, equipMeta: st.equipMeta, inventory: st.inventory
+      };
+      const sig = JSON.stringify(sigObj);
       if (!immediate && sig === _lastSavedPlayerSig) return;
       _lastSavedPlayerSig = sig;
       _saveLocalCoopPlayerBackup(activeRoomId, st);
@@ -748,7 +790,32 @@
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', () => { if (activeRoomId) schedulePlayerRoomSave(true); });
-    setInterval(() => { if (activeRoomId && isPlaying && !isWorldLoading) schedulePlayerRoomSave(false); }, 3500);
+    setInterval(() => { if (activeRoomId && isPlaying && !isWorldLoading) schedulePlayerRoomSave(false); }, 12000);
+    setInterval(() => {
+      if (activeRoomId && isPlaying && !isWorldLoading && typeof document !== 'undefined' && document.hidden && typeof player !== 'undefined' && player) {
+        const localOff = (typeof depthOffset === 'number') ? depthOffset : 0;
+        const heldId = (typeof inventory !== 'undefined' && inventory[player.selectedSlot]?.count > 0) ? inventory[player.selectedSlot].id : 0;
+        let nextSeq;
+        try { nextSeq = ++_localStateSeq; } catch (_) { nextSeq = undefined; }
+        sendCoopMsg({
+          type: 'state',
+          name: localPlayerName,
+          state: {
+            seq: nextSeq,
+            ts: Math.round(performance.now()),
+            dim: currentDimension || 'overworld',
+            x: Math.round(player.x * 100) / 100,
+            y: Math.round(player.y * 100) / 100,
+            trueY: Math.round((player.y - localOff) * 100) / 100,
+            z: Math.round(player.z * 100) / 100,
+            yaw: Math.round((player.yaw || 0) * 1000) / 1000,
+            pitch: Math.round((player.pitch || 0) * 1000) / 1000,
+            speed: 0,
+            held: heldId
+          }
+        });
+      }
+    }, 2000);
   }
 
   function broadcastChestSync(dimKey, blockId, packedSlots) {
@@ -952,24 +1019,31 @@
 
   function applyModsChunkList(mods) {
     if (!Array.isArray(mods) || !mods.length) return;
+    const prevRemote = isApplyingRemoteBlock;
+    const prevBulk = !!window._bulkRemoteModsApplying;
     isApplyingRemoteBlock = true;
-    for (const entry of mods) {
-      if (!Array.isArray(entry) || entry.length < 2) continue;
-      const k = String(entry[0]), v = Number(entry[1]) || 0;
-      worldMods.set(k, v);
-      indexWorldModKey(k, v);
-      const parsed = (typeof parseWorldModKey === 'function') ? parseWorldModKey(k) : null;
-      if (parsed) {
-        if (parsed.dim === currentDimension) setBlockWorld(parsed.mx, parsed.my + (depthOffset || 0), parsed.mz, v, false);
-      } else {
-        const c1 = k.indexOf(','), c2 = k.indexOf(',', c1 + 1);
-        if (c1 >= 0 && c2 >= 0) {
-          const mx = parseInt(k.slice(0, c1), 10), my = parseInt(k.slice(c1 + 1, c2), 10), mz = parseInt(k.slice(c2 + 1), 10);
-          setBlockWorld(mx, my + (depthOffset || 0), mz, v, false);
+    if (!isWorldLoading && mods.length > 24) window._bulkRemoteModsApplying = true;
+    try {
+      for (const entry of mods) {
+        if (!Array.isArray(entry) || entry.length < 2) continue;
+        const k = String(entry[0]), v = Number(entry[1]) || 0;
+        worldMods.set(k, v);
+        indexWorldModKey(k, v);
+        const parsed = (typeof parseWorldModKey === 'function') ? parseWorldModKey(k) : null;
+        if (parsed) {
+          if (parsed.dim === currentDimension) setBlockWorld(parsed.mx, parsed.my + (depthOffset || 0), parsed.mz, v, false);
+        } else {
+          const c1 = k.indexOf(','), c2 = k.indexOf(',', c1 + 1);
+          if (c1 >= 0 && c2 >= 0) {
+            const mx = parseInt(k.slice(0, c1), 10), my = parseInt(k.slice(c1 + 1, c2), 10), mz = parseInt(k.slice(c2 + 1), 10);
+            setBlockWorld(mx, my + (depthOffset || 0), mz, v, false);
+          }
         }
       }
+    } finally {
+      window._bulkRemoteModsApplying = prevBulk;
+      isApplyingRemoteBlock = prevRemote;
     }
-    isApplyingRemoteBlock = false;
   }
 
   const _mqttRelayStateAt = new Map();
@@ -980,12 +1054,36 @@
   }
   function _canSendP2P(conn, isEphemeral) {
     if (!conn || !conn.open) return false;
-    if (isEphemeral && conn.dataChannel && conn.dataChannel.bufferedAmount > 64000) return false;
+    if (isEphemeral && conn.dataChannel && conn.dataChannel.bufferedAmount > 16384) { _netStats.dropCong++; return false; }
     return true;
   }
-  function sendCoopMsg(obj) {
+  function _canSendFast(conn) {
+    if (!conn || !conn.open) return false;
+    if (conn.dataChannel && conn.dataChannel.bufferedAmount > 16384) { _netStats.dropCong++; return false; }
+    return true;
+  }
+  function _isFastSafePkt(obj) {
+    if (!obj) return false;
+    if (obj.type === 'state' && !obj.customSkin && !obj.equip) return true;
+    return (obj.type === 'mob_sync' && obj.full === false && Array.isArray(obj.mobs) && obj.mobs.length <= 36);
+  }
+  function _sendP2PAuto(conn, pkt, isEphemeral, useFast) {
+    if (useFast) {
+      const fc = p2pIsHost ? (p2pFastConns.get(conn._ncPeerId) || p2pFastConns.get(conn.peer)) : p2pFastConn;
+      if (_canSendFast(fc)) {
+        try { fc.send(pkt); _netStats.fastTx++; return true; } catch (_) {}
+      }
+    }
+    if (_canSendP2P(conn, isEphemeral)) {
+      try { conn.send(pkt); _netStats.relTx++; return true; } catch (_) {}
+    }
+    return false;
+  }
+  function sendCoopMsg(obj, opts = null) {
     if (!activeRoomId) return;
     const isEphemeral = (obj.type === 'state' || (obj.type === 'mob_sync' && obj.full === false));
+    const useFast = _isFastSafePkt(obj);
+    const mqttEdge = !!(opts && opts.mqttEdge);
     if (p2pIsHost) {
       const hasP2P = p2pClientConns.size > 0;
       const hasMqtt = !!(mqttRoomTopic && mqttRoomPeers.size > 0);
@@ -994,20 +1092,24 @@
       if (!hasP2P && !hasMqtt && !hasBc && !hasWs) return;
       const pkt = { ...obj, _from: localPeerId };
       if (hasP2P) {
-        for (const conn of p2pClientConns.values()) {
-          if (_canSendP2P(conn, isEphemeral)) { try { conn.send(pkt); } catch (_) {} }
-        }
+        for (const conn of p2pClientConns.values()) _sendP2PAuto(conn, pkt, isEphemeral, useFast);
       }
       if (hasMqtt) {
         const now = performance.now();
-        if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
-          if (obj.type === 'state') _lastMqttStateAt = now;
+        const isState = (obj.type === 'state');
+        const isMovingNow = isState ? !!(obj.state && obj.state.speed > 0.05) : false;
+        const stopTrans = isState && !isMovingNow && _lastMqttWasMoving;
+        const gap = now - _lastMqttStateAt;
+        if (!isState || gap >= 60 || ((mqttEdge || stopTrans) && gap >= 20)) {
+          if (isState) { _lastMqttStateAt = now; _lastMqttWasMoving = isMovingNow; }
           ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
         }
       }
       if (hasWs && (obj.type !== 'state' || activeCoopTransport === 'ws' || _countNetRemotePeers() > p2pClientConns.size)) {
-        if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
+        if (!isEphemeral || wsConn.bufferedAmount <= 16384) {
           try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+        } else if (isEphemeral) {
+          _netStats.dropCong++;
         }
       }
       if (hasBc) {
@@ -1016,18 +1118,24 @@
       return;
     }
     const pkt = { ...obj, _from: localPeerId };
-    if (activeCoopTransport === 'p2p' && _canSendP2P(p2pHostConn, isEphemeral)) {
-      try { p2pHostConn.send(pkt); return; } catch (_) {}
+    if (activeCoopTransport === 'p2p' && _sendP2PAuto(p2pHostConn, pkt, isEphemeral, useFast)) {
+      return;
     } else if (activeCoopTransport === 'mqtt' && mqttRoomTopic) {
       const now = performance.now();
-      if (obj.type !== 'state' || now - _lastMqttStateAt >= 78) {
-        if (obj.type === 'state') _lastMqttStateAt = now;
+      const isState = (obj.type === 'state');
+      const isMovingNow = isState ? !!(obj.state && obj.state.speed > 0.05) : false;
+      const stopTrans = isState && !isMovingNow && _lastMqttWasMoving;
+      const gap = now - _lastMqttStateAt;
+      if (!isState || gap >= 60 || ((mqttEdge || stopTrans) && gap >= 20)) {
+        if (isState) { _lastMqttStateAt = now; _lastMqttWasMoving = isMovingNow; }
         ncMqtt.publish(mqttRoomTopic, pkt, false, isEphemeral);
       }
       return;
     } else if (activeCoopTransport === 'ws' && wsConn && wsConn.readyState === 1) {
-      if (!isEphemeral || wsConn.bufferedAmount <= 64000) {
+      if (!isEphemeral || wsConn.bufferedAmount <= 16384) {
         try { wsConn.send(JSON.stringify(obj)); } catch (_) {}
+      } else if (isEphemeral) {
+        _netStats.dropCong++;
       }
       return;
     } else if (activeCoopTransport === 'bc' && bcChannel) {
@@ -1061,6 +1169,7 @@
       }
       if (_getP2PRoomRelays(m)) {
         const isRelEphem = (m.type === 'state');
+        const useFastRel = _isFastSafePkt(m);
         const needP2PRelay = p2pClientConns.size > (viaTransport === 'p2p' ? 1 : 0);
         const needMqttRelay = (viaTransport !== 'mqtt' && !!mqttRoomTopic && mqttRoomPeers.size > 0);
         const needWsRelay = (viaTransport !== 'ws' && m.type !== 'state' && !!wsConn && wsConn.readyState === 1);
@@ -1068,13 +1177,15 @@
           const relay = { ...m, _from: fromId, _relayBy: localPeerId };
           if (needP2PRelay) {
             for (const [cid, c] of p2pClientConns.entries()) {
-              if (cid !== senderId && _canSendP2P(c, isRelEphem)) { try { c.send(relay); } catch (_) {} }
+              if (cid !== senderId && c._ncPeerId !== fromId) _sendP2PAuto(c, relay, isRelEphem, useFastRel);
             }
           }
           if (needMqttRelay) {
             const nowR = performance.now();
             const prevR = _mqttRelayStateAt.get(fromId) || 0;
-            if (!isRelEphem || (nowR - prevR) >= 78) {
+            const isStopRel = (isRelEphem && m.state && !(m.state.speed > 0.05));
+            const minGapR = isStopRel ? 20 : 60;
+            if (!isRelEphem || (nowR - prevR) >= minGapR) {
               if (isRelEphem) _mqttRelayStateAt.set(fromId, nowR);
               ncMqtt.publish(mqttRoomTopic, relay, false, isRelEphem);
             }
@@ -1106,6 +1217,15 @@
         return;
       } else if (m.type === 'mob_hit' && typeof applyRemoteMobHit === 'function') {
         applyRemoteMobHit(m);
+        return;
+      }
+      if (m.type === 'p2p_upgrade') {
+        if (senderConn) senderConn._ncPeerId = fromId;
+        mqttRoomPeers.delete(fromId);
+        ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
+        if (senderConn && senderConn.open) {
+          try { senderConn.send({ type: 'p2p_upgrade_ok', _from: localPeerId, roomId: activeRoomId }); } catch (_) {}
+        }
         return;
       }
       if (m.type === 'p2p_hello') {
@@ -1145,7 +1265,10 @@
     if (m.type === 'skin_sync') {
       ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId || null, m.playerKey || '', m.customSkin || null);
     } else if (m.type === 'state' && m.state) {
-      const rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
+      let rp = remotePlayers.get(fromId);
+      if (!rp || m.customSkin || (m.skinId && rp.skinId !== m.skinId) || (m.name && rp.name !== m.name)) {
+        rp = ensureRemotePeer(fromId, m.name || 'Bạn Chơi', '#4ade80', false, m.skinId, m.playerKey || '', m.customSkin || null);
+      }
       applyRemotePeerState(rp, m.state, m.equip);
     } else if (m.type === 'block') {
       const bDim = m.dim || 'overworld';
@@ -1203,13 +1326,18 @@
   }
 
   function destroyP2P() {
+    if (_p2pUpgradeTimer) { clearTimeout(_p2pUpgradeTimer); _p2pUpgradeTimer = null; }
     p2pIsHost = false;
-    try { if (p2pHostConn) p2pHostConn.close(); } catch (_) {}
-    p2pHostConn = null;
+    const oldFast = p2pFastConn; p2pFastConn = null;
+    try { if (oldFast) oldFast.close(); } catch (_) {}
+    for (const c of p2pFastConns.values()) { try { c.close(); } catch (_) {} }
+    p2pFastConns.clear();
+    const oldHost = p2pHostConn; p2pHostConn = null;
+    try { if (oldHost) oldHost.close(); } catch (_) {}
     for (const c of p2pClientConns.values()) { try { c.close(); } catch (_) {} }
     p2pClientConns.clear();
-    try { if (p2pPeer) p2pPeer.destroy(); } catch (_) {}
-    p2pPeer = null;
+    const oldPeer = p2pPeer; p2pPeer = null;
+    try { if (oldPeer) oldPeer.destroy(); } catch (_) {}
   }
 
   function leaveCoopRoom() {
@@ -1535,15 +1663,20 @@
         } else if (msg.type === 'peer_state' && msg.state) {
           if (!activeRoomId || (!p2pIsHost && activeCoopTransport !== 'ws')) return;
           if (msg.peerId === wsSelfPeerId || msg.peerId === localPeerId) return;
-          const rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '', msg.customSkin || null);
+          let rp = remotePlayers.get(msg.peerId);
+          if (!rp || msg.customSkin || (msg.skinId && rp.skinId !== msg.skinId) || (msg.name && rp.name !== msg.name)) {
+            rp = ensureRemotePeer(msg.peerId, msg.name, msg.color || '#f472b6', false, msg.skinId || null, msg.playerKey || '', msg.customSkin || null);
+          }
           applyRemotePeerState(rp, msg.state, msg.equip);
           if (p2pIsHost) {
             const relay = { type: 'state', _from: msg.peerId, _relayBy: localPeerId, name: msg.name, skinId: msg.skinId || null, equip: msg.equip || null, state: msg.state };
-            for (const c of p2pClientConns.values()) if (_canSendP2P(c, true)) { try { c.send(relay); } catch (_) {} }
+            const fastOk = _isFastSafePkt(relay);
+            for (const c of p2pClientConns.values()) _sendP2PAuto(c, relay, true, fastOk);
             if (mqttRoomTopic && mqttRoomPeers.size > 0) {
               const nowR = performance.now();
               const prevR = _mqttRelayStateAt.get(msg.peerId) || 0;
-              if ((nowR - prevR) >= 78) {
+              const minGapR = !(msg.state.speed > 0.05) ? 20 : 60;
+              if ((nowR - prevR) >= minGapR) {
                 _mqttRelayStateAt.set(msg.peerId, nowR);
                 ncMqtt.publish(mqttRoomTopic, relay, false, true);
               }
@@ -1687,20 +1820,39 @@
           }
         });
         p2pPeer.on('connection', (conn) => {
+          if (conn.label === 'nc-fast') {
+            p2pFastConns.set(conn.peer, conn);
+            const dropFast = () => {
+              if (p2pFastConns.get(conn.peer) === conn) p2pFastConns.delete(conn.peer);
+              if (conn._ncPeerId && p2pFastConns.get(conn._ncPeerId) === conn) p2pFastConns.delete(conn._ncPeerId);
+            };
+            conn.on('data', (d) => {
+              if (d && d.type === 'p2p_fast_hello' && d._from) {
+                conn._ncPeerId = d._from;
+                p2pFastConns.set(d._from, conn);
+                return;
+              }
+              _netStats.fastRx++;
+              handleIncomingP2PData(conn._ncPeerId || conn.peer, d, conn, 'p2p');
+            });
+            conn.on('close', dropFast);
+            conn.on('error', dropFast);
+            return;
+          }
           p2pClientConns.set(conn.peer, conn);
           conn.on('data', (d) => handleIncomingP2PData(conn.peer, d, conn, 'p2p'));
-          conn.on('close', () => {
+          const onRelGone = () => {
             p2pClientConns.delete(conn.peer);
             const leftId = conn._ncPeerId || conn.peer;
+            const fc = p2pFastConns.get(leftId) || p2pFastConns.get(conn.peer);
+            if (fc) { try { fc.close(); } catch (_) {} }
+            p2pFastConns.delete(leftId);
+            p2pFastConns.delete(conn.peer);
             removeRemotePeer(leftId);
             if (p2pIsHost) sendCoopMsg({ type: 'peer_leave', peerId: leftId });
-          });
-          conn.on('error', () => {
-            p2pClientConns.delete(conn.peer);
-            const leftId = conn._ncPeerId || conn.peer;
-            removeRemotePeer(leftId);
-            if (p2pIsHost) sendCoopMsg({ type: 'peer_leave', peerId: leftId });
-          });
+          };
+          conn.on('close', onRelGone);
+          conn.on('error', onRelGone);
         });
         p2pPeer.on('error', () => {
           showToast(`🌐 Đã mở Phòng Relay/LAN • Mã Phòng: ${id}`);
@@ -1773,6 +1925,29 @@
       if (guestMqttUnsub) { try { guestMqttUnsub(); } catch (_) {} guestMqttUnsub = null; }
     };
 
+    const openGuestFastChannel = (targetRoomId) => {
+      if (!p2pPeer || p2pPeer.destroyed || !targetRoomId) return;
+      if (p2pFastConn && p2pFastConn.open) return;
+      try { if (p2pFastConn) p2pFastConn.close(); } catch (_) {}
+      try {
+        const fc = p2pPeer.connect(P2P_PREFIX + targetRoomId, { reliable: false, serialization: 'json', label: 'nc-fast' });
+        p2pFastConn = fc;
+        fc.on('open', () => {
+          if (fc !== p2pFastConn) { try { fc.close(); } catch (_) {} return; }
+          try { fc.send({ type: 'p2p_fast_hello', _from: localPeerId }); } catch (_) {}
+        });
+        fc.on('data', (d) => {
+          if (joinedOk && activeCoopTransport === 'p2p') {
+            _netStats.fastRx++;
+            handleIncomingP2PData(fc.peer, d, fc, 'p2p');
+          }
+        });
+        const clearFc = () => { if (p2pFastConn === fc) p2pFastConn = null; };
+        fc.on('close', clearFc);
+        fc.on('error', clearFc);
+      } catch (_) {}
+    };
+
     const completeJoinOnce = (transport, rId, world, mods, peers, srvDayTime, extra = {}) => {
       if (joinedOk || closedOut) return;
       joinedOk = true;
@@ -1788,7 +1963,17 @@
         mqttRoomUnsub = guestMqttUnsub;
         mqttRoomTopic = topic;
       }
-      if (transport !== 'p2p') {
+      if (transport === 'p2p') {
+        openGuestFastChannel(rId || roomId);
+      } else if (transport === 'mqtt') {
+        if (p2pPeer && !p2pPeer.destroyed) {
+          if (_p2pUpgradeTimer) clearTimeout(_p2pUpgradeTimer);
+          _p2pUpgradeTimer = setTimeout(() => {
+            _p2pUpgradeTimer = null;
+            if (activeCoopTransport !== 'p2p') destroyP2P();
+          }, 12000);
+        }
+      } else {
         destroyP2P();
       }
       if (transport !== 'ws' && wsConn && wsConn.readyState === 1) {
@@ -1819,12 +2004,12 @@
       if (remoteDelayTimer) { clearTimeout(remoteDelayTimer); remoteDelayTimer = null; }
       window._triggerRemoteJoinNow = null;
 
-      // 1) Internet WSS MQTT Relay (delayed 1100ms so direct WebRTC P2P wins first on broadband/Wi-Fi)
+      // 1) Internet WSS MQTT Relay (delayed 2000ms so direct WebRTC P2P wins first on broadband/Wi-Fi)
       let mqttHelloStarted = false;
       guestMqttUnsub = ncMqtt.subscribe(topic, (m) => {
         if (!m || m._from === localPeerId || m._relayBy === localPeerId) return;
         if (m._to && m._to !== localPeerId) return;
-    if (m._exclude && m._exclude === localPeerId) return;
+        if (m._exclude && m._exclude === localPeerId) return;
         if (m.type === 'p2p_welcome') {
           completeJoinOnce('mqtt', m.roomId || roomId, m.world, m.mods || [], m.peers || [], m.dayTime, { hostId: m.hostId, chests: m.chests, consumedChests: m.consumedChests, drops: m.drops, mobs: m.mobs, savedPlayer: m.savedPlayer });
           return;
@@ -1848,7 +2033,7 @@
         if (helloTimer) clearInterval(helloTimer);
         helloTimer = setInterval(sendMqttHello, 2500);
       };
-      mqttDelayTimer = setTimeout(startMqttHelloLoop, 1100);
+      mqttDelayTimer = setTimeout(startMqttHelloLoop, 2000);
 
       // 2) WebRTC P2P via PeerJS
       ensurePeerJsLoaded((ok) => {
@@ -1871,7 +2056,20 @@
               conn.on('open', () => {
                 opened = true;
                 if (p2pRetryTimer) { clearTimeout(p2pRetryTimer); p2pRetryTimer = null; }
-                if (joinedOk || closedOut) { try { conn.close(); } catch (_) {} return; }
+                if (closedOut) { try { conn.close(); } catch (_) {} return; }
+                if (joinedOk) {
+                  if (activeRoomId === roomId && activeCoopTransport === 'mqtt') {
+                    try {
+                      conn.send({
+                        type: 'p2p_upgrade', _from: localPeerId, playerKey: getLocalPlayerSaveKey(),
+                        name: localPlayerName, skinId: selectedSkinId
+                      });
+                    } catch (_) {}
+                  } else {
+                    try { conn.close(); } catch (_) {}
+                  }
+                  return;
+                }
                 setCoopStatus(`🤝 Đã nối tới phòng <b>${escHtml(roomId)}</b>, đang tải dữ liệu thế giới...`, 'ok');
                 const curS = inventory[player.selectedSlot];
                 conn.send({
@@ -1881,6 +2079,16 @@
                 });
               });
               conn.on('data', (d) => {
+                if (d && d.type === 'p2p_upgrade_ok' && joinedOk && activeRoomId === roomId && activeCoopTransport === 'mqtt') {
+                  if (_p2pUpgradeTimer) { clearTimeout(_p2pUpgradeTimer); _p2pUpgradeTimer = null; }
+                  if (mqttRoomUnsub) { try { mqttRoomUnsub(); } catch (_) {} mqttRoomUnsub = null; }
+                  guestMqttUnsub = null;
+                  mqttRoomTopic = null;
+                  activeCoopTransport = 'p2p';
+                  _netStats.upgrades++;
+                  openGuestFastChannel(roomId);
+                  return;
+                }
                 if (d && d.type === 'p2p_welcome') {
                   completeJoinOnce('p2p', d.roomId || roomId, d.world, d.mods || [], d.peers || [], d.dayTime, { hostId: d.hostId, chests: d.chests, consumedChests: d.consumedChests, drops: d.drops, mobs: d.mobs, savedPlayer: d.savedPlayer });
                   return;
@@ -1888,10 +2096,20 @@
                 if (joinedOk && activeCoopTransport === 'p2p') handleIncomingP2PData(conn.peer, d, conn, 'p2p');
               });
               conn.on('close', () => {
-                if (joinedOk && activeCoopTransport === 'p2p' && conn === p2pHostConn) {
-                  activeRoomId = null;
-                  activeCoopTransport = null;
-                  updateRoomBadgeUI();
+                if (joinedOk && activeCoopTransport === 'p2p' && conn === p2pHostConn && activeRoomId === roomId) {
+                  try { if (p2pFastConn) p2pFastConn.close(); } catch (_) {}
+                  p2pFastConn = null;
+                  p2pHostConn = null;
+                  mqttRoomTopic = topic;
+                  if (mqttRoomUnsub) { try { mqttRoomUnsub(); } catch (_) {} }
+                  mqttRoomUnsub = ncMqtt.subscribe(topic, (m) => {
+                    if (!m || m._from === localPeerId || m._relayBy === localPeerId) return;
+                    if (m._to && m._to !== localPeerId) return;
+                    if (m._exclude && m._exclude === localPeerId) return;
+                    if (activeCoopTransport === 'mqtt') handleIncomingP2PData(m._from, m, null, 'mqtt');
+                  });
+                  activeCoopTransport = 'mqtt';
+                  if (typeof showToast === 'function') showToast('🌐 P2P gián đoạn — đã tự chuyển sang Internet Relay giữ kết nối!');
                 }
               });
             };
@@ -2461,7 +2679,8 @@
     } else {
       ncMqtt.publish(`${MQTT_NS}/friend/${key}/msg`, { ...payload, toKey: key }, false);
     }
-    if (friendNetworkPeer && !friendNetworkPeer.destroyed) {
+    const skipCoopFriendP2P = !!(activeRoomId && isPlaying && payload && (payload.type === 'friend_ping' || payload.type === 'friend_pong' || payload.type === 'friend_world_status'));
+    if (!skipCoopFriendP2P && friendNetworkPeer && !friendNetworkPeer.destroyed) {
       if (friendNetworkPeer.disconnected) { try { friendNetworkPeer.reconnect(); } catch (_) {} }
       try {
         const conn = friendNetworkPeer.connect(FRIEND_PEER_PREFIX + key, { reliable: true, serialization: 'json' });

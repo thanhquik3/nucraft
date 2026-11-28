@@ -123,10 +123,11 @@ function sendJson(peer, obj) {
   try { peer.socket.write(encodeWsFrame(JSON.stringify(obj))); } catch (_) {}
 }
 
-function broadcastRoom(room, obj, exceptPeerId = null) {
+function broadcastRoom(room, obj, exceptPeerId = null, isEphemeral = false) {
   const buf = encodeWsFrame(JSON.stringify(obj));
   for (const [pid, p] of room.peers.entries()) {
     if (pid === exceptPeerId || !p.socket || p.socket.destroyed) continue;
+    if (isEphemeral && p.socket.writableLength > 32768) continue;
     try { p.socket.write(buf); } catch (_) {}
   }
 }
@@ -468,7 +469,7 @@ function handleMessage(peer, msg) {
     if (typeof msg.dayTime === 'number') room.dayTime = msg.dayTime;
     const out = { type: 'peer_state', peerId: peer.id, name: peer.name, color: peer.color, skinId: peer.skinId || null, state: peer.state };
     if (msg.equip) out.equip = msg.equip;
-    broadcastRoom(room, out, peer.id);
+    broadcastRoom(room, out, peer.id, true);
   } else if (msg.type === 'block' && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
@@ -589,7 +590,7 @@ function handleMessage(peer, msg) {
     if (typeof msg.seq === 'number') outPkt.seq = msg.seq;
     if (typeof msg.ts === 'number') outPkt.ts = msg.ts;
     if (Array.isArray(msg.rm) && msg.rm.length) outPkt.rm = msg.rm;
-    broadcastRoom(room, outPkt, peer.id);
+    broadcastRoom(room, outPkt, peer.id, !isFull);
   } else if ((msg.type === 'mob_hit' || msg.type === 'mob_action' || msg.type === 'mob_remove') && peer.roomId) {
     const room = rooms.get(peer.roomId);
     if (!room) return;
