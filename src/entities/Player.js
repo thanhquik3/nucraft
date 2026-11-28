@@ -2447,8 +2447,15 @@
         droppedItems[i] = droppedItems[droppedItems.length - 1]; droppedItems.pop();
         continue;
       }
-      const isSettled = it.onGround && !it._wasEncased && Math.abs(it.vx) < 0.005 && Math.abs(it.vz) < 0.005;
-      if (!isSettled || ((frameCounter + i) % 6) === 0) {
+      const pDelay = it.pickupDelay !== undefined ? it.pickupDelay : 0.35;
+      const dx = player.x - it.x, dy = (player.y + 0.85) - (it.y + 0.48), dz = player.z - it.z;
+      const dist2 = dx * dx + dy * dy + dz * dz;
+      const nowDropMs = performance.now();
+      const canTryPickup = !it._pickupHoldUntil || nowDropMs >= it._pickupHoldUntil;
+      const wantMag = !player.dead && canTryPickup && it.age >= pDelay && dist2 < 6.25 && canFitItemInInventory(it.id, it);
+      const isSettled = it.onGround && !it._wasEncased && !it._magActive && Math.abs(it.vx) < 0.005 && Math.abs(it.vz) < 0.005;
+      if (!wantMag) { it._magActive = false; it._magTime = 0; }
+      if ((!isSettled || ((frameCounter + i) % 6) === 0) && !it._magActive) {
         const curBx = Math.floor(it.x), curBy = Math.floor(it.y + 0.16), curBz = Math.floor(it.z);
         if (isSolidAt(curBx, curBy, curBz)) {
           // Minecraft Item Elevator: push items buried inside a newly placed block smoothly upward to hover on top!
@@ -2559,21 +2566,20 @@
         }
       }
 
-      const pDelay = it.pickupDelay !== undefined ? it.pickupDelay : 0.35;
-      const dx = player.x - it.x, dy = (player.y + 0.85) - (it.y + 0.48), dz = player.z - it.z;
-      const dist2 = dx * dx + dy * dy + dz * dz;
-      const canTryPickup = !it._pickupHoldUntil || performance.now() >= it._pickupHoldUntil;
-      if (!player.dead && canTryPickup && it.age >= pDelay && dist2 < 5.76 && canFitItemInInventory(it.id, it)) {
+      if (wantMag) {
         const dist = Math.sqrt(dist2);
         const midY = Math.floor((player.y + 0.85 + it.y + 0.35) * 0.5);
-        const midBlocked = dist >= 1.15 && isSolidAt(Math.floor((player.x + it.x) * 0.5), midY, Math.floor((player.z + it.z) * 0.5));
+        const midBlocked = !it._magActive && dist >= 1.35 && isSolidAt(Math.floor((player.x + it.x) * 0.5), midY, Math.floor((player.z + it.z) * 0.5));
         if (!midBlocked) {
-          const pullFrac = Math.min(1.0, (10.5 + (2.2 - Math.min(2.2, dist)) * 7.0) * dt / Math.max(0.06, dist));
+          it._magActive = true;
+          it._magTime = (it._magTime || 0) + dt;
+          const pullSpd = 12.5 + (2.5 - Math.min(2.5, dist)) * 8.5 + it._magTime * 14.0;
+          const pullFrac = Math.min(1.0, (pullSpd * dt) / Math.max(0.05, dist));
           it.vx = 0; it.vy = 0; it.vz = 0; it.onGround = false;
           it.x += dx * pullFrac; it.y += dy * pullFrac; it.z += dz * pullFrac;
           it.rx = it.x; it.ry = it.y; it.rz = it.z;
           const postDist = Math.hypot(player.x - it.x, (player.y + 0.85) - (it.y + 0.48), player.z - it.z);
-          if (postDist < 0.85) {
+          if (postDist < 1.05 || it._magTime >= 0.42) {
             if (activeRoomId && typeof requestNetworkDropPickup === 'function') {
               requestNetworkDropPickup(it);
               if (droppedItems[i] !== it) continue;
@@ -2587,7 +2593,8 @@
                 continue;
               }
               if (added > 0) it.count = Math.max(1, wantQ - added);
-              it._pickupHoldUntil = performance.now() + 700;
+              it._magActive = false; it._magTime = 0;
+              it._pickupHoldUntil = nowDropMs + 700;
             }
           }
         }

@@ -720,9 +720,9 @@ pub extern "C" fn interp_net_entities(count: u32, dt: f32, max_snap_dist: f32) -
     } else {
         dt
     };
-    // Fast smooth exponential decay approximation: 1 - exp(-rate * dt)
-    let pos_t = 1.0 - (-18.0 * safe_dt).exp();
-    let rot_t = 1.0 - (-22.0 * safe_dt).exp();
+    // Critically-smooth frame-rate-independent exponential convergence (zero velocity-lead overshoot/rubberbanding)
+    let pos_t = 1.0 - (-24.0 * safe_dt).exp();
+    let rot_t = 1.0 - (-28.0 * safe_dt).exp();
     let max_d2 = max_snap_dist * max_snap_dist;
     let mut i: usize = 0;
     while i < n {
@@ -738,8 +738,8 @@ pub extern "C" fn interp_net_entities(count: u32, dt: f32, max_snap_dist: f32) -
             let tz = *buf.add(base + 7);
             let tyaw = *buf.add(base + 8);
             let tpitch = *buf.add(base + 9);
-            let vx = *buf.add(base + 10);
-            let vz = *buf.add(base + 11);
+            let _vx = *buf.add(base + 10);
+            let _vz = *buf.add(base + 11);
 
             let dx = tx - x;
             let dy = ty - y;
@@ -751,13 +751,16 @@ pub extern "C" fn interp_net_entities(count: u32, dt: f32, max_snap_dist: f32) -
                 *buf.add(base + 2) = tz;
                 *buf.add(base + 3) = tyaw;
                 *buf.add(base + 4) = tpitch;
+            } else if d2 < 1e-6 {
+                *buf.add(base) = tx;
+                *buf.add(base + 1) = ty;
+                *buf.add(base + 2) = tz;
+                *buf.add(base + 3) = wrap_pi_f32(yaw + wrap_pi_f32(tyaw - yaw) * rot_t);
+                *buf.add(base + 4) = pitch + (tpitch - pitch) * rot_t;
             } else {
-                // Micro velocity lead clamped to <= 0.12 block for silky jitter-free MP tracking
-                let lead_x = (vx * 0.025).clamp(-0.12, 0.12);
-                let lead_z = (vz * 0.025).clamp(-0.12, 0.12);
-                *buf.add(base) = x + (dx + lead_x) * pos_t;
+                *buf.add(base) = x + dx * pos_t;
                 *buf.add(base + 1) = y + dy * pos_t;
-                *buf.add(base + 2) = z + (dz + lead_z) * pos_t;
+                *buf.add(base + 2) = z + dz * pos_t;
                 *buf.add(base + 3) = wrap_pi_f32(yaw + wrap_pi_f32(tyaw - yaw) * rot_t);
                 *buf.add(base + 4) = pitch + (tpitch - pitch) * rot_t;
             }
@@ -765,6 +768,110 @@ pub extern "C" fn interp_net_entities(count: u32, dt: f32, max_snap_dist: f32) -
         i += 1;
     }
     n as u32
+}
+
+// ===== ABI v7: Batch Nearest-Player Mob Targeting & O(M^2) Crowd Separation in Rust WASM =====
+pub const MAX_MOB_AI: usize = 128;
+pub const MAX_PLAYERS_AI: usize = 16;
+static mut MOB_AI_IN: [f32; MAX_MOB_AI * 4] = [0.0; MAX_MOB_AI * 4]; // [x, y, z, hitbox_r (<0 skips ground sep)]
+static mut PLAYER_POS_IN: [f32; MAX_PLAYERS_AI * 3] = [0.0; MAX_PLAYERS_AI * 3]; // [px, py, pz]
+static mut MOB_AI_OUT: [f32; MAX_MOB_AI * 4] = [0.0; MAX_MOB_AI * 4]; // [nearest_p_idx, nearest_d2_3d, sep_x, sep_z]
+
+#[no_mangle]
+pub extern "C" fn mob_ai_in_ptr() -> *mut f32 {
+    addr_of_mut!(MOB_AI_IN) as *mut f32
+}
+
+#[no_mangle]
+pub extern "C" fn player_pos_in_ptr() -> *mut f32 {
+    addr_of_mut!(PLAYER_POS_IN) as *mut f32
+}
+
+#[no_mangle]
+pub extern "C" fn mob_ai_out_ptr() -> *const f32 {
+    addr_of!(MOB_AI_OUT) as *const f32
+}
+
+/// Computes strictly nearest alive player (no hard target lock) AND soft crowd separation for up to 128 mobs in one zero-GC pass.
+#[no_mangle]
+pub extern "C" fn solve_mob_targets_and_sep(mob_count: u32, player_count: u32, do_sep: u32) -> u32 {
+    let m_n = (mob_count as usize).min(MAX_MOB_AI);
+    let p_n = (player_count as usize).min(MAX_PLAYERS_AI);
+    if m_n == 0 {
+        return 0;
+    }
+    let m_in = addr_of!(MOB_AI_IN) as *const f32;
+    let p_in = addr_of!(PLAYER_POS_IN) as *const f32;
+    let m_out = addr_of_mut!(MOB_AI_OUT) as *mut f32;
+    let run_sep = do_sep != 0 && m_n <= 64;
+
+    let mut i: usize = 0;
+    while i < m_n {
+        let mb = i * 4;
+        unsafe {
+            let mx = *m_in.add(mb);
+            let my = *m_in.add(mb + 1);
+            let mz = *m_in.add(mb + 2);
+            let mr = *m_in.add(mb + 3);
+
+            // 1) Nearest alive player across all players in same dimension
+            let mut best_p: i32 = -1;
+            let mut best_d2: f32 = 1.0e18;
+            let mut pi: usize = 0;
+            while pi < p_n {
+                let pb = pi * 3;
+                let dx = *p_in.add(pb) - mx;
+                let dy = *p_in.add(pb + 1) - my;
+                let dz = *p_in.add(pb + 2) - mz;
+                let d2 = dx * dx + dy * dy + dz * dz;
+                if d2 < best_d2 {
+                    best_d2 = d2;
+                    best_p = pi as i32;
+                }
+                pi += 1;
+            }
+
+            // 2) Soft horizontal crowd separation for ground mobs (mr > 0)
+            let mut sep_x: f32 = 0.0;
+            let mut sep_z: f32 = 0.0;
+            if run_sep && mr > 0.0 {
+                let min_crowd = if mr * 1.9 > 0.72 { mr * 1.9 } else { 0.72 };
+                let min_crowd2 = min_crowd * min_crowd;
+                let mut j: usize = 0;
+                while j < m_n {
+                    if j != i {
+                        let ob = j * 4;
+                        let orad = *m_in.add(ob + 3);
+                        if orad > 0.0 {
+                            let oy = *m_in.add(ob + 1);
+                            let dy_o = my - oy;
+                            if dy_o > -1.4 && dy_o < 1.4 {
+                                let sdx = mx - *m_in.add(ob);
+                                let sdz = mz - *m_in.add(ob + 2);
+                                if sdx > -min_crowd && sdx < min_crowd && sdz > -min_crowd && sdz < min_crowd {
+                                    let sd2 = sdx * sdx + sdz * sdz;
+                                    if sd2 > 0.0004 && sd2 < min_crowd2 {
+                                        let sd = sd2.sqrt();
+                                        let push = ((min_crowd - sd) / min_crowd) * 1.55 / sd;
+                                        sep_x += sdx * push;
+                                        sep_z += sdz * push;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    j += 1;
+                }
+            }
+
+            *m_out.add(mb) = best_p as f32;
+            *m_out.add(mb + 1) = best_d2;
+            *m_out.add(mb + 2) = sep_x;
+            *m_out.add(mb + 3) = sep_z;
+        }
+        i += 1;
+    }
+    m_n as u32
 }
 
 /// Zero-bleed per-tile 2x2 alpha-weighted box filter downsampler for crisp Minecraft mipmaps.

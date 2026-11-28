@@ -1961,14 +1961,15 @@
     const _runPreviewThisFrame = (_previewAcc >= 0.016);
     if (_runPreviewThisFrame) _previewAcc = 0;
     if (worldSimActive) {
+      const moveDt = Math.min(0.05, rawDt);
       if (_runAiSynth) {
-        updatePlayer(dt);
+        updatePlayer(moveDt);
         _refreshCamFrustum();
         _fgMobDtAcc += dt;
       } else {
         const mobDt = Math.min(0.08, dt + _fgMobDtAcc);
         _fgMobDtAcc = 0;
-        updatePlayer(dt);
+        updatePlayer(moveDt);
         _refreshCamFrustum();
         updateMining(mobDt); tickFluids(mobDt); tickIncubatingEggs(mobDt); updateDragonUiControls(mobDt); updateMobs(mobDt, elapsed);
         updateProjectilesAndTnt(mobDt); updateDroppedItems(mobDt); updateXpOrbs(mobDt); updateParticles(mobDt);
@@ -2015,7 +2016,7 @@
       }
     }
     if (!isPlaying && !invDrag.active && _runPreviewThisFrame && _elInvModal && !_elInvModal.classList.contains('hidden') && invPreviewRig && invPreviewRenderer && invPreviewScene && invPreviewCam) {
-      if (!_isMobilePerf || (frameCounter & 3) === 0) {
+      if ((frameCounter % (_isMobilePerf ? 5 : 3)) === 0) {
         const _invSel = inventory[player.selectedSlot];
         animatePlayerRig(invPreviewRig, { speed: 0, onGround: true, heldId: (_invSel && _invSel.count > 0) ? _invSel.id : 0 }, dt, elapsed);
         invPreviewRig.g.rotation.y = invPreviewRotY;

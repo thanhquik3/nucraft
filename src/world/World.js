@@ -3482,7 +3482,15 @@
       placeLuantiTree(data, 8, streetY + 1, 8, wx0 + 8, wz0 + 8, 'willow');
       setLocalSafe(data, 10, streetY + 1, 10, B.ANVIL, true);
       setLocalSafe(data, 5, streetY + 1, 10, B.CHEST, true);
-      maxLy = Math.min(WORLD_H - 1, (streetY + 14) - MIN_Y);
+      maxLy = Math.min(WORLD_H - 1, (streetY + 22) - MIN_Y);
+    }
+    // Guarantee maxLy covers every placed city ruin tree & upper floor so nothing clips invisible
+    const cityScanTop = Math.min(WORLD_H - 1, Math.max(maxLy, 118));
+    for (let ly = cityScanTop; ly > maxLy; ly--) {
+      const base = ly << 8;
+      let any = false;
+      for (let k = 0; k < 256; k++) { if (data[base | k] !== 0) { any = true; break; } }
+      if (any) { maxLy = ly; break; }
     }
     const chCity = { cx, cz, data, maxLy, skyscraperSpec, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
     registerChunk(chunkKey(cx, cz), chCity);
@@ -3954,9 +3962,19 @@
 
     for (let ti = 0; ti < pendingTrees.length; ti++) {
       const tr = pendingTrees[ti];
-      if (tr.lx >= 2 && tr.lx <= 13 && tr.lz >= 2 && tr.lz <= 13) {
-        placeLuantiTree(data, tr.lx, tr.wy, tr.lz, tr.wx, tr.wz, tr.style);
-      }
+      const clx = Math.max(2, Math.min(13, tr.lx | 0));
+      const clz = Math.max(2, Math.min(13, tr.lz | 0));
+      placeLuantiTree(data, clx, tr.wy, clz, tr.wx, tr.wz, tr.style);
+      const estTopLy = Math.min(WORLD_H - 1, (tr.wy + 26) - MIN_Y);
+      if (estTopLy > maxLy) maxLy = estTopLy;
+    }
+    // Guarantee maxLy covers every placed ruin wall, arch, tower, and tree canopy (fixes invisible ruin trees/structures!)
+    const scanTopLy = Math.min(WORLD_H - 1, Math.max(maxLy, 118));
+    for (let ly = scanTopLy; ly > maxLy; ly--) {
+      const base = ly << 8;
+      let any = false;
+      for (let k = 0; k < 256; k++) { if (data[base | k] !== 0) { any = true; break; } }
+      if (any) { maxLy = ly; break; }
     }
     maxLy = applyChunkMods(cx, cz, data, Math.min(WORLD_H - 1, maxLy));
     const chGr = { cx, cz, data, maxLy, mesh: null, leavesMesh: null, leavesCrossMesh: null, emissiveMesh: null, waterMesh: null, lavaMesh: null, plantMesh: null, dirty: true, urgentDirty: false, borderDirty: false, meshed: false, _emitDirty: true };
@@ -8982,18 +9000,43 @@
   function getStrongholdLocations() {
     const s = (typeof worldSeed === 'number' ? worldSeed : 1337);
     if (_shLocCache && _shLocSeed === s) return _shLocCache;
-    // Authentic Minecraft Stronghold ring around spawn (3 underground Strongholds with 12-frame End Portals) + Grand Ruins End Shrine
-    const out = [{ x: GRAND_RUINS_CX, y: GRAND_RUINS_PORTAL_Y, z: GRAND_RUINS_CZ, inGrandRuins: true }];
+    // Underground End Portal Strongholds: ALWAYS buried deep beneath solid dry land (NEVER in the middle of the ocean!)
+    const out = [];
+    const sp = (typeof getSpawnContinentAnchor === 'function') ? getSpawnContinentAnchor(s) : { x: 0, z: 0 };
+    const isSolidLandStrongholdSpot = (tx, tz) => {
+      if (typeof getOceanMacro === 'function') {
+        if (getOceanMacro(tx, tz).isOcean) return null;
+        if (getOceanMacro(tx + 24, tz).isOcean || getOceanMacro(tx - 24, tz).isOcean || getOceanMacro(tx, tz + 24).isOcean || getOceanMacro(tx, tz - 24).isOcean) return null;
+      }
+      const bio = (typeof getBiomeAt === 'function') ? getBiomeAt(tx, tz) : null;
+      if (bio && (bio === BIOMES.DEEP_OCEAN || bio === BIOMES.ABYSS_TRENCH || bio === BIOMES.BEACH_PALM || bio === BIOMES.TROPICAL_COAST || bio === BIOMES.SWAMP || bio === BIOMES.MANGROVE_SWAMP)) return null;
+      const surfH = (typeof getTerrainHeight === 'function' && bio) ? getTerrainHeight(tx, tz, bio) : 12;
+      if (surfH < WATER_LEVEL + 4) return null;
+      return surfH;
+    };
     const baseAng = hash2i(s & 1023, (s >> 10) & 1023, s + 9137) * Math.PI * 2;
     for (let i = 0; i < 3; i++) {
-      const ang = baseAng + i * (Math.PI * 2 / 3) + (hash2i(i * 19 + 7, s & 511, s + 3313) - 0.5) * 0.45;
-      const rad = 460 + hash2i(i * 31 + 3, (s >> 4) & 511, s + 7727) * 220;
-      out.push({
-        x: Math.round(Math.cos(ang) * rad),
-        y: -26,
-        z: Math.round(Math.sin(ang) * rad),
-        inGrandRuins: false
-      });
+      const sectorAng = baseAng + i * (Math.PI * 2 / 3);
+      let chosen = null;
+      // Search concentric dry-land rings around spawn continent first so Strongholds are guaranteed underground on solid land
+      for (let attempt = 0; attempt < 28 && !chosen; attempt++) {
+        const angOff = ((attempt % 7) - 3) * 0.14 + (hash2i(i * 19 + attempt, s & 511, s + 3313) - 0.5) * 0.12;
+        const rad = 240 + Math.floor(attempt / 7) * 75 + hash2i(i * 31 + attempt, (s >> 4) & 511, s + 7727) * 65;
+        const cx = Math.round(sp.x + Math.cos(sectorAng + angOff) * rad);
+        const cz = Math.round(sp.z + Math.sin(sectorAng + angOff) * rad);
+        const surfH = isSolidLandStrongholdSpot(cx, cz);
+        if (surfH !== null) {
+          const buriedY = Math.max(MIN_Y + 10, Math.min(-18, Math.floor(surfH) - 26));
+          chosen = { x: cx, y: buriedY, z: cz, surfY: Math.floor(surfH), inGrandRuins: false };
+        }
+      }
+      if (!chosen) {
+        // Safe land fallback inside spawn continent (guaranteed dry land!)
+        const fbX = Math.round(sp.x + Math.cos(sectorAng) * 180);
+        const fbZ = Math.round(sp.z + Math.sin(sectorAng) * 180);
+        chosen = { x: fbX, y: -24, z: fbZ, surfY: 12, inGrandRuins: false };
+      }
+      out.push(chosen);
     }
     _shLocSeed = s; _shLocCache = out;
     return out;
@@ -9159,14 +9202,15 @@
             put(lx, wy, lz, bid);
           }
 
-          // 7) Ruined Vertical Watchtower Entry Shaft above South Gatehouse (rz 13..15, rx -2..2) so players digging down enter the castle!
+          // 7) Underground Entry Stairwell Chamber above South Gatehouse — strictly buried beneath surfY - 4 so Strongholds NEVER poke into oceans or surface!
           if (inSouthWing && ax <= 2 && rz >= 12 && rz <= 16) {
-            for (let sy = topRy + 1; sy <= topRy + 8; sy++) {
+            const maxShaftSy = Math.max(topRy + 1, Math.min(topRy + 6, ((typeof sh.surfY === 'number' ? sh.surfY : 10) - 4) - sh.y));
+            for (let sy = topRy + 1; sy <= maxShaftSy; sy++) {
               const wy = baseY + sy;
               if (wy <= MIN_Y + 1 || wy >= MAX_Y - 2) continue;
-              const isShaftWall = (ax === 2 || rz === 12 || rz === 16);
+              const isShaftWall = (ax === 2 || rz === 12 || rz === 16 || sy === maxShaftSy);
               if (isShaftWall) {
-                put(lx, wy, lz, ruinBrick(wx, sh.y + sy, wz));
+                put(lx, wy, lz, sy === maxShaftSy ? B.DEEPSLATE : ruinBrick(wx, sh.y + sy, wz));
               } else {
                 // Spiral stone step ledges around the 3x3 vertical shaft
                 const stepPhase = (sy - topRy) & 3;

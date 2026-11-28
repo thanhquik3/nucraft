@@ -958,6 +958,26 @@ async function main() {
   assert.strictEqual(atlasBumpView[2], 50);
   assert(atlasBumpView[3] >= 63 && atlasBumpView[3] <= 65);
 
+  // 12) Batch nearest-player mob targeting & O(M^2) ground crowd separation in Rust WASM
+  const mobAiIn = new Float32Array(w.memory.buffer, w.mob_ai_in_ptr(), 128 * 4);
+  const playerPosIn = new Float32Array(w.memory.buffer, w.player_pos_in_ptr(), 16 * 3);
+  const mobAiOut = new Float32Array(w.memory.buffer, w.mob_ai_out_ptr(), 128 * 4);
+  // 2 players: P0 at (0, 10, 0), P1 at (20, 10, 0)
+  playerPosIn.set([0, 10, 0, 20, 10, 0], 0);
+  // 3 mobs: M0 near P0, M1 overlapping M0 (crowd sep!), M2 near P1 (flying -> hitbox_r = -1 skips sep)
+  mobAiIn.set([
+    2.0, 10.0, 0.0, 0.45,
+    2.3, 10.0, 0.0, 0.45,
+    18.0, 10.0, 0.0, -1.0
+  ], 0);
+  const aiN = w.solve_mob_targets_and_sep(3, 2, 1) >>> 0;
+  assert.strictEqual(aiN, 3);
+  assert.strictEqual(mobAiOut[0], 0, 'Mob 0 should target nearest player P0');
+  assert.strictEqual(mobAiOut[4], 0, 'Mob 1 should target nearest player P0');
+  assert.strictEqual(mobAiOut[8], 1, 'Mob 2 should target nearest player P1 (no hard lock to host)');
+  assert(mobAiOut[2] < -0.1 && mobAiOut[6] > 0.1, `Expected opposing X crowd separation, got ${mobAiOut[2]} & ${mobAiOut[6]}`);
+  assert.strictEqual(mobAiOut[10], 0, 'Flying mob (hitbox_r < 0) must skip ground crowd separation');
+
   console.log(
     `[NUCRAFT wasm test] PASS | ABI v${w.wasm_abi_version()} | size=${(bytes.length / 1024).toFixed(2)}KB | ` +
     `40-chunk solid: JS=${jsMeshMs.toFixed(1)}ms, WASM=${wasmMeshMs.toFixed(1)}ms, Greedy=${wasmGreedyMs.toFixed(1)}ms (-${greedySavePct.toFixed(1)}% / flat -${flatSavePct.toFixed(1)}% verts) | ` +

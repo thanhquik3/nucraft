@@ -1512,20 +1512,20 @@
 
   function _clearSlotObj(s) {
     if (!s) return;
-    s.id = 0; s.count = 0; s.dur = 0; s.maxDur = 0; s.ench = false; s.trim = null;
+    s.id = 0; s.count = 0; s.dur = 0; s.maxDur = 0; s.ench = false; s.enchants = null; s.trim = null;
   }
   function _swapOrMergeSlots(a, b, cap = 99) {
     if (!a || !b || a === b) return false;
-    const isStackBlocked = !!(BLOCK_DEF[a.id]?.tool || BLOCK_DEF[a.id]?.armorSlot || a.ench || b.ench || a.trim || b.trim);
+    const isStackBlocked = !!(BLOCK_DEF[a.id]?.tool || BLOCK_DEF[a.id]?.armorSlot || a.ench || b.ench || a.enchants || b.enchants || a.trim || b.trim);
     if (a.id > 0 && a.id === b.id && b.count > 0 && !isStackBlocked && b.count < cap) {
       const mv = Math.min(cap - b.count, a.count);
       b.count += mv; a.count -= mv;
       if (a.count <= 0) _clearSlotObj(a);
       return true;
     }
-    const tId = a.id, tC = a.count, tD = a.dur || 0, tM = a.maxDur || 0, tE = !!a.ench, tT = a.trim || null;
-    a.id = b.id || 0; a.count = b.count || 0; a.dur = b.dur || 0; a.maxDur = b.maxDur || 0; a.ench = !!b.ench; a.trim = b.trim || null;
-    b.id = tId; b.count = tC; b.dur = tD; b.maxDur = tM; b.ench = tE; b.trim = tT;
+    const tId = a.id, tC = a.count, tD = a.dur || 0, tM = a.maxDur || 0, tE = !!a.ench, tEn = a.enchants || null, tT = a.trim || null;
+    a.id = b.id || 0; a.count = b.count || 0; a.dur = b.dur || 0; a.maxDur = b.maxDur || 0; a.ench = !!b.ench; a.enchants = b.enchants || null; a.trim = b.trim || null;
+    b.id = tId; b.count = tC; b.dur = tD; b.maxDur = tM; b.ench = tE; b.enchants = tEn; b.trim = tT;
     return true;
   }
   function _getChestLinearSlot(linearIdx) {
@@ -1663,25 +1663,172 @@
     clearInvDropHovers();
   }
   const mcTipEl = document.getElementById('mcItemTooltip');
-  let _mcTipVisible = false;
+  let _mcTipVisible = false, _mcTipLastEl = null, _mcTipLastHtml = '', _mcTipW = 140, _mcTipH = 32, _mcTipHideTimer = 0;
+  const _ENCH_NAME_MAP = {
+    sharpness: ['Sắc Bén', 'Sharpness'], unbreaking: ['Bền Bỉ', 'Unbreaking'], efficiency: ['Hiệu Suất', 'Efficiency'],
+    fortune: ['Gia Tài', 'Fortune'], looting: ['Nhặt Đồ', 'Looting'], fire_aspect: ['Lửa Cháy', 'Fire Aspect'],
+    knockback: ['Đẩy Lùi', 'Knockback'], protection: ['Bảo Vệ', 'Protection'], power: ['Sức Mạnh', 'Power'],
+    flame: ['Tên Lửa', 'Flame'], infinity: ['Vô Hạn', 'Infinity'], mending: ['Sửa Chữa', 'Mending'],
+    luck: ['May Mắn', 'Luck of the Sea'], lure: ['Nhử Mồi', 'Lure']
+  };
+  const _ROMAN_FULL = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  function _escTipHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function _getItemEffectiveDamage(id, meta = null) {
+    const def = BLOCK_DEF[id];
+    if (!def) return 0;
+    let dmg = Number(def.dmg) || 0;
+    if (!dmg && def.tool) {
+      const tier = Number(def.tier) || 1;
+      dmg = def.tool === 'sword' ? (3 + tier) : (def.tool === 'axe' ? (4 + tier) : (def.tool === 'pick' ? (2 + tier * 0.5) : (def.tool === 'bow' ? 6.5 : 1.5)));
+    }
+    if (dmg > 0 && meta) {
+      if (meta.ench) dmg += 3.0;
+      if (meta.enchants && typeof meta.enchants === 'object') {
+        const shLv = Number(meta.enchants.sharpness || meta.enchants.power || 0);
+        if (shLv > 0) dmg += 1.0 + shLv * 0.5;
+      }
+    }
+    return Math.round(dmg * 10) / 10;
+  }
+  function buildItemTooltipHtml(id, meta = null, fallbackTitle = '') {
+    const def = id ? BLOCK_DEF[id] : null;
+    if (!def) return fallbackTitle ? `<div class="mc-tip-title">${_escTipHtml(fallbackTitle)}</div>` : '';
+    const isEn = (typeof currentLang !== 'undefined' && currentLang === 'en');
+    const locName = (typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(id) : (def.name || fallbackTitle);
+    const cleanName = String(locName || '').replace(/\s*\((?!\+\d+|Cấp \d+|\d+ Ô|\d+s\))[^)]*\)/g, '').trim();
+    const hasEnch = !!(meta && (meta.ench || (meta.enchants && Object.keys(meta.enchants).length > 0) || meta.luck > 0 || meta.lure > 0));
+    const tier = Number(def.tier) || 0;
+    const rarityCls = hasEnch ? 'epic' : (def.rainbow || tier >= 6 ? 'legend' : (tier >= 4 || def.fireImmune || def.dragonArmorSlot ? 'rare' : ''));
+    const lines = [`<div class="mc-tip-title ${rarityCls}">${_escTipHtml(cleanName)}${hasEnch ? ' ✦' : ''}</div>`];
+    // Enchantments (supports current meta.ench / luck / lure / trim AND future meta.enchants map/array!)
+    if (meta && meta.enchants) {
+      const list = Array.isArray(meta.enchants)
+        ? meta.enchants.map(e => (typeof e === 'string' ? [e, 1] : [e.id || e.name, e.lvl || e.level || 1]))
+        : Object.entries(meta.enchants);
+      for (let ei = 0; ei < list.length; ei++) {
+        const [ek, ev] = list[ei];
+        if (!ek || !ev) continue;
+        const nm = _ENCH_NAME_MAP[String(ek).toLowerCase()];
+        const lbl = nm ? (isEn ? nm[1] : nm[0]) : String(ek);
+        const lvNum = Number(ev) || 1;
+        lines.push(`<div class="mc-tip-ench">✦ ${_escTipHtml(lbl)} ${_ROMAN_FULL[lvNum] || lvNum}</div>`);
+      }
+    } else if (meta && meta.ench) {
+      const enchLbl = isEn ? '✦ Enchanted (+3 Attack / +35% Power)' : '✦ Phù Phép (+3 Sát thương / +35% Hiệu suất)';
+      lines.push(`<div class="mc-tip-ench">${enchLbl}</div>`);
+    }
+    if (meta && meta.luck > 0) lines.push(`<div class="mc-tip-ench">✦ ${isEn ? 'Luck of the Sea' : 'May Mắn'} ${_ROMAN_FULL[meta.luck] || meta.luck}</div>`);
+    if (meta && meta.lure > 0) lines.push(`<div class="mc-tip-ench">✦ ${isEn ? 'Lure' : 'Nhử Mồi'} ${_ROMAN_FULL[meta.lure] || meta.lure}</div>`);
+    if (meta && meta.trim) lines.push(`<div class="mc-tip-ench">◈ Trim: ${_escTipHtml(meta.trim.pattern || '')}/${_escTipHtml(meta.trim.label || '')}</div>`);
+    // Weapon / Tool Damage & Mining Stats
+    const effDmg = _getItemEffectiveDamage(id, meta);
+    if (effDmg > 0 && (def.tool || def.dmg)) {
+      if (def.tool === 'bow') {
+        const maxBow = Math.round(effDmg * 1.3 * 10) / 10;
+        lines.push(`<div class="mc-tip-stat atk">🏹 ${isEn ? 'Bow Damage' : 'Sát thương cung'}: ${effDmg} – ${maxBow}</div>`);
+      } else {
+        const critDmg = Math.round(effDmg * 1.4 * 10) / 10;
+        lines.push(`<div class="mc-tip-stat atk">⚔️ ${isEn ? 'Attack Damage' : 'Sát thương'}: ${effDmg} (${isEn ? 'Crit' : 'Chí mạng'} ${critDmg})</div>`);
+      }
+    }
+    if (def.fireDmg) lines.push(`<div class="mc-tip-stat atk">🔥 ${isEn ? 'Fire Aspect (Ignites target)' : 'Thiêu Đốt mục tiêu'}</div>`);
+    if (def.tool && def.tool !== 'sword' && def.tool !== 'bow') {
+      const spd = Number(def.speed) || (tier > 0 ? (2 + tier * 2) : 0);
+      const tParts = [];
+      if (spd > 0) tParts.push(`${isEn ? 'Speed' : 'Tốc độ đào'} x${spd}`);
+      if (tier > 0) tParts.push(`${isEn ? 'Tier' : 'Cấp'} ${tier}`);
+      if (tParts.length) lines.push(`<div class="mc-tip-stat">⛏️ ${tParts.join(' • ')}</div>`);
+    }
+    if (def.armorPts > 0 || def.armorSlot || def.dragonArmorSlot) {
+      const pts = Number(def.armorPts || def.dragonArmorPts || 0);
+      if (pts > 0) lines.push(`<div class="mc-tip-stat def">🛡️ ${isEn ? 'Armor' : 'Phòng thủ'}: +${pts} ${isEn ? 'Defense' : 'Giáp'}</div>`);
+      if (def.fireImmune) lines.push(`<div class="mc-tip-stat def">🔥 ${isEn ? 'Fire & Lava Immune' : 'Kháng Lửa & Dung Nham'}</div>`);
+    }
+    if (def.food) {
+      lines.push(`<div class="mc-tip-stat">🍖 ${isEn ? 'Restores' : 'Hồi'} +${def.food} ${isEn ? 'Hunger' : 'Đói'}${def.heal ? ` • +${def.heal} ❤️` : ''}</div>`);
+    }
+    const maxD = (meta && meta.maxDur) || def.maxDur || 0;
+    if (maxD > 0) {
+      const curD = (meta && typeof meta.dur === 'number' && meta.dur > 0) ? meta.dur : maxD;
+      lines.push(`<div class="mc-tip-stat dur">🔧 ${isEn ? 'Durability' : 'Độ bền'}: ${curD} / ${maxD}</div>`);
+    }
+    return lines.join('');
+  }
+  function _resolveSlotItemFromEl(el) {
+    if (!el) return null;
+    if (el.dataset.invIdx !== undefined) {
+      const s = inventory[parseInt(el.dataset.invIdx, 10)];
+      return (s && s.count > 0 && s.id) ? { id: s.id, meta: s } : null;
+    }
+    if (el.dataset.hbIdx !== undefined) {
+      const s = inventory[parseInt(el.dataset.hbIdx, 10)];
+      return (s && s.count > 0 && s.id) ? { id: s.id, meta: s } : null;
+    }
+    if (el.dataset.creativeId !== undefined) {
+      const cid = parseInt(el.dataset.creativeId, 10);
+      return cid > 0 ? { id: cid, meta: null } : null;
+    }
+    if (el.dataset.rcIdx !== undefined) {
+      const ent = _rcSlotEntries[parseInt(el.dataset.rcIdx, 10)];
+      if (ent && ent.bid > 0) return { id: ent.bid, meta: null };
+      if (ent && ent.r && ent.r.out) return { id: ent.r.out, meta: null };
+    }
+    if (el.dataset.eq !== undefined) {
+      const k = el.dataset.eq, eid = player.equip[k] || 0;
+      return eid > 0 ? { id: eid, meta: (player.equipMeta && player.equipMeta[k]) || null } : null;
+    }
+    if (el.dataset.craftIdx !== undefined) {
+      const cid = manualCraftGrid[parseInt(el.dataset.craftIdx, 10)] || 0;
+      return cid > 0 ? { id: cid, meta: null } : null;
+    }
+    if (el.dataset.chestIdx !== undefined) {
+      const s = _getChestLinearSlot(parseInt(el.dataset.chestIdx, 10));
+      return (s && s.count > 0 && s.id) ? { id: s.id, meta: s } : null;
+    }
+    if (el.dataset.tipItemId !== undefined) {
+      const tid = parseInt(el.dataset.tipItemId, 10);
+      return tid > 0 ? { id: tid, meta: null } : null;
+    }
+    return null;
+  }
   function hideMcTooltip() {
+    if (_mcTipHideTimer) { clearTimeout(_mcTipHideTimer); _mcTipHideTimer = 0; }
+    _mcTipLastEl = null;
     if (mcTipEl && _mcTipVisible) { _mcTipVisible = false; mcTipEl.style.display = 'none'; }
   }
-  document.addEventListener('pointermove', (e) => {
-    if (!mcTipEl || isPlaying || e.pointerType === 'touch' || invDrag.active) { hideMcTooltip(); return; }
-    const el = e.target && e.target.closest ? e.target.closest('#invModal .slot, #invModal .equip-slot, #invModal .rc-slot, #furnaceModal .slot, #chestModal .slot, #tradeModal .trade-slot, #smithingModal .slot') : null;
-    if (!el) { hideMcTooltip(); return; }
+  function showMcTooltipForSlotEl(el, cx, cy, autoHideMs = 0) {
+    if (!mcTipEl || !el || invDrag.active) { hideMcTooltip(); return; }
     if (el.title) { el.dataset.mcTip = el.title; el.title = ''; }
-    const tip = el.dataset.mcTip || '';
-    if (!tip) { hideMcTooltip(); return; }
-    mcTipEl.textContent = tip;
-    mcTipEl.style.display = 'block'; _mcTipVisible = true;
-    const r = mcTipEl.getBoundingClientRect();
-    const sp = _clientToStagePos(e.clientX, e.clientY);
-    const x = Math.min(stageW - r.width - 8, sp.x + 12);
-    const y = Math.max(8, sp.y - r.height - 10);
-    mcTipEl.style.left = `${Math.max(8, x)}px`;
-    mcTipEl.style.top = `${y}px`;
+    if (el !== _mcTipLastEl) {
+      const resolved = _resolveSlotItemFromEl(el);
+      const html = resolved
+        ? buildItemTooltipHtml(resolved.id, resolved.meta, el.dataset.mcTip || '')
+        : (el.dataset.mcTip ? `<div class="mc-tip-title">${_escTipHtml(el.dataset.mcTip)}</div>` : '');
+      if (!html) { hideMcTooltip(); return; }
+      _mcTipLastEl = el;
+      if (html !== _mcTipLastHtml) {
+        _mcTipLastHtml = html;
+        mcTipEl.innerHTML = html;
+      }
+      if (!_mcTipVisible) { mcTipEl.style.display = 'block'; _mcTipVisible = true; }
+      _mcTipW = mcTipEl.offsetWidth || 140;
+      _mcTipH = mcTipEl.offsetHeight || 32;
+    } else if (!_mcTipVisible) {
+      mcTipEl.style.display = 'block'; _mcTipVisible = true;
+    }
+    const sp = _clientToStagePos(cx, cy);
+    const x = Math.max(8, Math.min(stageW - _mcTipW - 8, sp.x + 12));
+    const y = Math.max(8, Math.min(stageH - _mcTipH - 8, sp.y - _mcTipH - 12));
+    mcTipEl.style.transform = `translate3d(${x | 0}px, ${y | 0}px, 0)`;
+    if (_mcTipHideTimer) { clearTimeout(_mcTipHideTimer); _mcTipHideTimer = 0; }
+    if (autoHideMs > 0) _mcTipHideTimer = setTimeout(hideMcTooltip, autoHideMs);
+  }
+  document.addEventListener('pointermove', (e) => {
+    if (!mcTipEl || e.pointerType === 'touch' || invDrag.active) { if (!invDrag.active && e.pointerType !== 'touch') hideMcTooltip(); return; }
+    if (isPlaying && document.pointerLockElement === canvas) { hideMcTooltip(); return; }
+    const el = e.target && e.target.closest ? e.target.closest('#invModal .slot, #invModal .equip-slot, #invModal .rc-slot, #hotbar .hb-slot, #furnaceModal .slot, #chestModal .slot, #tradeModal .trade-slot, #smithingModal .slot') : null;
+    if (!el) { hideMcTooltip(); return; }
+    showMcTooltipForSlotEl(el, e.clientX, e.clientY, 0);
   }, { passive: true });
   window.addEventListener('blur', hideMcTooltip);
   function _setDragGhostTransform(cx, cy) {
@@ -1799,13 +1946,18 @@
     const pType = invDrag.pointerType;
     const modalName = invDrag.modal;
     const srcType = invDrag.sourceType, fromIdx = invDrag.idx, fromEq = invDrag.eqKey, cId = invDrag.creativeId;
+    const tappedEl = invDrag.originEl;
     const tgt = (wasMoved && leftOrigin) ? _hitTestDragTarget(e.clientX, e.clientY) : null;
     const cachedBookRect = _dragBookRect;
     const cachedMainRect = _dragMainRect;
     resetInvDragState();
 
-    // Fast Mobile Touch & Wiggle-Safe Tap Handling
+    // Fast Mobile Touch & Wiggle-Safe Tap Handling + Instant Rich Tooltip on Mobile Tap!
     if (!wasMoved || !leftOrigin) {
+      if (pType === 'touch' && tappedEl && typeof showMcTooltipForSlotEl === 'function') {
+        const rTap = tappedEl.getBoundingClientRect();
+        showMcTooltipForSlotEl(tappedEl, (rTap.left + rTap.right) * 0.5, rTap.top, 2800);
+      }
       if (pType === 'touch' || wasMoved) {
         _armSuppressInvClick();
         if (srcType === 'inv' && fromIdx >= 0) handleInvSlotTap(fromIdx, e);
@@ -2610,6 +2762,7 @@
     hotbarEl.innerHTML = ''; slotIcons.length = 0;
     for (let i = 0; i < 9; i++) {
       const slot = document.createElement('div'); slot.className = 'hb-slot';
+      slot.dataset.hbIdx = String(i);
       const sel = document.createElement('div'); sel.className = 'hb-sel';
       if (selUri) sel.style.backgroundImage = `url("${selUri}")`;
       const ic = document.createElement('canvas'); ic.width = 32; ic.height = 32;
@@ -2639,8 +2792,18 @@
       if (_lblEl) _lblEl.textContent = '';
     } else if (player._lastLabelSlot !== player.selectedSlot) {
       player._lastLabelSlot = player.selectedSlot;
-      if (_lblEl) _lblEl.textContent = def ? (((typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(sel.id) : def.name) + (sel && sel.ench ? ' ✦' : '')) : '';
-      player.itemLabelT = 2.0;
+      if (_lblEl) {
+        if (def) {
+          const baseNm = (typeof getLocalizedBlockName === 'function') ? getLocalizedBlockName(sel.id) : def.name;
+          const hasEnch = !!(sel && (sel.ench || (sel.enchants && Object.keys(sel.enchants).length > 0)));
+          const effDmg = _getItemEffectiveDamage(sel.id, sel);
+          const dmgTag = (effDmg > 0 && (def.tool || def.dmg)) ? (def.tool === 'bow' ? ` • 🏹 ${effDmg}` : ` • ⚔️ ${effDmg}`) : '';
+          _lblEl.textContent = `${baseNm}${hasEnch ? ' ✦' : ''}${dmgTag}`;
+        } else {
+          _lblEl.textContent = '';
+        }
+      }
+      player.itemLabelT = 2.4;
     }
     const _vmMeta = (sel && sel.count > 0)
       ? ((sel.id === B.FISHING_ROD && typeof isFishingRodCast === 'function' && isFishingRodCast()) ? { ...sel, rodCast: true } : sel)
@@ -2663,12 +2826,15 @@
   const _EQ_EMPTY_TIP = { helmet: 'Mũ', chest: 'Áo', legs: 'Quần', boots: 'Giày', offhand: 'Tay trái' };
   const _ROMAN_LV = ['', 'I', 'II', 'III'];
   function shortItemTip(id, meta = null) {
-    const raw = BLOCK_DEF[id]?.name || '';
+    const def = BLOCK_DEF[id];
+    const raw = def?.name || '';
     let base = raw.replace(/\s*\((?!\+\d+|Cấp \d+|\d+ Ô|\d+s\))[^)]*\)/g, '').trim();
+    const effDmg = _getItemEffectiveDamage(id, meta);
+    if (effDmg > 0 && def && (def.tool || def.dmg)) base += (def.tool === 'bow' ? ` [🏹 ${effDmg}]` : ` [⚔️ ${effDmg}]`);
     if (meta && meta.trim) base += ` [Trim: ${meta.trim.pattern}/${meta.trim.label}]`;
     if (meta && meta.luck > 0) base += ` [May Mắn ${_ROMAN_LV[meta.luck] || meta.luck}]`;
     if (meta && meta.lure > 0) base += ` [Nhử Mồi ${_ROMAN_LV[meta.lure] || meta.lure}]`;
-    if (meta && meta.ench) base += ' ✦';
+    if (meta && (meta.ench || (meta.enchants && Object.keys(meta.enchants).length > 0))) base += ' ✦';
     return base;
   }
 
@@ -3414,7 +3580,7 @@
     modal.scrollLeft = 0; modal.scrollTop = 0;
     document.documentElement.scrollLeft = 0; document.documentElement.scrollTop = 0;
     updateMobileUiScale();
-    requestAnimationFrame(() => { updateMobileUiScale(); invalidateDragTargets(); });
+    requestAnimationFrame(() => { updateMobileUiScale(); invalidateDragTargets(); _snapshotDragTargets('inv'); });
   }
   function closeInventoryModal() {
     if (_rcChunkRaf) { cancelAnimationFrame(_rcChunkRaf); _rcChunkRaf = 0; }

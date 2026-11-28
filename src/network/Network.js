@@ -432,9 +432,9 @@
     const safeDt = Math.max(0.001, Math.min(0.1, dt || 0.016));
     const targetRT = nowMs - buf.delayMs;
     if (buf.renderT === null || Math.abs(targetRT - buf.renderT) > 420) {
+      if (buf.renderT !== null && buf.hasOut) buf._reconcile = true;
+      else { buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0; buf._reconcile = false; }
       buf.renderT = targetRT;
-      buf.corrX = 0; buf.corrY = 0; buf.corrZ = 0;
-      buf._reconcile = false;
     } else {
       const drift = targetRT - buf.renderT;
       const rate = 1 + Math.max(-0.08, Math.min(0.08, drift * 0.002));
@@ -836,7 +836,7 @@
     if (!did) return;
     const now = performance.now();
     if (isObj) {
-      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 320) return;
+      if (dropOrId._pickupReqAt && (now - dropOrId._pickupReqAt) < 180) return;
       dropOrId._pickupReqAt = now;
       dropOrId._pickupReqFirstAt = dropOrId._pickupReqFirstAt || now;
       dropOrId._pickupReqCount = (dropOrId._pickupReqCount || 0) + 1;
@@ -854,9 +854,9 @@
       broadcastDropRemove(did);
       return;
     }
-    // Local uncontested pickup (player broke plant / threw item with no peer nearby) or fallback after missed ACK
+    // Local uncontested pickup (player broke plant / threw item with no peer nearby) or fast fallback after missed ACK (prevents orbiting!)
     const localUncontested = isObj && !dropOrId._remote && dropFallback && !_isDropContestedByPeer(dropOrId);
-    const timedOut = isObj && dropFallback && (dropOrId._pickupReqCount >= 3 || (now - dropOrId._pickupReqFirstAt) >= 650);
+    const timedOut = isObj && dropFallback && (dropOrId._pickupReqCount >= 2 || (now - dropOrId._pickupReqFirstAt) >= 380);
     if (localUncontested || timedOut) {
       if (typeof _completeNetworkDropPickup === 'function' && !_completeNetworkDropPickup(did, dropFallback)) return;
       _hostAuthoritativeDrops.delete(did);
@@ -1159,6 +1159,12 @@
       if (typeof applyRemoteMobAction === 'function') applyRemoteMobAction(m);
     } else if (m.type === 'mob_remove') {
       if (!isSimAuthority() && typeof applyRemoteMobRemove === 'function') applyRemoteMobRemove(m.uid);
+    } else if (m.type === 'mob_player_hit') {
+      if ((!m.dim || m.dim === currentDimension) && !player.dead && gameMode !== 'creative' && typeof hurtPlayer === 'function') {
+        hurtPlayer(Number(m.dmg) || 2, m.msg || 'Bạn bị quái vật tấn công!', !!m.ignoreArmor, m.canBlock !== false, { fromPos: { x: Number(m.fx) || player.x, z: Number(m.fz) || player.z }, isAxe: !!m.isAxe });
+        if (m.kbY) { player.vy = Math.max(player.vy, Number(m.kbY) || 0); cameraShake = Math.max(cameraShake, 0.22); }
+        if (m.disableShield) player.shieldDisableT = Math.max(player.shieldDisableT || 0, Number(m.disableShield) || 0);
+      }
     } else if (m.type === 'door_toggle') {
       if ((!m.dim || m.dim === currentDimension) && typeof setDoorOpenPair === 'function') {
         const wy = (typeof m.trueY === 'number') ? (m.trueY + (depthOffset || 0)) : m.y;
@@ -1564,6 +1570,12 @@
           if (typeof applyRemoteMobAction === 'function') applyRemoteMobAction(msg);
         } else if (msg.type === 'mob_remove') {
           if (!isSimAuthority() && typeof applyRemoteMobRemove === 'function') applyRemoteMobRemove(msg.uid);
+        } else if (msg.type === 'mob_player_hit') {
+          if ((!msg.dim || msg.dim === currentDimension) && !player.dead && gameMode !== 'creative' && typeof hurtPlayer === 'function') {
+            hurtPlayer(Number(msg.dmg) || 2, msg.msg || 'Bạn bị quái vật tấn công!', !!msg.ignoreArmor, msg.canBlock !== false, { fromPos: { x: Number(msg.fx) || player.x, z: Number(msg.fz) || player.z }, isAxe: !!msg.isAxe });
+            if (msg.kbY) { player.vy = Math.max(player.vy, Number(msg.kbY) || 0); cameraShake = Math.max(cameraShake, 0.22); }
+            if (msg.disableShield) player.shieldDisableT = Math.max(player.shieldDisableT || 0, Number(msg.disableShield) || 0);
+          }
         } else if (msg.type === 'door_toggle') {
           if ((!msg.dim || msg.dim === currentDimension) && typeof setDoorOpenPair === 'function') {
             const wy = (typeof msg.trueY === 'number') ? (msg.trueY + (depthOffset || 0)) : msg.y;

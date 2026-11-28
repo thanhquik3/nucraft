@@ -1069,6 +1069,7 @@
   let _nwRtVolOut = null;
   let _nwItemRgbaIn = null, _nwItemPosOut = null, _nwItemNormOut = null, _nwItemColOut = null, _nwItemIdxOut = null, _nwItemMetaOut = null;
   let _nwChunkQCoords = null, _nwChunkQOrder = null, _nwNetEntBuf = null;
+  let _nwMobAiIn = null, _nwPlayerPosIn = null, _nwMobAiOut = null;
   let _cachedWasmLuts = null, _mainLutsSynced = false;
 
   function _buildTerrainBlockIds() {
@@ -1270,6 +1271,9 @@
     if (_nwExports.chunk_q_coords_ptr) _nwChunkQCoords = new Int32Array(buf, _nwExports.chunk_q_coords_ptr(), 2048 * 2);
     if (_nwExports.chunk_q_order_ptr) _nwChunkQOrder = new Uint32Array(buf, _nwExports.chunk_q_order_ptr(), 2048);
     if (_nwExports.net_ent_buf_ptr) _nwNetEntBuf = new Float32Array(buf, _nwExports.net_ent_buf_ptr(), 128 * 12);
+    if (_nwExports.mob_ai_in_ptr) _nwMobAiIn = new Float32Array(buf, _nwExports.mob_ai_in_ptr(), 128 * 4);
+    if (_nwExports.player_pos_in_ptr) _nwPlayerPosIn = new Float32Array(buf, _nwExports.player_pos_in_ptr(), 16 * 3);
+    if (_nwExports.mob_ai_out_ptr) _nwMobAiOut = new Float32Array(buf, _nwExports.mob_ai_out_ptr(), 128 * 4);
   }
   function _syncMainWasmLuts(force = false) {
     const luts = _getWasmLuts(force);
@@ -1331,6 +1335,9 @@
         chunkQCoords: _nwChunkQCoords,
         chunkQOrder: _nwChunkQOrder,
         netEntBuf: _nwNetEntBuf,
+        mobAiIn: _nwMobAiIn,
+        playerPosIn: _nwPlayerPosIn,
+        mobAiOut: _nwMobAiOut,
         state: _nucraftWasmState
       };
     };
@@ -1338,7 +1345,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=183').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=192').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();

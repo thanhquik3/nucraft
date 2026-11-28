@@ -7412,10 +7412,12 @@
     const headY = Math.floor(baseY + m.hitboxH + 0.92);
     const mobInWater = getBlockWorld(Math.floor(m.x), Math.floor(baseY + 0.35), Math.floor(m.z)) === B.WATER;
     const maxStep = mobInWater ? 2 : 1;
+    const stepLeadX = m.x + (tx - m.x) * 1.28, stepLeadZ = m.z + (tz - m.z) * 1.28;
     for (let sd = 1; sd <= maxStep; sd++) {
       const stepTop = footY + sd;
       const headChkY = Math.floor(stepTop + m.hitboxH);
-      if (!mobFootprintSolidAtY(m.x, headY, m.z, m.hitboxR) && (sd === 1 || !mobFootprintSolidAtY(m.x, headChkY, m.z, m.hitboxR)) && mobFitsAt(tx, stepTop + 0.02, tz, m.hitboxR, m.hitboxH)) {
+      const headClear = !mobFootprintSolidAtY(m.x, headY, m.z, m.hitboxR) && (sd === 1 || !mobFootprintSolidAtY(m.x, headChkY, m.z, m.hitboxR));
+      if (headClear && (mobFitsAt(tx, stepTop + 0.02, tz, m.hitboxR, m.hitboxH) || mobFitsAt(stepLeadX, stepTop + 0.02, stepLeadZ, m.hitboxR, m.hitboxH))) {
         if (!FIRE_IMMUNE_MOBS.has(m.type) && getBlockWorld(bx, stepTop, bz) === B.LAVA) return 'blocked';
         return 'jump';
       }
@@ -7840,6 +7842,73 @@
         }
       }
     }
+    // Zero-GC Rust WASM Batch Solver: strictly nearest alive player (Host + all same-dim Remote Peers, NO hard target lock) + O(M^2) ground crowd separation!
+    const _aiPlayers = updateMobs._aiPlayers || (updateMobs._aiPlayers = []);
+    _aiPlayers.length = 0;
+    if (!player.dead && gameMode !== 'creative') {
+      const pSlot = updateMobs._localPSlot || (updateMobs._localPSlot = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, isLocal: true, peerId: '', sneaking: false });
+      pSlot.x = player.x; pSlot.y = player.y; pSlot.z = player.z;
+      pSlot.vx = (player.smoothMoveX || 0) + (player.vx || 0); pSlot.vy = player.vy || 0; pSlot.vz = (player.smoothMoveZ || 0) + (player.vz || 0);
+      pSlot.sneaking = !!player.sneaking;
+      _aiPlayers.push(pSlot);
+    }
+    if (_mobSimAuth && activeRoomId && typeof remotePlayers !== 'undefined') {
+      const rPool = updateMobs._remotePPool || (updateMobs._remotePPool = []);
+      let rIdx = 0;
+      for (const [rPid, rp] of remotePlayers.entries()) {
+        if (!rp || rp.isBuddy || (rp.dim || 'overworld') !== currentDimension) continue;
+        if (_aiPlayers.length >= 16) break;
+        const rSlot = rPool[rIdx] || (rPool[rIdx] = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, isLocal: false, peerId: '', sneaking: false });
+        rSlot.x = rp.x; rSlot.y = rp.y; rSlot.z = rp.z;
+        rSlot.vx = 0; rSlot.vy = rp.vy || 0; rSlot.vz = 0;
+        rSlot.peerId = rPid; rSlot.sneaking = !!rp.sneaking;
+        _aiPlayers.push(rSlot);
+        rIdx++;
+      }
+    }
+    const _wMobCore = (typeof window._getNucraftWasmCore === 'function') ? window._getNucraftWasmCore() : null;
+    const _useWasmMobAi = !!(_mobSimAuth && _wMobCore && _wMobCore.exports && _wMobCore.exports.solve_mob_targets_and_sep && _wMobCore.mobAiIn && _wMobCore.playerPosIn && _wMobCore.mobAiOut && _mobSnapBuf.length > 0 && _mobSnapBuf.length <= 128);
+    if (_useWasmMobAi) {
+      const mIn = _wMobCore.mobAiIn, pIn = _wMobCore.playerPosIn;
+      for (let pi = 0; pi < _aiPlayers.length; pi++) {
+        const ap = _aiPlayers[pi], pb = pi * 3;
+        pIn[pb] = ap.x; pIn[pb + 1] = ap.y; pIn[pb + 2] = ap.z;
+      }
+      for (let k = 0; k < _mobSnapBuf.length; k++) {
+        const mk = _mobSnapBuf[k], mb = k * 4;
+        if (mk && !mk._dead) {
+          mIn[mb] = mk.x; mIn[mb + 1] = mk.y; mIn[mb + 2] = mk.z;
+          mIn[mb + 3] = (mk.flying || mk.aqua || mk.skyBird) ? -1.0 : (mk.hitboxR || 0.45);
+        } else {
+          mIn[mb] = 1e6; mIn[mb + 1] = 1e6; mIn[mb + 2] = 1e6; mIn[mb + 3] = -1.0;
+        }
+      }
+      _wMobCore.exports.solve_mob_targets_and_sep(_mobSnapBuf.length >>> 0, _aiPlayers.length >>> 0, (_mobSnapBuf.length <= 64 ? 1 : 0));
+    }
+    const _damageCombatTarget = (tgt, dmgAmt, msg, mRef, opts = null) => {
+      if (!tgt) return;
+      if (tgt.isLocal) {
+        if (player.dead || gameMode === 'creative') return;
+        hurtPlayer(dmgAmt, msg, !!(opts && opts.ignoreArmor), opts ? (opts.canBlock !== false) : true, { fromPos: { x: mRef.x, z: mRef.z }, isAxe: !!(opts && opts.isAxe) });
+        if (opts && opts.kbY) { player.vy = Math.max(player.vy, opts.kbY); cameraShake = Math.max(cameraShake, 0.22); }
+        if (opts && opts.disableShield) player.shieldDisableT = Math.max(player.shieldDisableT || 0, opts.disableShield);
+      } else if (activeRoomId && typeof sendCoopMsg === 'function' && tgt.peerId) {
+        sendCoopMsg({
+          type: 'mob_player_hit',
+          _to: tgt.peerId,
+          dim: currentDimension,
+          dmg: dmgAmt,
+          msg,
+          fx: mRef.x,
+          fz: mRef.z,
+          ignoreArmor: !!(opts && opts.ignoreArmor),
+          canBlock: opts ? (opts.canBlock !== false) : true,
+          isAxe: !!(opts && opts.isAxe),
+          kbY: (opts && opts.kbY) || 0,
+          disableShield: (opts && opts.disableShield) || 0
+        });
+      }
+    };
     for (let i = 0; i < _mobSnapBuf.length; i++) {
       const m = _mobSnapBuf[i];
       if (!m || m._dead) continue;
@@ -8027,8 +8096,36 @@
         }
       }
 
+      // Strictly Nearest Alive Player Target (Host + all same-dim Remote Peers — NO hard target lock!)
+      let tgtP = null;
+      let tdx = mdx, tdy = mdy, tdz = mdz, tDist = dist, tDist3D = dist3D, tDyAbs = dyAbs;
+      let wasmSepX = 0, wasmSepZ = 0, hasWasmSep = false;
+      if (_useWasmMobAi) {
+        const mobAiOut = _wMobCore.mobAiOut;
+        const ob = i * 4;
+        const pIdx = mobAiOut[ob] | 0;
+        if (pIdx >= 0 && pIdx < _aiPlayers.length) tgtP = _aiPlayers[pIdx];
+        wasmSepX = mobAiOut[ob + 2]; wasmSepZ = mobAiOut[ob + 3];
+        hasWasmSep = true;
+      } else if (_aiPlayers.length > 0) {
+        let bestD2 = Infinity;
+        for (let pi = 0; pi < _aiPlayers.length; pi++) {
+          const ap = _aiPlayers[pi];
+          const adx = ap.x - m.x, ady = ap.y - m.y, adz = ap.z - m.z;
+          const ad2 = adx * adx + ady * ady + adz * adz;
+          if (ad2 < bestD2) { bestD2 = ad2; tgtP = ap; }
+        }
+      }
+      if (tgtP) {
+        tdx = m.x - tgtP.x; tdy = m.y - tgtP.y; tdz = m.z - tgtP.z;
+        const td2 = tdx * tdx + tdz * tdz;
+        tDist = Math.sqrt(td2);
+        tDyAbs = Math.abs(tdy);
+        tDist3D = Math.sqrt(td2 + tdy * tdy);
+      }
+
       const isSpiderAggro = (m.type === 'spider') ? (!isDaytime || isRaining || m.provoked > 0) : true;
-      const isAggroToPlayer = (gameMode !== 'creative') && (m.type === 'spider' ? isSpiderAggro : (m.neutral ? (m.provoked > 0) : m.hostile));
+      const isAggroToPlayer = !!tgtP && (m.type === 'spider' ? isSpiderAggro : (m.neutral ? (m.provoked > 0) : m.hostile));
       const isHumanoidPillar = HUMANOID_PILLAR_MOBS.has(m.type);
       const chaseDyLimit = isHumanoidPillar ? 13.5 : 7.5;
       let guardianTarget = null, villagerTarget = null, villagerDist = 22.0, canChasePlayer = false, preferVillager = false, villagerThreat = null;
@@ -8045,7 +8142,7 @@
         }
 
         // 1) Iron Golem (Village Defender) & Tamed Pet Defender + 2) Hostile/Villager LOS & Threat AI (throttled ~4Hz!)
-        const pElevated = isHumanoidPillar && dist < 12.5 && (player.y - m.y) > 1.4 && (player.y - m.y) < 12.5;
+        const pElevated = !!(tgtP && isHumanoidPillar && tDist < 12.5 && (tgtP.y - m.y) > 1.4 && (tgtP.y - m.y) < 12.5);
         m._losT = (m._losT || 0) - dt;
         if (m._losT <= 0) {
           m._losT = 0.24 + (i & 3) * 0.03;
@@ -8059,7 +8156,7 @@
               if (hd2 < bestD2) { bestD2 = hd2; m._guardTarget = hm; }
             }
           }
-          m._losPlayer = (!player.dead && isAggroToPlayer && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && (hasLineOfSight(m.x, m.y + 1.1, m.z, player.x, player.y + 1.1, player.z) || pElevated))));
+          m._losPlayer = (!!tgtP && isAggroToPlayer && (m.elemDragon ? (tDist3D < 48 && tDyAbs < 24) : (tDist3D < 22 && tDyAbs < chaseDyLimit && (hasLineOfSight(m.x, m.y + 1.1, m.z, tgtP.x, tgtP.y + 1.1, tgtP.z) || pElevated))));
           m._vilTarget = null; m._vilDist = 22.0;
           if (m.hostile && !m.aqua && !m.flying && !m.skyBird && m.type !== 'creeper' && m.type !== 'void_stalker' && isSpiderAggro) {
             for (let vi = 0; vi < _snapVillagers.length; vi++) {
@@ -8085,9 +8182,9 @@
         guardianTarget = (m._guardTarget && !m._guardTarget._dead && (m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) ? m._guardTarget : null;
         villagerTarget = (m._vilTarget && !m._vilTarget._dead) ? m._vilTarget : null;
         villagerDist = villagerTarget ? Math.hypot(villagerTarget.x - m.x, villagerTarget.z - m.z) : 22.0;
-        canChasePlayer = isAggroToPlayer && !player.dead && (m.elemDragon ? (dist3D < 48 && dyAbs < 24) : (dist3D < 22 && dyAbs < chaseDyLimit && !!m._losPlayer));
-        if (m.elemDragon && !m.tamed) updateDragonMode(m, dt, dist);
-        preferVillager = !!(villagerTarget && (!canChasePlayer || villagerDist + 1.5 < dist));
+        canChasePlayer = isAggroToPlayer && !!tgtP && (m.elemDragon ? (tDist3D < 48 && tDyAbs < 24) : (tDist3D < 22 && tDyAbs < chaseDyLimit && !!m._losPlayer));
+        if (m.elemDragon && !m.tamed) updateDragonMode(m, dt, tDist);
+        preferVillager = !!(villagerTarget && (!canChasePlayer || villagerDist + 1.5 < tDist));
         villagerThreat = (m.villager && m._vilThreat && !m._vilThreat._dead) ? m._vilThreat : null;
       }
 
@@ -9052,13 +9149,13 @@
         }
         }
         } // end wild/hostile flyer branch
-      } else if (canChasePlayer) {
-        m.yaw = Math.atan2(player.x - m.x, player.z - m.z);
+      } else if (canChasePlayer && tgtP) {
+        m.yaw = Math.atan2(tgtP.x - m.x, tgtP.z - m.z);
         if (m.atkCd > 0) m.atkCd -= dt;
 
         const isCreeperType = (m.type === 'creeper' || m.type === 'charged_creeper' || m.type === 'icy_creeper' || m.type === 'potato_creeper' || m.type === 'nerd_creeper' || m.type === 'ghost_creeper');
         if (isCreeperType) {
-          if (dist3D < 3.2 && dyAbs < 2.2) {
+          if (tDist3D < 3.2 && tDyAbs < 2.2) {
             if (!m.fusing) { m.fusing = true; playSfx('hiss'); }
             m.fuseTimer += dt;
             const sw = 1.0 + Math.sin(m.fuseTimer * 18) * 0.12 + m.fuseTimer * 0.16;
@@ -9075,17 +9172,17 @@
               continue;
             }
           } else {
-            if (m.fusing && dist3D > 4.6) { m.fusing = false; m.fuseTimer = Math.max(0, m.fuseTimer - dt * 2); m.group.scale.set(1, 1, 1); }
+            if (m.fusing && tDist3D > 4.6) { m.fusing = false; m.fuseTimer = Math.max(0, m.fuseTimer - dt * 2); m.group.scale.set(1, 1, 1); }
           }
         } else if (m.ranged) {
           const isSJ = (m.type === 'spider_jockey');
           if (m.type === 'shulker') speed = 0;
           else if (isSJ) {
-            if (dist < 1.85) speed = 0;
-            else if (dist > 4.0 && dist < 17.5) speed *= 1.16;
+            if (tDist < 1.85) speed = 0;
+            else if (tDist > 4.0 && tDist < 17.5) speed *= 1.16;
           }
-          else if (dist < 6.0) speed = -1.4;
-          else if (dist < 13.5) speed = 0.55;
+          else if (tDist < 6.0) speed = -1.4;
+          else if (tDist < 13.5) speed = 0.55;
           // Smooth tactical lateral strafing for ranged mobs
           if (m.type !== 'shulker' && !isSJ) {
             m._strafeT = (m._strafeT || 0) - dt;
@@ -9094,10 +9191,10 @@
               m._strafeDir = (Math.random() < 0.5) ? 1 : -1;
             }
           }
-          if (isSJ && dist < 2.05 && dyAbs < 1.85 && m.atkCd <= 0) {
-            hurtPlayer(m.dmg, `Bạn bị ${m.displayName || 'Skeleton Cưỡi Nhện'} tấn công!`, false, true, { fromPos: { x: m.x, z: m.z } });
+          if (isSJ && tDist < 2.05 && tDyAbs < 1.85 && m.atkCd <= 0) {
+            _damageCombatTarget(tgtP, m.dmg, `Bạn bị ${m.displayName || 'Skeleton Cưỡi Nhện'} tấn công!`, m);
             m.atkCd = 1.15; m.atkAnimT = 0.42; playMobSfx('spider', 'attack');
-          } else if (dist3D < 17.5 && (!isSJ || dist >= 2.2) && m.atkCd <= 0) {
+          } else if (tDist3D < 17.5 && (!isSJ || tDist >= 2.2) && m.atkCd <= 0) {
             m.atkCd = m.type === 'shulker' ? 2.4 : (m.type === 'witch' || m.type === 'evoker' || m.type === 'iceologer' ? 2.1 : 1.85);
             m.atkAnimT = 0.45;
             const isOrb = (m.ranged === 'shulker_bolt' || m.ranged === 'evoker_fang' || m.ranged === 'witch_potion' || m.ranged === 'ice_shard' || m.ranged === 'trident' || m.ranged === 'blaze_fire' || m.ranged === 'poison_arrow' || m.ranged === 'sonic_boom');
@@ -9106,8 +9203,8 @@
             const aimSpread = worldDifficulty === 'hard' ? 0.008 : (worldDifficulty === 'easy' ? 0.032 : 0.015);
             const aim = computeSmartAimDir(
               m.x, fireY, m.z,
-              player.x, player.y + 1.05, player.z,
-              (player.smoothMoveX || 0) + player.vx, player.vy, (player.smoothMoveZ || 0) + player.vz,
+              tgtP.x, tgtP.y + 1.05, tgtP.z,
+              tgtP.vx, tgtP.vy, tgtP.vz,
               pSpd, isOrb ? 0 : 14.5, aimSpread
             );
             if (isOrb) {
@@ -9118,16 +9215,16 @@
           }
         } else {
           const atkRange = m.elemDragon ? Math.max(3.5, (m.hitboxR || 2.0) + 2.4) : ((m.isBoss || m.guardian || m.type === 'hoglin' || m.type === 'zoglin' || m.type === 'ravager' || m.type === 'void_golem') ? 2.55 : 1.95);
-          if (m.elemDragon && !m.flying && m.atkCd <= 0 && dist3D < Math.max(14.5, atkRange + 10.0) && dist3D >= atkRange) {
-            castElementalDragonGroundSkill(m, dist3D);
+          if (m.elemDragon && !m.flying && m.atkCd <= 0 && tDist3D < Math.max(14.5, atkRange + 10.0) && tDist3D >= atkRange) {
+            castElementalDragonGroundSkill(m, tDist3D);
           }
           // Hostile melee sprint pursuit + reactive dodge when player swings nearby!
-          if (dist > 4.0 && dist < 17.5 && (isHumanoidPillar || m.type === 'void_stalker' || m.type === 'spider')) {
+          if (tDist > 4.0 && tDist < 17.5 && (isHumanoidPillar || m.type === 'void_stalker' || m.type === 'spider')) {
             speed *= 1.24;
           }
           if (m._dodgeCd > 0) m._dodgeCd -= dt;
           if (m._dodgeT > 0) m._dodgeT -= dt;
-          if (dist < 6.2 && player.swingT > 0.08 && (m._dodgeCd || 0) <= 0 && (isHumanoidPillar || m.type === 'void_stalker' || m.type === 'spider')) {
+          if (tDist < 6.2 && tgtP.isLocal && player.swingT > 0.08 && (m._dodgeCd || 0) <= 0 && (isHumanoidPillar || m.type === 'void_stalker' || m.type === 'spider')) {
             m._dodgeT = 0.42;
             m._dodgeDir = Math.random() < 0.5 ? 1 : -1;
             m._dodgeCd = 2.4 + Math.random() * 1.4;
@@ -9135,21 +9232,21 @@
               m.vy = 6.2; m.onGround = false; m.jumpCd = 0.45;
             }
           }
-          // Authentic Minecraft Melee Personal-Space Stand-Off: Stop cleanly in front of player instead of clipping inside player!
+          // Authentic Minecraft Melee Personal-Space Stand-Off: Stop cleanly in front of target instead of clipping inside!
           const minSep = Math.max(1.28, m.hitboxR + PLAYER_RADIUS + 0.52);
-          if (dist < minSep && dyAbs < 2.2) {
-            speed = dist < minSep * 0.72 ? -0.9 : 0;
+          if (tDist < minSep && tDyAbs < 2.2) {
+            speed = tDist < minSep * 0.72 ? -0.9 : 0;
           }
-          if (m.type === 'redstone_monstrosity' && dist > 5.0 && dist3D < 14.0 && m.atkCd <= 0) {
-            const aim = computeSmartAimDir(m.x, m.y + 1.8, m.z, player.x, player.y + 1.0, player.z, (player.smoothMoveX || 0) + player.vx, player.vy, (player.smoothMoveZ || 0) + player.vz, 17.5, 0, 0.014);
+          if (m.type === 'redstone_monstrosity' && tDist > 5.0 && tDist3D < 14.0 && m.atkCd <= 0) {
+            const aim = computeSmartAimDir(m.x, m.y + 1.8, m.z, tgtP.x, tgtP.y + 1.0, tgtP.z, tgtP.vx, tgtP.vy, tgtP.vz, 17.5, 0, 0.014);
             fireEnergyOrb(m.x + aim.x * 1.4, m.y + 1.8, m.z + aim.z * 1.4, aim.x, aim.y, aim.z, 17.5, 7.5, 'blaze_fire');
             spawnParticles(m.x, m.y + 1.4, m.z, 0xef4444, 10, true);
             m.atkCd = 2.6; m.atkAnimT = 0.50;
-          } else if (m.type === 'prismarine_colossus' && dist > 4.2 && dist3D < 15.0 && m.atkCd <= 0) {
-            const aim = computeSmartAimDir(m.x, m.y + 1.8, m.z, player.x, player.y + 1.0, player.z, (player.smoothMoveX || 0) + player.vx, player.vy, (player.smoothMoveZ || 0) + player.vz, 20.0, 0, 0.010);
+          } else if (m.type === 'prismarine_colossus' && tDist > 4.2 && tDist3D < 15.0 && m.atkCd <= 0) {
+            const aim = computeSmartAimDir(m.x, m.y + 1.8, m.z, tgtP.x, tgtP.y + 1.0, tgtP.z, tgtP.vx, tgtP.vy, tgtP.vz, 20.0, 0, 0.010);
             fireEnergyOrb(m.x + aim.x * 1.3, m.y + 1.8, m.z + aim.z * 1.3, aim.x, aim.y, aim.z, 20.0, 6.5, 'guardian_beam');
             m.atkCd = 2.5; m.atkAnimT = 0.48;
-          } else if (dist < atkRange && dyAbs < 1.85 && m.atkCd <= 0) {
+          } else if (tDist < atkRange && tDyAbs < 1.85 && m.atkCd <= 0) {
             const msgMap = {
               hoglin: 'Bạn bị Lợn Rừng Địa Ngục Hoglin húc bay!',
               zoglin: 'Bạn bị Lợn Địa Ngục Zoglin húc tung!',
@@ -9183,8 +9280,7 @@
               spider: 'Bạn bị Nhện đêm tấn công!'
             };
             const isAxeMob = (m.type === 'piglin_brute' || m.type === 'vindicator' || m.type === 'wither_knight' || m.type === 'ravager');
-            hurtPlayer(m.dmg, msgMap[m.type] || `Bạn bị ${m.displayName || 'quái vật'} tấn công!`, false, true, { fromPos: { x: m.x, z: m.z }, isAxe: isAxeMob });
-            if (m.type === 'hoglin' || m.chargeKnock) { player.vy = Math.max(player.vy, 7.2); cameraShake = Math.max(cameraShake, 0.22); }
+            _damageCombatTarget(tgtP, m.dmg, msgMap[m.type] || `Bạn bị ${m.displayName || 'quái vật'} tấn công!`, m, { isAxe: isAxeMob, kbY: (m.type === 'hoglin' || m.chargeKnock) ? 7.2 : 0 });
             m.atkCd = (m.isBoss || m.guardian) ? 1.45 : 1.15;
             m.atkAnimT = 0.45;
             playMobSfx(m.type, 'attack');
@@ -9357,23 +9453,27 @@
         const moveYaw = (speed < 0) ? m.yaw : m.steerYaw;
         visualTargetYaw = (speed > 0.08) ? m.steerYaw : m.yaw;
 
-        // Lightweight Soft Separation so crowds of animals/zombies never stack into one block or jam doorways
+        // Lightweight Soft Separation (accelerated via Rust WASM batch kernel with JS fallback!)
         let sepX = 0, sepZ = 0;
         const needSep = !sodiumOpts.lithiumAi || (dist <= 24 && (speed > 0.04 || Math.abs(m.vx) > 0.04 || Math.abs(m.vz) > 0.04 || dist < 6.0));
-        if (needSep && mobs.length <= 56 && (!_isWeakDevice || dist <= 22)) {
-          const minCrowd = Math.max(0.72, m.hitboxR * 1.9);
-          const minCrowd2 = minCrowd * minCrowd;
-          for (let oi = 0; oi < mobs.length; oi++) {
-            const om = mobs[oi];
-            if (!om || om === m || om.flying || om.aqua || om.skyBird || Math.abs(om.y - m.y) > 1.4) continue;
-            const sdx = m.x - om.x, sdz = m.z - om.z;
-            if (Math.abs(sdx) >= minCrowd || Math.abs(sdz) >= minCrowd) continue;
-            const sd2 = sdx * sdx + sdz * sdz;
-            if (sd2 > 0.0004 && sd2 < minCrowd2) {
-              const sd = Math.sqrt(sd2);
-              const push = (minCrowd - sd) / minCrowd;
-              sepX += (sdx / sd) * push * 1.55;
-              sepZ += (sdz / sd) * push * 1.55;
+        if (needSep) {
+          if (hasWasmSep) {
+            sepX = wasmSepX; sepZ = wasmSepZ;
+          } else if (mobs.length <= 56 && (!_isWeakDevice || dist <= 22)) {
+            const minCrowd = Math.max(0.72, m.hitboxR * 1.9);
+            const minCrowd2 = minCrowd * minCrowd;
+            for (let oi = 0; oi < mobs.length; oi++) {
+              const om = mobs[oi];
+              if (!om || om === m || om.flying || om.aqua || om.skyBird || Math.abs(om.y - m.y) > 1.4) continue;
+              const sdx = m.x - om.x, sdz = m.z - om.z;
+              if (Math.abs(sdx) >= minCrowd || Math.abs(sdz) >= minCrowd) continue;
+              const sd2 = sdx * sdx + sdz * sdz;
+              if (sd2 > 0.0004 && sd2 < minCrowd2) {
+                const sd = Math.sqrt(sd2);
+                const push = (minCrowd - sd) / minCrowd;
+                sepX += (sdx / sd) * push * 1.55;
+                sepZ += (sdz / sd) * push * 1.55;
+              }
             }
           }
         }
@@ -9396,10 +9496,11 @@
         const isSlimeMob = (m.type === 'slime' || m.type === 'sulfur_slime');
         const slimeDriveMul = !isSlimeMob ? 1.0 : (!m.onGround ? 1.32 : (m.hopCd < 0.24 ? 0.15 : 0.24));
         const effDriveSpd = (inWater ? speed * 0.62 : speed) * slimeDriveMul;
-        const tgtVx = Math.sin(moveYaw) * effDriveSpd + sepX + latX;
-        const tgtVz = Math.cos(moveYaw) * effDriveSpd + sepZ + latZ;
+        const climbBoost = ((m.climbCommitT || 0) > 0 && !m.onGround) ? Math.max(effDriveSpd, 2.55) : effDriveSpd;
+        const tgtVx = Math.sin(moveYaw) * climbBoost + sepX + latX;
+        const tgtVz = Math.cos(moveYaw) * climbBoost + sepZ + latZ;
         if (m.svx === undefined) { m.svx = 0; m.svz = 0; }
-        const accRate = isSlimeMob ? (m.onGround ? 11.0 : 6.2) : (m.onGround ? 11.0 : (inWater ? 6.8 : 5.4));
+        const accRate = isSlimeMob ? (m.onGround ? 11.0 : 6.2) : (m.onGround ? 11.5 : ((m.climbCommitT || 0) > 0 ? 9.5 : (inWater ? 7.2 : 5.8)));
         const accK = 1 - Math.exp(-accRate * dt);
         m.svx += (tgtVx - m.svx) * accK;
         m.svz += (tgtVz - m.svz) * accK;
@@ -9422,8 +9523,8 @@
             }
           }
           // Smooth mid-jump / water-bank ledge cresting onto 1-block higher surface
-          if ((!m.onGround || inWater) && m.vy > -3.5) {
-            const crestTol = inWater ? 0.72 : 0.50;
+          if ((!m.onGround || inWater) && m.vy > -4.2) {
+            const crestTol = inWater ? 0.78 : 0.58;
             const crestY = Math.floor(m.y + crestTol);
             if (crestY > m.y - 0.02 && (crestY - m.y) <= crestTol && !hasUnjumpableBarrierAt(nx, crestY - 1, nz, m.hitboxR) && mobFitsAt(nx, crestY + 0.02, nz, m.hitboxR, m.hitboxH)) {
               if (!(!FIRE_IMMUNE_MOBS.has(m.type) && getBlockWorld(Math.floor(nx), crestY, Math.floor(nz)) === B.LAVA)) {
@@ -9432,12 +9533,14 @@
             }
           }
           if (hasUnjumpableBarrierAt(nx, groundY, nz, m.hitboxR)) return { ok: false, y: m.y };
-          // Detect climbable 1-block step (or water-to-bank step) so mob fires a smooth physics jump!
-          const headY = Math.floor(m.y + m.hitboxH + 0.95);
+          // Detect climbable 1-block step (including probe slightly past block face so mobs jump cleanly!)
+          const headY = Math.floor(m.y + m.hitboxH + 0.92);
           const maxStep = inWater ? 2 : 1;
+          const stepProbeX = m.x + Math.sin(moveYaw) * Math.max(0.55, m.hitboxR + 0.28);
+          const stepProbeZ = m.z + Math.cos(moveYaw) * Math.max(0.55, m.hitboxR + 0.28);
           for (let sd = 1; sd <= maxStep; sd++) {
             const stepTop = groundY + sd;
-            if (!mobFootprintSolidAtY(m.x, headY, m.z, m.hitboxR) && mobFitsAt(nx, stepTop + 0.02, nz, m.hitboxR, m.hitboxH)) {
+            if (!mobFootprintSolidAtY(m.x, headY, m.z, m.hitboxR) && (mobFitsAt(nx, stepTop + 0.02, nz, m.hitboxR, m.hitboxH) || mobFitsAt(stepProbeX, stepTop + 0.02, stepProbeZ, m.hitboxR, m.hitboxH))) {
               if (!(!FIRE_IMMUNE_MOBS.has(m.type) && getBlockWorld(Math.floor(nx), stepTop, Math.floor(nz)) === B.LAVA)) {
                 hitClimbableStep = true;
                 break;
@@ -9452,22 +9555,22 @@
         const resZ = tryMoveAxis(m.x, m.z + dzM);
         if (resZ.ok) { m.z += dzM; if (resZ.y > m.y) { m.y = resZ.y; m.vy = Math.min(m.vy, 0); } } else blocked = true;
 
-        // Genuine Minecraft-style Physics Jump up 1-block terrain/steps & riverbanks (peak ~1.44m, cleanly clears bank!)
+        // Genuine Minecraft-style Physics Jump up 1-block terrain/steps & riverbanks (peak ~1.62m, cleanly clears ledges!)
         if (speed > 0.08 && (stepAhead === 'jump' || hitClimbableStep) && (m.onGround || inWater) && m.jumpCd <= 0) {
-          m.vy = inWater ? 8.45 : 7.95;
+          m.vy = inWater ? 8.85 : 8.55;
           m.onGround = false;
-          m.jumpCd = inWater ? 0.30 : 0.36;
-          m.climbCommitT = inWater ? 0.65 : 0.52;
-          m.svx = m.svx * 0.35 + Math.sin(moveYaw) * Math.max(1.8, effDriveSpd) * 0.65;
-          m.svz = m.svz * 0.35 + Math.cos(moveYaw) * Math.max(1.8, effDriveSpd) * 0.65;
+          m.jumpCd = inWater ? 0.28 : 0.34;
+          m.climbCommitT = inWater ? 0.70 : 0.58;
+          m.svx = m.svx * 0.28 + Math.sin(moveYaw) * Math.max(2.3, effDriveSpd) * 0.72;
+          m.svz = m.svz * 0.28 + Math.cos(moveYaw) * Math.max(2.3, effDriveSpd) * 0.72;
         }
 
-        // Humanoid Mob Pillaring: jump & place cobblestone/netherrack under feet to pursue elevated players!
-        if (canChasePlayer && isHumanoidPillar && !m._pillarPending && (m.pillarCd || 0) <= 0 && (m.pillarCount || 0) < 6 && m.onGround && (player.y - m.y) > 1.65 && (player.y - m.y) < 12.0 && dist < 8.5 && (dist < 4.5 || blocked || stepAhead === 'blocked')) {
+        // Humanoid Mob Pillaring: jump & place cobblestone/netherrack under feet to pursue elevated nearest target!
+        if (canChasePlayer && tgtP && isHumanoidPillar && !m._pillarPending && (m.pillarCd || 0) <= 0 && (m.pillarCount || 0) < 6 && m.onGround && (tgtP.y - m.y) > 1.65 && (tgtP.y - m.y) < 12.0 && tDist < 8.5 && (tDist < 4.5 || blocked || stepAhead === 'blocked')) {
           const pBx = Math.floor(m.x), pBy = Math.floor(m.y + 0.08), pBz = Math.floor(m.z);
           if (!isSolidAt(pBx, pBy, pBz) && !mobFootprintSolidAtY(m.x, Math.floor(m.y + m.hitboxH + 0.95), m.z, m.hitboxR)) {
             m.svx *= 0.25; m.svz *= 0.25;
-            m.vy = 8.15;
+            m.vy = 8.45;
             m.onGround = false;
             m.jumpCd = 0.45;
             m.pillarCd = 1.05;
@@ -9475,22 +9578,25 @@
           }
         }
 
-        // Fast Anti-Stuck & Pit-Escape Recovery: scans 4 cardinals for 1-block climbable exits when trapped in a lower hole or shoreline!
+        // Smart 8-Way Anti-Stuck & Block-Jump Escape: scans 8 directions for 1-block jumpable ledges whenever blocked/stuck!
         const movedD = Math.hypot(m.x - prevX, m.z - prevZ);
-        if (speed > 0.22 && (m.climbCommitT || 0) <= 0 && (blocked || movedD < speed * dt * 0.22)) {
+        if (speed > 0.18 && (m.climbCommitT || 0) <= 0 && (blocked || movedD < speed * dt * 0.25)) {
           m.stuckT = (m.stuckT || 0) + dt;
-          if (m.stuckT > 0.26) {
+          if (m.stuckT > 0.20) {
             if ((stepAhead === 'jump' || hitClimbableStep) && (m.onGround || inWater) && m.jumpCd <= 0) {
-              m.vy = inWater ? 8.45 : 7.95; m.onGround = false; m.jumpCd = inWater ? 0.30 : 0.36; m.climbCommitT = inWater ? 0.65 : 0.52;
+              m.vy = inWater ? 8.85 : 8.55; m.onGround = false; m.jumpCd = inWater ? 0.28 : 0.34; m.climbCommitT = inWater ? 0.70 : 0.58;
+              m.svx = Math.sin(moveYaw) * Math.max(2.4, effDriveSpd); m.svz = Math.cos(moveYaw) * Math.max(2.4, effDriveSpd);
             } else {
               let foundPitExit = false;
               if ((m.onGround || inWater) && m.jumpCd <= 0) {
-                for (let k = 0; k < 4; k++) {
-                  const ey = m.yaw + k * (Math.PI * 0.5);
-                  if (probeMobStep(m, m.x + Math.sin(ey) * lookNear, m.y, m.z + Math.cos(ey) * lookNear) === 'jump') {
-                    m.avoidYaw = ey; m.avoidT = 0.9; m.avoidElapsed = 0;
+                const jumpProbeD = Math.max(0.65, m.hitboxR + 0.36);
+                for (let k = 0; k < 8; k++) {
+                  const ey = m.yaw + (k === 0 ? 0 : (k & 1 ? 1 : -1) * Math.ceil(k * 0.5) * (Math.PI * 0.25));
+                  if (probeMobStep(m, m.x + Math.sin(ey) * jumpProbeD, m.y, m.z + Math.cos(ey) * jumpProbeD) === 'jump') {
+                    m.avoidYaw = ey; m.avoidT = 0.85; m.avoidElapsed = 0;
                     if (!hasActiveGoal) m.yaw = ey;
-                    m.vy = inWater ? 8.45 : 7.95; m.onGround = false; m.jumpCd = inWater ? 0.30 : 0.36; m.climbCommitT = inWater ? 0.65 : 0.52;
+                    m.vy = inWater ? 8.85 : 8.55; m.onGround = false; m.jumpCd = inWater ? 0.28 : 0.34; m.climbCommitT = inWater ? 0.70 : 0.58;
+                    m.svx = Math.sin(ey) * Math.max(2.4, effDriveSpd); m.svz = Math.cos(ey) * Math.max(2.4, effDriveSpd);
                     foundPitExit = true;
                     break;
                   }

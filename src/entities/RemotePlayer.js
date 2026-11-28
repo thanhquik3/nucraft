@@ -127,7 +127,7 @@
         || (heldId !== _lastSentNet.held)
         || (_burnNow !== !!_lastSentNet._burning)
         || (_burnSoulNow !== !!_lastSentNet._burnSoul);
-      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? 50 : (rotChanged ? 120 : 1000);
+      const _sendIntervalMs = (_isMovingNet || !!player.bowDrawing) ? 33 : (rotChanged ? 90 : 1000);
       if (edgeChanged || (nowPerf - _lastStateSendMs) >= _sendIntervalMs) {
         const eq = player.equip;
         const eqSig = `${eq.helmet||0}_${eq.chest||0}_${eq.legs||0}_${eq.boots||0}_${eq.offhand||0}`;
