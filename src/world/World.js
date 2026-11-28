@@ -2731,6 +2731,9 @@
     let maxLy = WORLD_H - 1;
     if (!chunkWorkerPool.take(wx0, wz0, depthOffset || 0)) fillCoarseCaveGrid(wx0, wz0);
     let nearCastle = null;
+    const colCeilY = new Int16Array(256);
+    const colShelfTop = new Int16Array(256);
+    colShelfTop.fill(-999);
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz;
       for (let lx = 0; lx < CHUNK_W; lx++) {
@@ -2738,12 +2741,44 @@
         const ci = (lz << 4) | lx; colHeights[ci] = h; colBiomes[ci] = biome.id;
         const locCastle = getNetherCastleAnchor(wx, wz);
         if (locCastle && !nearCastle) nearCastle = locCastle;
-        // Dramatic multi-tier carved vaulted Nether cavern ceiling (sweeps y=20..68 w/ stepped ledges, stalactite ribs & 3D overhangs — NEVER flat!)
+        const onEWBridge = (wz >= -19 && wz <= -13);
+        const onNSBridge = (!onEWBridge && ((wx >= 61 && wx <= 67) || (wx >= -59 && wx <= -53)));
+        const onBridge = onEWBridge || onNSBridge;
+        // Dramatic multi-tier carved vaulted Nether cavern ceiling (sweeps y=24..66 w/ stepped ledges, stalactite ribs & overhangs — NEVER flat!)
         const castleBoost = locCastle ? Math.max(0, Math.round((1 - Math.hypot(wx - locCastle.x, wz - locCastle.z) / 52) * 16)) : 0;
         const vaultMacro = fbm2D(wx * 0.011, wz * 0.011, 3, 0.54, 2.05, worldSeed + 811);
-        const terraceStep = Math.floor(fbm2D(wx * 0.032, wz * 0.032, 2, 0.5, 2.0, worldSeed + 823) * 5.0) * 2.5;
-        const stalRib = Math.max(0, 0.40 - Math.abs(valueNoise2D(wx * 0.048, wz * 0.048, worldSeed + 829) - 0.5)) * 18.0;
-        const ceilY = Math.max(20, Math.min(MAX_Y - 12, Math.floor(24 + vaultMacro * 30 + terraceStep - stalRib + castleBoost)));
+        const terraceStep = Math.floor(fbm2D(wx * 0.030, wz * 0.030, 2, 0.5, 2.0, worldSeed + 823) * 5.0) * 2.5;
+        const stalRib = Math.max(0, 0.38 - Math.abs(valueNoise2D(wx * 0.046, wz * 0.046, worldSeed + 829) - 0.5)) * 16.0;
+        const ceilY = Math.max(24, Math.min(MAX_Y - 12, Math.floor(28 + vaultMacro * 28 + terraceStep - stalRib + castleBoost)));
+        colCeilY[ci] = ceilY;
+
+        // 3D Layered Overhanging Nether Rock Shelves (like Minecraft 1.16 Crimson/Warped/Soul overhanging cliffs!)
+        let shelfBot = 999, shelfTop = -999;
+        if (!locCastle && !onBridge && ceilY >= 36) {
+          const shelfNoise = fbm2D(wx * 0.017 + 7.1, wz * 0.017 - 9.3, 2, 0.52, 2.0, worldSeed + 863);
+          if (shelfNoise > 0.625) {
+            const sEdge = Math.min(1.0, (shelfNoise - 0.625) / 0.14);
+            const sMid = Math.floor(21 + valueNoise2D(wx * 0.025, wz * 0.025, worldSeed + 877) * 7);
+            const sHalf = Math.max(1, Math.round(1 + sEdge * 2.6));
+            const sTop = Math.min(ceilY - 8, sMid + sHalf);
+            const sBot = Math.max(Math.max(WATER_LEVEL + 6, h + 6), sMid - sHalf);
+            if (sTop >= sBot + 1) {
+              shelfBot = sBot;
+              shelfTop = sTop;
+              colShelfTop[ci] = sTop;
+            }
+          }
+        }
+
+        const surfBlock = (wyTop) => {
+          if (wyTop <= WATER_LEVEL + 2 && hash2i(wx, wz, worldSeed + 439) > 0.62) return B.MAGMA_BLOCK;
+          if (biome === BIOMES.NETHER_CRIMSON) return B.CRIMSON_NYLIUM;
+          if (biome === BIOMES.NETHER_WARPED) return B.WARPED_NYLIUM;
+          if (biome === BIOMES.NETHER_BASALT_DELTAS) return (hash2i(wx, wz, worldSeed + 419) > 0.54 ? B.BLACKSTONE : B.BASALT);
+          if (biome === BIOMES.NETHER_SOUL_VALLEY) return (hash2i(wx, wz, worldSeed + 421) > 0.22 ? B.SOUL_SAND : B.BASALT);
+          return (hash2i(wx, wz, worldSeed + 413) > 0.72 ? B.SOUL_SAND : B.NETHERRACK);
+        };
+
         for (let ly = 0; ly < WORLD_H; ly++) {
           const wy = MIN_Y + ly; let id = B.AIR;
           const trueY = wy - (depthOffset || 0);
@@ -2751,29 +2786,24 @@
           else if (trueY < -1010) id = B.AIR;
           else if (wy <= h) {
             if (wy === h && h > WATER_LEVEL) {
-              if (h <= WATER_LEVEL + 2 && hash2i(wx, wz, worldSeed + 439) > 0.62) id = B.MAGMA_BLOCK;
-              else if (biome === BIOMES.NETHER_CRIMSON) id = B.CRIMSON_NYLIUM;
-              else if (biome === BIOMES.NETHER_WARPED) id = B.WARPED_NYLIUM;
-              else if (biome === BIOMES.NETHER_BASALT_DELTAS) id = (hash2i(wx, wz, worldSeed + 419) > 0.56 ? B.BLACKSTONE : B.BASALT);
-              else if (biome === BIOMES.NETHER_SOUL_VALLEY) id = (hash2i(wx, wz, worldSeed + 421) > 0.25 ? B.SOUL_SAND : B.BASALT);
-              else id = (hash2i(wx, wz, worldSeed + 413) > 0.72 ? B.SOUL_SAND : B.NETHERRACK);
+              id = surfBlock(wy);
             } else if (wy >= h - 1 && h <= WATER_LEVEL + 2 && hash2i(wx, wz, worldSeed + 433) > 0.68) {
               id = B.MAGMA_BLOCK;
             } else if (h > WATER_LEVEL + 2 && wy < h - 4 && wy > MIN_Y + 4 && sampleCaveFast(lx, ly, lz) > 0.75) {
               id = (wy <= MIN_Y + 6) ? B.LAVA : B.AIR;
             } else {
               const oh = hash3i(wx, wy, wz, worldSeed + 777);
-              id = (oh > 0.9945) ? B.GOLD_ORE : (oh > 0.9850 ? B.QUARTZ_ORE : (biome === BIOMES.NETHER_BASALT_DELTAS && oh > 0.62 ? B.BLACKSTONE : B.NETHERRACK));
+              id = (oh > 0.9945) ? B.GOLD_ORE : (oh > 0.9850 ? B.QUARTZ_ORE : (biome === BIOMES.NETHER_BASALT_DELTAS && oh > 0.58 ? B.BLACKSTONE : (biome === BIOMES.NETHER_SOUL_VALLEY && wy >= h - 2 && oh > 0.42 ? B.SOUL_SAND : B.NETHERRACK)));
             }
           } else if (wy <= WATER_LEVEL) {
             id = B.LAVA;
+          } else if (wy >= shelfBot && wy <= shelfTop) {
+            id = (wy === shelfTop) ? surfBlock(wy) : (biome === BIOMES.NETHER_BASALT_DELTAS ? B.BLACKSTONE : B.NETHERRACK);
           } else if (wy >= ceilY) {
-            // 3D Carved Upper Cavern Hollows & Layered Overhangs inside Nether Ceiling (authentic multi-tier volcanic roof!)
-            const inUpperPocket = (wy < ceilY + 18 && wy < MAX_Y - 10 && sampleCaveFast(lx, ly, lz) > 0.65);
+            // 3D Carved Upper Cavern Hollows inside Nether Ceiling (keep solid bedrock/rock upper shell above ceilY+14)
+            const inUpperPocket = (wy < ceilY + 14 && wy < MAX_Y - 12 && sampleCaveFast(lx, ly, lz) > 0.68);
             if (inUpperPocket) {
               id = B.AIR;
-            } else if (wy === ceilY && hash2i(wx, wz, worldSeed + 515) > 0.952) {
-              id = B.SHROOMLIGHT;
             } else {
               const rh = hash3i(wx, wy, wz, worldSeed + 853);
               id = rh > 0.9996 ? B.ANCIENT_DEBRIS : (rh > 0.9940 ? B.GOLD_ORE : (rh > 0.9830 ? B.QUARTZ_ORE : (rh > 0.78 ? B.BLACKSTONE : (rh > 0.64 ? B.BASALT : B.NETHERRACK))));
@@ -2781,38 +2811,38 @@
           }
           data[(ly << 8) | (lz << 4) | lx] = id;
         }
-        // Hanging Glowing Chandelier Stalactite Clusters dangling from the vaulted Nether ceiling (like Images 2 & 3!)
-        if (lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13 && ceilY - h > 12 && hash2i(wx, wz, worldSeed + 523) > 0.988) {
-          const cLen = 2 + ((hash2i(wx, wz, worldSeed + 541) * 4) | 0);
+        // Only hang glowing Shroomlight clusters & Weeping Vines from VERIFIED SOLID ceiling rock (zero floating mid-air blocks!)
+        const ceilLy0 = ceilY - MIN_Y;
+        const ceilIsSolid = (ceilLy0 >= 2 && ceilLy0 < WORLD_H - 2)
+          && IS_SOLID[data[(ceilLy0 << 8) | ci]] === 1
+          && IS_SOLID[data[((ceilLy0 + 1) << 8) | ci]] === 1;
+        if (ceilIsSolid && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13 && ceilY - h > 14 && hash2i(wx, wz, worldSeed + 523) > 0.9925) {
+          const cLen = 1 + ((hash2i(wx, wz, worldSeed + 541) * 3) | 0);
           for (let cy = 0; cy <= cLen; cy++) {
             setLocalSafe(data, lx, ceilY - cy, lz, B.SHROOMLIGHT, true);
             if (cy >= 1 && cy <= cLen - 1) {
               if (((wx + cy) & 1) === 0) setLocalSafe(data, lx + 1, ceilY - cy, lz, B.SHROOMLIGHT, true);
               if (((wz + cy) & 1) === 0) setLocalSafe(data, lx, ceilY - cy, lz + 1, B.SHROOMLIGHT, true);
-              if (cy === 1) setLocalSafe(data, lx - 1, ceilY - cy, lz, B.SHROOMLIGHT, true);
             }
           }
         }
-        // Basalt Delta vertical volcanic pillars & Soul Sand Valley soul flames
-        if (biome === BIOMES.NETHER_BASALT_DELTAS && h >= WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 449) > 0.942) {
-          const ph = 3 + Math.floor(hash2i(wx, wz, worldSeed + 457) * 5);
-          for (let py = 1; py <= ph; py++) setLocalSafe(data, lx, h + py, lz, py === ph && hash2i(wx, wz, worldSeed + 461) > 0.7 ? B.MAGMA_BLOCK : B.BASALT, true);
-        } else if (biome === BIOMES.NETHER_SOUL_VALLEY && h > WATER_LEVEL && !locCastle && hash2i(wx, wz, worldSeed + 463) > 0.972) {
+        // Basalt Delta vertical volcanic pillars & Soul Sand Valley blue soul flames
+        if (biome === BIOMES.NETHER_BASALT_DELTAS && h >= WATER_LEVEL && !locCastle && !onBridge && hash2i(wx, wz, worldSeed + 449) > 0.938) {
+          const ph = 3 + Math.floor(hash2i(wx, wz, worldSeed + 457) * 6);
+          for (let py = 1; py <= ph; py++) setLocalSafe(data, lx, h + py, lz, py === ph && hash2i(wx, wz, worldSeed + 461) > 0.72 ? B.MAGMA_BLOCK : B.BASALT, true);
+        } else if (biome === BIOMES.NETHER_SOUL_VALLEY && h > WATER_LEVEL && !locCastle && !onBridge && hash2i(wx, wz, worldSeed + 463) > 0.962) {
           setLocalSafe(data, lx, h + 1, lz, B.SOUL_FIRE, false);
         }
-        // Hanging ceiling Weeping Vines in Crimson canyons
-        if (biome === BIOMES.NETHER_CRIMSON && ceilY - h > 8 && hash2i(wx, wz, worldSeed + 479) > 0.935) {
-          const vLen = 2 + Math.floor(hash2i(wx, wz, worldSeed + 487) * 4);
+        // Hanging ceiling Weeping Vines strictly anchored to solid ceiling rock or solid overhanging shelf bottom
+        if (biome === BIOMES.NETHER_CRIMSON && ceilIsSolid && ceilY - h > 10 && hash2i(wx, wz, worldSeed + 479) > 0.942) {
+          const vLen = 2 + Math.floor(hash2i(wx, wz, worldSeed + 487) * 5);
           for (let vy = 1; vy <= vLen; vy++) setLocalSafe(data, lx, ceilY - vy, lz, B.WEEPING_VINES, false);
-        }
-        // Dramatic single-column Lava Falls cascading from high vaulted Nether ceiling down into lava seas (Images 1, 2, 3!)
-        if (!locCastle && ceilY - h > 14 && hash2i(wx, wz, worldSeed + 997) > 0.9945) {
-          for (let wy = Math.max(WATER_LEVEL + 1, h + 1); wy <= ceilY; wy++) setLocalSafe(data, lx, wy, lz, B.LAVA, true);
+        } else if (biome === BIOMES.NETHER_CRIMSON && shelfTop > -900 && shelfBot - h > 5 && hash2i(wx, wz, worldSeed + 491) > 0.925) {
+          const vLen = 2 + Math.floor(hash2i(wx, wz, worldSeed + 499) * 4);
+          for (let vy = 1; vy <= vLen; vy++) setLocalSafe(data, lx, shelfBot - vy, lz, B.WEEPING_VINES, false);
         }
         // Monumental Medieval Gothic Arched Nether Viaduct Bridges & Fortified Gatehouse Towers over Lava Seas (Image 1!)
-        const onEWBridge = (wz >= -19 && wz <= -13);
-        const onNSBridge = (!onEWBridge && ((wx >= 61 && wx <= 67) || (wx >= -59 && wx <= -53)));
-        if ((onEWBridge || onNSBridge) && !locCastle) {
+        if (onBridge && !locCastle) {
           const bridgeY = 12;
           const bPerp = onEWBridge ? Math.abs(wz + 16) : Math.abs(wx - (wx >= 0 ? 64 : -56));
           const bAlong = onEWBridge ? wx : wz;
@@ -2862,28 +2892,82 @@
         }
       }
     }
+
+    // Sparse, physically-anchored Nether Lavafalls: strictly at most 1 per 5x5 chunk region (~2-3 visible per vista, ZERO floating air-spawn!)
+    const lrgX = Math.floor(cx / 5), lrgZ = Math.floor(cz / 5);
+    const lPickCx = lrgX * 5 + Math.floor(hash2i(lrgX, lrgZ, worldSeed + 991) * 5);
+    const lPickCz = lrgZ * 5 + Math.floor(hash2i(lrgX + 13, lrgZ - 7, worldSeed + 997) * 5);
+    if (cx === lPickCx && cz === lPickCz && hash2i(lrgX - 5, lrgZ + 11, worldSeed + 1009) > 0.25) {
+      const flx = 4 + Math.floor(hash2i(cx, cz, worldSeed + 1013) * 8);
+      const flz = 4 + Math.floor(hash2i(cz, cx, worldSeed + 1019) * 8);
+      const fwx = wx0 + flx, fwz = wz0 + flz;
+      const fci = (flz << 4) | flx;
+      const onBr = (fwz >= -21 && fwz <= -11) || (fwx >= 59 && fwx <= 69) || (fwx >= -61 && fwx <= -51);
+      const farCastle = !nearCastle || Math.hypot(fwx - nearCastle.x, fwz - nearCastle.z) > 34;
+      if (!onBr && farCastle && colShelfTop[fci] < -900) {
+        const floorY = Math.max(WATER_LEVEL, colHeights[fci]);
+        // Scan upward from colCeilY to find the FIRST true solid rock ceiling backed by solid roof & 4 solid rock sides (never pours out of air!)
+        let anchorY = -1;
+        const scanStart = Math.max(floorY + 14, colCeilY[fci]);
+        const scanEnd = Math.min(MAX_Y - 12, scanStart + 20);
+        for (let wy = scanStart; wy <= scanEnd; wy++) {
+          const ly = wy - MIN_Y;
+          if (ly < 3 || ly >= WORLD_H - 4) break;
+          const b0 = data[(ly << 8) | fci];
+          const bUp1 = data[((ly + 1) << 8) | fci];
+          const bUp2 = data[((ly + 2) << 8) | fci];
+          const bBelow = data[((ly - 1) << 8) | fci];
+          const bXP = data[(ly << 8) | (flz << 4) | (flx + 1)];
+          const bXM = data[(ly << 8) | (flz << 4) | (flx - 1)];
+          const bZP = data[(ly << 8) | ((flz + 1) << 4) | flx];
+          const bZM = data[(ly << 8) | ((flz - 1) << 4) | flx];
+          if (bBelow === B.AIR && IS_SOLID[b0] === 1 && IS_SOLID[bUp1] === 1 && IS_SOLID[bUp2] === 1
+              && IS_SOLID[bXP] === 1 && IS_SOLID[bXM] === 1 && IS_SOLID[bZP] === 1 && IS_SOLID[bZM] === 1) {
+            anchorY = wy;
+            break;
+          }
+        }
+        if (anchorY > 0) {
+          // Carve lava spring pocket inside solid ceiling rock and pour crisp 1x1 column down to lava sea/floor
+          let botY = floorY + 1;
+          for (let wy = anchorY - 1; wy >= Math.max(WATER_LEVEL + 1, floorY + 1); wy--) {
+            if (IS_SOLID[data[((wy - MIN_Y) << 8) | fci]] === 1) { botY = wy + 1; break; }
+          }
+          for (let wy = botY; wy <= anchorY; wy++) setLocalSafe(data, flx, wy, flz, B.LAVA, true);
+        }
+      }
+    }
+
     for (let lz = 0; lz < CHUNK_W; lz++) {
       const wz = wz0 + lz;
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const ci = (lz << 4) | lx, h = colHeights[ci], wx = wx0 + lx, biome = BIOME_LIST[colBiomes[ci]];
-        if (h <= WATER_LEVEL) continue;
         if (nearCastle && Math.hypot(wx - nearCastle.x, wz - nearCastle.z) < 28) continue;
-        const rf = hash2i(wx, wz, worldSeed + 613);
-        if (biome === BIOMES.NETHER_CRIMSON && rf > 0.50) {
-          setLocalSafe(data, lx, h + 1, lz, rf > 0.91 ? B.MUSHROOM_GLOW : (rf > 0.74 ? B.CRIMSON_FUNGUS : (rf > 0.66 ? B.WARPED_FUNGUS : B.CRIMSON_ROOTS)), false);
-        } else if (biome === BIOMES.NETHER_WARPED && rf > 0.48) {
-          setLocalSafe(data, lx, h + 1, lz, rf > 0.90 ? B.TWISTING_VINES : (rf > 0.84 ? B.MUSHROOM_GLOW : (rf > 0.70 ? B.WARPED_FUNGUS : (rf > 0.62 ? B.CRIMSON_ROOTS : B.WARPED_ROOTS))), false);
-        } else if (biome === BIOMES.NETHER_WASTES && rf > 0.88) {
-          setLocalSafe(data, lx, h + 1, lz, rf > 0.95 ? B.CRIMSON_FUNGUS : B.CRIMSON_ROOTS, false);
-        }
-        if (lx >= 4 && lx <= CHUNK_W - 5 && lz >= 4 && lz <= CHUNK_W - 5) {
-          const rt = hash2i(wx, wz, worldSeed + 909);
-          if (biome === BIOMES.NETHER_CRIMSON && rt > 0.924) {
-            placeLuantiTree(data, lx, h + 1, lz, wx, wz, rt > 0.962 ? 'crimson_spire' : 'crimson_fungus');
-          } else if (biome === BIOMES.NETHER_WARPED && rt > 0.918) {
-            placeLuantiTree(data, lx, h + 1, lz, wx, wz, rt > 0.956 ? 'warped_weeping_giant' : 'warped_fungus');
-          } else if ((biome === BIOMES.NETHER_BASALT_DELTAS || biome === BIOMES.NETHER_SOUL_VALLEY) && rt > 0.962) {
-            placeLuantiTree(data, lx, h + 1, lz, wx, wz, 'basalt_ember_tree');
+        // Decorate BOTH main terrain surface AND overhanging upper cliffs/shelves with lush Nether fungi & flora!
+        const surfYs = [];
+        if (h > WATER_LEVEL) surfYs.push(h);
+        if (colShelfTop[ci] > WATER_LEVEL) surfYs.push(colShelfTop[ci]);
+        for (let si = 0; si < surfYs.length; si++) {
+          const sy = surfYs[si];
+          const rf = hash2i(wx + si * 37, wz - si * 29, worldSeed + 613);
+          if (biome === BIOMES.NETHER_CRIMSON && rf > 0.46) {
+            setLocalSafe(data, lx, sy + 1, lz, rf > 0.90 ? B.MUSHROOM_GLOW : (rf > 0.72 ? B.CRIMSON_FUNGUS : (rf > 0.64 ? B.WARPED_FUNGUS : B.CRIMSON_ROOTS)), false);
+          } else if (biome === BIOMES.NETHER_WARPED && rf > 0.44) {
+            setLocalSafe(data, lx, sy + 1, lz, rf > 0.89 ? B.TWISTING_VINES : (rf > 0.83 ? B.MUSHROOM_GLOW : (rf > 0.68 ? B.WARPED_FUNGUS : (rf > 0.60 ? B.CRIMSON_ROOTS : B.WARPED_ROOTS))), false);
+          } else if (biome === BIOMES.NETHER_WASTES && rf > 0.86) {
+            setLocalSafe(data, lx, sy + 1, lz, rf > 0.94 ? B.CRIMSON_FUNGUS : B.CRIMSON_ROOTS, false);
+          } else if (biome === BIOMES.NETHER_SOUL_VALLEY && si === 1 && rf > 0.968) {
+            setLocalSafe(data, lx, sy + 1, lz, B.SOUL_FIRE, false);
+          }
+          if (lx >= 4 && lx <= CHUNK_W - 5 && lz >= 4 && lz <= CHUNK_W - 5) {
+            const rt = hash2i(wx + si * 53, wz + si * 41, worldSeed + 909);
+            if (biome === BIOMES.NETHER_CRIMSON && rt > 0.904) {
+              placeLuantiTree(data, lx, sy + 1, lz, wx, wz, rt > 0.955 ? 'crimson_spire' : 'crimson_fungus');
+            } else if (biome === BIOMES.NETHER_WARPED && rt > 0.898) {
+              placeLuantiTree(data, lx, sy + 1, lz, wx, wz, rt > 0.950 ? 'warped_weeping_giant' : 'warped_fungus');
+            } else if (si === 0 && (biome === BIOMES.NETHER_BASALT_DELTAS || biome === BIOMES.NETHER_SOUL_VALLEY) && rt > 0.964) {
+              placeLuantiTree(data, lx, sy + 1, lz, wx, wz, 'basalt_ember_tree');
+            }
           }
         }
       }
@@ -2894,13 +2978,13 @@
     // Stamp Nether Cavern structures on solid terrain islands away from spawn portal & castles
     const midNetherH = colHeights[(8 << 4) | 8];
     const farFromCastle = !nearCastle || Math.hypot(wx0 + 8 - nearCastle.x, wz0 + 8 - nearCastle.z) > 36;
-    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 13 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
+    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 14 && (Math.abs(cx) > 1 || Math.abs(cz) > 1)) {
       stampNetherRoofAndCavernStructures(data, cx, cz, wx0, wz0, midNetherH, false);
     }
-    // Nether Dinosaur Fossils built out of Bone Blocks (more frequent in Soul Sand Valley!)
+    // Iconic White Bone-Block Ribcage Fossils (prominent in Soul Sand Valley like Reference Images 3 & 4!)
     const midNetherBio = BIOME_LIST[colBiomes[(8 << 4) | 8]];
-    const fossilThresh = (midNetherBio === BIOMES.NETHER_SOUL_VALLEY) ? 0.74 : 0.855;
-    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 15 && (Math.abs(cx) > 0 || Math.abs(cz) > 0) && !(wz0 <= -10 && wz0 + 15 >= -22) && hash2i(cx, cz, worldSeed + 4129) > fossilThresh) {
+    const fossilThresh = (midNetherBio === BIOMES.NETHER_SOUL_VALLEY) ? 0.62 : 0.86;
+    if (farFromCastle && midNetherH > WATER_LEVEL + 1 && midNetherH <= 16 && (Math.abs(cx) > 0 || Math.abs(cz) > 0) && !(wz0 <= -10 && wz0 + 15 >= -22) && hash2i(cx, cz, worldSeed + 4129) > fossilThresh) {
       const fTop = stampNetherDinosaurFossil(data, cx, cz, wx0, wz0, midNetherH);
       if (fTop > maxLy) maxLy = fTop;
     }
@@ -5424,7 +5508,10 @@
   function getFluidLevel(wx, wy, wz, id) {
     if (getBlockWorld(wx, wy, wz) !== id) return 99;
     const k = modKey(wx, wy, wz);
-    return fluidLevel.has(k) ? fluidLevel.get(k) : 0; // Unmapped world-gen ocean/lava sea = natural source (0)
+    if (fluidLevel.has(k)) return fluidLevel.get(k);
+    // Natural world-gen vertical columns above sea level (e.g. Nether lavafalls) are falling streams (8), NOT stacked sources (0)!
+    if (wy > WATER_LEVEL && getBlockWorld(wx, wy + 1, wz) === id) return 8;
+    return 0; // Unmapped world-gen ocean/lava sea or spring head = natural source (0)
   }
 
   function markFluidDirty(wx, wy, wz) {

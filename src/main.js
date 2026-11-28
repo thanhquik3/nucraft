@@ -271,47 +271,58 @@
     spawnPixelFx('lightning_arc', tx, ty + 2.0, tz, { count: 3, scale: 1.65, life: 0.42, spread: 1.2 });
     spawnPixelFx('lightning_arc', tx, ty + 5.8, tz, { count: 2, scale: 1.85, life: 0.36, spread: 1.4 });
     spawnPixelFx('electric_coil', tx, ty + 0.5, tz, { count: 2, scale: 1.15, life: 0.45, spread: 1.4 });
-    // Authentic Minecraft: Lightning hitting near a Creeper supercharges it into a Charged Creeper!
-    let chargedCount = 0;
+    // Authentic Minecraft: Lightning transforms nearby Creeper->Charged Creeper, Pig->Zombified Piglin, Villager->Witch!
+    const _transformLightningMob = (m, nextType) => {
+      if (!MOB_STATS[nextType]) return false;
+      const prevY = m.y, prevYaw = m.yaw, prevX = m.x, prevZ = m.z;
+      const nGrp = buildMobMesh(nextType, prevX, prevZ);
+      if (nGrp) {
+        scene.remove(m.group);
+        for (let pi = 0; pi < m.parts.length; pi++) {
+          const pMat = m.parts[pi].material;
+          if (pMat && !(pMat.userData && pMat.userData.sharedMat)) pMat.dispose();
+        }
+        nGrp.group.position.set(prevX, prevY, prevZ);
+        nGrp.group.rotation.y = prevYaw;
+        scene.add(nGrp.group);
+        m.group = nGrp.group; m.parts = nGrp.parts; m.flameGroup = nGrp.flameGroup; m.anim = nGrp.anim; m.fromBlender = nGrp.fromBlender;
+      }
+      m.type = nextType;
+      m.displayName = MOB_STATS[nextType].displayName || nextType;
+      m.hp = m.maxHp = MOB_STATS[nextType].hp;
+      m.speed = MOB_STATS[nextType].speed;
+      m.hurtFlash = 0.25;
+      m._justCharged = true;
+      return true;
+    };
+    let chargedCount = 0, piglinCount = 0, witchCount = 0;
     for (let mi = 0; mi < mobs.length; mi++) {
       const m = mobs[mi];
-      if (m.type === 'creeper' && Math.hypot(m.x - tx, m.z - tz) < 6.5) {
-        const prevY = m.y, prevYaw = m.yaw, prevX = m.x, prevZ = m.z;
-        const nGrp = buildMobMesh('charged_creeper', prevX, prevZ);
-        if (nGrp) {
-          scene.remove(m.group);
-          for (let pi = 0; pi < m.parts.length; pi++) {
-            const pMat = m.parts[pi].material;
-            if (pMat && !(pMat.userData && pMat.userData.sharedMat)) pMat.dispose();
-          }
-          nGrp.group.position.set(prevX, prevY, prevZ);
-          nGrp.group.rotation.y = prevYaw;
-          scene.add(nGrp.group);
-          m.group = nGrp.group; m.parts = nGrp.parts; m.flameGroup = nGrp.flameGroup; m.anim = nGrp.anim; m.fromBlender = nGrp.fromBlender;
-        }
-        m.type = 'charged_creeper';
-        m.displayName = MOB_STATS.charged_creeper.displayName;
-        m.hp = m.maxHp = MOB_STATS.charged_creeper.hp;
-        m.speed = MOB_STATS.charged_creeper.speed;
-        m.hurtFlash = 0.25;
-        m._justCharged = true;
-        chargedCount++;
-      }
+      if (!m || m._dead || Math.hypot(m.x - tx, m.z - tz) >= 6.5) continue;
+      if (m.type === 'creeper' && _transformLightningMob(m, 'charged_creeper')) chargedCount++;
+      else if (m.type === 'pig' && _transformLightningMob(m, 'zombified_piglin')) piglinCount++;
+      else if (m.type === 'villager' && _transformLightningMob(m, 'witch')) witchCount++;
     }
     if (chargedCount > 0) showToast(`⚡ Sét đánh trúng Creeper! ${chargedCount} Creeper đã biến thành Creeper Điện!`);
+    else if (piglinCount > 0) showToast(`⚡ Sét đánh trúng Lợn! Biến thành ${piglinCount} Piglin Thây Ma!`);
+    else if (witchCount > 0) showToast(`⚡ Sét đánh trúng Dân Làng! Biến thành ${witchCount} Phù Thủy!`);
+    // Lightning block destruction chance strictly reduced to 0.001% (1 in 100,000); normal strikes only deal damage & transform mobs!
+    const destroyBlocksNow = !!(explode && Math.random() < 0.00001);
     if (explode && typeof triggerExplosion === 'function') {
-      triggerExplosion(tx, ty, tz, 2.35, 11, '⚡ Bạn bị tia sấm sét đánh trúng!', { electric: true, silent: true });
-      const bx0 = Math.floor(tx), by0 = Math.floor(ty), bz0 = Math.floor(tz);
-      let litFire = false;
-      for (const [fx, fz] of [[bx0, bz0], [bx0 + 1, bz0], [bx0 - 1, bz0 + 1]]) {
-        for (let fy = by0 + 2; fy >= by0 - 3; fy--) {
-          if (IS_SOLID[getBlockWorld(fx, fy, fz)] === 1 && getBlockWorld(fx, fy + 1, fz) === B.AIR) {
-            if (Math.random() < 0.65) { setBlockWorld(fx, fy + 1, fz, B.FIRE, true); litFire = true; }
-            break;
+      triggerExplosion(tx, ty, tz, 2.35, 11, '⚡ Bạn bị tia sấm sét đánh trúng!', { electric: true, silent: true, destroyBlocks: destroyBlocksNow });
+      if (destroyBlocksNow) {
+        const bx0 = Math.floor(tx), by0 = Math.floor(ty), bz0 = Math.floor(tz);
+        let litFire = false;
+        for (const [fx, fz] of [[bx0, bz0], [bx0 + 1, bz0], [bx0 - 1, bz0 + 1]]) {
+          for (let fy = by0 + 2; fy >= by0 - 3; fy--) {
+            if (IS_SOLID[getBlockWorld(fx, fy, fz)] === 1 && getBlockWorld(fx, fy + 1, fz) === B.AIR) {
+              if (Math.random() < 0.65) { setBlockWorld(fx, fy + 1, fz, B.FIRE, true); litFire = true; }
+              break;
+            }
           }
         }
+        if (litFire) flushUrgentChunks(8);
       }
-      if (litFire) flushUrgentChunks(8);
     }
     return true;
   }
@@ -1061,25 +1072,25 @@
       const isWarped = (curB === BIOMES.NETHER_WARPED);
       const isBasalt = (curB === BIOMES.NETHER_BASALT_DELTAS);
       const isSoulV  = (curB === BIOMES.NETHER_SOUL_VALLEY);
-      // Warm smoky lava-heat rising haze + softer balanced Nether lighting (reduced harsh contrast, clear medieval castles & carved roof!)
-      _tmpTop.setHex(isBasalt ? 0x332b3d : (isSoulV ? 0x162e3a : (isWarped ? 0x162f3b : 0x451b15)));
-      _tmpHor.setHex(isBasalt ? 0x5c5068 : (isSoulV ? 0x244959 : (isWarped ? 0x244c57 : 0x7a3423)));
+      // Authentic Minecraft 1.16 Nether biome atmosphere (deep crimson haze, eerie teal Warped/Soul Valley mist, smoky Basalt ash)
+      _tmpTop.setHex(isBasalt ? 0x2c2536 : (isSoulV ? 0x102832 : (isWarped ? 0x112b34 : 0x3f1410)));
+      _tmpHor.setHex(isBasalt ? 0x524760 : (isSoulV ? 0x1b404d : (isWarped ? 0x1c4550 : 0x6b2419)));
       envUniforms.uSkyTop.value.copy(_tmpTop); envUniforms.uSkyHorizon.value.copy(_tmpHor);
       envUniforms.uFogColor.value.copy(_tmpHor);
-      const _nEnd = Math.min(loadedEdge, isBasalt ? Math.min(loadedEdge, 58.0) : Math.min(loadedEdge, 68.0));
-      envUniforms.uFogStart.value = Math.min(isBasalt ? 8.5 : 10.5, _nEnd * 0.36);
+      const _nEnd = Math.min(loadedEdge, isBasalt ? Math.min(loadedEdge, 66.0) : Math.min(loadedEdge, 76.0));
+      envUniforms.uFogStart.value = Math.min(isBasalt ? 11.0 : 14.0, _nEnd * 0.34);
       envUniforms.uFogEnd.value = _nEnd;
       scene.fog.color.copy(_tmpHor); scene.fog.near = envUniforms.uFogStart.value; scene.fog.far = envUniforms.uFogEnd.value;
       envUniforms.uSunDir.value.set(0.35, 0.85, 0.30).normalize();
-      envUniforms.uSunColor.value.setHex(isBasalt ? 0xdfd0eb : (isSoulV ? 0x8be9fd : (isWarped ? 0x7eead8 : 0xffba7d)));
+      envUniforms.uSunColor.value.setHex(isBasalt ? 0xd9cbe6 : (isSoulV ? 0x7dd3fc : (isWarped ? 0x6ee7d8 : 0xffb375)));
       const snapX = Math.round(player.x / 2) * 2, snapY = Math.round(player.y / 2) * 2, snapZ = Math.round(player.z / 2) * 2;
       sunLight.target.position.set(snapX, snapY, snapZ);
       sunLight.position.set(snapX + 16, snapY + 34, snapZ + 14);
-      sunLight.color.setHex(isBasalt ? 0xdfd3ea : (isSoulV ? 0x99e0fc : (isWarped ? 0xa7f3e4 : 0xffc48c)));
-      sunLight.intensity = isBasalt ? 0.68 : 0.72;
-      hemiLight.color.setHex(isBasalt ? 0x9487a3 : (isSoulV ? 0x56c7f0 : (isWarped ? 0x4fd1c5 : 0xd97352)));
-      hemiLight.groundColor.setHex(isBasalt ? 0x3a2f45 : (isSoulV ? 0x223b47 : 0x6e311d));
-      hemiLight.intensity = 0.82;
+      sunLight.color.setHex(isBasalt ? 0xd9cde4 : (isSoulV ? 0x8be2fa : (isWarped ? 0x99f6e4 : 0xffbf85)));
+      sunLight.intensity = isBasalt ? 0.66 : 0.70;
+      hemiLight.color.setHex(isBasalt ? 0x8d809e : (isSoulV ? 0x4bc0e8 : (isWarped ? 0x45cbbd : 0xd46a4a)));
+      hemiLight.groundColor.setHex(isBasalt ? 0x352a40 : (isSoulV ? 0x1d3540 : 0x662a18));
+      hemiLight.intensity = 0.80;
       if (envUniforms.uSurfaceLight) envUniforms.uSurfaceLight.value = 0.14;
       envUniforms.uMoonBoost.value = 0.0; envUniforms.uShaftStrength.value = 0.0; envUniforms.uSunVis.value = 0.0;
       cloudMesh.visible = false;

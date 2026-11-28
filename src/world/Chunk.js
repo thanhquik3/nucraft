@@ -456,13 +456,14 @@
     }
     if (currentDimension === 'end') return BIOMES.THE_END;
     if (currentDimension === 'nether') {
-      if (Math.hypot(wx - 64, wz + 72) < 42) return BIOMES.NETHER_BASALT_DELTAS;
-      const nB = fbm2D(wx * 0.0036, wz * 0.0036, 2, 0.5, 2.0, worldSeed + 707);
-      const nB2 = fbm2D(wx * 0.0042 + 19.3, wz * 0.0042 - 14.7, 2, 0.5, 2.0, worldSeed + 733);
-      if (nB < 0.34) return BIOMES.NETHER_CRIMSON;
-      if (nB > 0.66) return BIOMES.NETHER_WARPED;
-      if (nB2 < 0.37) return BIOMES.NETHER_BASALT_DELTAS;
-      if (nB2 > 0.65) return BIOMES.NETHER_SOUL_VALLEY;
+      if (Math.hypot(wx - 64, wz + 72) < 34) return BIOMES.NETHER_BASALT_DELTAS;
+      // Vibrant Minecraft 1.16 Nether biome tapestry: Crimson Forest, Warped Forest, Soul Sand Valley & Basalt Deltas meet across lava valleys!
+      const nB = fbm2D(wx * 0.0052, wz * 0.0052, 2, 0.5, 2.0, worldSeed + 707);
+      const nB2 = fbm2D(wx * 0.0058 + 19.3, wz * 0.0058 - 14.7, 2, 0.5, 2.0, worldSeed + 733);
+      if (nB < 0.36) return BIOMES.NETHER_CRIMSON;
+      if (nB > 0.64) return BIOMES.NETHER_WARPED;
+      if (nB2 < 0.36) return BIOMES.NETHER_BASALT_DELTAS;
+      if (nB2 > 0.60) return BIOMES.NETHER_SOUL_VALLEY;
       return BIOMES.NETHER_WASTES;
     }
     if (isWheatMegaPlain(wx, wz)) return BIOMES.WHEAT_VALLEY;
@@ -2667,9 +2668,9 @@
       const nbBelow = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
       if (_canFluidReplace(nbBelow)) {
         scheduleFluid(wx, wy, wz, 0.08);
-      } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.WATER && getFluidLevel(wx, wy - 1, wz, B.WATER) === 0)) {
-        // Only wake supported water touching open air if it still has horizontal spread strength (< maxSpread 7)
-        const curFl = hasFluidLevels ? getFluidLevel(wx, wy, wz, B.WATER) : 0;
+      } else if (hasFluidLevels && IS_SOLID[nbBelow] === 1 && fluidLevel.has(modKey(wx, wy, wz))) {
+        // Only wake active player-poured/flowing water from mesher; natural lakes/columns stay zero-CPU until disturbed by block break
+        const curFl = getFluidLevel(wx, wy, wz, B.WATER);
         if (curFl < 7 || curFl === 8) {
           const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
           const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
@@ -2737,10 +2738,10 @@
       const nbBelow = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
       if (_canFluidReplace(nbBelow)) {
         scheduleFluid(wx, wy, wz, 0.14);
-      } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.LAVA && getFluidLevel(wx, wy - 1, wz, B.LAVA) === 0)) {
-        // Only wake supported lava touching open air if it still has horizontal spread strength
+      } else if (hasFluidLevels && IS_SOLID[nbBelow] === 1 && fluidLevel.has(modKey(wx, wy, wz))) {
+        // Only wake active player-poured/flowing lava from mesher; natural Nether lavafalls & seas stay zero-CPU until disturbed!
         const lavaMax = (currentDimension === 'nether') ? 7 : 3;
-        const curFl = hasFluidLevels ? getFluidLevel(wx, wy, wz, B.LAVA) : 0;
+        const curFl = getFluidLevel(wx, wy, wz, B.LAVA);
         if (curFl < lavaMax || curFl === 8) {
           const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
           const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
