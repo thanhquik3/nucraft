@@ -3498,10 +3498,11 @@
     return chCity;
   }
 
-  // Monumental 1000x1000 Grand Ancient Ruins & Hero End Portal Citadel Shrine (Images 3, 8, 9, 10)
+  // Monumental 1000x1000 Underground Grand Ancient Ruins & Hero End Portal Citadel (buried deep beneath solid dry land!)
   function _genGrandRuinsChunk(cx, cz, wx0, wz0, data) {
-    let maxLy = 38;
-    const plazaY = 14;
+    let maxLy = 84;
+    const yShift = (typeof GRAND_RUINS_Y_SHIFT === 'number') ? GRAND_RUINS_Y_SHIFT : -34;
+    const plazaY = 14; // Relative Y (maps to wy = -20 deep underground; End Portal altar at relY=16 -> wy=-18)
     const ruinStone = (wx, wy, wz) => {
       const clump = valueNoise2D(wx * 0.24, wz * 0.24, worldSeed + 9307);
       const h = hash3i(wx, wy, wz, worldSeed + 9311);
@@ -3515,13 +3516,14 @@
       return h > 0.65 ? B.DEEPSLATE_TILES : (h > 0.30 ? B.DEEPSLATE_BRICKS : B.BLACKSTONE_BRICKS);
     };
     const oxTrim = (wx, wy, wz) => ((wx + wy + wz) & 3) === 0 ? B.PRISMARINE : B.COPPER_ROOF;
-    const put = (lx, wy, lz, id) => {
+    const putAbs = (lx, wy, lz, id) => {
       const ly = wy - MIN_Y;
       if (lx >= 0 && lx < CHUNK_W && lz >= 0 && lz < CHUNK_W && ly >= 1 && ly < WORLD_H - 1) {
         data[(ly << 8) | (lz << 4) | lx] = id;
         if (ly > maxLy) maxLy = ly;
       }
     };
+    const put = (lx, relY, lz, id) => putAbs(lx, relY + yShift, lz, id);
     const pendingTrees = [];
 
     for (let lz = 0; lz < CHUNK_W; lz++) {
@@ -3529,21 +3531,34 @@
       for (let lx = 0; lx < CHUNK_W; lx++) {
         const wx = wx0 + lx, rx = wx - GRAND_RUINS_CX;
         const ci = (lz << 4) | lx;
+        const surfY = (typeof getGrandRuinsSurfaceY === 'function') ? getGrandRuinsSurfaceY(wx, wz) : 24;
         colBiomes[ci] = BIOMES.GRAND_RUINS.id;
-        colHeights[ci] = plazaY;
+        colHeights[ci] = surfY;
 
         const ax = Math.abs(rx), az = Math.abs(rz);
         const edgeDist = Math.min(wx - GRAND_RUINS_MIN_X, GRAND_RUINS_MAX_X - wx, wz - GRAND_RUINS_MIN_Z, GRAND_RUINS_MAX_Z - wz);
+        if (edgeDist < 6) {
+          // Solid dry-land earth seal around outer boundary so the 1000x1000 underground ruin NEVER opens into oceans or cliffs
+          for (let wy = MIN_Y; wy <= surfY; wy++) {
+            const trueY = wy - (depthOffset || 0);
+            let bid = wy <= MIN_Y + 1 ? B.BEDROCK : (wy < 0 ? B.DEEPSLATE : (wy <= surfY - 4 ? B.STONE : (wy < surfY ? B.DIRT : B.GRASS)));
+            if (trueY <= -1001 && trueY >= -1010) bid = B.BEDROCK;
+            data[((wy - MIN_Y) << 8) | ci] = bid;
+          }
+          if ((surfY - MIN_Y) > maxLy) maxLy = surfY - MIN_Y;
+          continue;
+        }
         const inZoneA = (ax <= 44 && az <= 44);
         const inZoneB = (!inZoneA && ax <= 36 && az >= 45 && az <= 144);
         const inZoneC = (!inZoneA && rx <= -45 && rx >= -144 && az <= 36);
         const inZoneD = (!inZoneA && rx >= 45 && rx <= 144 && az <= 36);
         const onCauseway = (!inZoneA && (ax <= 8 || az <= 8));
 
-        // Base subterranean foundation up to y = 11
-        for (let wy = MIN_Y; wy <= 11; wy++) {
+        // Base subterranean foundation beneath underground plaza (wy = MIN_Y..-23)
+        const baseTopY = 11 + yShift;
+        for (let wy = MIN_Y; wy <= baseTopY; wy++) {
           const trueY = wy - (depthOffset || 0);
-          let bid = wy < 0 ? B.DEEPSLATE : B.STONE;
+          let bid = wy <= MIN_Y + 1 ? B.BEDROCK : B.DEEPSLATE;
           if (trueY <= -1001 && trueY >= -1010) bid = B.BEDROCK;
           data[((wy - MIN_Y) << 8) | ci] = bid;
         }
@@ -3772,7 +3787,7 @@
           const skylight = (!isVaultArch && ax <= 6 && (Math.abs(rz) % 12) >= 4 && (Math.abs(rz) % 12) <= 8);
           if (!skylight && archSkyH >= 20) {
             put(lx, archSkyH, lz, isVaultArch ? darkTrim(wx, archSkyH, wz) : ruinStone(wx, archSkyH, wz));
-            put(lx, archSkyH + 1, lz, B.GRASS);
+            put(lx, archSkyH + 1, lz, B.MOSS_BLOCK);
             if (hash2i(wx, wz, worldSeed + 9439) > 0.68) {
               const hangD = 2 + Math.floor(hash2i(wx, wz, worldSeed + 9461) * 5);
               for (let d = 1; d <= hangD; d++) put(lx, archSkyH - d, lz, d <= 2 ? B.OAK_LEAVES : B.VINE);
@@ -3957,6 +3972,77 @@
             }
           }
         }
+
+        // ==================== SUBTERRANEAN VAULTED CAVERN ROOF + SOLID DRY LAND ABOVE ====================
+        // Buries the entire 1000x1000 End Portal Ruins deep underground beneath rolling dry highland hills (NEVER ocean!)
+        const ceilN = valueNoise2D(wx * 0.08, wz * 0.08, worldSeed + 9643) * 3.0 + valueNoise2D(wx * 0.22, wz * 0.22, worldSeed + 9649) * 1.5;
+        let roofBotY;
+        if (inZoneA) {
+          roofBotY = Math.round(10 - Math.min(4.5, Math.hypot(rx, rz) * 0.10) + ceilN * 0.65);
+        } else if (inZoneB || inZoneC || inZoneD) {
+          roofBotY = Math.round(5 + ceilN * 0.85);
+        } else {
+          roofBotY = Math.round(2 + ceilN * 0.95);
+        }
+        if (edgeDist < 16) roofBotY = Math.round(roofBotY - (16 - edgeDist) * 0.5);
+        roofBotY = Math.max(-2, Math.min(surfY - 6, roofBotY));
+
+        const inEntryShaft = (Math.abs(rx) <= 2 && rz >= 35 && rz <= 41);
+        const inEntryWall = (!inEntryShaft && Math.abs(rx) <= 3 && rz >= 34 && rz <= 42);
+        if (inEntryShaft) {
+          // Ancient ruined stairwell descending from dry hill surface down into the underground End Portal Sanctuary
+          const stairT = Math.max(0, Math.min(1, (rz - 35) / 6));
+          const stairY = Math.round((plazaY + yShift) + stairT * (surfY - (plazaY + yShift)));
+          for (let wy = plazaY + yShift; wy <= surfY + 4; wy++) {
+            if (wy < stairY) putAbs(lx, wy, lz, ruinStone(wx, wy, wz));
+            else if (wy === stairY) putAbs(lx, wy, lz, Math.abs(rx) <= 1 ? B.STONE_STAIRS_N : ruinStone(wx, wy, wz));
+            else putAbs(lx, wy, lz, B.AIR);
+          }
+        } else {
+          for (let wy = roofBotY; wy <= surfY; wy++) {
+            let bid;
+            if (wy === surfY) {
+              const sr = hash2i(wx, wz, worldSeed + 9661);
+              bid = sr > 0.94 ? B.MOSSY_STONE_BRICK : (sr > 0.82 ? B.MOSS_BLOCK : B.GRASS);
+            } else if (wy >= surfY - 3) {
+              bid = B.DIRT;
+            } else if (wy === roofBotY) {
+              const rib = ((wx & 7) === 0 || (wz & 7) === 0);
+              const ceilGlow = (((wx & 7) === 0 && (wz & 7) === 0) || hash2i(wx, wz, worldSeed + 9677) > 0.968);
+              bid = ceilGlow ? (inZoneA ? B.GLOW_CRYSTAL : B.SHROOMLIGHT) : (rib ? darkTrim(wx, wy, wz) : ruinStone(wx, wy, wz));
+            } else {
+              bid = wy < 0 ? B.DEEPSLATE : B.STONE;
+            }
+            putAbs(lx, wy, lz, bid);
+          }
+          // Atmospheric hanging vines & mossy stalactites beneath the subterranean cavern vault
+          const hCeil = hash2i(wx, wz, worldSeed + 9689);
+          if (hCeil > 0.80) {
+            const hangLen = 1 + Math.floor(hash2i(wx, wz, worldSeed + 9697) * 4);
+            for (let d = 1; d <= hangLen; d++) {
+              const hy = roofBotY - d;
+              const hly = hy - MIN_Y;
+              if (hly > 1 && data[(hly << 8) | ci] === B.AIR) {
+                putAbs(lx, hy, lz, (d === 1 && hCeil > 0.91) ? B.MOSS_BLOCK : B.VINE);
+              } else break;
+            }
+          }
+          if (inEntryWall) {
+            // Weathered mossy stone gatehouse framing the dry-land entrance down into the underground ruins
+            for (let wy = roofBotY; wy <= surfY + 3; wy++) {
+              const isDoor = (Math.abs(rx) <= 1 && rz === 42 && wy >= surfY + 1 && wy <= surfY + 2);
+              if (!isDoor) putAbs(lx, wy, lz, (wy === surfY + 3 && Math.abs(rx) === 3 && (rz === 34 || rz === 42)) ? B.LANTERN : ruinStone(wx, wy, wz));
+            }
+          } else {
+            // Natural highland forest covering the solid land above the buried 1000m ruins
+            const fl = hash2i(wx, wz, worldSeed + 9719);
+            if (fl > 0.84) putAbs(lx, surfY + 1, lz, fl > 0.94 ? B.FERN : B.TALL_GRASS);
+            if (lx >= 3 && lx <= 12 && lz >= 3 && lz <= 12 && hash2i(wx, wz, worldSeed + 9733) > 0.986) {
+              pendingTrees.push({ lx, wy: surfY + 1, lz, wx, wz, style: hash2i(wx, wz, worldSeed + 9743) > 0.45 ? 'pine' : 'oak', absY: true });
+            }
+          }
+        }
+        colHeights[ci] = surfY;
       }
     }
 
@@ -3964,8 +4050,10 @@
       const tr = pendingTrees[ti];
       const clx = Math.max(2, Math.min(13, tr.lx | 0));
       const clz = Math.max(2, Math.min(13, tr.lz | 0));
-      placeLuantiTree(data, clx, tr.wy, clz, tr.wx, tr.wz, tr.style);
-      const estTopLy = Math.min(WORLD_H - 1, (tr.wy + 26) - MIN_Y);
+      const treeY = tr.absY ? tr.wy : (tr.wy + yShift);
+      if (!tr.absY && treeY > -8) continue;
+      placeLuantiTree(data, clx, treeY, clz, tr.wx, tr.wz, tr.absY ? tr.style : 'oak');
+      const estTopLy = Math.min(WORLD_H - 1, (treeY + 26) - MIN_Y);
       if (estTopLy > maxLy) maxLy = estTopLy;
     }
     // Guarantee maxLy covers every placed ruin wall, arch, tower, and tree canopy (fixes invisible ruin trees/structures!)
@@ -9001,7 +9089,8 @@
     const s = (typeof worldSeed === 'number' ? worldSeed : 1337);
     if (_shLocCache && _shLocSeed === s) return _shLocCache;
     // Underground End Portal Strongholds: ALWAYS buried deep beneath solid dry land (NEVER in the middle of the ocean!)
-    const out = [];
+    const grSurf = (typeof getGrandRuinsSurfaceY === 'function') ? getGrandRuinsSurfaceY(GRAND_RUINS_CX, GRAND_RUINS_CZ) : 24;
+    const out = [{ x: GRAND_RUINS_CX, y: GRAND_RUINS_PORTAL_Y, z: GRAND_RUINS_CZ, surfY: grSurf, inGrandRuins: true }];
     const sp = (typeof getSpawnContinentAnchor === 'function') ? getSpawnContinentAnchor(s) : { x: 0, z: 0 };
     const isSolidLandStrongholdSpot = (tx, tz) => {
       if (typeof getOceanMacro === 'function') {

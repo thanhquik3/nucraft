@@ -228,14 +228,23 @@ const B_IDS = {
   MEGA_SNOW_PEAKS: 58, LUSH_STEPPE: 59, GREEN_PLAINS: 68, SNOWY_PLAINS: 69, GRAND_RUINS: 72,
   SULFUR_SPRINGS: 78
 };
+function jsGetGrandRuinsSurfaceY(wx, wz, seed) {
+  const edgeDist = Math.min(wx + 3504, -2497 - wx, wz + 3504, -2497 - wz);
+  const edgeBlend = Math.min(1, Math.max(0, edgeDist / 64));
+  const hill = jsFbm2D(wx * 0.011, wz * 0.011, 3, 0.52, 2.05, seed + 9203);
+  const detail = jsValueNoise2D(wx * 0.052, wz * 0.052, seed + 9209);
+  return Math.floor(16 + (hill * 18 + detail * 3.0) * (0.35 + 0.65 * edgeBlend));
+}
 function jsGetOceanMacro(wx, wz, seed) {
   const a = Math.imul((seed || 1) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
   const b = Math.imul((seed || 1) ^ 0xc2b2ae35, 0x27d4eb2f) >>> 0;
   const dSp = Math.hypot(wx - ((a % 3600) - 1800), wz - ((b % 3600) - 1800));
   const spawnLift = dSp < 580 ? Math.max(0, 1.0 - dSp / 580) * 0.44 : 0.0;
+  const dRuins = Math.hypot(wx + 3000, wz + 3000);
+  const ruinsLift = dRuins < 1120 ? Math.max(0, 1.0 - Math.max(0, dRuins - 780) / 340) * 0.56 : 0.0;
   const macro = jsFbm2D(wx * 0.000105, wz * 0.000105, 3, 0.52, 2.0, seed + 4111);
   const coastJitter = (jsFbm2D(wx * 0.0014, wz * 0.0014, 2, 0.5, 2.0, seed + 411) - 0.5) * 0.14;
-  const seaVal = macro + coastJitter + spawnLift;
+  const seaVal = macro + coastJitter + spawnLift + ruinsLift;
   const isOcean = seaVal < 0.47;
   const openness = isOcean ? Math.max(0, Math.min(1, (0.47 - seaVal) / 0.22)) : 0;
   const ridge = jsFbm2D(wx * 0.0011, wz * 0.0011, 2, 0.5, 2.0, seed + 4157);
@@ -372,7 +381,7 @@ function jsOverworldBiomeAt(wx, wz, seed) {
 }
 function jsOverworldRawHeight(wx, wz, biome, seed) {
   if (biome === B_IDS.ABANDONED_CITY) return 2;
-  if (biome === B_IDS.GRAND_RUINS) return 14;
+  if (biome === B_IDS.GRAND_RUINS) return jsGetGrandRuinsSurfaceY(wx, wz, seed);
   if (wx >= 9000 && wx < 11000 && wz >= 9000 && wz < 11000) {
     const hill = jsFbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, seed + 881);
     const wave = jsValueNoise2D(wx * 0.018, wz * 0.018, seed + 883);
@@ -446,7 +455,7 @@ function jsOverworldRawHeight(wx, wz, biome, seed) {
 }
 function jsOverworldTerrainHeight(wx, wz, biome, seed) {
   if (biome === B_IDS.ABANDONED_CITY) return 2;
-  if (biome === B_IDS.GRAND_RUINS) return 14;
+  if (biome === B_IDS.GRAND_RUINS) return jsGetGrandRuinsSurfaceY(wx, wz, seed);
   const b1 = jsOverworldBiomeAt(wx + 8, wz, seed), b2 = jsOverworldBiomeAt(wx - 8, wz, seed);
   const b3 = jsOverworldBiomeAt(wx, wz + 8, seed), b4 = jsOverworldBiomeAt(wx, wz - 8, seed);
   const b5 = jsOverworldBiomeAt(wx + 20, wz, seed), b6 = jsOverworldBiomeAt(wx - 20, wz, seed);

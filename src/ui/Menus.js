@@ -193,14 +193,15 @@
         if (chR && chR.dirty) rebuildChunkMesh(chR);
       }
       _teleportWarmupFrames = 24;
-      player.x = GRAND_RUINS_CX + 0.5; player.y = 15.2; player.z = GRAND_RUINS_CZ + 8.5;
-      player.yaw = 0.0; player.pitch = 0.08;
-      player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = 15.2;
+      const _grSpawnY = (typeof GRAND_RUINS_PLAZA_Y === 'number' ? GRAND_RUINS_PLAZA_Y : -20) + 1.2;
+      player.x = GRAND_RUINS_CX + 0.5; player.y = _grSpawnY; player.z = GRAND_RUINS_CZ + 8.5;
+      player.yaw = 0.0; player.pitch = 0.04;
+      player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = _grSpawnY;
       lastPlayerCx = 99999; lastPlayerCz = 99999;
       if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.30;
       if (!isWorldLoading) startPlaying();
-      showToast('🏛️ Chào mừng tới Khu Tàn Tích Cổ Đại 1000×1000 & Đền Cổng The End! Đặt đủ 12 Mắt Ender để mở cổng!');
+      showToast('🏛️ Chào mừng tới Tàn Tích Ngầm Cổng The End 1000×1000 (dưới lòng đất y=-18)! Đặt đủ 12 Mắt Ender để mở cổng!');
       return;
     }
     if (targetKey === 'abandoned_city') {
@@ -1365,7 +1366,7 @@
     autumn:         { label: '🍁 Autumn Forest',    desc: 'Crimson and amber maple trees glowing along calm rocky riverside slopes.' },
     castle_city:    { label: '🏰 Castle City',      desc: 'Majestic royal castle surrounded by reflective moats, copper-roofed watchtowers, and stone bridges.' },
     abandoned_city: { label: '🏙️ Abandoned City',   desc: 'An overgrown modern boulevard of moss-covered glass skyscrapers standing in quiet twilight.' },
-    grand_ruins:    { label: '🏛️ Grand End Ruins',  desc: 'Massive 1000×1000 overgrown ancient ruins housing the majestic End Portal Citadel Shrine, waterfalls, and guardian courtyard.' },
+    grand_ruins:    { label: '🏛️ Grand End Ruins',  desc: 'Massive 1000×1000 subterranean ancient ruins buried beneath dry hills, housing the underground End Portal Citadel, vaulted halls, and lava chasm.' },
     seaport:        { label: '⚓ Seaport Harbor',   desc: 'Bustling oak timber docks reaching into blue waters beneath a glowing coastal lighthouse.' },
     blue_forest:    { label: '💙 Cerulean Forest',  desc: 'Mystic blue-foliage woods dotted with giant red mushrooms, teal grass, and lantern-lit trails.' },
     wheat_valley:   { label: '🌾 Wheat Fields',     desc: 'Endless golden wheat fields glowing in warm chill sunlight beside wooden windmills.' },
@@ -1629,7 +1630,7 @@ const ORE_BIOME_PREVIEWS = {
   autumn:         { label: '🍁 Rừng Mùa Thu',     desc: 'Rừng phong lá đỏ cam rực rỡ hòa cùng sắc vàng cuối chiều trên triền sông đá êm đềm.',                                 sky1: '#3b82f6', sky2: '#fed7aa', grass: '#c27a2c', dirt: '#7c4e38', water: '#2563eb', tree: '#ea580c', trunk: '#6d4c2f', accent: '#facc15', kind: 'trees' },
   castle_city:    { label: '🏰 Đại Thành',        desc: 'Tòa lâu đài hoàng gia uy nghiêm với hào nước phản chiếu ánh nắng, tháp canh mái đồng và cầu gỗ cổ kính.',             sky1: '#2f7df0', sky2: '#fde68a', grass: '#4d9b34', dirt: '#367023', water: '#2563eb', tree: '#9ca3af', trunk: '#4b5563', accent: '#dc2626', kind: 'castle' },
   abandoned_city: { label: '🏙️ Đô Thị Hoang',     desc: 'Đại lộ thành phố hiện đại bị bỏ hoang với những tòa cao ốc kính vỡ phủ rêu xanh dưới ánh hoàng hôn.',                 sky1: '#3b4d63', sky2: '#cbd5e1', grass: '#526052', dirt: '#3f3f46', water: '#334155', tree: '#64748b', trunk: '#27272a', accent: '#84cc16', kind: 'city' },
-  grand_ruins:    { label: '🏛️ Tàn Tích Cổng End', desc: 'Khu tàn tích cổ đại 1000×1000 hùng vĩ với Đền Cổng The End, vòm đá rêu, thác nước, tượng cổ và vực dung nham.',      sky1: '#235a78', sky2: '#c8ead8', grass: '#4f8c3c', dirt: '#5c6266', water: '#2563eb', tree: '#3b7d31', trunk: '#4b5563', accent: '#34d399', kind: 'castle' },
+  grand_ruins:    { label: '🏛️ Tàn Tích Cổng End', desc: 'Khu tàn tích ngầm 1000×1000 nằm sâu dưới lòng đất liền với Đền Cổng The End, vòm hang đá rêu, thác nước, tượng cổ và vực dung nham.',      sky1: '#235a78', sky2: '#c8ead8', grass: '#4f8c3c', dirt: '#5c6266', water: '#2563eb', tree: '#3b7d31', trunk: '#4b5563', accent: '#34d399', kind: 'castle' },
   seaport:        { label: '⚓ Cảng Biển',        desc: 'Bến cảng gỗ sồi sầm uất vươn ra vịnh biển xanh biếc cùng ngọn hải đăng phát sáng rực.',                              sky1: '#2589e8', sky2: '#d8f0ff', grass: '#52a33a', dirt: '#785130', water: '#1d4ed8', tree: '#ef4444', trunk: '#f8fafc', accent: '#fde047', kind: 'seaport' },
   blue_forest:    { label: '💙 Rừng Xanh Lam',    desc: 'Rừng cây lá xanh lam huyền ảo xen lẫn nấm đỏ khổng lồ, thảm cỏ ngọc lam và đèn lồng dọc lối mòn.',                   sky1: '#1a6fd6', sky2: '#9fe8f8', grass: '#25a89d', dirt: '#5c6e8a', water: '#1e88e5', tree: '#1d8cf8', trunk: '#788ba3', accent: '#dc2626', kind: 'trees' },
   wheat_valley:   { label: '🌾 Cánh Đồng Lúa',    desc: 'Cánh đồng lúa mì chín vàng bất tận hòa cùng ánh hoàng hôn ấm chill và những chiếc cối xay gió cổ kính.', sky1: '#1c244f', sky2: '#f59f63', grass: '#d99e26', dirt: '#6b4423', water: '#2563eb', tree: '#eab308', trunk: '#5c3a21', accent: '#fde047', kind: 'trees' },

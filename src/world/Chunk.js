@@ -282,12 +282,22 @@
   function isAbandonedCity(wx, wz) {
     return currentDimension === 'overworld' && wx >= 2000 && wx <= 7000 && wz >= 2000 && wz <= 7000;
   }
-  // Monumental 1000x1000 Grand Ancient Ruins & Relocated End Portal Citadel (wx, wz in [-3504..-2497])
+  // Monumental 1000x1000 Underground Grand Ancient Ruins & End Portal Citadel (wx, wz in [-3504..-2497], buried beneath dry land!)
   const GRAND_RUINS_MIN_X = -3504, GRAND_RUINS_MAX_X = -2497;
   const GRAND_RUINS_MIN_Z = -3504, GRAND_RUINS_MAX_Z = -2497;
-  const GRAND_RUINS_CX = -3000, GRAND_RUINS_CZ = -3000, GRAND_RUINS_PORTAL_Y = 16;
+  const GRAND_RUINS_CX = -3000, GRAND_RUINS_CZ = -3000;
+  const GRAND_RUINS_Y_SHIFT = -34;
+  const GRAND_RUINS_PLAZA_Y = 14 + GRAND_RUINS_Y_SHIFT;   // -20 (deep underground!)
+  const GRAND_RUINS_PORTAL_Y = 16 + GRAND_RUINS_Y_SHIFT;  // -18 (deep underground!)
   function isGrandRuins(wx, wz) {
     return currentDimension === 'overworld' && wx >= GRAND_RUINS_MIN_X && wx <= GRAND_RUINS_MAX_X && wz >= GRAND_RUINS_MIN_Z && wz <= GRAND_RUINS_MAX_Z;
+  }
+  function getGrandRuinsSurfaceY(wx, wz) {
+    const edgeDist = Math.min(wx - GRAND_RUINS_MIN_X, GRAND_RUINS_MAX_X - wx, wz - GRAND_RUINS_MIN_Z, GRAND_RUINS_MAX_Z - wz);
+    const edgeBlend = Math.min(1, Math.max(0, edgeDist / 64));
+    const hill = fbm2D(wx * 0.011, wz * 0.011, 3, 0.52, 2.05, worldSeed + 9203);
+    const detail = valueNoise2D(wx * 0.052, wz * 0.052, worldSeed + 9209);
+    return Math.floor(16 + (hill * 18 + detail * 3.0) * (0.35 + 0.65 * edgeBlend));
   }
   function getSpawnContinentAnchor(seed) {
     const a = Math.imul((seed || 1) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
@@ -299,9 +309,12 @@
     const dSp = Math.hypot(wx - sp.x, wz - sp.z);
     // Dry scenic continent (~480m radius) around world spawn while oceans open ~6,000-10,000+ blocks wide outside
     const spawnLift = dSp < 580 ? Math.max(0, 1.0 - dSp / 580) * 0.44 : 0.0;
+    // Guarantee the entire 1000x1000 Underground End Portal Ruins + surrounding border sit under solid dry land (NEVER ocean)
+    const dRuins = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
+    const ruinsLift = dRuins < 1120 ? Math.max(0, 1.0 - Math.max(0, dRuins - 780) / 340) * 0.56 : 0.0;
     const macro = fbm2D(wx * 0.000105, wz * 0.000105, 3, 0.52, 2.0, worldSeed + 4111);
     const coastJitter = (fbm2D(wx * 0.0014, wz * 0.0014, 2, 0.5, 2.0, worldSeed + 411) - 0.5) * 0.14;
-    const seaVal = macro + coastJitter + spawnLift;
+    const seaVal = macro + coastJitter + spawnLift + ruinsLift;
     const isOcean = seaVal < 0.47;
     const openness = isOcean ? Math.max(0, Math.min(1, (0.47 - seaVal) / 0.22)) : 0;
     const ridge = fbm2D(wx * 0.0011, wz * 0.0011, 2, 0.5, 2.0, worldSeed + 4157);
@@ -518,7 +531,7 @@
   }
   function getRawBiomeHeight(wx, wz, biome) {
     if (biome === BIOMES.ABANDONED_CITY) return 2;
-    if (biome === BIOMES.GRAND_RUINS) return 14;
+    if (biome === BIOMES.GRAND_RUINS) return getGrandRuinsSurfaceY(wx, wz);
     if (isWheatMegaPlain(wx, wz)) {
       const hill = fbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, worldSeed + 881);
       const wave = valueNoise2D(wx * 0.018, wz * 0.018, worldSeed + 883);
@@ -1022,7 +1035,7 @@
       return Math.max(MIN_Y + 6, Math.floor(nh));
     }
     if (biome === BIOMES.ABANDONED_CITY) return 2;
-    if (biome === BIOMES.GRAND_RUINS) return 14;
+    if (biome === BIOMES.GRAND_RUINS) return getGrandRuinsSurfaceY(wx, wz);
     const bC = biome || getBiomeAt(wx, wz);
     const b1 = getBiomeAt(wx + 8, wz), b2 = getBiomeAt(wx - 8, wz);
     const b3 = getBiomeAt(wx, wz + 8), b4 = getBiomeAt(wx, wz - 8);
@@ -1345,7 +1358,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=192').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=193').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
