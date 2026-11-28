@@ -2657,9 +2657,20 @@
   }
 
   function _meshWaterVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, id, hasFluidLevels, fBuf, st) {
-    if (ly > 0 && id === B.WATER) {
+    if (id === B.WATER && ly > 0) {
       const nbBelow = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
-      if (_canFluidReplace(nbBelow)) scheduleFluid(wx, wy, wz, 0.08);
+      if (_canFluidReplace(nbBelow)) {
+        scheduleFluid(wx, wy, wz, 0.08);
+      } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.WATER && getFluidLevel(wx, wy - 1, wz, B.WATER) === 0)) {
+        // Authentic Minecraft open-side flow: any supported water block touching an open air side wakes immediately!
+        const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
+        const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
+        const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
+        const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
+        if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
+          scheduleFluid(wx, wy, wz, 0.10);
+        }
+      }
     }
     if (id === B.WATER && !hasFluidLevels && lx > 0 && lx < 15 && lz > 0 && lz < 15 && ly > 0 && ly < WORLD_H - 1) {
       const cIdx = zOff | lx;
@@ -2715,7 +2726,18 @@
   function _meshLavaVoxel(data, dXP, dXM, dZP, dZM, wx0, wz0, zOff, lx, ly, lz, wx, wy, wz, hasFluidLevels, fBuf, st) {
     if (ly > 0) {
       const nbBelow = _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly - 1, lz);
-      if (_canFluidReplace(nbBelow)) scheduleFluid(wx, wy, wz, 0.14);
+      if (_canFluidReplace(nbBelow)) {
+        scheduleFluid(wx, wy, wz, 0.14);
+      } else if (IS_SOLID[nbBelow] === 1 || (nbBelow === B.LAVA && getFluidLevel(wx, wy - 1, wz, B.LAVA) === 0)) {
+        // Authentic Minecraft open-side lava flow: any supported lava block touching an open air side wakes immediately!
+        const nXP = (lx < 15 || dXP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx + 1, ly, lz) : B.STONE;
+        const nXM = (lx > 0  || dXM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx - 1, ly, lz) : B.STONE;
+        const nZP = (lz < 15 || dZP) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz + 1) : B.STONE;
+        const nZM = (lz > 0  || dZM) ? _getFastBlock(data, dXP, dXM, dZP, dZM, wx0, wz0, lx, ly, lz - 1) : B.STONE;
+        if (_canFluidReplace(nXP) || _canFluidReplace(nXM) || _canFluidReplace(nZP) || _canFluidReplace(nZM)) {
+          scheduleFluid(wx, wy, wz, currentDimension === 'nether' ? 0.16 : 0.28);
+        }
+      }
     }
     if (!hasFluidLevels && lx > 0 && lx < 15 && lz > 0 && lz < 15 && ly > 0 && ly < WORLD_H - 1) {
       const cIdx = zOff | lx;
@@ -3005,9 +3027,9 @@
     const emitBox = (x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, fitUv = false) => _pushSolidBox(wx, wy, wz, x0, y0, z0, x1, y1, z1, tTop, tSide, tBot, lr, lg, lb, fitUv, st);
     const tTop = def.tiles[0], tSide = def.tiles[1], tBot = def.tiles[2];
     if (id === B.END_PORTAL_FRAME || id === B.END_PORTAL_FRAME_EYE) {
-      // Exact Minecraft End Portal Frame: 13/16 height (0.8125) + 8x8x3px raised 3D Eye of Ender jewel on top (fitUv=true)
+      // Exact Minecraft End Portal Frame: 16x13x16 square base (0.8125 tall) + 8x4x8 SQUARE 3D Eye of Ender jewel (0.5x0.25x0.5) on top
       emitBox(0.0, 0.0, 0.0, 1.0, 0.8125, 1.0, 278, 279, 80, true);
-      if (id === B.END_PORTAL_FRAME_EYE) emitBox(0.25, 0.8125, 0.25, 0.75, 1.0, 0.75, 280, 280, 280, true);
+      if (id === B.END_PORTAL_FRAME_EYE) emitBox(0.25, 0.8125, 0.25, 0.75, 1.0625, 0.75, 280, 280, 280, true);
     } else if (def.isBarrel) {
       // Exact 6-way directional Minecraft Barrel (open lid shows hollow interior when opened!)
       const isOpen = (typeof openBarrels !== 'undefined' && openBarrels.has(modKey(wx, wy, wz)));

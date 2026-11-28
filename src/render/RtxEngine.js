@@ -3808,19 +3808,31 @@
       return g;
     }
     if (blockId === B.END_PORTAL_FRAME || blockId === B.END_PORTAL_FRAME_EYE) {
+      // Exact Minecraft End Portal Frame 3D block: 16x13x16 square UV-mapped base (tiles 278/279/80) + 8x4x8 SQUARE Eye jewel (tile 280)
       const g = new THREE.Group();
-      const creamMat = new THREE.MeshStandardMaterial({ color: 0xd5d29c, roughness: 0.85 });
-      const tealMat  = new THREE.MeshStandardMaterial({ color: 0x2d6a62, roughness: 0.5 });
-      const sockMat  = new THREE.MeshStandardMaterial({ color: 0x0b1f22, roughness: 0.35 });
-      const addB = (w, h, d, x, y, z, m) => { const bm = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); bm.position.set(x, y, z); g.add(bm); };
-      addB(0.24, 0.13, 0.24, 0, -0.04, 0, creamMat);
-      addB(0.245, 0.06, 0.245, 0, 0.055, 0, tealMat);
-      addB(0.13, 0.015, 0.13, 0, 0.085, 0, sockMat);
+      const mkTileBox = (w, h, d, tTop, tSide, tBot) => {
+        const geo = new THREE.BoxGeometry(w, h, d);
+        const uv = geo.attributes.uv;
+        const faceTiles = [tSide, tSide, tTop, tBot, tSide, tSide];
+        for (let fi = 0; fi < 6; fi++) {
+          const ti = faceTiles[fi];
+          const u0 = TILE_U0[ti], u1 = TILE_U1[ti], v0 = TILE_V0[ti], v1 = TILE_V1[ti];
+          const base = fi * 4;
+          uv.setXY(base,     u0, v1);
+          uv.setXY(base + 1, u1, v1);
+          uv.setXY(base + 2, u0, v0);
+          uv.setXY(base + 3, u1, v0);
+        }
+        uv.needsUpdate = true;
+        return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.78, metalness: 0.04 }));
+      };
+      const baseMesh = mkTileBox(0.24, 0.195, 0.24, 278, 279, 80); // 16 x 13 x 16 exact square proportions
+      baseMesh.position.set(0, -0.015, 0);
+      g.add(baseMesh);
       if (blockId === B.END_PORTAL_FRAME_EYE) {
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.50 });
-        const pupMat = new THREE.MeshStandardMaterial({ color: 0x020617 });
-        addB(0.11, 0.055, 0.11, 0, 0.108, 0, eyeMat);
-        addB(0.025, 0.060, 0.075, 0, 0.110, 0, pupMat);
+        const eyeMesh = mkTileBox(0.12, 0.06, 0.12, 280, 280, 280); // 8 x 4 x 8 exact SQUARE Eye on top!
+        eyeMesh.position.set(0, 0.1125, 0);
+        g.add(eyeMesh);
       }
       g.rotation.order = 'YXZ'; g.position.set(0.01, -0.02, -0.05); g.rotation.set(0.28, -0.55, 0.08);
       g.userData.iconReady = true;

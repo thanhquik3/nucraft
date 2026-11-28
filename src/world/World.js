@@ -3915,36 +3915,45 @@
             const surfR = hash2i(wx, wz, worldSeed + 9551);
             const baseElev = edgeDist < 16 ? Math.max(8, Math.round(8 + (edgeDist / 16) * 6)) : plazaY;
             for (let wy = 12; wy <= baseElev; wy++) {
-              put(lx, wy, lz, (wy === baseElev && surfR > 0.72) ? (surfR > 0.88 ? B.GRASS : B.MOSS_BLOCK) : ruinStone(wx, wy, wz));
+              put(lx, wy, lz, (wy === baseElev && surfR > 0.72) ? (surfR > 0.88 ? B.MOSS_BLOCK : B.MOSSY_STONE_BRICK) : ruinStone(wx, wy, wz));
             }
             colHeights[ci] = baseElev;
             if (!isOuterWallR && edgeDist >= 12) {
               if (distKind === 0 && badx <= 11 && badz <= 11) {
-                // Module 1: Ruined Citadel Tower + Emerald Moss Pool (Image 10 motif)
+                // Module 1: Ruined Citadel Tower + Emerald Moss Pool + Overgrown Leaf Vines
                 if (badx <= 5 && badz <= 5) {
                   put(lx, baseElev - 2, lz, B.PRISMARINE);
                   put(lx, baseElev - 1, lz, B.WATER);
                   put(lx, baseElev, lz, B.WATER);
                 } else if (badx === 11 || badz === 11) {
                   const wh = 19 + Math.floor(hash2i(wx, wz, worldSeed + 9587) * 8);
-                  if (badx > 2 && badz > 2) for (let wy = baseElev + 1; wy <= wh; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                  if (badx > 2 && badz > 2) {
+                    for (let wy = baseElev + 1; wy <= wh; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                    if (hash2i(wx, wz, worldSeed + 9589) > 0.64) put(lx, wh + 1, lz, B.OAK_LEAVES);
+                  }
                 } else if (bCx === -7 && bCz === -7) {
                   put(lx, baseElev + 1, lz, B.GOLD_CHEST);
+                } else if ((badx === 8 && badz === 8)) {
+                  for (let wy = baseElev + 1; wy <= baseElev + 4; wy++) put(lx, wy, lz, B.STONE_BRICK_WALL);
+                  put(lx, baseElev + 5, lz, B.LANTERN);
                 }
               } else if (distKind === 1 && badx <= 13 && badz <= 13) {
-                // Module 2: Terracotta & Sunken Dark Canal Hall (Image 3 motif)
+                // Module 2: Terracotta & Sunken Dark Canal Hall + Ruined Library Nooks
                 if (bCx >= 4 && bCx <= 9) {
                   put(lx, baseElev - 2, lz, B.DEEPSLATE_TILES);
                   put(lx, baseElev - 1, lz, B.WATER);
                   put(lx, baseElev, lz, B.WATER);
                 } else if (badx === 12 || badz === 12) {
                   if ((bx & 3) === 0) for (let wy = baseElev + 1; wy <= baseElev + 9; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
+                } else if (bCx <= -7 && bCx >= -10 && badz <= 6 && (bz & 1) === 0) {
+                  put(lx, baseElev + 1, lz, B.BOOKSHELF);
+                  if (badz <= 4) put(lx, baseElev + 2, lz, B.BOOKSHELF);
                 } else {
                   put(lx, baseElev, lz, (bCx & 3) === 0 ? B.MOSSY_STONE_BRICK : B.TERRACOTTA_ORANGE);
                   if (bCx === 0 && bCz === 0) { put(lx, baseElev + 1, lz, B.DEEPSLATE_BRICKS); put(lx, baseElev + 2, lz, B.CAMPFIRE); }
                 }
               } else if (distKind === 2 && badx <= 12 && badz <= 12) {
-                // Module 3: Oxidized Copper Colonnade & Monolith Shrine (Image 9 motif)
+                // Module 3: Oxidized Copper Colonnade & Glowing Crystal Monolith Shrine
                 if (badx === 11 || badz === 11) {
                   for (let wy = baseElev + 1; wy <= baseElev + 8; wy++) {
                     if ((wy - baseElev) === 4 || (wy - baseElev) === 8) put(lx, wy, lz, oxTrim(wx, wy, wz));
@@ -3952,22 +3961,56 @@
                   }
                 } else if (badx <= 2 && badz <= 2) {
                   const mh = baseElev + (badx === 0 && badz === 0 ? 7 : 4);
-                  for (let wy = baseElev + 1; wy <= mh; wy++) put(lx, wy, lz, (wy === mh - 1) ? B.SHROOMLIGHT : B.TERRACOTTA_ORANGE);
+                  for (let wy = baseElev + 1; wy <= mh; wy++) put(lx, wy, lz, (wy === mh - 1) ? B.GLOW_CRYSTAL : B.DEEPSLATE_BRICKS);
+                } else if (badx === 6 && badz === 6) {
+                  put(lx, baseElev - 1, lz, B.LAVA);
+                  put(lx, baseElev, lz, B.IRON_GRATE);
                 }
-              } else if (distKind === 3 && (badx <= 3 || badz <= 3)) {
-                // Module 4: Overgrown Aqueduct Arches & Torch Courtyard
+              } else if (distKind === 3 && badx <= 8 && badz <= 8) {
+                // Module 4: Overgrown Aqueduct Arches, Dungeon Iron Bars & Treasure Courtyard
                 if (badx === 3 || badz === 3) {
                   const ah = baseElev + ((bx + bz) % 6 === 0 ? 7 : 3);
                   for (let wy = baseElev + 1; wy <= ah; wy++) put(lx, wy, lz, ruinStone(wx, wy, wz));
                 } else if (bCx === 0 && bCz === 0) {
                   put(lx, baseElev + 1, lz, B.CHEST);
+                } else if (badx === 7 && badz <= 3) {
+                  for (let wy = baseElev + 1; wy <= baseElev + 3; wy++) put(lx, wy, lz, B.IRON_BARS);
                 }
               } else if (bCx === 0 && bCz === 0) {
                 // Module 5: Overgrown Ancient Woods & Ruin Plaza
                 pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
               }
-              if (lx >= 4 && lx <= 11 && lz >= 4 && lz <= 11 && hash2i(wx, wz, worldSeed + 9601) > 0.992) {
-                pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: hash2i(wx, wz, worldSeed + 9613) > 0.5 ? 'pine' : 'oak' });
+              // Wild Overgrown Subterranean Ruin Floor Decor (breaks up flat stone with moss shrubs, leaf clusters, fallen pillars, rubble & glowing fissures!)
+              const curAbove = data[((baseElev + 1 + yShift - MIN_Y) << 8) | ci];
+              if (curAbove === B.AIR) {
+                const bushNoise = valueNoise2D(wx * 0.21, wz * 0.21, worldSeed + 9617);
+                const decH = hash2i(wx, wz, worldSeed + 9623);
+                const pillarGrid = ((wx & 15) === 5 && (wz & 15) === 5);
+                if (pillarGrid && decH > 0.32) {
+                  // Broken ancient mossy ruin pillar + hanging vine/leaf crown
+                  const pH = 3 + ((decH * 5) | 0);
+                  for (let py = 1; py <= pH; py++) put(lx, baseElev + py, lz, py === pH ? B.STONE_BRICK_WALL : ruinStone(wx, baseElev + py, wz));
+                  if (decH > 0.66) put(lx, baseElev + pH + 1, lz, B.LANTERN);
+                  else put(lx, baseElev + pH + 1, lz, B.OAK_LEAVES);
+                } else if (bushNoise > 0.74 && decH > 0.42) {
+                  // Overgrown wild leaf shrub / mossy thicket (1-2 blocks tall) for untamed ancient ruin atmosphere!
+                  put(lx, baseElev + 1, lz, decH > 0.80 ? B.MOSS_BLOCK : B.OAK_LEAVES);
+                  if (bushNoise > 0.83 && decH > 0.62) put(lx, baseElev + 2, lz, B.OAK_LEAVES);
+                } else if (decH > 0.972) {
+                  // Weathered fallen stone rubble & glowing magma crack
+                  put(lx, baseElev + 1, lz, decH > 0.988 ? B.STONE_BRICK_WALL : B.MOSSY_STONE_BRICK);
+                  if (decH > 0.992) put(lx, baseElev + 2, lz, B.TORCH_BLOCK);
+                } else if (decH > 0.955 && decH <= 0.972) {
+                  // Ancient lava/magma fissure under iron grate
+                  put(lx, baseElev - 1, lz, B.LAVA);
+                  put(lx, baseElev, lz, B.IRON_GRATE);
+                } else if (decH > 0.82 && decH <= 0.94) {
+                  // Wild cave ferns, tall grass & moss tufts scattered across the stone floor
+                  put(lx, baseElev + 1, lz, decH > 0.89 ? B.FERN : B.TALL_GRASS);
+                }
+              }
+              if (lx >= 4 && lx <= 11 && lz >= 4 && lz <= 11 && hash2i(wx, wz, worldSeed + 9601) > 0.985) {
+                pendingTrees.push({ lx, wy: baseElev + 1, lz, wx, wz, style: 'oak' });
               }
             }
           }
@@ -5259,12 +5302,17 @@
   }
 
   function wakeAdjacentFluids(wx, wy, wz, speedMul = 1.0) {
-    const dirs = [[0,0,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]];
+    // Wake direct 6 neighbors + 2-block horizontal ring & y+1 ring so breaking a block or opening a ledge/hole immediately triggers Minecraft flow & slope-seeking!
+    const dirs = [
+      [0,0,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],
+      [1,1,0],[-1,1,0],[0,1,1],[0,1,-1],
+      [2,0,0],[-2,0,0],[0,0,2],[0,0,-2],[1,0,1],[1,0,-1],[-1,0,1],[-1,0,-1]
+    ];
     for (let i = 0; i < dirs.length; i++) {
       const nx = wx + dirs[i][0], ny = wy + dirs[i][1], nz = wz + dirs[i][2];
       const nb = getBlockWorld(nx, ny, nz);
-      if (nb === B.WATER) scheduleFluid(nx, ny, nz, 0.11 * speedMul);
-      else if (nb === B.LAVA) scheduleFluid(nx, ny, nz, (currentDimension === 'nether' ? 0.16 : 0.28) * speedMul);
+      if (nb === B.WATER) scheduleFluid(nx, ny, nz, (i <= 6 ? 0.08 : 0.12) * speedMul);
+      else if (nb === B.LAVA) scheduleFluid(nx, ny, nz, (currentDimension === 'nether' ? 0.14 : 0.24) * speedMul);
     }
   }
 
@@ -5275,7 +5323,7 @@
     const k = modKey(startX, startY, startZ);
     fluidLevel.delete(k);
     pouredFluidSources.delete(k);
-    wakeAdjacentFluids(startX, startY, startZ);
+    wakeAdjacentFluids(startX, startY, startZ, 0.75);
   }
 
   function _findFluidDropDist(x, y, z, curId, depth, fromIdx) {
@@ -5300,7 +5348,7 @@
       return;
     }
     let processed = 0, changedVisuals = 0;
-    const maxOps = 120;
+    const maxOps = 180;
     const len = fluidQueue.length;
     let writeIdx = fluidQueueHead;
     let i = fluidQueueHead;
@@ -5321,7 +5369,7 @@
 
       const isLava = (curId === B.LAVA);
       const maxSpread = isLava ? (currentDimension === 'nether' ? 7 : 3) : 7;
-      const delayStep = isLava ? (currentDimension === 'nether' ? 0.18 : 0.30) : 0.12;
+      const delayStep = isLava ? (currentDimension === 'nether' ? 0.16 : 0.28) : 0.11;
       let curLvl = fluidLevel.has(k) ? fluidLevel.get(k) : 0;
 
       // PHASE 1: Validate Flowing Blocks (curLvl > 0) + Infinite Water Spring Renewal (2+ source neighbors)
@@ -5375,15 +5423,20 @@
         }
       }
 
+      // Authentic Minecraft Fluid Interactions:
+      // - Flowing Lava onto Water from above -> STONE
+      // - Flowing Lava into Water horizontally -> COBBLESTONE
+      // - Water touching Lava Source (lvl 0) -> OBSIDIAN
+      // - Water touching Flowing Lava (lvl > 0) -> COBBLESTONE
       const reactPair = (tx, ty, tz, targetId) => {
         if (isLava && targetId === B.WATER) {
-          const outB = B.STONE;
+          const outB = (ty < y) ? B.STONE : (B.COBBLESTONE || B.STONE);
           const rk = modKey(tx, ty, tz);
           fluidLevel.delete(rk);
           pouredFluidSources.delete(rk);
           setBlockWorld(tx, ty, tz, outB, true);
           wakeAdjacentFluids(tx, ty, tz, 0.55);
-          spawnParticles(tx + 0.5, ty + 0.9, tz + 0.5, 0xe2e8f0, 5, false);
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('smoke_puff', tx + 0.5, ty + 0.95, tz + 0.5, { count: 2, scale: 0.72, life: 1.8 });
           playSfx('hiss');
           changedVisuals++;
           return true;
@@ -5393,9 +5446,9 @@
           const rk = modKey(tx, ty, tz);
           fluidLevel.delete(rk);
           pouredFluidSources.delete(rk);
-          setBlockWorld(tx, ty, tz, tLvl === 0 ? B.OBSIDIAN : B.STONE, true);
+          setBlockWorld(tx, ty, tz, tLvl === 0 ? B.OBSIDIAN : (B.COBBLESTONE || B.STONE), true);
           wakeAdjacentFluids(tx, ty, tz, 0.55);
-          spawnParticles(tx + 0.5, ty + 0.9, tz + 0.5, 0xcbd5e1, 6, false);
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('smoke_puff', tx + 0.5, ty + 0.95, tz + 0.5, { count: 2, scale: 0.78, life: 2.0 });
           playSfx('hiss');
           changedVisuals++;
           return true;
@@ -5410,17 +5463,18 @@
         if (_canFluidReplace(belowId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) > 0 && getFluidLevel(x, y - 1, z, curId) !== 8)) {
           if (belowId === B.FIRE) playSfx('hiss');
           const bk = modKey(x, y - 1, z);
+          fluidLevel.set(bk, 8); // Set level BEFORE setBlockWorld so dirty mesh & neighbor wakes see level 8 immediately!
           if (belowId !== curId) setBlockWorld(x, y - 1, z, curId, false);
           else markFluidDirty(x, y - 1, z);
-          fluidLevel.set(bk, 8);
           scheduleFluid(x, y - 1, z, delayStep);
           changedVisuals++;
           if (curLvl !== 0) continue;
         }
       }
 
-      // PHASE 3: Horizontal Flow w/ 4-Block Downhill Slope Seeking (Minecraft / Luanti standard)
-      const isSupported = (IS_SOLID[belowId] === 1) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) === 0);
+      // PHASE 3: Horizontal Flow w/ 4-Block Downhill Slope Seeking (Authentic Minecraft rule!)
+      // Supported if resting on ANY non-replaceable block (solid/slab/stairs/glass/frame), on a source block, OR if this itself is a source block (curLvl === 0)
+      const isSupported = (curLvl === 0) || (!_canFluidReplace(belowId) && belowId !== curId) || (belowId === curId && getFluidLevel(x, y - 1, z, curId) === 0);
       const effLvl = (curLvl === 8) ? 0 : curLvl;
       if (isSupported && effLvl < maxSpread) {
         const nextLvl = effLvl + 1;
@@ -5445,9 +5499,9 @@
           if (_canFluidReplace(nbId) || (nbId === curId && nbLvl > nextLvl && nbLvl !== 8)) {
             if (nbId === B.FIRE) playSfx('hiss');
             const nk = modKey(nx, y, nz);
+            fluidLevel.set(nk, nextLvl); // Set flow level BEFORE setBlockWorld so mesh & wakes never mistake it for a level-0 source!
             if (nbId !== curId) setBlockWorld(nx, y, nz, curId, false);
             else markFluidDirty(nx, y, nz);
-            fluidLevel.set(nk, nextLvl);
             scheduleFluid(nx, y, nz, delayStep);
             changedVisuals++;
           }
@@ -5459,7 +5513,7 @@
       fluidQueue.length = writeIdx;
     }
     fluidQueueHead = 0;
-    if (changedVisuals > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(5, true);
+    if (changedVisuals > 0 && typeof flushUrgentChunks === 'function') flushUrgentChunks(8, true);
   }
 
 
@@ -9648,14 +9702,7 @@
     return false;
   }
 
-  const _enderEyeOrbGeo = new THREE.SphereGeometry(0.18, 12, 12);
-  const _enderEyeOrbMat = new THREE.MeshBasicMaterial({ color: 0x228b6e });
-  const _enderEyeIrisGeo = new THREE.SphereGeometry(0.135, 10, 10);
-  const _enderEyeIrisMat = new THREE.MeshBasicMaterial({ color: 0x9ac668 });
-  const _enderEyePupilGeo = new THREE.BoxGeometry(0.055, 0.21, 0.23);
-  const _enderEyePupilMat = new THREE.MeshBasicMaterial({ color: 0x061314 });
-  const _enderEyeHaloGeo = new THREE.SphereGeometry(0.27, 8, 8);
-  const _enderEyeHaloMat = new THREE.MeshBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0.34 });
+  const flyingEnderPearls = [];
   function throwEnderEye() {
     if (currentDimension !== 'overworld') {
       showToast('👁️ Mắt Ender chỉ hoạt động tìm Pháo Đài ở Thế Giới Chính (Overworld)!');
@@ -9673,17 +9720,9 @@
       const eyeMesh = buildUnified3DItemMesh(B.ENDER_EYE);
       eyeMesh.position.set(0, 0, 0);
       eyeMesh.rotation.set(0, 0, 0);
-      eyeMesh.scale.setScalar(1.35);
+      eyeMesh.scale.setScalar(1.32);
       grp.add(eyeMesh);
-    } else {
-      const orb = new THREE.Mesh(_enderEyeOrbGeo, _enderEyeOrbMat);
-      const iris = new THREE.Mesh(_enderEyeIrisGeo, _enderEyeIrisMat);
-      iris.scale.set(1.06, 1.06, 0.85);
-      const pupil = new THREE.Mesh(_enderEyePupilGeo, _enderEyePupilMat);
-      grp.add(orb, iris, pupil);
     }
-    const halo = new THREE.Mesh(_enderEyeHaloGeo, _enderEyeHaloMat);
-    grp.add(halo);
     const fwdX = -Math.sin(player.yaw || 0), fwdZ = -Math.cos(player.yaw || 0);
     const sx = player.x + fwdX * 1.15, sy = player.y + 1.38, sz = player.z + fwdZ * 1.15;
     grp.position.set(sx, sy, sz);
@@ -9693,7 +9732,6 @@
     const tx = diving ? sh.x + 0.5 : player.x + dirX * flyDist;
     const ty = diving ? (sh.inGrandRuins ? sh.y + 1.5 : Math.max(sh.y + 1, sy - 4.5)) : sy + 4.4;
     const tz = diving ? sh.z + 0.5 : player.z + dirZ * flyDist;
-    // Control point curves gracefully from right in front of the player's face toward the Stronghold direction
     const mx = sx + fwdX * 1.8 + dirX * 2.4;
     const my = sy + (diving ? 0.8 : 2.6);
     const mz = sz + fwdZ * 1.8 + dirZ * 2.4;
@@ -9702,6 +9740,7 @@
       mesh: grp, sx, sy, sz, mx, my, mz, tx, ty, tz,
       t: 0, dur: 2.35, sparkT: 0, diving
     });
+    if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_eye_trail', sx, sy, sz, { count: 2, scale: 0.72, life: 0.36, spread: 0.25 });
     if (typeof window !== 'undefined') window._lastEnderEyeThrow = { x: sh.x, y: sh.y, z: sh.z, dist: Math.round(dist), at: Date.now() };
     playSfx('equip');
     if (diving) {
@@ -9725,23 +9764,94 @@
       const cy = inv * inv * e.sy + 2 * inv * u * e.my + u * u * e.ty;
       const cz = inv * inv * e.sz + 2 * inv * u * e.mz + u * u * e.tz;
       e.mesh.position.set(cx, cy, cz);
-      e.mesh.rotation.y += dt * 6.5;
+      // Billboard softly toward camera with crisp floating bob so the 3D pixel Eye icon is always readable!
+      e.mesh.rotation.y = Math.atan2(player.x - cx, player.z - cz);
       e.sparkT += dt;
-      if (e.sparkT >= 0.065) {
+      if (e.sparkT >= 0.055) {
         e.sparkT = 0;
-        spawnParticles(cx, cy, cz, 0xa855f7, 2, true);
-        spawnParticles(cx, cy, cz, 0x34d399, 1, true);
+        if (typeof spawnPixelFx === 'function') {
+          spawnPixelFx('ender_eye_trail', cx, cy, cz, { count: 1, scale: 0.62, life: 0.42, riseV: 0.35, randV: 0.32, spread: 0.22 });
+        }
       }
       if (e.t >= e.dur + 0.50) {
         scene.remove(e.mesh);
         flyingEnderEyes.splice(i, 1);
         if (Math.random() < 0.80) {
           spawnDroppedItem(Math.floor(cx), Math.floor(cy), Math.floor(cz), B.ENDER_EYE);
-          spawnParticles(cx, cy, cz, 0x5eead4, 10, true);
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_warp', cx, cy, cz, { count: 2, scale: 0.95, life: 0.44, spread: 0.28 });
         } else {
-          spawnParticles(cx, cy, cz, 0xa855f7, 18, true);
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_eye_shatter', cx, cy, cz, { count: 3, scale: 1.25, life: 0.52, randV: 1.4, spread: 0.35 });
           playSfx('break');
           showToast('💥 Mắt Ender đã vỡ tan thành bụi sao!');
+        }
+      }
+    }
+  }
+
+  function throwEnderPearl(itemId, dirX, dirY, dirZ) {
+    const bid = itemId || B.ENDER_PEARL;
+    const grp = new THREE.Group();
+    if (typeof buildUnified3DItemMesh === 'function') {
+      const pMesh = buildUnified3DItemMesh(bid);
+      pMesh.position.set(0, 0, 0);
+      pMesh.rotation.set(0, 0, 0);
+      pMesh.scale.setScalar(1.22);
+      grp.add(pMesh);
+    }
+    const sx = player.x + dirX * 0.85, sy = player.y + 1.42 + dirY * 0.45, sz = player.z + dirZ * 0.85;
+    grp.position.set(sx, sy, sz);
+    scene.add(grp);
+    const spd = (bid === B.VOID_PEARL) ? 26.0 : 23.0;
+    flyingEnderPearls.push({
+      mesh: grp, itemId: bid, x: sx, y: sy, z: sz,
+      vx: dirX * spd, vy: dirY * spd + 2.2, vz: dirZ * spd,
+      t: 0, sparkT: 0
+    });
+    if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_trail', sx, sy, sz, { count: 2, scale: 0.65, life: 0.34, spread: 0.2 });
+    playSfx('equip');
+    return true;
+  }
+
+  function updateFlyingEnderPearls(dt) {
+    for (let i = flyingEnderPearls.length - 1; i >= 0; i--) {
+      const p = flyingEnderPearls[i];
+      p.t += dt;
+      const prevX = p.x, prevY = p.y, prevZ = p.z;
+      p.vy -= 22.0 * dt;
+      const steps = 3;
+      let hit = false;
+      for (let s = 1; s <= steps; s++) {
+        const nx = prevX + p.vx * dt * (s / steps);
+        const ny = prevY + p.vy * dt * (s / steps);
+        const nz = prevZ + p.vz * dt * (s / steps);
+        if (isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz)) || ny <= MIN_Y + 1) {
+          hit = true;
+          break;
+        }
+        p.x = nx; p.y = ny; p.z = nz;
+      }
+      p.mesh.position.set(p.x, p.y, p.z);
+      p.mesh.rotation.y = Math.atan2(player.x - p.x, player.z - p.z);
+      p.mesh.rotation.z += dt * 5.0;
+      p.sparkT += dt;
+      if (p.sparkT >= 0.045) {
+        p.sparkT = 0;
+        if (typeof spawnPixelFx === 'function') {
+          spawnPixelFx('ender_trail', p.x, p.y, p.z, { count: 1, scale: 0.56, life: 0.36, riseV: 0.28, randV: 0.25, spread: 0.16 });
+        }
+      }
+      if (hit || p.t >= 4.5) {
+        scene.remove(p.mesh);
+        flyingEnderPearls.splice(i, 1);
+        if (hit && !player.dead) {
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_warp', player.x, player.y + 1.0, player.z, { count: 2, scale: 1.1, life: 0.42, spread: 0.35 });
+          let destY = Math.max(MIN_Y + 2, p.y);
+          if (isSolidAt(Math.floor(p.x), Math.floor(destY), Math.floor(p.z))) destY = Math.floor(destY) + 1.05;
+          player.x = p.x; player.y = destY; player.z = p.z;
+          player.vx = 0; player.vy = 0; player.vz = 0; player.fallStartY = player.y;
+          if (typeof spawnPixelFx === 'function') spawnPixelFx('ender_warp', player.x, player.y + 1.0, player.z, { count: 3, scale: 1.25, life: 0.48, spread: 0.45 });
+          playSfx('warp');
+          if (gameMode !== 'creative' && p.itemId === B.ENDER_PEARL) hurtPlayer(2.5, '✨ Va chạm dịch chuyển Ngọc Ender!', true, false);
         }
       }
     }

@@ -312,7 +312,7 @@ const {
     [B.FLINT_AND_STEEL]:      { name: 'Bật Lửa Thạch Anh',     hard: 0,    solid: false, tool: 'flint_steel', voxelItem: true, maxDur: 64, tiles: [283, 283, 283] },
     [B.FIRE]:                 { name: 'Lửa',                   hard: 0.02, solid: false, cross: true, trans: true, emissive: true, light: 14, fire: true, drop: 0, tiles: [324, 324, 324], mapColor: '#f97316' },
     [B.NETHER_PORTAL]:        { name: 'Cổng Địa Ngục',         hard: 0.25, solid: false, trans: true, emissive: true, light: 12, portal: 'nether', drop: 0, tiles: [277, 277, 277], mapColor: '#9333ea' },
-    [B.ENDER_PEARL]:          { name: 'Ngọc Ender (Ender Pearl)', hard: 0, solid: false, voxelItem: true, customAtlasTex: true, tiles: [284, 284, 284] },
+    [B.ENDER_PEARL]:          { name: 'Ngọc Ender (Ender Pearl)', hard: 0, solid: false, voxelItem: true, pearl: 'ender', customAtlasTex: true, tiles: [284, 284, 284] },
     [B.BLAZE_ROD]:            { name: 'Que Quỷ Lửa (Blaze Rod)',  hard: 0, solid: false, voxelItem: true, tiles: [285, 285, 285] },
     [B.BLAZE_POWDER]:         { name: 'Bột Quỷ Lửa (Blaze Powder)', hard: 0, solid: false, voxelItem: true, tiles: [286, 286, 286] },
     [B.ENDER_EYE]:            { name: 'Mắt Ender (Eye of Ender)', hard: 0, solid: false, voxelItem: true, customAtlasTex: true, tiles: [287, 287, 287] },

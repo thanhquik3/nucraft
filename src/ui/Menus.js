@@ -200,6 +200,15 @@
       lastPlayerCx = 99999; lastPlayerCz = 99999;
       if (!window._cartoonAddonActive && shaderPreset !== 'eclipse' && shaderPreset !== 'ncr2' && !(opts && opts.preserveShader)) applyShaderPreset('bsl');
       dayTime = 0.30;
+      // Populate underground 1000m End Portal Ruins perimeter with tough guardian monsters + an Iron Golem defender!
+      if (typeof spawnMobOfType === 'function') {
+        const pyG = _grSpawnY + 0.1;
+        spawnMobOfType('iron_golem', GRAND_RUINS_CX - 10.5, pyG, GRAND_RUINS_CZ - 16.5);
+        spawnMobOfType('ruin_stalker', GRAND_RUINS_CX - 13.5, pyG, GRAND_RUINS_CZ - 18.5);
+        spawnMobOfType('wither_skeleton', GRAND_RUINS_CX + 14.5, pyG, GRAND_RUINS_CZ - 16.5);
+        spawnMobOfType('skeleton', GRAND_RUINS_CX + 18.5, pyG, GRAND_RUINS_CZ + 3.5);
+        spawnMobOfType('vindicator', GRAND_RUINS_CX - 16.5, pyG, GRAND_RUINS_CZ - 22.5);
+      }
       if (!isWorldLoading) startPlaying();
       showToast('🏛️ Chào mừng tới Tàn Tích Ngầm Cổng The End 1000×1000 (dưới lòng đất y=-18)! Đặt đủ 12 Mắt Ender để mở cổng!');
       return;

@@ -1194,6 +1194,8 @@
     const diveDepth = player.eyesInWater ? Math.max(0, (WATER_LEVEL + 0.86) - trueEyeY) : 0;
     envUniforms.uWaterDepth.value = diveDepth;
     const abyssT = Math.min(1.0, Math.log1p(diveDepth * 0.045) / Math.log1p(700 * 0.045));
+    const _inUndergroundGrandRuins = (currentDimension === 'overworld' && curBiome === BIOMES.GRAND_RUINS && (player.y - (depthOffset || 0)) < 12);
+    const _isUndergroundCavern = (!player.eyesInWater && (_inUndergroundGrandRuins || player.y < -8 || depthOffset > 0));
     if (player.eyesInWater) {
       if (typeof farLodSystem !== 'undefined') farLodSystem.hide();
       const uwFogC = envUniforms.uFogColor.value;
@@ -1205,12 +1207,28 @@
       envUniforms.uSkyHorizon.value.copy(uwFogC);
       envUniforms.uFogStart.value = 1.8 - abyssT * 1.1;
       envUniforms.uFogEnd.value = 30.0 - abyssT * 15.0;
-    } else if (player.y < -8 || depthOffset > 0) {
+      if (typeof skyDome !== 'undefined') skyDome.visible = true;
+    } else if (_isUndergroundCavern) {
       if (typeof farLodSystem !== 'undefined') farLodSystem.hide();
-      const ugBioFog = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - depthOffset), Math.floor(player.z));
-      envUniforms.uFogColor.value.setHex(depthOffset >= 750 ? 0x260b0b : (ugBioFog ? ugBioFog.fogHex : 0x090d17));
-      envUniforms.uFogStart.value = 12.0; envUniforms.uFogEnd.value = 34.0;
+      if (_inUndergroundGrandRuins) {
+        // Dense mysterious ancient subterranean slate-mist fog inside 1000m End Portal Ruins: zero bright sky/white void ever peeks through!
+        envUniforms.uFogColor.value.setHex(0x11171c);
+        envUniforms.uFogStart.value = 9.0;
+        envUniforms.uFogEnd.value = 34.0;
+      } else {
+        const ugBioFog = getUndergroundBiomeAt(Math.floor(player.x), Math.floor(player.y - depthOffset), Math.floor(player.z));
+        envUniforms.uFogColor.value.setHex(depthOffset >= 750 ? 0x260b0b : (ugBioFog ? ugBioFog.fogHex : 0x090d17));
+        envUniforms.uFogStart.value = 10.0;
+        envUniforms.uFogEnd.value = 32.0;
+      }
+      // Seal underground horizon completely: hide skyDome & clouds so unloaded distant tunnels fade into dark cavern fog (never white sky!)
+      envUniforms.uSkyTop.value.copy(envUniforms.uFogColor.value);
+      envUniforms.uSkyHorizon.value.copy(envUniforms.uFogColor.value);
+      if (typeof skyDome !== 'undefined') skyDome.visible = false;
+      if (typeof cloudMesh !== 'undefined') cloudMesh.visible = false;
+      if (typeof shootingStarLines !== 'undefined') shootingStarLines.visible = false;
     } else {
+      if (typeof skyDome !== 'undefined') skyDome.visible = true;
       envUniforms.uFogColor.value.copy(_tmpHor).lerp(_isNcr2 ? _colNcr2Fog : _colAerialMist, (_isNcr2 ? 0.42 : 0.36) * dayWeight * (1 - rainIntensity * 0.5));
       if (activeWeatherKind === 'sandstorm') envUniforms.uFogColor.value.lerp(_colSandFog, 0.85 * rainIntensity);
       else if (activeWeatherKind === 'blizzard') envUniforms.uFogColor.value.lerp(_colBlizzHor, 0.72 * rainIntensity);

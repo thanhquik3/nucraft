@@ -2924,67 +2924,67 @@
       if (swirl > -0.7) return '#6b21a8';
       return '#4c1d95';
     });
-    // 278: Authentic Minecraft End Portal Frame TOP (Images 1,2,3,5: slate-teal frame + cream End-stone ring + dark 6x6 socket)
+    // 278: Authentic Minecraft End Portal Frame TOP (100% SQUARE 6x6 dark socket + square pale End-Stone ring + slate-teal border w/ corner studs)
     tilePixels(278, (x, y) => {
       const m = Math.min(x, y, 15 - x, 15 - y);
-      // Center recessed 6x6 dark obsidian-teal socket (x,y in 5..10)
-      if (m >= 5) return ((x === 5 || y === 5 || x === 10 || y === 10) ? '#081415' : (((x + y) & 1) ? '#0c1c1e' : '#0a1719'));
-      // Inner dark bezel edge around socket (m === 4)
-      if (m === 4) return ((x === 4 && y === 4) || (x === 4 && y === 11) || (x === 11 && y === 4) || (x === 11 && y === 11)) ? '#224743' : '#132828';
-      // Pale End-Stone cream ornamental square ring (m === 2..3) with authentic checkered teal corner notches
+      // Center recessed 6x6 SQUARE dark obsidian-teal socket (x,y in 5..10)
+      if (m >= 5) return ((x === 5 || y === 5 || x === 10 || y === 10) ? '#071415' : (((x + y) & 1) ? '#0c1e20' : '#091719'));
+      // Crisp 1px inner dark square bezel around socket (m === 4)
+      if (m === 4) return ((x === 4 || x === 11) && (y === 4 || y === 11)) ? '#244d47' : '#122929';
+      // Pale End-Stone cream ornamental SQUARE ring (m === 2..3) w/ corner teal notches (exact Minecraft top!)
       if (m === 3) {
         const cornerDiag = (x === 3 || x === 12) && (y === 3 || y === 12);
-        if (cornerDiag) return '#3a6c65';
-        return ((x + y) % 3 === 0) ? '#ebe6ae' : (((x ^ y) & 1) ? '#d8d39a' : '#c6c086');
+        if (cornerDiag) return '#376a63';
+        return ((x + y) % 3 === 0) ? '#eee9b2' : (((x ^ y) & 1) ? '#dcd79e' : '#cac48a');
       }
       if (m === 2) {
         const nearCorner = (x <= 3 || x >= 12) && (y <= 3 || y >= 12);
-        if (nearCorner) return ((x + y) & 1) ? '#2f5d57' : '#4a7f76';
-        return ((x + y) & 1) ? '#cfc990' : '#b7b17a';
+        if (nearCorner) return ((x + y) & 1) ? '#2f5e57' : '#4a8077';
+        return ((x + y) & 1) ? '#d2cc93' : '#bbb57d';
       }
-      // Outer slate-teal frame (m === 0..1) with corner pale-green pixel studs (exact Image 5)
+      // Outer slate-teal SQUARE frame (m === 0..1) w/ 4 pale-mint corner studs
       if (m === 1) {
         const cornerStud = (x === 1 || x === 14) && (y === 1 || y === 14);
-        if (cornerStud) return '#8eb896';
-        return ((x + y) & 1) ? '#447971' : '#35665f';
+        if (cornerStud) return '#92c29d';
+        return ((x + y) & 1) ? '#447b73' : '#356760';
       }
-      return ((x + y) & 1) ? '#2e5953' : '#3d6f67';
+      return ((x + y) & 1) ? '#2e5953' : '#3d7068';
     });
-    // 279: Authentic Minecraft End Portal Frame SIDE (Images 1 & 5: teal border + recessed cream oval bezel on top, End Stone bottom)
+    // 279: Authentic Minecraft End Portal Frame SIDE (exact 13/16 proportions: slate-teal rim + framed cream inset + pale End Stone bottom)
     tilePixels(279, (x, y) => {
       if (y === 0) return ((x + y) & 1) ? '#437971' : '#33625b';
       if (y === 1) return (x === 0 || x === 15) ? '#274d48' : ((x === 1 || x === 14) ? '#7ea688' : '#183331');
-      if (y >= 2 && y <= 6) {
+      if (y >= 2 && y <= 7) {
         const outerCol = (x === 0 || x === 15);
         const frameCol = (x === 1 || x === 14);
-        if (outerCol) return (y <= 4) ? '#2c5650' : '#183331';
-        if (frameCol) return (y === 2 || y === 6) ? '#152d2c' : '#2c5953';
+        if (outerCol) return (y <= 5) ? '#2c5650' : '#183331';
+        if (frameCol) return (y === 2 || y === 7) ? '#152d2c' : '#2c5953';
         if (y === 2) return (x === 2 || x === 13) ? '#17312f' : '#9c9665';
-        if (y === 6) return (x === 2 || x === 13) ? '#142a29' : '#1b3836';
-        if (y === 5) return (x === 2 || x === 13) ? '#9a9566' : (((x + y) & 1) ? '#b5af7a' : '#c6c08a');
+        if (y === 7) return (x === 2 || x === 13) ? '#142a29' : '#1b3836';
+        if (y === 6) return (x === 2 || x === 13) ? '#9a9566' : (((x + y) & 1) ? '#b5af7a' : '#c6c08a');
         return ((x * 5 + y * 3) % 4 === 0) ? '#dfd9a2' : '#cfc991';
       }
-      if (y === 7) return (x === 0 || x === 15) ? '#203f3c' : ((x <= 2 || x >= 13) ? '#152c2b' : '#a8a26d');
-      // Lower End Stone half (y = 8..15)
-      if (y === 8 && (x === 0 || x === 15)) return '#183331';
+      if (y === 8) return (x === 0 || x === 15) ? '#203f3c' : ((x <= 2 || x >= 13) ? '#152c2b' : '#a8a26d');
+      // Lower End Stone half (y = 9..15)
+      if (y === 9 && (x === 0 || x === 15)) return '#183331';
       const h = ((x * 92821 + y * 68917) >>> 0) % 9;
       if (h === 0 || h === 1) return '#b5b079';
       if (h === 2 || h === 3) return '#e5e1ac';
       if (h === 4) return '#c2bd84';
       return '#d5d19b';
     });
-    // 280: Authentic Minecraft 3D Eye of Ender Jewel (Images 1,2,3: sits cleanly on top of frame socket, dark bevel + sea-green iris + chartreuse highlight + vertical slit pupil!)
+    // 280: Authentic Minecraft 3D Placed Eye of Ender Block (100% SQUARE concentric pixel jewel — ZERO rectangle!)
     tilePixels(280, (x, y) => {
       const m = Math.min(x, y, 15 - x, 15 - y);
-      if (m === 0) return ((x + y) & 1) ? '#091819' : '#0f2425';
-      if (m === 1) return ((x + y) & 1) ? '#143332' : '#1c423f';
-      if (m === 2) return ((x + y) & 1) ? '#22514b' : '#2d6359';
-      // Inner iris & vertical pupil slit (x in 6..9, y in 4..11)
-      const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
-      if (dx < 1.1 && dy < 2.9) return (dy < 1.3) ? '#071413' : '#142d26';
-      if (dx < 2.2 && dy < 3.6) return ((x + y) & 1) ? '#a6c96c' : '#89b460';
-      if (dx < 3.6 && dy < 4.5) return ((x + y) & 1) ? '#609662' : '#4a805f';
-      return ((x + y) & 1) ? '#346d5f' : '#295b52';
+      if (m === 0) return ((x + y) & 1) ? '#091819' : '#102627';
+      if (m === 1) return ((x + y) & 1) ? '#153635' : '#1e4643';
+      if (m === 2) return ((x + y) & 1) ? '#265951' : '#336c61';
+      if (m === 3) return ((x + y) & 1) ? '#4b8667' : '#5e9b6b';
+      if (m === 4) return ((x + y) & 1) ? '#84b76e' : '#9dcc75';
+      if (m === 5) return ((x + y) & 1) ? '#aed87d' : '#96c572';
+      // Centered square dark pupil core (x,y in 6..9 — strictly symmetric square!)
+      if (m === 6) return (x >= 7 && x <= 8) ? '#0e2421' : '#6ca66a';
+      return '#061312';
     });
     // 281: End Portal (deep cosmic starry void!)
     tilePixels(281, (x, y) => {

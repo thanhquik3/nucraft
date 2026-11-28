@@ -5627,14 +5627,19 @@
       else if (r < 0.84) type = 'void_golem';
       else { type = 'end_phantom'; spawnY += 6.0; }
     } else if (biome === BIOMES.GRAND_RUINS) {
+      // High-difficulty 1000m Underground End Portal Ruins: dense dangerous guardian monsters + patrolling Iron Golems!
       const dC = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
-      if (dC < 20) return;
-      if (hostileCnt >= hostileCap) return;
-      if (r < 0.34) type = 'ruin_stalker';
-      else if (r < 0.62) type = 'skeleton';
-      else if (r < 0.80) { type = 'gargoyle'; spawnY += 5.5; }
-      else if (r < 0.92) type = 'iron_golem';
-      else type = 'pillager';
+      if (dC < 10) return;
+      if (hostileCnt >= hostileCap + 8) return;
+      if (r < 0.24) type = 'ruin_stalker';
+      else if (r < 0.42) type = 'wither_skeleton';
+      else if (r < 0.56) type = 'skeleton';
+      else if (r < 0.68) type = 'void_stalker';
+      else if (r < 0.78) type = 'vindicator';
+      else if (r < 0.86) { type = 'gargoyle'; spawnY += 4.5; }
+      else if (r < 0.92) type = 'pillager_raider';
+      else if (r < 0.96) type = 'endermite';
+      else type = 'iron_golem';
     } else if (biome === BIOMES.ABANDONED_CITY) {
       if (hostileCnt >= hostileCap) return;
       if (r < 0.40) type = 'ruin_stalker';
@@ -7834,7 +7839,7 @@
       const mk = mobs[k];
       _mobSnapBuf.push(mk);
       if (mk && !mk._dead) {
-        if (mk.hostile) _snapHostiles.push(mk);
+        if (mk.hostile || (!mk.guardian && !mk.tamed && !mk.villager && (mk.type === 'enderman' || mk.type === 'void_stalker' || mk.type === 'spider' || (mk.neutral && (mk.provoked || 0) > 0)))) _snapHostiles.push(mk);
         if (mk.villager) _snapVillagers.push(mk);
         if (!window._hasActiveFlyingBoss && (IS_DRAGON_MOB.has(mk.type) || (mk.isBoss && mk.flying))) {
           const bdx = mk.x - player.x, bdz = mk.z - player.z;
@@ -8145,13 +8150,14 @@
         const pElevated = !!(tgtP && isHumanoidPillar && tDist < 12.5 && (tgtP.y - m.y) > 1.4 && (tgtP.y - m.y) < 12.5);
         m._losT = (m._losT || 0) - dt;
         if (m._losT <= 0) {
-          m._losT = 0.24 + (i & 3) * 0.03;
+          m._losT = m.guardian ? (0.14 + (i & 3) * 0.02) : (0.24 + (i & 3) * 0.03);
           m._guardTarget = null;
           if ((m.guardian || (m.tamed && DEFENDER_PETS.has(m.type) && !m.sitting)) && m.provoked <= 0) {
-            let bestD2 = m.guardian ? 676 : 256;
+            let bestD2 = m.guardian ? 900 : 256;
+            const maxDy = m.guardian ? 10.0 : 7.5;
             for (let hi = 0; hi < _snapHostiles.length; hi++) {
               const hm = _snapHostiles[hi];
-              if (!hm || hm._dead || hm === m || Math.abs(hm.y - m.y) > 7.5) continue;
+              if (!hm || hm._dead || hm === m || Math.abs(hm.y - m.y) > maxDy) continue;
               const gx = hm.x - m.x, gz = hm.z - m.z, hd2 = gx * gx + gz * gz;
               if (hd2 < bestD2) { bestD2 = hd2; m._guardTarget = hm; }
             }
@@ -8351,21 +8357,27 @@
         }
       } else if (guardianTarget) {
         m.yaw = Math.atan2(guardianTarget.x - m.x, guardianTarget.z - m.z);
-        if (m.guardian) speed = m.speed * 1.38;
-        if (m.atkCd > 0) m.atkCd -= dt;
         const hd = Math.hypot(guardianTarget.x - m.x, guardianTarget.z - m.z);
-        const reach = m.guardian ? 2.55 : 1.75;
-        if (hd < reach && Math.abs(guardianTarget.y - m.y) < 2.5 && m.atkCd <= 0 && hasLineOfSight(m.x, m.y + 1.2, m.z, guardianTarget.x, guardianTarget.y + 1.0, guardianTarget.z)) {
-          m.atkCd = m.guardian ? 1.05 : 0.82; m.atkAnimT = m.guardian ? 0.52 : 0.40;
-          const hitDmg = m.guardian ? Math.max(12, m.dmg) : Math.max(4, m.dmg);
-          hurtMob(guardianTarget, hitDmg, guardianTarget.x - m.x, guardianTarget.z - m.z, m.guardian ? 8.0 : 4.5, false, false);
+        const stopD = (m.hitboxR || 0.75) + (guardianTarget.hitboxR || 0.5) + 0.25;
+        if (m.guardian) speed = hd > stopD ? (m.speed * 1.48) : (m.speed * 0.25);
+        if (m.atkCd > 0) m.atkCd -= dt;
+        const reach = m.guardian ? Math.max(3.15, (m.hitboxR || 0.9) + (guardianTarget.hitboxR || 0.5) + 1.55) : 1.95;
+        const vReach = m.guardian ? 3.4 : 2.5;
+        const canSeeTgt = (hd < 2.25) || hasLineOfSight(m.x, m.y + 1.5, m.z, guardianTarget.x, guardianTarget.y + 0.95, guardianTarget.z);
+        if (hd < reach && Math.abs(guardianTarget.y - m.y) < vReach && m.atkCd <= 0 && canSeeTgt) {
+          m.atkCd = m.guardian ? 0.95 : 0.80; m.atkAnimT = m.guardian ? 0.52 : 0.40;
+          const hitDmg = m.guardian ? Math.max(14, m.dmg) : Math.max(4, m.dmg);
+          hurtMob(guardianTarget, hitDmg, guardianTarget.x - m.x, guardianTarget.z - m.z, m.guardian ? 8.5 : 4.5, false, false);
           if (m.guardian) {
-            // Iconic Minecraft Iron Golem uppercut launch into the air!
-            guardianTarget.vy = Math.max(guardianTarget.vy || 0, 8.4);
+            // Iconic Minecraft Iron Golem uppercut launch into the air + crisp 2D PixelFX impact!
+            guardianTarget.vy = Math.max(guardianTarget.vy || 0, 8.8);
             playSfx('hit');
-            spawnParticles(guardianTarget.x, guardianTarget.y + 1.1, guardianTarget.z, 0xe2e8f0, 10, true);
-          } else {
-            spawnParticles(guardianTarget.x, guardianTarget.y + 1.0, guardianTarget.z, 0xf472b6, 6, false);
+            if (typeof spawnPixelFx === 'function') {
+              spawnPixelFx('crit_star', guardianTarget.x, guardianTarget.y + 1.15, guardianTarget.z, { count: 2, scale: 1.05, life: 0.36, spread: 0.35 });
+              spawnPixelFx('shield_clang', guardianTarget.x, guardianTarget.y + 1.0, guardianTarget.z, { count: 1, scale: 0.95, life: 0.32 });
+            }
+          } else if (typeof spawnPixelFx === 'function') {
+            spawnPixelFx('crit_star', guardianTarget.x, guardianTarget.y + 1.0, guardianTarget.z, { count: 1, scale: 0.72, life: 0.30 });
           }
         }
       } else if (preferVillager) {

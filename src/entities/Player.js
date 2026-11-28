@@ -3105,13 +3105,66 @@
           px(7.5 + Math.cos(a) * d, 7.5 + Math.sin(a) * d, cols[(k + f) % cols.length]);
         }
       });
+    } else if (kind === 'dragon_sovereign_aura' || kind === 'dragon_end_aura' || kind === 'dragon_fire_aura' || kind === 'dragon_frost_aura' || kind === 'dragon_storm_aura' || kind === 'dragon_leaf_aura') {
+      // patch-gg/pixelfx-style 2D animated pixel crystal/rune wisps for Dragon Armor sets (replaces ugly 3D cube particles!)
+      const DRG_PALS = {
+        dragon_sovereign_aura: ['#ffffff', '#a5f3fc', '#38bdf8', '#2dd4bf', '#0284c7'],
+        dragon_end_aura:       ['#ffffff', '#f5d0fe', '#c084fc', '#9333ea', '#581c87'],
+        dragon_fire_aura:      ['#ffffff', '#fef08a', '#fb923c', '#ef4444', '#9a3412'],
+        dragon_frost_aura:     ['#ffffff', '#e0f2fe', '#7dd3fc', '#38bdf8', '#0369a1'],
+        dragon_storm_aura:     ['#ffffff', '#fef9c3', '#38bdf8', '#818cf8', '#312e81'],
+        dragon_leaf_aura:      ['#ffffff', '#dcfce7', '#4ade80', '#10b981', '#065f46']
+      };
+      const cols = DRG_PALS[kind] || DRG_PALS.dragon_sovereign_aura;
+      sheet = bakePixelSheet(8, 16, true, ({ f, px, star, ring, hash }) => {
+        const cy = 11.5 - f * 0.95;
+        const cx = 7.5 + Math.sin(f * 0.9) * 1.4;
+        const arm = f < 3 ? (1 + f) : Math.max(1, 5 - Math.floor(f * 0.6));
+        if (f >= 1 && f <= 4) ring(cx, cy, 1.8 + f * 0.8, cols[3]);
+        star(cx, cy, arm, cols[2], cols[0], f < 5 ? 1 : 0);
+        // Trailing pixel diamond glyphs (crisp 1px pixelfx particles)
+        for (let k = 0; k < 4; k++) {
+          const a = hash(k * 7 + 3) * Math.PI * 2 + f * 0.55;
+          const r = 1.6 + f * 0.65;
+          px(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8 + 1.2, cols[(k + f) % 4]);
+        }
+      });
+    } else if (kind === 'ender_eye_trail' || kind === 'ender_trail') {
+      const isEye = (kind === 'ender_eye_trail');
+      const cols = isEye ? ['#ffffff', '#a7f3d0', '#34d399', '#a855f7'] : ['#ffffff', '#f5d0fe', '#c084fc', '#2dd4bf'];
+      sheet = bakePixelSheet(6, 16, true, ({ f, px, star, hash }) => {
+        const arm = f < 2 ? 2 + f : Math.max(1, 5 - f);
+        star(7.5, 7.5, arm, cols[2], cols[0], f < 3 ? 1 : 0);
+        for (let k = 0; k < 5; k++) {
+          const a = hash(k * 5 + 1) * Math.PI * 2 + f * 0.6;
+          const d = 1.5 + f * 1.05;
+          px(7.5 + Math.cos(a) * d, 7.5 + Math.sin(a) * d, cols[(k + f) & 3]);
+        }
+      });
+    } else if (kind === 'ender_warp' || kind === 'ender_eye_shatter') {
+      const isShat = (kind === 'ender_eye_shatter');
+      const cols = isShat ? ['#ffffff', '#a7f3d0', '#10b981', '#a855f7'] : ['#ffffff', '#f5d0fe', '#c084fc', '#38bdf8'];
+      sheet = bakePixelSheet(7, 24, true, ({ f, px, ring, star, hash }) => {
+        const r = 2.2 + f * 1.45;
+        if (f < 5) ring(11.5, 11.5, r, cols[2]);
+        if (f < 3) star(11.5, 11.5, 4 - f, cols[1], cols[0], 2 - f);
+        const shards = isShat ? 10 : 7;
+        for (let k = 0; k < shards; k++) {
+          const a = (k / shards) * Math.PI * 2 + hash(k + 2) * 0.4 + f * 0.15;
+          const d = 2.0 + f * (isShat ? 1.75 : 1.35);
+          px(11.5 + Math.cos(a) * d, 11.5 + Math.sin(a) * d, cols[(k + f) & 3]);
+          if (isShat && f < 5) px(11.5 + Math.cos(a) * (d - 1.2), 11.5 + Math.sin(a) * (d - 1.2), cols[0]);
+        }
+      });
     } else {
       // Shared magic / aura / sonic / dream sheet generator
       const MAG_PALS = {
         magic_ender:  ['#ffffff', '#f5d0fe', '#d946ef', '#7e22ce'],
         magic_sonic:  ['#ffffff', '#e0f2fe', '#22d3ee', '#0284c7'],
         magic_poison: ['#ffffff', '#bbf7d0', '#4ade80', '#15803d'],
-        magic_dream:  ['#ffffff', '#fbcfe8', '#a5f3fc', '#fde68a']
+        magic_dream:  ['#ffffff', '#fbcfe8', '#a5f3fc', '#fde68a'],
+        magic_gold:   ['#ffffff', '#fef08a', '#facc15', '#ea580c'],
+        magic_crimson:['#ffffff', '#fecaca', '#f87171', '#dc2626']
       };
       const cols = MAG_PALS[kind] || MAG_PALS.magic_ender;
       sheet = bakePixelSheet(6, 16, true, ({ f, star, ring, px, hash }) => {
@@ -4030,21 +4083,48 @@
       }
     }
   }
+  function _pick2DPixelFxKindForHex(colorHex) {
+    let hex = 0xffffff;
+    if (typeof colorHex === 'number') hex = colorHex;
+    else if (typeof colorHex === 'string' && colorHex[0] === '#') hex = parseInt(colorHex.slice(1), 16) || 0xffffff;
+    const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+    if (r > 190 && g > 130 && b < 90) return 'magic_gold';
+    if (r > 190 && g < 110 && b < 110) return 'magic_crimson';
+    if (r > 165 && b > 175 && g < 155) return 'magic_ender';
+    if (g > 175 && r < 140 && b < 165) return 'magic_poison';
+    if (b > 175 && g > 155 && r < 145) return 'magic_sonic';
+    if (r > 200 && g > 175 && b > 195) return 'magic_dream';
+    return 'ore_glint_white';
+  }
   function spawnParticles(wx, wy, wz, colorHex, count = 8, rise = false) {
     if (typeof sodiumOpts !== 'undefined' && !sodiumOpts.particles) return;
+    // Upgrade all rising magic/aura/hit/sparkle/spell FX to crisp 2D PixelFX sprites (zero ugly 3D cube particles!)
+    if (rise && typeof spawnPixelFx === 'function') {
+      const fxKind = _pick2DPixelFxKindForHex(colorHex);
+      const cnt = Math.max(1, Math.min(4, Math.ceil((count || 6) / 3)));
+      spawnPixelFx(fxKind, wx, wy, wz, {
+        count: cnt,
+        scale: count >= 12 ? 0.92 : 0.64,
+        life: 0.42 + Math.random() * 0.14,
+        riseV: 0.95,
+        randV: 0.72,
+        spread: count >= 12 ? 0.62 : 0.36
+      });
+      return;
+    }
     let n = Math.min(count, 24);
     if (sodiumOpts.immFast && particles.length > (MAX_PARTICLES * 0.65)) {
       n = Math.max(2, (n * 0.6) | 0);
     }
     for (let i = 0; i < n; i++) {
       _spawnOneParticle(wx, wy, wz, colorHex, {
-        kind: rise ? 'rise' : 'debris',
-        rise,
-        vx: (Math.random() - 0.5) * (rise ? 1.2 : 3.6),
-        vy: rise ? (1.4 + Math.random() * 2.2) : (2.0 + Math.random() * 3.0),
-        vz: (Math.random() - 0.5) * (rise ? 1.2 : 3.6),
-        life: rise ? 0.45 : 0.50,
-        grav: rise ? 0 : 14
+        kind: 'debris',
+        rise: false,
+        vx: (Math.random() - 0.5) * 3.6,
+        vy: 2.0 + Math.random() * 3.0,
+        vz: (Math.random() - 0.5) * 3.6,
+        life: 0.46,
+        grav: 14
       });
     }
   }
@@ -5481,21 +5561,15 @@
       return;
     }
 
-    // Void Pearl Teleport!
+    // Authentic Thrown 3D Ender Pearl / Void Pearl Projectile (matches icon & held 3D voxel model + 2D PixelFX warp trail!)
     if (selDef.pearl) {
       if (screenX !== null && screenY !== null) getRayDirFromScreen(screenX, screenY);
       else { _rayEuler.set(player.pitch, player.yaw, 0, 'YXZ'); _rayDir.set(0, 0, -1).applyEuler(_rayEuler); }
-      let tx = player.x, ty = player.y + 1.2, tz = player.z;
-      for (let d = 1.0; d <= 12.0; d += 0.5) {
-        const nx = player.x + _rayDir.x * d, ny = player.y + 1.2 + _rayDir.y * d, nz = player.z + _rayDir.z * d;
-        if (isSolidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) break;
-        tx = nx; ty = ny; tz = nz;
+      if (typeof throwEnderPearl === 'function') {
+        throwEnderPearl(slot.id, _rayDir.x, _rayDir.y, _rayDir.z);
+        player.swingT = 0.24;
+        if (gameMode !== 'creative') { slot.count--; if (slot.count <= 0) slot.id = 0; renderHotbar(); }
       }
-      spawnParticles(player.x, player.y + 1, player.z, 0xd946ef, 10, true);
-      player.x = tx; player.y = Math.max(MIN_Y + 2, ty); player.z = tz; player.fallStartY = player.y;
-      spawnParticles(player.x, player.y + 1, player.z, 0xd946ef, 12, true);
-      slot.count--; if (slot.count <= 0) slot.id = 0;
-      playSfx('warp'); renderHotbar(); showToast('✨ Dịch chuyển Hư Không!');
       return;
     }
 
@@ -6190,6 +6264,7 @@
 
     // === v62 Instant Portal Detection (0s Minecraft-style immediate portal trigger -> Bedrock Dynamic Loading Screen!) ===
     if (flyingEnderEyes.length > 0) updateFlyingEnderEyes(dt);
+    if (typeof flyingEnderPearls !== 'undefined' && flyingEnderPearls.length > 0) updateFlyingEnderPearls(dt);
     updateDreamRuinsAndPortals(dt);
     if (_portalCooldown > 0) _portalCooldown = Math.max(0, _portalCooldown - dt);
     const bodyBlock = getBlockWorld(Math.floor(player.x), Math.floor(player.y + 0.9), Math.floor(player.z));
@@ -7445,11 +7520,26 @@
       }
     }
 
-    // Sovereign Dragon Knight Armor passive frost-cyan diamond aura particles
-    if (player.sovereignKnightPieces > 0 && (frameCounter % 6) === 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false)) {
-      const ang = elapsed * 2.6;
-      const rA = 0.65;
-      spawnParticles(player.x + Math.cos(ang) * rA, player.y + 0.9 + Math.sin(elapsed * 3.1) * 0.45, player.z + Math.sin(ang) * rA, (frameCounter & 1) ? 0x67e8f9 : 0x2dd4bf, 1, true);
+    // Crisp 2D PixelFX Dragon Armor Aura (patch-gg/pixelfx style — zero blocky 3D cubes!)
+    if ((player.sovereignKnightPieces > 0 || player.dragonArmorSet) && (frameCounter % 7) === 0 && (typeof sodiumOpts === 'undefined' || sodiumOpts.particles !== false) && typeof spawnPixelFx === 'function') {
+      const ang = elapsed * 2.4;
+      const rA = 0.62;
+      const dSet = player.sovereignKnightPieces > 0 ? 'sovereign_knight' : player.dragonArmorSet;
+      const fxMap = {
+        sovereign_knight: 'dragon_sovereign_aura',
+        end_dragon: 'dragon_end_aura',
+        ender: 'dragon_end_aura',
+        fire: 'dragon_fire_aura',
+        ice: 'dragon_frost_aura',
+        water: 'dragon_frost_aura',
+        electric: 'dragon_storm_aura',
+        leaf: 'dragon_leaf_aura',
+        earth: 'dragon_fire_aura'
+      };
+      const auraFx = fxMap[dSet] || 'dragon_sovereign_aura';
+      spawnPixelFx(auraFx, player.x + Math.cos(ang) * rA, player.y + 0.85 + Math.sin(elapsed * 2.9) * 0.42, player.z + Math.sin(ang) * rA, {
+        count: 1, scale: 0.66, life: 0.56, riseV: 0.68, randV: 0.22, spread: 0.14
+      });
     }
     tickFishingRod(dt);
   }
