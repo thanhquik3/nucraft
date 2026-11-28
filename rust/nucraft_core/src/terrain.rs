@@ -160,6 +160,11 @@ fn is_grand_ruins(wx: i32, wz: i32) -> bool {
     (-3504..=-2497).contains(&wx) && (-3504..=-2497).contains(&wz)
 }
 
+#[inline(always)]
+fn is_grand_citadel(wx: i32, wz: i32) -> bool {
+    (11500..=12500).contains(&wx) && (-12500..=-11500).contains(&wz)
+}
+
 #[inline]
 pub fn get_grand_ruins_surface_y(wx: i32, wz: i32, seed: i32) -> i32 {
     let edge_dist = (wx + 3504).min(-2497 - wx).min(wz + 3504).min(-2497 - wz) as f64;
@@ -183,6 +188,7 @@ struct OceanMacro {
     is_ocean: bool,
     openness: f64,
     trench_factor: f64,
+    land_guard: f64,
 }
 
 #[inline]
@@ -196,16 +202,35 @@ fn get_ocean_macro(wx: i32, wz: i32, seed: i32) -> OceanMacro {
     } else {
         0.0
     };
-    // Keep the entire 1000x1000 Grand End Portal Ruins + surrounding border on solid dry mainland (NEVER ocean)
+    // Keep Grand End Portal Ruins, Grand Citadel, Wheat Plain & Megacity + borders on solid dry mainland (NEVER ocean)
     let d_ruins = (wxf + 3000.0).hypot(wzf + 3000.0);
     let ruins_lift = if d_ruins < 1120.0 {
         (1.0 - (d_ruins - 780.0).max(0.0) / 340.0).max(0.0) * 0.56
     } else {
         0.0
     };
+    let d_cit = (wxf - 12000.0).hypot(wzf + 12000.0);
+    let citadel_lift = if d_cit < 1260.0 {
+        (1.0 - (d_cit - 860.0).max(0.0) / 400.0).max(0.0) * 0.62
+    } else {
+        0.0
+    };
+    let d_wheat = (wxf - 10000.0).abs().max((wzf - 10000.0).abs());
+    let wheat_lift = if d_wheat < 1420.0 {
+        (1.0 - (d_wheat - 1100.0).max(0.0) / 320.0).max(0.0) * 0.58
+    } else {
+        0.0
+    };
+    let d_city = (wxf - 4500.0).abs().max((wzf - 4500.0).abs());
+    let city_lift = if d_city < 2920.0 {
+        (1.0 - (d_city - 2620.0).max(0.0) / 300.0).max(0.0) * 0.58
+    } else {
+        0.0
+    };
+    let land_guard = ruins_lift.max(citadel_lift).max(wheat_lift).max(city_lift);
     let macro_v = crate::fbm_2d(wxf * 0.000105, wzf * 0.000105, 3, 0.52, 2.0, seed.wrapping_add(4111));
     let coast_jitter = (crate::fbm_2d(wxf * 0.0014, wzf * 0.0014, 2, 0.5, 2.0, seed.wrapping_add(411)) - 0.5) * 0.14;
-    let sea_val = macro_v + coast_jitter + spawn_lift + ruins_lift;
+    let sea_val = macro_v + coast_jitter + spawn_lift + land_guard;
     let is_ocean = sea_val < 0.47;
     let openness = if is_ocean {
         ((0.47 - sea_val) / 0.22).max(0.0).min(1.0)
@@ -214,7 +239,7 @@ fn get_ocean_macro(wx: i32, wz: i32, seed: i32) -> OceanMacro {
     };
     let ridge = crate::fbm_2d(wxf * 0.0011, wzf * 0.0011, 2, 0.5, 2.0, seed.wrapping_add(4157));
     let trench_factor = (1.0 - (ridge - 0.5).abs() * 3.8).max(0.0);
-    OceanMacro { is_ocean, openness, trench_factor }
+    OceanMacro { is_ocean, openness, trench_factor, land_guard }
 }
 
 struct OceanIsland {
@@ -349,6 +374,9 @@ pub fn get_overworld_biome_at(wx: i32, wz: i32, seed: i32) -> u8 {
     if is_grand_ruins(wx, wz) {
         return B_GRAND_RUINS;
     }
+    if is_grand_citadel(wx, wz) {
+        return B_PLAINS;
+    }
     let o_mac = get_ocean_macro(wx, wz, seed);
     if o_mac.is_ocean {
         if let Some(isl) = get_ocean_island_info(wx, wz, o_mac.openness, seed) {
@@ -368,7 +396,7 @@ pub fn get_overworld_biome_at(wx: i32, wz: i32, seed: i32) -> u8 {
     let warp_z = (crate::value_noise_2d(wxf * 0.0016 + 19.7, wzf * 0.0016 - 23.1, seed.wrapping_add(523)) - 0.5) * 140.0;
     let bx = wxf + warp_x;
     let bz = wzf + warp_z;
-    let coast = crate::fbm_2d(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, seed.wrapping_add(411));
+    let coast = crate::fbm_2d(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, seed.wrapping_add(411)) + o_mac.land_guard * 0.45;
     let humid = crate::fbm_2d(bx * 0.00048 + 3.1, bz * 0.00048 - 2.7, 2, 0.5, 2.0, seed.wrapping_add(202));
     let heat = crate::fbm_2d(bx * 0.00045 - 4.3, bz * 0.00045 + 5.9, 2, 0.5, 2.0, seed.wrapping_add(101));
     let spooky_band = crate::fbm_2d(bx * 0.00095 + 11.1, bz * 0.00095 - 7.3, 2, 0.5, 2.0, seed.wrapping_add(677));
@@ -449,6 +477,7 @@ pub fn get_overworld_raw_height(wx: i32, wz: i32, biome: u8, seed: i32, water_le
     let wl = water_level as f64;
     if biome == B_ABANDONED_CITY { return 2.0; }
     if biome == B_GRAND_RUINS { return get_grand_ruins_surface_y(wx, wz, seed) as f64; }
+    if is_grand_citadel(wx, wz) { return 6.0; }
     let wxf = wx as f64;
     let wzf = wz as f64;
     if is_wheat_mega_plain(wx, wz) {
@@ -577,6 +606,7 @@ pub fn get_overworld_terrain_height(
 ) -> i32 {
     if biome == B_ABANDONED_CITY { return 2; }
     if biome == B_GRAND_RUINS { return get_grand_ruins_surface_y(wx, wz, seed).max(min_y + 4).min(max_y - 8); }
+    if is_grand_citadel(wx, wz) { return 6; }
     let bc = biome;
     let b1 = get_overworld_biome_at(wx + 8, wz, seed);
     let b2 = get_overworld_biome_at(wx - 8, wz, seed);

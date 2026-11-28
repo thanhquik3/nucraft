@@ -288,6 +288,7 @@
     if (window.visualViewport && (!window.visualViewport.scale || Math.abs(window.visualViewport.scale - 1) < 0.05)) { vw = Math.min(vw, Math.round(window.visualViewport.width)); vh = Math.min(vh, Math.round(window.visualViewport.height)); }
     return { vw: Math.max(240, vw), vh: Math.max(240, vh) };
   }
+  let _rvLastW = 0, _rvLastH = 0, _rvLastPR = 0;
   function resizeViewport() {
     const { vw, vh } = getTrueViewportDimensions();
     if (forceLandscape && vw < vh) {
@@ -299,7 +300,11 @@
       gameStage.style.removeProperty('--rot-w'); gameStage.style.removeProperty('--rot-h'); gameStage.style.removeProperty('--rot-left');
       stageW = vw; stageH = vh;
     }
-    renderer.setSize(stageW, stageH, false);
+    const pr = renderer.getPixelRatio();
+    if (stageW !== _rvLastW || stageH !== _rvLastH || pr !== _rvLastPR) {
+      renderer.setSize(stageW, stageH, false);
+      _rvLastW = stageW; _rvLastH = stageH; _rvLastPR = pr;
+    }
     const direct = _useDirectRender();
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     if (!direct) {
@@ -307,13 +312,13 @@
       const fgMode = (typeof sodiumOpts !== 'undefined' && (sodiumOpts.frameGen | 0) > 1) ? (sodiumOpts.frameGen | 0) : 1;
       const needFg = (fgMode > 1);
       ensurePostRTs(needWide, needFg);
-      const pr = renderer.getPixelRatio();
       const rtW = Math.max(128, Math.round(stageW * pr)), rtH = Math.max(128, Math.round(stageH * pr));
       const fgScale = (fgMode >= 4) ? 0.60 : (fgMode >= 2 ? 0.72 : 1.0);
       const scW = Math.max(128, Math.round(rtW * fgScale)), scH = Math.max(128, Math.round(rtH * fgScale));
-      sceneRT.setSize(scW, scH);
+      if (sceneRT.width !== scW || sceneRT.height !== scH) sceneRT.setSize(scW, scH);
       if (needFg && typeof fgRtA !== 'undefined' && fgRtA && fgRtB) {
-        fgRtA.setSize(scW, scH); fgRtB.setSize(scW, scH);
+        if (fgRtA.width !== scW || fgRtA.height !== scH) fgRtA.setSize(scW, scH);
+        if (fgRtB.width !== scW || fgRtB.height !== scH) fgRtB.setSize(scW, scH);
       }
       if (typeof fgBlendMat !== 'undefined' && fgBlendMat.uniforms && fgBlendMat.uniforms.uTexel) {
         fgBlendMat.uniforms.uTexel.value.set(1 / scW, 1 / scH);
@@ -322,11 +327,14 @@
       if (shaderQuality !== 'low' || (typeof sodiumOpts !== 'undefined' && sodiumOpts.rayTracing)) {
         const bDiv = (_isMobilePerf && !needWide) ? 6 : 4;
         const bW = Math.max(48, Math.round(scW / bDiv)), bH = Math.max(48, Math.round(scH / bDiv));
-        bloomRT1.setSize(bW, bH); bloomRT2.setSize(bW, bH);
-        godRayRT1.setSize(bW, bH); godRayRT2.setSize(bW, bH);
+        if (bloomRT1.width !== bW || bloomRT1.height !== bH) bloomRT1.setSize(bW, bH);
+        if (bloomRT2.width !== bW || bloomRT2.height !== bH) bloomRT2.setSize(bW, bH);
+        if (godRayRT1.width !== bW || godRayRT1.height !== bH) godRayRT1.setSize(bW, bH);
+        if (godRayRT2.width !== bW || godRayRT2.height !== bH) godRayRT2.setSize(bW, bH);
         if (needWide && bloomWide1) {
           const wW = Math.max(40, scW >> 3), wH = Math.max(40, scH >> 3);
-          bloomWide1.setSize(wW, wH); bloomWide2.setSize(wW, wH);
+          if (bloomWide1.width !== wW || bloomWide1.height !== wH) bloomWide1.setSize(wW, wH);
+          if (bloomWide2.width !== wW || bloomWide2.height !== wH) bloomWide2.setSize(wW, wH);
         }
       }
     }

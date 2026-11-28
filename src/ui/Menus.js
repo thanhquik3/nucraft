@@ -342,11 +342,29 @@
         }
       }
     }
+    const _isOceanBiomeTarget = (targetKey === 'abyss_trench' || targetKey === 'ocean_ruins' || targetKey === 'seaport' || targetKey === 'beach_palm' || targetKey === 'mushroom');
+    const _isStructureBiomeTarget = (targetKey === 'village' || targetKey === 'ancient_ruins' || targetKey === 'tudor_estate' || targetKey === 'manor_estate' || targetKey === 'winter_cabin' || targetKey === 'starter_house' || targetKey === 'forest_cabin' || targetKey === 'pine_valley' || targetKey === 'desert' || targetKey === 'snow' || targetKey === 'lush_cave' || targetKey === 'lush');
+    const _passesLandGuard = (wx, wz) => {
+      if (!_isOceanBiomeTarget && getOceanMacro(wx, wz).isOcean) return false;
+      if (_isStructureBiomeTarget) {
+        if (getOceanMacro(wx + 28, wz).isOcean || getOceanMacro(wx - 28, wz).isOcean ||
+            getOceanMacro(wx, wz + 28).isOcean || getOceanMacro(wx, wz - 28).isOcean) return false;
+        if (targetKey !== 'lush') {
+          if (getTerrainHeight(wx + 28, wz, getBiomeAt(wx + 28, wz)) <= WATER_LEVEL ||
+              getTerrainHeight(wx - 28, wz, getBiomeAt(wx - 28, wz)) <= WATER_LEVEL ||
+              getTerrainHeight(wx, wz + 28, getBiomeAt(wx, wz + 28)) <= WATER_LEVEL ||
+              getTerrainHeight(wx, wz - 28, getBiomeAt(wx, wz - 28)) <= WATER_LEVEL) return false;
+        }
+      }
+      return true;
+    };
     for (let r = 8; r <= 1280 && !found && targetKey !== 'abyss_trench'; r += (r < 560 ? 8 : 32)) {
       const step = r < 560 ? 8 : 32;
       for (let dz = -r; dz <= r && !found; dz += step) for (let dx = -r; dx <= r && !found; dx += step) {
         if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
-        const wx = ox + dx, wz = oz + dz, b = getBiomeAt(wx, wz);
+        const wx = ox + dx, wz = oz + dz;
+        if (!_passesLandGuard(wx, wz)) continue;
+        const b = getBiomeAt(wx, wz);
         if (b !== cfg.biome) continue;
         const h = getTerrainHeight(wx, wz, b);
         if (targetKey === 'ocean_ruins') { if (h > WATER_LEVEL - 4) continue; }
@@ -410,7 +428,9 @@
       for (let r = 64; r <= 6400 && !found; r += 48) {
         for (let dz = -r; dz <= r && !found; dz += 48) for (let dx = -r; dx <= r && !found; dx += 48) {
           if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
-          const wx = ox + dx, wz = oz + dz, b = getBiomeAt(wx, wz);
+          const wx = ox + dx, wz = oz + dz;
+          if (!_passesLandGuard(wx, wz)) continue;
+          const b = getBiomeAt(wx, wz);
           if (b !== cfg.biome) continue;
           const h = getTerrainHeight(wx, wz, b);
           if (h > WATER_LEVEL && h <= MAX_Y - 12) found = { x: wx + 0.5, z: wz + 0.5, yaw: prefY };
@@ -580,15 +600,15 @@
       _flushDirtyIfDirect();
     }
     if (targetKey === 'tudor_estate') {
-      const hx0 = Math.round(clean.x), hz0 = Math.round(clean.z - 14);
-      buildTimberManor(hx0, hz0, 1, 'large');
-      clean.x = hx0 + 0.5; clean.z = hz0 + 12.5; clean.y = colGroundY(hx0, hz0 + 12) + 1.2; clean.yaw = 0.0;
+      const hx0 = Math.round(clean.x), hz0 = Math.round(clean.z - 16);
+      buildGrandMedievalVoxelHouse(hx0, hz0, 1);
+      clean.x = hx0 + 0.5; clean.z = hz0 + 13.5; clean.y = colGroundY(hx0, hz0 + 13) + 1.2; clean.yaw = 0.0;
       _flushDirtyIfDirect();
     }
     if (targetKey === 'manor_estate') {
-      const hx0 = Math.round(clean.x), hz0 = Math.round(clean.z - 14);
-      buildTimberManor(hx0, hz0, 1, 'large');
-      clean.x = hx0 + 0.5; clean.z = hz0 + 13.5; clean.y = colGroundY(hx0, hz0 + 13) + 1.2; clean.yaw = 0.0;
+      const hx0 = Math.round(clean.x), hz0 = Math.round(clean.z - 16);
+      buildGrandMedievalVoxelHouse(hx0, hz0, 1);
+      clean.x = hx0 + 0.5; clean.z = hz0 + 14.5; clean.y = colGroundY(hx0, hz0 + 14) + 1.2; clean.yaw = 0.0;
       _flushDirtyIfDirect();
     }
     if (targetKey === 'winter_cabin') {
@@ -701,26 +721,34 @@
     }
   });
 
+  const _runGfxDeferred = (key, fn) => {
+    if (typeof scheduleGfxApply === 'function') scheduleGfxApply(key, fn);
+    else fn();
+  };
   document.querySelectorAll('#renderDistSeg .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#renderDistSeg .seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active'); renderDistance = parseInt(btn.dataset.val, 10); lastPlayerCx = 99999;
-      if (typeof updateAtmosphere === 'function') updateAtmosphere(0);
       if (CFG.saveGfxPrefs) CFG.saveGfxPrefs({ renderDistance });
       showToast(`Tầm nhìn: ${btn.textContent}`);
+      _runGfxDeferred('renderDist', () => { if (typeof updateAtmosphere === 'function') updateAtmosphere(0); });
     });
   });
   document.querySelectorAll('#qualitySeg .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#qualitySeg .seg-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active'); applyQualitySetting(btn.dataset.val, true);
+      btn.classList.add('active');
+      const nextQ = btn.dataset.val;
       showToast(`Đồ họa: ${btn.textContent}`);
+      _runGfxDeferred('quality', () => applyQualitySetting(nextQ, true));
     });
   });
   document.querySelectorAll('#aaSeg .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (typeof applyAaMode === 'function') applyAaMode(btn.dataset.aa, true);
+      document.querySelectorAll('#aaSeg .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const nextAa = btn.dataset.aa;
       showToast(`Khử răng cưa: ${btn.textContent}`);
+      _runGfxDeferred('aa', () => { if (typeof applyAaMode === 'function') applyAaMode(nextAa, true); });
     });
   });
   document.querySelectorAll('#frameGenSeg .seg-btn').forEach(btn => {
@@ -730,9 +758,11 @@
       sodiumOpts.frameGen = fg;
       saveSodiumOpts();
       document.querySelectorAll('#frameGenSeg .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
-      if (typeof window._fgReset === 'function') window._fgReset();
-      if (typeof resizeViewport === 'function') resizeViewport();
       showToast(`AI Frame Ảo: ${fg > 1 ? 'x' + fg + ' (Tăng FPS + Làm Nét)' : 'Tắt (x1)'}`);
+      _runGfxDeferred('fg', () => {
+        if (typeof window._fgReset === 'function') window._fgReset();
+        if (typeof resizeViewport === 'function') resizeViewport();
+      });
     });
   });
   document.querySelectorAll('#presetSeg .seg-btn').forEach(btn => {
@@ -756,11 +786,13 @@
       saveSodiumOpts();
       _syncRtBtn();
       window._rtVolDirty = true;
-      if (typeof applyQualitySetting === 'function') applyQualitySetting(shaderQuality, false);
-      if (typeof updateRayTracingVoxelVolume === 'function') updateRayTracingVoxelVolume(true);
-      window._postFxDirty = true;
-      if (typeof window._fgReset === 'function') window._fgReset();
       showToast(sodiumOpts.rayTracing ? tr('✨ Ray Tracing 3D: ĐÃ BẬT', '✨ 3D Ray Tracing: ON') : tr('✨ Ray Tracing 3D: ĐÃ TẮT', '✨ 3D Ray Tracing: OFF'));
+      _runGfxDeferred('rtx', () => {
+        if (typeof applyQualitySetting === 'function') applyQualitySetting(shaderQuality, false);
+        if (typeof updateRayTracingVoxelVolume === 'function') updateRayTracingVoxelVolume(true);
+        window._postFxDirty = true;
+        if (typeof window._fgReset === 'function') window._fgReset();
+      });
     });
   }
   document.getElementById('btnCloudMode').addEventListener('click', (e) => {
@@ -890,7 +922,7 @@
       btn.classList.toggle('active', !!sodiumOpts[key]);
       saveSodiumOpts();
       if (key === 'moreCulling' || key === 'fastLight') {
-        markAllLoadedChunksDirty(true);
+        _runGfxDeferred('chunkFlags', () => markAllLoadedChunksDirty(false));
       }
       if (key === 'entityCulling' && !sodiumOpts.entityCulling) {
         for (let i = 0; i < mobs.length; i++) if (mobs[i] && mobs[i].group) mobs[i].group.visible = true;
@@ -899,8 +931,8 @@
         envUniforms.uSharpness.value = (typeof getPresetSharpness === 'function') ? getPresetSharpness(shaderPreset) : (sodiumOpts.sharpness ? 0.19 : 0.0);
       }
       if (key === 'smoothShadows') {
-        const effUltra = (shaderQuality === 'ultra' || shaderQuality === 'extreme' || !!sodiumOpts.rayTracing);
-        renderer.shadowMap.type = (effUltra && !_initMobile && sodiumOpts.smoothShadows) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+        const effShOn = (shaderQuality !== 'low' || !!sodiumOpts.rayTracing);
+        sunLight.shadow.radius = (!window._cartoonAddonActive && effShOn && !_initMobile && sodiumOpts.smoothShadows) ? 2.8 : 1.0;
         renderer.shadowMap.needsUpdate = true;
       }
       if (key === 'waterRefl' && envUniforms.uUsePlanarRefl) {

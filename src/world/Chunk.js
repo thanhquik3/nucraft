@@ -152,10 +152,14 @@
       const ang = (ni * Math.PI * 2) / els.length + ((h1 % 100) / 100) * 0.55;
       const rad = (ni === 0) ? (135 + (h2 % 90)) : (220 + (h2 % 480));
       let sx = Math.round(Math.cos(ang) * rad), sz = Math.round(Math.sin(ang) * rad);
-      if (els[ni] !== 'water' && getOceanMacro(sx, sz).isOcean) {
-        for (let rStep = rad; rStep <= 1100; rStep += 64) {
+      const isDrySpot = (tx, tz) =>
+        !getOceanMacro(tx, tz).isOcean &&
+        !getOceanMacro(tx + 24, tz).isOcean && !getOceanMacro(tx - 24, tz).isOcean &&
+        !getOceanMacro(tx, tz + 24).isOcean && !getOceanMacro(tx, tz - 24).isOcean;
+      if (els[ni] !== 'water' && !isDrySpot(sx, sz)) {
+        for (let rStep = rad; rStep <= 1400; rStep += 48) {
           const tx = Math.round(Math.cos(ang) * rStep), tz = Math.round(Math.sin(ang) * rStep);
-          if (!getOceanMacro(tx, tz).isOcean) { sx = tx; sz = tz; break; }
+          if (isDrySpot(tx, tz)) { sx = tx; sz = tz; break; }
         }
       }
       const bio = getBiomeAt(sx, sz);
@@ -318,14 +322,21 @@
     // Guarantee the entire 1000x1000 Underground End Portal Ruins + surrounding border sit under solid dry land (NEVER ocean)
     const dRuins = Math.hypot(wx - GRAND_RUINS_CX, wz - GRAND_RUINS_CZ);
     const ruinsLift = dRuins < 1120 ? Math.max(0, 1.0 - Math.max(0, dRuins - 780) / 340) * 0.56 : 0.0;
+    const dCit = Math.hypot(wx - GRAND_CITADEL_CX, wz - GRAND_CITADEL_CZ);
+    const citadelLift = dCit < 1260 ? Math.max(0, 1.0 - Math.max(0, dCit - 860) / 400) * 0.62 : 0.0;
+    const dWheat = Math.max(Math.abs(wx - WHEAT_PLAIN_CX), Math.abs(wz - WHEAT_PLAIN_CZ));
+    const wheatLift = dWheat < 1420 ? Math.max(0, 1.0 - Math.max(0, dWheat - 1100) / 320) * 0.58 : 0.0;
+    const dCity = Math.max(Math.abs(wx - 4500), Math.abs(wz - 4500));
+    const cityLift = dCity < 2920 ? Math.max(0, 1.0 - Math.max(0, dCity - 2620) / 300) * 0.58 : 0.0;
+    const landGuard = Math.max(ruinsLift, citadelLift, wheatLift, cityLift);
     const macro = fbm2D(wx * 0.000105, wz * 0.000105, 3, 0.52, 2.0, worldSeed + 4111);
     const coastJitter = (fbm2D(wx * 0.0014, wz * 0.0014, 2, 0.5, 2.0, worldSeed + 411) - 0.5) * 0.14;
-    const seaVal = macro + coastJitter + spawnLift + ruinsLift;
+    const seaVal = macro + coastJitter + spawnLift + landGuard;
     const isOcean = seaVal < 0.47;
     const openness = isOcean ? Math.max(0, Math.min(1, (0.47 - seaVal) / 0.22)) : 0;
     const ridge = fbm2D(wx * 0.0011, wz * 0.0011, 2, 0.5, 2.0, worldSeed + 4157);
     const trenchFactor = Math.max(0, 1.0 - Math.abs(ridge - 0.5) * 3.8);
-    return { isOcean, openness, seaVal, trenchFactor };
+    return { isOcean, openness, seaVal, trenchFactor, landGuard };
   }
   function getOceanIslandInfo(wx, wz, openness) {
     if (openness <= 0.08) return null;
@@ -485,7 +496,7 @@
     const warpX = (valueNoise2D(wx * 0.0016, wz * 0.0016, worldSeed + 511) - 0.5) * 140.0;
     const warpZ = (valueNoise2D(wx * 0.0016 + 19.7, wz * 0.0016 - 23.1, worldSeed + 523) - 0.5) * 140.0;
     const bx = wx + warpX, bz = wz + warpZ;
-    const coast = fbm2D(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, worldSeed + 411);
+    const coast = fbm2D(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, worldSeed + 411) + (_oMac.landGuard || 0) * 0.45;
     const humid = fbm2D(bx * 0.00048 + 3.1, bz * 0.00048 - 2.7, 2, 0.5, 2.0, worldSeed + 202);
     const heat = fbm2D(bx * 0.00045 - 4.3, bz * 0.00045 + 5.9, 2, 0.5, 2.0, worldSeed + 101);
     const spookyBand = fbm2D(bx * 0.00095 + 11.1, bz * 0.00095 - 7.3, 2, 0.5, 2.0, worldSeed + 677);
@@ -1374,7 +1385,7 @@
   (function _initNucraftWasm() {
     try {
       if (typeof fetch !== 'function' || typeof WebAssembly !== 'object' || (typeof location !== 'undefined' && location.protocol === 'file:')) return;
-      fetch('./assets/nucraft_core.wasm?v=193').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
+      fetch('./assets/nucraft_core.wasm?v=203').then((r) => (r.ok ? r.arrayBuffer() : null)).then((buf) => (buf ? WebAssembly.instantiate(buf, {}) : null)).then((res) => {
         if (res && res.instance && res.instance.exports) {
           _nwExports = res.instance.exports;
           _syncWasmViews();
@@ -1515,7 +1526,7 @@
                 inFlightTerrain.delete(d.key);
                 if (d.type === 'gen_overworld_ok' && d.epoch === _worldEpoch) {
                   terrainCache.set(d.key, d);
-                  if (terrainCache.size > 64) {
+                  if (terrainCache.size > 96) {
                     const oldest = terrainCache.keys().next().value;
                     if (oldest !== undefined) terrainCache.delete(oldest);
                   }
@@ -1617,7 +1628,7 @@
       },
       prefetchOverworld(cx, cz) {
         if (!active || currentDimension !== 'overworld' || (depthOffset || 0) !== 0) return false;
-        if (inFlightTerrain.size >= Math.max(24, workers.length * 10)) return false;
+        if (inFlightTerrain.size >= Math.max(32, workers.length * 12)) return false;
         if (!_ensureAllLuts()) return false;
         const key = `${_worldEpoch}:${cx},${cz}`;
         if (terrainCache.has(key) || inFlightTerrain.has(key)) return false;

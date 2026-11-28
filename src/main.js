@@ -47,6 +47,23 @@
     if (typeof preloadCoreMobGlbs === 'function') preloadCoreMobGlbs();
   }
 
+  let _lastChunkComputeAO;
+  const _pendingGfxOps = new Map();
+  let _gfxRafId = 0;
+  function scheduleGfxApply(key, fn) {
+    if (typeof requestAnimationFrame !== 'function') { fn(); return; }
+    _pendingGfxOps.set(key, fn);
+    if (!_gfxRafId) {
+      _gfxRafId = requestAnimationFrame(() => {
+        _gfxRafId = 0;
+        const ops = Array.from(_pendingGfxOps.values());
+        _pendingGfxOps.clear();
+        for (let i = 0; i < ops.length; i++) ops[i]();
+      });
+    }
+  }
+  window.scheduleGfxApply = scheduleGfxApply;
+
   function applyQualitySetting(val, persist = false) {
     val = (CFG.normalizeQuality ? CFG.normalizeQuality(val, 'high') : val);
     shaderQuality = val;
@@ -75,7 +92,7 @@
       const wantRH = _initMobile ? Math.min(144, preset.reflH) : preset.reflH;
       if (reflRT.width !== wantRW || reflRT.height !== wantRH) reflRT.setSize(wantRW, wantRH);
     }
-    renderer.shadowMap.type = (!isCartoon && effShadowOn && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    sunLight.shadow.radius = (!isCartoon && effShadowOn && !_initMobile && (typeof sodiumOpts === 'undefined' || sodiumOpts.smoothShadows !== false)) ? 2.8 : 1.0;
     renderer.shadowMap.needsUpdate = true;
     _lastShCx = 999999; _lastShCz = 999999; _lastShQual = '';
     _lastReflYaw = 9e9; _lastReflPitch = 9e9; _reflDoneOnce = false;
@@ -83,12 +100,10 @@
     renderer.localClippingEnabled = !isLow || rtOn;
     if (isLow && !rtOn) {
       const sTex = getAtlasSolidTex();
-      if (leavesMatLow.map !== sTex) { leavesMatLow.map = sTex; leavesMatLow.needsUpdate = true; }
+      if (leavesMatLow.map !== sTex) leavesMatLow.map = sTex;
     }
     if (terrainMat._baseBumpMap === undefined) terrainMat._baseBumpMap = terrainMat.bumpMap;
-    const wantBumpMap = (isCartoon || (isLow && !rtOn) || (!bumpEnabled && !rtOn)) ? null : terrainMat._baseBumpMap;
-    if (terrainMat.bumpMap !== wantBumpMap) { terrainMat.bumpMap = wantBumpMap; terrainMat.needsUpdate = true; }
-    terrainMat.bumpScale = wantBumpMap ? (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0)) : 0.0;
+    terrainMat.bumpScale = (isCartoon || (isLow && !rtOn) || (!bumpEnabled && !rtOn)) ? 0.0 : (bumpEnabled ? (rtOn ? 0.085 : 0.058) : (rtOn ? 0.045 : 0.0));
     leavesMat.bumpScale = 0.0;
     renderer.toneMapping = direct ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
     renderer.toneMappingExposure = (shaderPreset === 'eclipse') ? 0.97 : (shaderPreset === 'cartoon_barebones' ? 0.90 : 0.95);
@@ -97,7 +112,10 @@
       CFG.saveGfxPrefs({ shaderQuality: val });
       try { if (CFG.CRASH_GUARD_KEY) localStorage.removeItem(CFG.CRASH_GUARD_KEY); } catch (_) {}
     }
-    markAllLoadedChunksDirty(true);
+    if (typeof syncLoadedChunkRenderFlags === 'function') syncLoadedChunkRenderFlags();
+    const nextAO = (!isLow || rtOn);
+    if (_lastChunkComputeAO !== undefined && _lastChunkComputeAO !== nextAO) markAllLoadedChunksDirty(false);
+    _lastChunkComputeAO = nextAO;
     resizeViewport();
   }
 
@@ -118,7 +136,9 @@
   }
   window.applyAaMode = applyAaMode;
 
-  function applyShaderPreset(preset, persist = false) {
+  const _presetTargets = { uExposure: 1.03, uVibrance: 0.08, uWarmth: 0.08, uContrast: 0.065, uCloudCover: 0.48, uSharpness: 0.19 };
+  let _presetLerpActive = false;
+  function applyShaderPreset(preset, persist = false, opts = null) {
     if (window._cartoonAddonActive) preset = 'cartoon_barebones';
     shaderPreset = preset;
     document.querySelectorAll('#presetSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
@@ -129,25 +149,26 @@
     if (envUniforms.uEclipseMode) envUniforms.uEclipseMode.value = (preset === 'eclipse') ? 1.0 : 0.0;
     if (envUniforms.uNcr2Mode) envUniforms.uNcr2Mode.value = (preset === 'ncr2') ? 1.0 : 0.0;
     if (envUniforms.uCartoonMode) envUniforms.uCartoonMode.value = (preset === 'cartoon_barebones' || window._cartoonAddonActive) ? 1.0 : 0.0;
-    if (envUniforms.uSharpness) envUniforms.uSharpness.value = getPresetSharpness(preset);
-    if (preset === 'bsl') {
-      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.48;
-    } else if (preset === 'ncr2') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.12; envUniforms.uWarmth.value = 0.05; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.50;
-    } else if (preset === 'bliss') {
-      envUniforms.uExposure.value = 1.02; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.10; envUniforms.uContrast.value = 0.06; envUniforms.uCloudCover.value = 0.50;
-    } else if (preset === 'moonlit') {
-      envUniforms.uExposure.value = 1.00; envUniforms.uVibrance.value = 0.04; envUniforms.uWarmth.value = -0.04; envUniforms.uContrast.value = 0.06; envUniforms.uCloudCover.value = 0.36;
-    } else if (preset === 'chill_sunset') {
-      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.16; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.52;
-    } else if (preset === 'verdant_fresh') {
-      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.48;
-    } else if (preset === 'dlss_ultra') {
-      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.08; envUniforms.uWarmth.value = 0.08; envUniforms.uContrast.value = 0.065; envUniforms.uCloudCover.value = 0.48;
-    } else if (preset === 'eclipse') {
-      envUniforms.uExposure.value = 1.03; envUniforms.uVibrance.value = 0.11; envUniforms.uWarmth.value = 0.24; envUniforms.uContrast.value = 0.075; envUniforms.uCloudCover.value = 0.48;
-    } else if (preset === 'cartoon_barebones') {
-      envUniforms.uExposure.value = 1.04; envUniforms.uVibrance.value = 0.09; envUniforms.uWarmth.value = 0.0; envUniforms.uContrast.value = 0.02; envUniforms.uCloudCover.value = 0.44;
+    const tSh = getPresetSharpness(preset);
+    let tExp = 1.03, tVib = 0.08, tWarm = 0.08, tCon = 0.065, tCloud = 0.48;
+    if (preset === 'ncr2') { tExp = 1.02; tVib = 0.12; tWarm = 0.05; tCon = 0.065; tCloud = 0.50; }
+    else if (preset === 'bliss') { tExp = 1.02; tVib = 0.08; tWarm = 0.10; tCon = 0.06; tCloud = 0.50; }
+    else if (preset === 'moonlit') { tExp = 1.00; tVib = 0.04; tWarm = -0.04; tCon = 0.06; tCloud = 0.36; }
+    else if (preset === 'chill_sunset') { tExp = 1.03; tVib = 0.09; tWarm = 0.16; tCon = 0.065; tCloud = 0.52; }
+    else if (preset === 'verdant_fresh') { tExp = 1.03; tVib = 0.09; tWarm = 0.08; tCon = 0.065; tCloud = 0.48; }
+    else if (preset === 'dlss_ultra') { tExp = 1.03; tVib = 0.08; tWarm = 0.08; tCon = 0.065; tCloud = 0.48; }
+    else if (preset === 'eclipse') { tExp = 1.03; tVib = 0.11; tWarm = 0.24; tCon = 0.075; tCloud = 0.48; }
+    else if (preset === 'cartoon_barebones') { tExp = 1.04; tVib = 0.09; tWarm = 0.0; tCon = 0.02; tCloud = 0.44; }
+    _presetTargets.uExposure = tExp; _presetTargets.uVibrance = tVib; _presetTargets.uWarmth = tWarm;
+    _presetTargets.uContrast = tCon; _presetTargets.uCloudCover = tCloud; _presetTargets.uSharpness = tSh;
+    const smooth = !!(opts && typeof opts.smooth === 'boolean' ? opts.smooth : persist);
+    if (smooth && typeof requestAnimationFrame === 'function') {
+      _presetLerpActive = true;
+    } else {
+      _presetLerpActive = false;
+      if (envUniforms.uSharpness) envUniforms.uSharpness.value = tSh;
+      envUniforms.uExposure.value = tExp; envUniforms.uVibrance.value = tVib; envUniforms.uWarmth.value = tWarm;
+      envUniforms.uContrast.value = tCon; envUniforms.uCloudCover.value = tCloud;
     }
     renderer.toneMappingExposure = (preset === 'eclipse') ? 0.99 : (preset === 'cartoon_barebones' ? 0.90 : 0.95);
     window._eclipseGrassDirty = true;
@@ -1989,6 +2010,21 @@
       elapsed += dt;
       if (typeof sodiumOpts === 'undefined' || sodiumOpts.animations !== false) envUniforms.uTime.value = elapsed;
       if (envUniforms.uPlayerPos) envUniforms.uPlayerPos.value.set(player.x, player.y, player.z);
+      if (_presetLerpActive) {
+        const lk = 1 - Math.exp(-12.0 * Math.min(0.05, rawDt));
+        let maxD = 0;
+        for (const k in _presetTargets) {
+          const u = envUniforms[k];
+          if (!u) continue;
+          const d = _presetTargets[k] - u.value;
+          u.value += d * lk;
+          if (Math.abs(d) > maxD) maxD = Math.abs(d);
+        }
+        if (maxD < 0.001) {
+          for (const k in _presetTargets) if (envUniforms[k]) envUniforms[k].value = _presetTargets[k];
+          _presetLerpActive = false;
+        }
+      }
       if (currentDimension === 'sift' && !_runAiSynth) tickDreamRainbow(elapsed);
       if (!_runAiSynth && typeof updateAmbientSoundscape === 'function') {
         animate._ambAcc = (animate._ambAcc || 0) + rawDt;
@@ -2014,7 +2050,7 @@
     const _runPreviewThisFrame = (_previewAcc >= 0.016);
     if (_runPreviewThisFrame) _previewAcc = 0;
     if (worldSimActive) {
-      const moveDt = Math.min(0.05, rawDt);
+      const moveDt = Math.min(0.036, (rawDt > dt * 1.65) ? (dt * 1.35 + rawDt * 0.15) : rawDt);
       if (_runAiSynth) {
         updatePlayer(moveDt);
         _refreshCamFrustum();
@@ -2166,10 +2202,10 @@
             const playerActing = (player.swingT || 0) > 0.001 || !!player.swordAtkActive || !!player.bowDrawing || (player.blockingT || 0) > 0 || (player.hurtAnimT || 0) > 0 || (player.landAnimT || 0) > 0 || (player.jumpPopT || 0) > 0 || !player.onGround || (player.curSpeed || 0) > 0.04;
             const playerDynamicShadow = avatarVis && (pDeltaPos || pDeltaYaw || playerActing);
             const hasDynamicShadow = _hasActiveFlyingBoss || playerDynamicShadow || !!window._hasActiveNearShadowMob || _hasRemoteSh;
-            const terrainCamMoved = Math.abs(player.x - _lastShX) > 0.14 || Math.abs(player.y - _lastShY) > 0.14 || Math.abs(player.z - _lastShZ) > 0.14 || Math.abs(dayTime - _lastShTime) > 0.0018;
-            const shInterval = (hasDynamicShadow || terrainCamMoved)
+            const terrainCamMoved = Math.abs(player.x - _lastShX) > 0.65 || Math.abs(player.y - _lastShY) > 0.65 || Math.abs(player.z - _lastShZ) > 0.65 || Math.abs(dayTime - _lastShTime) > 0.0022;
+            const shInterval = hasDynamicShadow
               ? _shMinSec
-              : ((inLobby || isWorldLoading) ? 0.05 : 0.25);
+              : (terrainCamMoved ? Math.max(0.032, _shMinSec) : ((inLobby || isWorldLoading) ? 0.05 : 0.25));
             if (_shadowAcc >= shInterval) {
               _shadowAcc = 0;
               renderer.shadowMap.needsUpdate = true;

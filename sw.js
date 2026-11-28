@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nucraft-v202';
+const CACHE_NAME = 'nucraft-v203';
 const ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const ASSETS = [
   './src/config.js',
   './src/world/chunkWorker.js',
   './assets/nucraft_app.min.js',
-  './assets/nucraft_core.wasm?v=193',
+  './assets/nucraft_core.wasm?v=203',
   './assets/three.min.js',
   './assets/player_skins_bundle.js',
   './assets/mc_icons_bundle.js',

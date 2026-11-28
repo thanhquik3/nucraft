@@ -528,7 +528,7 @@
   // Crisp 16x16 Pixel-Art Terrain Material w/ Linear-Rich BSL/Complementary Albedo, Warm Sun vs Soft Balanced Shadows & Anti-Glare Shoulder
   const terrainMat = new THREE.MeshStandardMaterial({
     map: atlasTex,
-    bumpMap: (bumpEnabled && shaderQuality !== 'low') ? bumpTex : null,
+    bumpMap: bumpTex,
     bumpScale: (bumpEnabled && shaderQuality !== 'low') ? 0.056 : 0.0,
     alphaTest: 0.45,
     roughness: 0.90,
@@ -610,6 +610,7 @@
         uniform sampler2D bumpMap;
         uniform float bumpScale;
         vec2 dHdxy_fwd() {
+          if ( bumpScale <= 0.0001 ) return vec2( 0.0 );
           vec2 bUv = vUv;
           vec2 dSTdx = dFdx( vUv );
           vec2 dSTdy = dFdy( vUv );

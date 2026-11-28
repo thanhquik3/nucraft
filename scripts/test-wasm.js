@@ -235,6 +235,9 @@ function jsGetGrandRuinsSurfaceY(wx, wz, seed) {
   const detail = jsValueNoise2D(wx * 0.052, wz * 0.052, seed + 9209);
   return Math.floor(16 + (hill * 18 + detail * 3.0) * (0.35 + 0.65 * edgeBlend));
 }
+function jsIsGrandCitadel(wx, wz) {
+  return wx >= 11500 && wx <= 12500 && wz >= -12500 && wz <= -11500;
+}
 function jsGetOceanMacro(wx, wz, seed) {
   const a = Math.imul((seed || 1) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
   const b = Math.imul((seed || 1) ^ 0xc2b2ae35, 0x27d4eb2f) >>> 0;
@@ -242,13 +245,20 @@ function jsGetOceanMacro(wx, wz, seed) {
   const spawnLift = dSp < 580 ? Math.max(0, 1.0 - dSp / 580) * 0.44 : 0.0;
   const dRuins = Math.hypot(wx + 3000, wz + 3000);
   const ruinsLift = dRuins < 1120 ? Math.max(0, 1.0 - Math.max(0, dRuins - 780) / 340) * 0.56 : 0.0;
+  const dCit = Math.hypot(wx - 12000, wz + 12000);
+  const citadelLift = dCit < 1260 ? Math.max(0, 1.0 - Math.max(0, dCit - 860) / 400) * 0.62 : 0.0;
+  const dWheat = Math.max(Math.abs(wx - 10000), Math.abs(wz - 10000));
+  const wheatLift = dWheat < 1420 ? Math.max(0, 1.0 - Math.max(0, dWheat - 1100) / 320) * 0.58 : 0.0;
+  const dCity = Math.max(Math.abs(wx - 4500), Math.abs(wz - 4500));
+  const cityLift = dCity < 2920 ? Math.max(0, 1.0 - Math.max(0, dCity - 2620) / 300) * 0.58 : 0.0;
+  const landGuard = Math.max(ruinsLift, citadelLift, wheatLift, cityLift);
   const macro = jsFbm2D(wx * 0.000105, wz * 0.000105, 3, 0.52, 2.0, seed + 4111);
   const coastJitter = (jsFbm2D(wx * 0.0014, wz * 0.0014, 2, 0.5, 2.0, seed + 411) - 0.5) * 0.14;
-  const seaVal = macro + coastJitter + spawnLift + ruinsLift;
+  const seaVal = macro + coastJitter + spawnLift + landGuard;
   const isOcean = seaVal < 0.47;
   const openness = isOcean ? Math.max(0, Math.min(1, (0.47 - seaVal) / 0.22)) : 0;
   const ridge = jsFbm2D(wx * 0.0011, wz * 0.0011, 2, 0.5, 2.0, seed + 4157);
-  return { isOcean, openness, trenchFactor: Math.max(0, 1.0 - Math.abs(ridge - 0.5) * 3.8) };
+  return { isOcean, openness, trenchFactor: Math.max(0, 1.0 - Math.abs(ridge - 0.5) * 3.8), landGuard };
 }
 function jsGetOceanIsland(wx, wz, openness, seed) {
   if (openness <= 0.08) return null;
@@ -313,6 +323,7 @@ function jsOverworldBiomeAt(wx, wz, seed) {
   if (wx >= 9000 && wx < 11000 && wz >= 9000 && wz < 11000) return B_IDS.WHEAT_VALLEY;
   if (wx >= 2000 && wx <= 7000 && wz >= 2000 && wz <= 7000) return B_IDS.ABANDONED_CITY;
   if (wx >= -3504 && wx <= -2497 && wz >= -3504 && wz <= -2497) return B_IDS.GRAND_RUINS;
+  if (jsIsGrandCitadel(wx, wz)) return B_IDS.PLAINS;
   const oMac = jsGetOceanMacro(wx, wz, seed);
   if (oMac.isOcean) {
     const isl = jsGetOceanIsland(wx, wz, oMac.openness, seed);
@@ -322,7 +333,7 @@ function jsOverworldBiomeAt(wx, wz, seed) {
   const warpX = (jsValueNoise2D(wx * 0.0016, wz * 0.0016, seed + 511) - 0.5) * 140.0;
   const warpZ = (jsValueNoise2D(wx * 0.0016 + 19.7, wz * 0.0016 - 23.1, seed + 523) - 0.5) * 140.0;
   const bx = wx + warpX, bz = wz + warpZ;
-  const coast = jsFbm2D(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, seed + 411);
+  const coast = jsFbm2D(bx * 0.00055, bz * 0.00055, 2, 0.5, 2.0, seed + 411) + (oMac.landGuard || 0) * 0.45;
   const humid = jsFbm2D(bx * 0.00048 + 3.1, bz * 0.00048 - 2.7, 2, 0.5, 2.0, seed + 202);
   const heat = jsFbm2D(bx * 0.00045 - 4.3, bz * 0.00045 + 5.9, 2, 0.5, 2.0, seed + 101);
   const spookyBand = jsFbm2D(bx * 0.00095 + 11.1, bz * 0.00095 - 7.3, 2, 0.5, 2.0, seed + 677);
@@ -382,6 +393,7 @@ function jsOverworldBiomeAt(wx, wz, seed) {
 function jsOverworldRawHeight(wx, wz, biome, seed) {
   if (biome === B_IDS.ABANDONED_CITY) return 2;
   if (biome === B_IDS.GRAND_RUINS) return jsGetGrandRuinsSurfaceY(wx, wz, seed);
+  if (jsIsGrandCitadel(wx, wz)) return 6;
   if (wx >= 9000 && wx < 11000 && wz >= 9000 && wz < 11000) {
     const hill = jsFbm2D(wx * 0.0055, wz * 0.0055, 2, 0.5, 2.0, seed + 881);
     const wave = jsValueNoise2D(wx * 0.018, wz * 0.018, seed + 883);
@@ -456,6 +468,7 @@ function jsOverworldRawHeight(wx, wz, biome, seed) {
 function jsOverworldTerrainHeight(wx, wz, biome, seed) {
   if (biome === B_IDS.ABANDONED_CITY) return 2;
   if (biome === B_IDS.GRAND_RUINS) return jsGetGrandRuinsSurfaceY(wx, wz, seed);
+  if (jsIsGrandCitadel(wx, wz)) return 6;
   const b1 = jsOverworldBiomeAt(wx + 8, wz, seed), b2 = jsOverworldBiomeAt(wx - 8, wz, seed);
   const b3 = jsOverworldBiomeAt(wx, wz + 8, seed), b4 = jsOverworldBiomeAt(wx, wz - 8, seed);
   const b5 = jsOverworldBiomeAt(wx + 20, wz, seed), b6 = jsOverworldBiomeAt(wx - 20, wz, seed);
@@ -718,7 +731,10 @@ async function main() {
   fillTerrainBids(terrainBidsView);
   acCoordsView.set([240, 240, -240, 240, -240, -240, 240, -240]);
   const testSeeds = [1337, 424242, 987654321];
-  const testPoints = [[0, 0], [32, -48], [-224, 336], [10000, 10000], [2500, 2500], [-3000, -3000], [1400, -1800], [640, 720]];
+  const testPoints = [
+    [0, 0], [32, -48], [-224, 336], [10000, 10000], [2500, 2500], [-3000, -3000], [1400, -1800], [640, 720],
+    [12000, -12000], [12540, -12000], [11460, -12000], [12000, -12560], [12000, -11440]
+  ];
   for (const sd of testSeeds) {
     for (const [tx, tz] of testPoints) {
       const jb = jsOverworldBiomeAt(tx, tz, sd);
@@ -727,6 +743,9 @@ async function main() {
       const jh = jsOverworldTerrainHeight(tx, tz, jb, sd);
       const wh = w.overworld_terrain_height(tx, tz, sd, MIN_Y, MAX_Y, WATER_LEVEL);
       assert.strictEqual(wh, jh, `Height mismatch at (${tx},${tz}) seed=${sd}: js=${jh} wasm=${wh}`);
+      if (tx >= 11400 && tx <= 12600 && tz >= -12600 && tz <= -11400) {
+        assert(!jsGetOceanMacro(tx, tz, sd).isOcean && jb !== B_IDS.DEEP_OCEAN && jb !== B_IDS.ABYSS_TRENCH, `Citadel area (${tx},${tz}) must never be ocean on seed ${sd}`);
+      }
     }
   }
   // Base chunk check across diverse chunks (normal terrain, wheat mega plain, ocean)
