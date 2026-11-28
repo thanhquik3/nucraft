@@ -1061,20 +1061,27 @@
       }
       if (_getP2PRoomRelays(m)) {
         const isRelEphem = (m.type === 'state');
-        const relay = { ...m, _from: fromId, _relayBy: localPeerId };
-        for (const [cid, c] of p2pClientConns.entries()) {
-          if (cid !== senderId && _canSendP2P(c, isRelEphem)) { try { c.send(relay); } catch (_) {} }
-        }
-        if (viaTransport !== 'mqtt' && mqttRoomTopic && mqttRoomPeers.size > 0) {
-          const nowR = performance.now();
-          const prevR = _mqttRelayStateAt.get(fromId) || 0;
-          if (!isRelEphem || (nowR - prevR) >= 78) {
-            if (isRelEphem) _mqttRelayStateAt.set(fromId, nowR);
-            ncMqtt.publish(mqttRoomTopic, relay, false, isRelEphem);
+        const needP2PRelay = p2pClientConns.size > (viaTransport === 'p2p' ? 1 : 0);
+        const needMqttRelay = (viaTransport !== 'mqtt' && !!mqttRoomTopic && mqttRoomPeers.size > 0);
+        const needWsRelay = (viaTransport !== 'ws' && m.type !== 'state' && !!wsConn && wsConn.readyState === 1);
+        if (needP2PRelay || needMqttRelay || needWsRelay) {
+          const relay = { ...m, _from: fromId, _relayBy: localPeerId };
+          if (needP2PRelay) {
+            for (const [cid, c] of p2pClientConns.entries()) {
+              if (cid !== senderId && _canSendP2P(c, isRelEphem)) { try { c.send(relay); } catch (_) {} }
+            }
           }
-        }
-        if (viaTransport !== 'ws' && m.type !== 'state' && wsConn && wsConn.readyState === 1) {
-          try { wsConn.send(JSON.stringify(m)); } catch (_) {}
+          if (needMqttRelay) {
+            const nowR = performance.now();
+            const prevR = _mqttRelayStateAt.get(fromId) || 0;
+            if (!isRelEphem || (nowR - prevR) >= 78) {
+              if (isRelEphem) _mqttRelayStateAt.set(fromId, nowR);
+              ncMqtt.publish(mqttRoomTopic, relay, false, isRelEphem);
+            }
+          }
+          if (needWsRelay) {
+            try { wsConn.send(JSON.stringify(m)); } catch (_) {}
+          }
         }
       }
       if (m.type === 'player_save' && m.playerKey && m.playerState) {

@@ -5313,7 +5313,16 @@
   }
   function markChunkBorderDirty(cx, cz) {
     const c = chunks.get(chunkKey(cx, cz));
-    if (c && !c.dirty) { c.borderDirty = true; c._meshGen = (c._meshGen || 0) + 1; _borderChunkSet.add(c); }
+    if (!c) return;
+    if (!c.dirty) {
+      c.borderDirty = true;
+      c._meshGen = (c._meshGen || 0) + 1;
+      _borderChunkSet.add(c);
+    } else if (c._meshInFlightGen === (c._meshGen || 0)) {
+      // Neighbor arrived while worker was meshing stale border -> invalidate in-flight job so chunk remeshes with neighbor!
+      c._meshGen = (c._meshGen || 0) + 1;
+      c._meshInFlightGen = -1;
+    }
   }
   function getBlockWorld(wx, wy, wz) {
     if (wy < MIN_Y) return currentDimension === 'end' ? B.AIR : B.BEDROCK; if (wy > MAX_Y) return B.AIR;
@@ -5455,8 +5464,10 @@
         if (typeof showToast === 'function') showToast('🛏️ Giường hồi sinh đã bị phá! Điểm hồi sinh đặt lại.');
       }
     }
-    c.dirty = true; c.urgentDirty = true; c._meshGen = (c._meshGen || 0) + 1;
-    _dirtyChunkSet.add(c); _urgentChunkSet.add(c);
+    const _nearLocalEdit = !isApplyingRemoteBlock || (typeof player !== 'undefined' && player && Math.abs(cx - (Math.floor(player.x) >> 4)) <= 3 && Math.abs(cz - (Math.floor(player.z) >> 4)) <= 3);
+    c.dirty = true; c._meshGen = (c._meshGen || 0) + 1; c._meshInFlightGen = -1;
+    _dirtyChunkSet.add(c);
+    if (_nearLocalEdit) { c.urgentDirty = true; _urgentChunkSet.add(c); }
     const hk = modKey(wx, wy, wz);
     if ((prevId === B.WATER || prevId === B.LAVA) && id !== prevId) {
       fluidLevel.delete(hk);
@@ -5473,8 +5484,8 @@
     const margin = !isLightChange ? 0
       : ((id === B.LANTERN || prevId === B.LANTERN) ? 20
         : ((id === B.TORCH_BLOCK || prevId === B.TORCH_BLOCK || id === B.SOUL_LANTERN || prevId === B.SOUL_LANTERN) ? 18 : 14));
-    if (lx <= margin) markChunkDirty(cx - 1, cz, true); if (lx >= 15 - margin) markChunkDirty(cx + 1, cz, true);
-    if (lz <= margin) markChunkDirty(cx, cz - 1, true); if (lz >= 15 - margin) markChunkDirty(cx, cz + 1, true);
+    if (lx <= margin) markChunkDirty(cx - 1, cz, _nearLocalEdit); if (lx >= 15 - margin) markChunkDirty(cx + 1, cz, _nearLocalEdit);
+    if (lz <= margin) markChunkDirty(cx, cz - 1, _nearLocalEdit); if (lz >= 15 - margin) markChunkDirty(cx, cz + 1, _nearLocalEdit);
     if (isLightChange) {
       if (lx <= margin && lz <= margin) markChunkDirty(cx - 1, cz - 1);
       if (lx >= 15 - margin && lz <= margin) markChunkDirty(cx + 1, cz - 1);
@@ -6851,6 +6862,21 @@
       }
     }
 
+    // Periodic self-healing sweep (every 90 frames): guarantee zero missing/unmeshed invisible chunks inside renderDistance!
+    if (!movedChunk && !isWorldLoading && (frameCounter % 90) === 0) {
+      for (let dz = -renderDistance; dz <= renderDistance; dz++) {
+        for (let dx = -renderDistance; dx <= renderDistance; dx++) {
+          const cx = pcx + dx, cz = pcz + dz, k = chunkKey(cx, cz);
+          const ch = chunks.get(k);
+          if (!ch) {
+            if (!emergeSet.has(k)) { emergeSet.add(k); emergeQueue.push([cx, cz]); }
+          } else if (!ch.meshed && !ch.dirty && !ch.urgentDirty) {
+            ch.dirty = true; ch._meshInFlightGen = -1; _dirtyChunkSet.add(ch);
+          }
+        }
+      }
+    }
+
     // O(D) scan over dirty/urgent/border chunk sets only (never scans untouched loaded chunks!)
     let urgentCh = null, dirtyCh = null, dirtyScore = 1e9, dirtyCh2 = null, dirtyScore2 = 1e9, borderCh = null, borderScore = 1e9;
     for (const ch of _urgentChunkSet) {
@@ -6860,7 +6886,16 @@
     if (!urgentCh) {
       for (const ch of _dirtyChunkSet) {
         if (!ch.dirty) { _dirtyChunkSet.delete(ch); continue; }
-        if (ch._meshInFlightGen === (ch._meshGen || 0)) continue;
+        if (ch._meshInFlightGen === (ch._meshGen || 0)) {
+          // Watchdog: if worker mesh job took >2.0s (dropped/stalled), release & fall back cleanly so chunk NEVER stays invisible!
+          if ((tBudgetStart - (ch._meshInFlightAt || 0)) > 2000) {
+            ch._meshInFlightGen = -1;
+            ch._workerTimeouts = (ch._workerTimeouts || 0) + 1;
+            if (ch._workerTimeouts >= 2) ch._skipWorkerMesh = true;
+          } else {
+            continue;
+          }
+        }
         let sc = _chunkFrustumScore(ch.cx, ch.cz, pcx, pcz, fwdX, fwdZ, acx, acz);
         if (ch._pendingSlice) sc *= 0.35;
         if (sc < dirtyScore) { dirtyScore2 = dirtyScore; dirtyCh2 = dirtyCh; dirtyScore = sc; dirtyCh = ch; }
@@ -6869,7 +6904,15 @@
       if (!dirtyCh) {
         for (const ch of _borderChunkSet) {
           if (!ch.borderDirty) { _borderChunkSet.delete(ch); continue; }
-          if (ch._meshInFlightGen === (ch._meshGen || 0)) continue;
+          if (ch._meshInFlightGen === (ch._meshGen || 0)) {
+            if ((tBudgetStart - (ch._meshInFlightAt || 0)) > 2000) {
+              ch._meshInFlightGen = -1;
+              ch._workerTimeouts = (ch._workerTimeouts || 0) + 1;
+              if (ch._workerTimeouts >= 2) ch._skipWorkerMesh = true;
+            } else {
+              continue;
+            }
+          }
           const sc = _chunkFrustumScore(ch.cx, ch.cz, pcx, pcz, fwdX, fwdZ, acx, acz);
           if (sc < borderScore) { borderScore = sc; borderCh = ch; }
         }
@@ -6878,7 +6921,7 @@
 
     if (urgentCh) {
       window._chunkBuiltThisFrame = true;
-      flushUrgentChunks(_isMobilePerf ? 3 : 6);
+      flushUrgentChunks(_isMobilePerf ? 3 : 5, false, _isMobilePerf ? 2.5 : 3.5);
       if (typeof farLodSystem !== 'undefined') farLodSystem.update(pcx, pcz);
       return;
     }

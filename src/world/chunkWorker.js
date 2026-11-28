@@ -241,7 +241,7 @@ function _handleMsg(m) {
   if (m.type === 'mesh_solid') {
     const v = _syncWorkerViews();
     if (!_wasm || !_lutsReady || !_wasm.mesh_chunk_solid || !v || v.abi < 4 || !v.chunkData || !v.borderBuf || !v.meshPos || !v.meshMeta || !v.specVox) {
-      self.postMessage({ type: 'mesh_solid_err', key: m.key, epoch: m.epoch, meshGen: m.meshGen });
+      self.postMessage({ type: 'mesh_solid_err', key: m.key, epoch: m.epoch, meshGen: m.meshGen, cx: m.cx | 0, cz: m.cz | 0, noWasm: !_wasm, overflow: false });
       return;
     }
     v.chunkData.fill(0);
@@ -256,7 +256,7 @@ function _handleMsg(m) {
       m.lavaId & 0xffff, m.bedrockId & 0xffff, m.deepslateId & 0xffff, m.blkSolidFlag & 0xffff
     ) >>> 0;
     if (ret === 0xFFFFFFFF || v.meshMeta[3] !== 0) {
-      self.postMessage({ type: 'mesh_solid_err', key: m.key, epoch: m.epoch, meshGen: m.meshGen });
+      self.postMessage({ type: 'mesh_solid_err', key: m.key, epoch: m.epoch, meshGen: m.meshGen, cx: m.cx | 0, cz: m.cz | 0, noWasm: false, overflow: true });
       return;
     }
     const vCount = v.meshMeta[0] >>> 0;

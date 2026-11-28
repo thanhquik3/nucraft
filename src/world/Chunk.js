@@ -1457,8 +1457,16 @@
     const completedMeshes = [];
     const workers = [];
     const workerLutsSent = [];
-    let rr = 0, seq = 0, workerHits = 0, active = false, blobUrl = null, _worldEpoch = 1;
+    let rr = 0, seq = 0, workerHits = 0, active = false, workerMeshSupported = true, blobUrl = null, _worldEpoch = 1;
     let _lodCb = null, _lodInFlight = false;
+    const _releaseAllInFlightMeshes = () => {
+      inFlightMesh.clear();
+      if (typeof chunks !== 'undefined' && chunks) {
+        for (const ch of chunks.values()) {
+          if (ch && ch._meshInFlightGen !== -1) ch._meshInFlightGen = -1;
+        }
+      }
+    };
     const _sendLutsToWorker = (wi, luts) => {
       if (!luts || workerLutsSent[wi]) return;
       workers[wi].postMessage({
@@ -1509,10 +1517,26 @@
                 inFlightMesh.delete(d.key);
                 if (d.type === 'mesh_solid_ok' && d.epoch === _worldEpoch) {
                   completedMeshes.push(d);
-                  if (completedMeshes.length > 48) completedMeshes.shift();
+                  if (completedMeshes.length > 128) {
+                    // Always unlock evicted chunk so it NEVER stays permanently stuck invisible in-flight!
+                    const ev = completedMeshes.shift();
+                    if (ev && ev.epoch === _worldEpoch) {
+                      const evCh = chunks.get(chunkKey(ev.cx, ev.cz));
+                      if (evCh && evCh._meshInFlightGen === ev.meshGen) evCh._meshInFlightGen = -1;
+                    }
+                  }
                 } else if (d.type === 'mesh_solid_err' && d.epoch === _worldEpoch) {
-                  const ch = chunks.get(chunkKey(d.cx, d.cz));
-                  if (ch) ch._meshInFlightGen = -1;
+                  if (d.noWasm) {
+                    // Worker lacks WASM (e.g. file:// offline build): disable worker solid meshing & release all chunks to main thread!
+                    workerMeshSupported = false;
+                    _releaseAllInFlightMeshes();
+                  } else {
+                    const ch = chunks.get(chunkKey(d.cx, d.cz));
+                    if (ch) {
+                      ch._meshInFlightGen = -1;
+                      if (d.overflow) ch._skipWorkerMesh = true; // Dense chunk overflowed 65k WASM buffer -> fall back to dynamic JS mesher!
+                    }
+                  }
                 }
                 return;
               }
@@ -1531,7 +1555,7 @@
                 if (oldest !== undefined) cache.delete(oldest);
               }
             };
-            w.onerror = () => { active = false; };
+            w.onerror = () => { active = false; workerMeshSupported = false; _releaseAllInFlightMeshes(); };
             workers.push(w);
           }
           active = workers.length > 0;
@@ -1624,13 +1648,14 @@
         return res;
       },
       enqueueMesh(ch, maxLy, borderBuf, emitters, emitLen, flagsBits, autumnCell) {
-        if (!active || !ch || !ch.data || inFlightMesh.size >= Math.max(24, workers.length * 10)) return false;
+        if (!active || !workerMeshSupported || !ch || !ch.data || ch._skipWorkerMesh || inFlightMesh.size >= Math.max(24, workers.length * 10)) return false;
         if (!_ensureAllLuts()) return false;
         const mGen = ch._meshGen || 0;
         const key = `${_worldEpoch}:${ch.cx},${ch.cz}:${mGen}`;
         if (inFlightMesh.has(key) || ch._meshInFlightGen === mGen) return true;
         inFlightMesh.add(key);
         ch._meshInFlightGen = mGen;
+        ch._meshInFlightAt = performance.now();
         const sliceLen = Math.min(ch.data.length, (maxLy + 1) << 8);
         const dataCopy = ch.data.slice(0, sliceLen);
         const borderCopy = borderBuf.slice(0);
@@ -1673,12 +1698,27 @@
       drainCompletedMeshes(maxApply = 4, budgetMs = 1.6) {
         let applied = 0;
         const t0 = performance.now();
+        if (completedMeshes.length > 3 && typeof player !== 'undefined' && player) {
+          // Sort farthest-first so .pop() applies the closest visible chunks right in front of the player first!
+          const pcx = Math.floor(player.x) >> 4, pcz = Math.floor(player.z) >> 4;
+          completedMeshes.sort((a, b) =>
+            ((b.cx - pcx) * (b.cx - pcx) + (b.cz - pcz) * (b.cz - pcz)) -
+            ((a.cx - pcx) * (a.cx - pcx) + (a.cz - pcz) * (a.cz - pcz))
+          );
+        }
         while (completedMeshes.length > 0 && applied < maxApply && (applied === 0 || (performance.now() - t0) < budgetMs)) {
-          const rep = completedMeshes.shift();
+          const rep = completedMeshes.pop();
           if (!rep || rep.epoch !== _worldEpoch) continue;
           const ch = chunks.get(chunkKey(rep.cx, rep.cz));
-          if (!ch || !ch.data || rep.meshGen !== (ch._meshGen || 0)) continue;
-          if (!ch.dirty && !ch.borderDirty && !ch.urgentDirty && ch.meshed) continue;
+          if (!ch || !ch.data) continue;
+          if (rep.meshGen !== (ch._meshGen || 0)) {
+            if (ch._meshInFlightGen === rep.meshGen) ch._meshInFlightGen = -1;
+            continue;
+          }
+          if (!ch.dirty && !ch.borderDirty && !ch.urgentDirty && ch.meshed) {
+            ch._meshInFlightGen = -1;
+            continue;
+          }
           ch._meshInFlightGen = -1;
           rebuildChunkMesh(ch, rep);
           _nucraftWasmState.workerMeshHits++;
@@ -1924,6 +1964,17 @@
       disposeChunkMeshes(prev, true);
       _freeChunkData(prev);
     }
+    // Verify ch.maxLy covers every non-air voxel (prevents tall tree tops, structures, or mods above maxLy from turning invisible!)
+    if (ch.data && ch.maxLy < WORLD_H - 1) {
+      const d = ch.data;
+      const curTop = Math.max(0, ch.maxLy | 0);
+      outerTop: for (let ly = WORLD_H - 1; ly > curTop; ly--) {
+        const base = ly << 8;
+        for (let i = 0; i < 256; i++) {
+          if (d[base | i] !== 0) { ch.maxLy = ly; break outerTop; }
+        }
+      }
+    }
     chunks.set(k, ch);
     _invChunkCache();
     if (ch.dirty) _dirtyChunkSet.add(ch);
@@ -1933,8 +1984,9 @@
     return ch;
   }
   const _flushScratch = [];
-  function flushUrgentChunks(maxRebuilds = 8, includeDirty = false) {
+  function flushUrgentChunks(maxRebuilds = 8, includeDirty = false, budgetMs = 0) {
     let rebuilt = 0;
+    const t0 = budgetMs > 0 ? performance.now() : 0;
     const pcx = (typeof player !== 'undefined' && player) ? (Math.floor(player.x) >> 4) : 0;
     const pcz = (typeof player !== 'undefined' && player) ? (Math.floor(player.z) >> 4) : 0;
     const _byDist = (a, b) => ((a.cx - pcx) * (a.cx - pcx) + (a.cz - pcz) * (a.cz - pcz)) - ((b.cx - pcx) * (b.cx - pcx) + (b.cz - pcz) * (b.cz - pcz));
@@ -1946,7 +1998,7 @@
       const ch = _flushScratch[i];
       if (ch.urgentDirty || (includeDirty && ch.dirty)) {
         rebuildChunkMesh(ch);
-        if (++rebuilt >= maxRebuilds) { _flushScratch.length = 0; return; }
+        if (++rebuilt >= maxRebuilds || (budgetMs > 0 && (performance.now() - t0) >= budgetMs)) { _flushScratch.length = 0; return; }
       } else {
         _urgentChunkSet.delete(ch);
       }
@@ -1959,7 +2011,7 @@
         const ch = _flushScratch[i];
         if (ch.dirty || ch.urgentDirty) {
           rebuildChunkMesh(ch);
-          if (++rebuilt >= maxRebuilds) { _flushScratch.length = 0; return; }
+          if (++rebuilt >= maxRebuilds || (budgetMs > 0 && (performance.now() - t0) >= budgetMs)) { _flushScratch.length = 0; return; }
         } else {
           _dirtyChunkSet.delete(ch);
         }
@@ -3623,7 +3675,7 @@
     return { bits, allOceanNbr };
   }
   function _dispatchChunkMeshToWorker(ch) {
-    if (!chunkWorkerPool.active || !ch || !ch.data || ch._pendingSlice) return false;
+    if (!chunkWorkerPool.active || !ch || !ch.data || ch._pendingSlice || ch._skipWorkerMesh) return false;
     const cx = ch.cx, cz = ch.cz, wx0 = cx * CHUNK_W, wz0 = cz * CHUNK_W, data = ch.data;
     const maxLy = Math.min(WORLD_H - 1, ch.maxLy);
     const emLen = _scanChunkEmitters(ch, cx, cz, wx0, wz0, data, maxLy);
